@@ -15,10 +15,12 @@ const BS_PILL = {
   lg: "text-sm px-2.5 py-1",
 };
 
+// Yellow-on-navy so the "corporate yellow" text stays legible — plain
+// yellow text on the page's near-white background would be washed out.
 const WHOLESALE_BOX = {
-  sm: "mt-1.5 gap-1.5 px-2 py-1",
-  md: "mt-2 gap-2 px-2.5 py-1.5",
-  lg: "mt-3 gap-2.5 px-3.5 py-2",
+  sm: "mt-1.5 gap-1.5 rounded-md px-2 py-1",
+  md: "mt-2 gap-2 rounded-md px-2.5 py-1.5",
+  lg: "mt-3 gap-2.5 rounded-lg border border-brand-yellow/30 px-4 py-3",
 };
 
 const WHOLESALE_LABEL = {
@@ -63,10 +65,10 @@ export function PriceTag({
         )}
       </div>
 
-      <div className={`flex items-center rounded-md bg-brand-surface ${WHOLESALE_BOX[size]}`}>
+      <div className={`flex items-center bg-brand-navy ${WHOLESALE_BOX[size]}`}>
         <Tag className="h-3.5 w-3.5 shrink-0 text-brand-yellow" />
-        <span className={`font-medium text-brand-navy/70 ${WHOLESALE_LABEL[size]}`}>Mayorista</span>
-        <span className={`font-bold leading-none tabular-nums text-brand-navy ${WHOLESALE_AMOUNT[size]}`}>
+        <span className={`font-medium text-brand-yellow/80 ${WHOLESALE_LABEL[size]}`}>Mayorista</span>
+        <span className={`font-bold leading-none tabular-nums text-brand-yellow ${WHOLESALE_AMOUNT[size]}`}>
           {formatMoney(product.wholesalePrice)}
         </span>
       </div>
