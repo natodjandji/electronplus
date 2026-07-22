@@ -1,0 +1,41 @@
+mutation CreateSeedData @transaction {
+  user_insertMany(data: [
+    {
+      id: "550e8400-e29b-41d4-a716-446655440000",
+      email: "alice@example.com",
+      displayName: "Alice"
+    },
+    {
+      id: "550e8400-e29b-41d4-a716-446655440001",
+      email: "bob@example.com",
+      displayName: "Bob"
+    }
+  ])
+  product_insertMany(data: [
+    {
+      id: "a0eebc99-9c0b-4ef8-bb6d-6bb9bd380a11",
+      name: "Laptop",
+      price: 999.99,
+      stockQuantity: 10
+    },
+    {
+      id: "a0eebc99-9c0b-4ef8-bb6d-6bb9bd380a12",
+      name: "Headphones",
+      price: 199.50,
+      stockQuantity: 50
+    }
+  ])
+  cart_insertMany(data: [
+    {
+      id: "b1eebc99-9c0b-4ef8-bb6d-6bb9bd380b22",
+      userId: "550e8400-e29b-41d4-a716-446655440000"
+    }
+  ])
+  cartItem_insertMany(data: [
+    {
+      cartId: "b1eebc99-9c0b-4ef8-bb6d-6bb9bd380b22",
+      productId: "a0eebc99-9c0b-4ef8-bb6d-6bb9bd380a11",
+      quantity: 1
+    }
+  ])
+}

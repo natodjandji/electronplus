@@ -1,0 +1,27 @@
+mutation CreateUser($email: String!, $displayName: String!) @auth(level: PUBLIC) {
+  user_insert(data: { email: $email, displayName: $displayName })
+}
+
+mutation CreateProduct($name: String!, $price: Float!, $stockQuantity: Int!) @auth(expr: "auth.token.admin == true") {
+  product_insert(data: { name: $name, price: $price, stockQuantity: $stockQuantity })
+}
+
+mutation AddToCart($productId: UUID!, $quantity: Int!) @auth(level: USER) {
+  cartItem_insert(data: {
+    cart: { id_expr: "auth.uid" },
+    product: { id: $productId },
+    quantity: $quantity
+  })
+}
+
+query GetMyCart @auth(level: USER) {
+  cart(key: { id_expr: "auth.uid" }) {
+    cartItems_on_cart {
+      quantity
+      product {
+        name
+        price
+      }
+    }
+  }
+}

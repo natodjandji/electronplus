@@ -1,0 +1,44 @@
+import { z } from 'zod';
+
+export const envSchema = z.object({
+  NODE_ENV: z.enum(['development', 'test', 'production']).default('development'),
+  PORT: z.coerce.number().default(3000),
+  API_PREFIX: z.string().default('api'),
+
+  REDIS_URL: z.string().min(1, 'REDIS_URL is required'),
+
+  FIREBASE_PROJECT_ID: z.string().min(1, 'FIREBASE_PROJECT_ID is required'),
+  // Base64-encoded service-account JSON. If omitted, falls back to
+  // GOOGLE_APPLICATION_CREDENTIALS (a key file path) or the ambient
+  // metadata server when running on GCP.
+  FIREBASE_SERVICE_ACCOUNT_BASE64: z.string().optional(),
+
+  API_PUBLIC_URL: z.string().default('http://localhost:3000/api'),
+
+  PROFIT_PLUS_ADAPTER: z.enum(['mock', 'db', 'api']).default('mock'),
+  PROFIT_PLUS_SYNC_CRON: z.string().default('*/15 * * * *'),
+  PROFIT_PLUS_DB_URL: z.string().optional(),
+  PROFIT_PLUS_API_URL: z.string().optional(),
+  PROFIT_PLUS_API_KEY: z.string().optional(),
+
+  LOW_STOCK_DEFAULT_THRESHOLD: z.coerce.number().default(10),
+
+  PAYPAL_CLIENT_ID: z.string().optional(),
+  PAYPAL_CLIENT_SECRET: z.string().optional(),
+  PAYPAL_ENV: z.enum(['sandbox', 'live']).default('sandbox'),
+
+  CORS_ORIGIN: z.string().default('*'),
+});
+
+export type EnvConfig = z.infer<typeof envSchema>;
+
+export function validateEnv(config: Record<string, unknown>): EnvConfig {
+  const parsed = envSchema.safeParse(config);
+  if (!parsed.success) {
+    const message = parsed.error.issues
+      .map((issue) => `${issue.path.join('.')}: ${issue.message}`)
+      .join('\n');
+    throw new Error(`Invalid environment configuration:\n${message}`);
+  }
+  return parsed.data;
+}

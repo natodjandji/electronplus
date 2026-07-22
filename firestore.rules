@@ -1,0 +1,165 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // ---------- helpers ----------
+
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function userDoc(uid) {
+      return get(/databases/$(database)/documents/users/$(uid)).data;
+    }
+
+    function userRole() {
+      return isSignedIn() ? userDoc(request.auth.uid).role : null;
+    }
+
+    function isAdmin() {
+      return isSignedIn() && userRole() == 'admin';
+    }
+
+    function isWarehouseOperator() {
+      return isSignedIn() && userRole() == 'warehouse_operator';
+    }
+
+    function isOps() {
+      return isAdmin() || isWarehouseOperator();
+    }
+
+    function isOwner(uid) {
+      return isSignedIn() && request.auth.uid == uid;
+    }
+
+    function isNonNegativeNumber(value) {
+      return (value is int || value is float) && value >= 0;
+    }
+
+    // ---------- users ----------
+    // Read: self or admin. Create: self only, always starting as
+    // client (no self-elevation on signup). Update: self may only
+    // touch profile fields; only admin may change role/credit terms/active.
+    match /users/{userId} {
+      allow read: if isOwner(userId) || isAdmin();
+
+      allow create: if isOwner(userId)
+        && request.resource.data.uid == userId
+        && request.resource.data.role == 'client';
+
+      allow update: if isAdmin()
+        || (isOwner(userId)
+            && request.resource.data.diff(resource.data).affectedKeys()
+                 .hasOnly(['displayName', 'photoURL', 'phone', 'taxId', 'updatedAt']));
+
+      allow delete: if isAdmin();
+    }
+
+    // ---------- catalog ----------
+    match /categories/{categoryId} {
+      allow read: if true;
+      allow write: if isAdmin();
+    }
+
+    match /warehouses/{warehouseId} {
+      allow read: if isOps();
+      allow write: if isAdmin();
+    }
+
+    match /products/{productId} {
+      allow read: if true;
+
+      allow create: if isAdmin()
+        && isNonNegativeNumber(request.resource.data.retailPrice)
+        && isNonNegativeNumber(request.resource.data.wholesalePrice)
+        && isNonNegativeNumber(request.resource.data.stock);
+
+      allow update: if isAdmin()
+        && (!('retailPrice' in request.resource.data) || isNonNegativeNumber(request.resource.data.retailPrice))
+        && (!('wholesalePrice' in request.resource.data) || isNonNegativeNumber(request.resource.data.wholesalePrice))
+        && (!('stock' in request.resource.data) || isNonNegativeNumber(request.resource.data.stock));
+
+      allow delete: if isAdmin();
+
+      // Per-warehouse breakdown is only ever written transactionally by the
+      // backend (Admin SDK, which bypasses rules) to keep it consistent
+      // with the aggregate `stock` field above.
+      match /stockLevels/{warehouseId} {
+        allow read: if isOps();
+        allow write: if false;
+      }
+    }
+
+    // ---------- quotes ----------
+    // Clients own their drafts end to end; admin has global visibility.
+    match /quotes/{quoteId} {
+      allow read: if isAdmin() || isOwner(resource.data.userId);
+      allow create: if isOwner(request.resource.data.userId);
+      allow update: if isAdmin() || isOwner(resource.data.userId);
+      allow delete: if isAdmin() || isOwner(resource.data.userId);
+    }
+
+    // ---------- orders / payments ----------
+    // Carries the transactional stock-reservation and payment-verification
+    // logic — every write must go through the NestJS server (Admin SDK,
+    // which bypasses these rules). Clients only ever read their own.
+    match /orders/{orderId} {
+      allow read: if isAdmin() || isOwner(resource.data.userId);
+      allow write: if false;
+    }
+
+    match /payments/{paymentId} {
+      allow read: if isAdmin()
+        || (isSignedIn()
+            && get(/databases/$(database)/documents/orders/$(resource.data.orderId)).data.userId == request.auth.uid);
+      allow write: if false;
+    }
+
+    // ---------- finance (suppliers / cuentas por pagar) ----------
+    // Absolute restriction — admin only, no exceptions.
+    match /suppliers/{supplierId} {
+      allow read, write: if isAdmin();
+    }
+
+    match /suppliers_payables/{payableId} {
+      allow read, write: if isAdmin();
+
+      match /supplierPayments/{paymentId} {
+        allow read, write: if isAdmin();
+      }
+    }
+
+    // Purchase orders drive stock increases and accounts-payable balances on
+    // settlement — same absolute admin-only boundary as suppliers_payables,
+    // enforced server-side (Admin SDK) rather than direct client writes.
+    match /purchase_orders/{orderId} {
+      allow read, write: if isAdmin();
+
+      match /purchaseOrderPayments/{paymentId} {
+        allow read, write: if isAdmin();
+      }
+    }
+
+    // ---------- internal ops data (backend-only writes) ----------
+    match /syncLogs/{logId} {
+      allow read: if isOps();
+      allow write: if false;
+    }
+
+    match /stockAlerts/{alertId} {
+      allow read: if isOps();
+      allow write: if false;
+    }
+
+    match /salesDailySummaries/{date} {
+      allow read: if isAdmin();
+      allow write: if false;
+    }
+
+    match /notifications/{notificationId} {
+      allow read: if isAdmin() || (isSignedIn() && userRole() in resource.data.targetRoles);
+      allow write: if false;
+    }
+  }
+}
