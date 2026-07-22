@@ -1,9 +1,11 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
-import { Minus, Plus, Trash2, ShoppingBag } from "lucide-react";
+import { Minus, Plus, Trash2, ShoppingBag, Tag } from "lucide-react";
 import { PublicShell } from "@/components/public-shell";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Separator } from "@/components/ui/separator";
+import { PriceTag } from "@/components/price-tag";
+import { formatBs, useBcvRate } from "@/lib/use-bcv-rate";
 import { formatMoney, useElectronStore } from "@/lib/electron-store";
 
 export const Route = createFileRoute("/cart")({
@@ -20,6 +22,8 @@ export const Route = createFileRoute("/cart")({
 
 function CartPage() {
   const { cart, updateQty, removeFromCart, cartTotal, priceFor, clearCart } = useElectronStore();
+  const { data: bcv } = useBcvRate();
+  const wholesaleTotal = cart.reduce((s, i) => s + i.product.wholesalePrice * i.qty, 0);
 
   return (
     <PublicShell>
@@ -55,7 +59,9 @@ function CartPage() {
                         {product.sku}
                       </div>
                       <div className="truncate text-sm font-semibold text-brand-navy">{product.name}</div>
-                      <div className="text-xs text-muted-foreground">{formatMoney(unit)} c/u</div>
+                      <div className="mt-1">
+                        <PriceTag product={product} size="sm" />
+                      </div>
                       <div className="mt-auto flex items-center justify-between gap-3">
                         <div className="inline-flex items-center rounded-md border border-border">
                           <button
@@ -98,8 +104,29 @@ function CartPage() {
                 <Row label="Subtotal" value={formatMoney(cartTotal)} />
                 <Row label="Envío" value="A calcular" muted />
                 <Separator className="my-3" />
-                <Row label="Total" value={formatMoney(cartTotal)} bold />
+                <div className="flex items-baseline justify-between">
+                  <span className="text-brand-navy">Total</span>
+                  <span className="flex items-baseline gap-2">
+                    <span className="text-base font-bold tabular-nums text-brand-navy">
+                      {formatMoney(cartTotal)}
+                    </span>
+                    {bcv && (
+                      <span className="inline-flex items-center rounded-full bg-brand-blue/10 px-2 py-0.5 text-xs font-semibold tabular-nums text-brand-blue">
+                        ≈ {formatBs(cartTotal, bcv.rate)}
+                      </span>
+                    )}
+                  </span>
+                </div>
               </div>
+
+              <div className="mt-3 flex items-center justify-between gap-2 rounded-md bg-brand-surface px-2.5 py-2 text-xs text-brand-navy/70">
+                <span className="flex items-center gap-1.5">
+                  <Tag className="h-3.5 w-3.5 shrink-0 text-brand-yellow" />
+                  Total mayorista
+                </span>
+                <span className="font-semibold tabular-nums">{formatMoney(wholesaleTotal)}</span>
+              </div>
+
               <Link to="/checkout">
                 <Button className="mt-6 w-full bg-brand-blue text-white hover:bg-brand-blue/90">
                   Ir a checkout
