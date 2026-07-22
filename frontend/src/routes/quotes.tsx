@@ -42,6 +42,12 @@ import { apiFetch, ApiError } from "@/lib/api-client";
 import { useAuth } from "@/lib/auth-context";
 import { formatMoney } from "@/lib/electron-store";
 import { formatBs, useBcvRate } from "@/lib/use-bcv-rate";
+import {
+  formatTaxId,
+  TAX_ID_PREFIXES,
+  validateTaxIdNumber,
+  type TaxIdPrefix,
+} from "@/lib/venezuelan-tax-id";
 import { toast } from "sonner";
 
 export const Route = createFileRoute("/quotes")({
@@ -142,19 +148,30 @@ function useProductPicker() {
 
 function QuotesPage() {
   const { new: startNew } = Route.useSearch();
-  const { user, loading: authLoading } = useAuth();
+  const { user, profile, loading: authLoading } = useAuth();
   const queryClient = useQueryClient();
   const [view, setView] = useState<"list" | "new" | "builder">("list");
   const [activeId, setActiveId] = useState<string | null>(null);
   const [customerName, setCustomerName] = useState("");
-  const [customerTaxId, setCustomerTaxId] = useState("");
+  const [taxIdPrefix, setTaxIdPrefix] = useState<TaxIdPrefix>("V");
+  const [taxIdNumber, setTaxIdNumber] = useState("");
   const [creating, setCreating] = useState(false);
+
+  const taxIdValidation = validateTaxIdNumber(taxIdPrefix, taxIdNumber);
 
   const { data: quotes, isLoading, isError } = useMyQuotes(!!user);
 
   useEffect(() => {
     if (startNew) setView("new");
   }, [startNew]);
+
+  // Prefill with the requester's own name — still editable in case the
+  // quote is for someone else.
+  useEffect(() => {
+    if (view === "new") {
+      setCustomerName((prev) => prev || profile?.displayName || user?.displayName || "");
+    }
+  }, [view, profile?.displayName, user?.displayName]);
 
   const invalidateMine = () => queryClient.invalidateQueries({ queryKey: ["quotes", "mine"] });
 
@@ -165,7 +182,7 @@ function QuotesPage() {
         method: "POST",
         body: {
           customerName: customerName.trim(),
-          customerTaxId: customerTaxId.trim() || undefined,
+          customerTaxId: formatTaxId(taxIdPrefix, taxIdNumber),
         },
       });
       invalidateMine();
@@ -187,7 +204,8 @@ function QuotesPage() {
     setView("list");
     setActiveId(null);
     setCustomerName("");
-    setCustomerTaxId("");
+    setTaxIdPrefix("V");
+    setTaxIdNumber("");
   };
 
   if (!authLoading && !user) {
@@ -242,16 +260,37 @@ function QuotesPage() {
                 <Label className="text-xs font-medium text-brand-navy">
                   RIF / Cédula (opcional)
                 </Label>
-                <Input
-                  placeholder="J-000000000"
-                  value={customerTaxId}
-                  onChange={(e) => setCustomerTaxId(e.target.value)}
-                />
+                <div className="flex gap-2">
+                  <Select
+                    value={taxIdPrefix}
+                    onValueChange={(v) => setTaxIdPrefix(v as TaxIdPrefix)}
+                  >
+                    <SelectTrigger className="w-20 shrink-0">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {TAX_ID_PREFIXES.map((p) => (
+                        <SelectItem key={p.value} value={p.value}>
+                          {p.value}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  <Input
+                    placeholder="00000000"
+                    value={taxIdNumber}
+                    onChange={(e) => setTaxIdNumber(e.target.value)}
+                    aria-invalid={!taxIdValidation.valid}
+                  />
+                </div>
+                {!taxIdValidation.valid && (
+                  <p className="text-xs text-destructive">{taxIdValidation.message}</p>
+                )}
               </div>
             </div>
             <Button
               onClick={handleCreate}
-              disabled={!customerName.trim() || creating}
+              disabled={!customerName.trim() || !taxIdValidation.valid || creating}
               className="mt-6 w-full gap-2 bg-brand-blue text-white hover:bg-brand-blue/90"
             >
               {creating ? (
@@ -432,6 +471,9 @@ function QuoteBuilder({ id, onBack }: { id: string; onBack: () => void }) {
   const { data: products } = useProductPicker();
   const { data: bcv } = useBcvRate();
 
+  const addedProductIds = new Set((quote?.items ?? []).map((i) => i.productId));
+  const availableProducts = (products ?? []).filter((p) => !addedProductIds.has(p.id));
+
   const invalidate = () => {
     queryClient.invalidateQueries({ queryKey: ["quotes", id] });
     queryClient.invalidateQueries({ queryKey: ["quotes", "mine"] });
@@ -517,7 +559,14 @@ function QuoteBuilder({ id, onBack }: { id: string; onBack: () => void }) {
           Cotizaciones
         </div>
         <div className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-4">
-          <h1 className="mt-1 truncate text-3xl font-bold text-brand-navy">{quote.customerName}</h1>
+          <div className="min-w-0">
+            <h1 className="mt-1 truncate text-3xl font-bold text-brand-navy">
+              {quote.customerName}
+            </h1>
+            {quote.customerTaxId && (
+              <div className="text-xs text-muted-foreground">RIF/Cédula: {quote.customerTaxId}</div>
+            )}
+          </div>
           <div className="flex items-center gap-2">
             {!isDraft && (
               <Badge className={STATUS_BADGE[quote.status]}>{STATUS_LABEL[quote.status]}</Badge>
@@ -593,22 +642,31 @@ function QuoteBuilder({ id, onBack }: { id: string; onBack: () => void }) {
               <div className="mt-6 flex flex-wrap items-end gap-3 print:hidden">
                 <div className="grid flex-1 gap-1.5 min-w-64">
                   <Label className="text-xs font-medium text-brand-navy">Agregar producto</Label>
-                  <Select value={pick} onValueChange={setPick}>
+                  <Select
+                    value={pick}
+                    onValueChange={setPick}
+                    disabled={availableProducts.length === 0}
+                  >
                     <SelectTrigger>
                       <SelectValue placeholder="Seleccionar producto…" />
                     </SelectTrigger>
                     <SelectContent>
-                      {(products ?? []).map((p) => (
+                      {availableProducts.map((p) => (
                         <SelectItem key={p.id} value={p.id}>
-                          {p.sku} — {p.name}
+                          {p.name} — {p.sku} · {formatMoney(p.retailPrice)}
                         </SelectItem>
                       ))}
                     </SelectContent>
                   </Select>
+                  {products && availableProducts.length === 0 && (
+                    <p className="text-xs text-muted-foreground">
+                      Ya agregaste todos los productos disponibles.
+                    </p>
+                  )}
                 </div>
                 <Button
                   onClick={addLine}
-                  disabled={!pick || busy}
+                  disabled={!pick || busy || availableProducts.length === 0}
                   className="gap-2 bg-brand-blue text-white hover:bg-brand-blue/90"
                 >
                   <Plus className="h-4 w-4" /> Agregar
