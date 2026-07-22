@@ -1,5 +1,7 @@
+import { useState } from "react";
 import { createFileRoute, Link, notFound } from "@tanstack/react-router";
-import { ArrowLeft, MapPin, Package, ShieldCheck } from "lucide-react";
+import { ArrowLeft, Minus, MapPin, Package, Plus, ShieldCheck, ShoppingCart } from "lucide-react";
+import { toast } from "sonner";
 import { PublicShell } from "@/components/public-shell";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -47,9 +49,17 @@ function NotFound() {
 
 function QrProductPage() {
   const { product } = Route.useLoaderData();
-  const { isOps, role } = useElectronStore();
+  const { isOps, role, addToCart } = useElectronStore();
   const out = product.stock === 0;
   const low = product.stock > 0 && product.stock <= 10;
+  const [qty, setQty] = useState(1);
+  const maxQty = product.stock > 0 ? product.stock : 1;
+
+  const handleAddToCart = () => {
+    addToCart(product, qty);
+    toast.success(`Agregado: ${product.name} (${qty})`);
+    setQty(1);
+  };
 
   return (
     <PublicShell>
@@ -79,6 +89,36 @@ function QrProductPage() {
 
             <div className="mt-6">
               <PriceTag product={product} size="lg" />
+            </div>
+
+            <div className="mt-5 flex flex-wrap items-center gap-3">
+              <div className="inline-flex items-center rounded-md border border-border">
+                <button
+                  onClick={() => setQty((q) => Math.max(1, q - 1))}
+                  disabled={out}
+                  className="grid h-11 w-11 place-items-center hover:bg-brand-surface disabled:opacity-40"
+                  aria-label="Restar"
+                >
+                  <Minus className="h-4 w-4" />
+                </button>
+                <span className="w-10 text-center text-base font-semibold tabular-nums">{qty}</span>
+                <button
+                  onClick={() => setQty((q) => Math.min(maxQty, q + 1))}
+                  disabled={out}
+                  className="grid h-11 w-11 place-items-center hover:bg-brand-surface disabled:opacity-40"
+                  aria-label="Sumar"
+                >
+                  <Plus className="h-4 w-4" />
+                </button>
+              </div>
+              <Button
+                className="h-11 flex-1 gap-2 bg-brand-blue text-white hover:bg-brand-blue/90 sm:flex-none sm:px-8"
+                disabled={out}
+                onClick={handleAddToCart}
+              >
+                <ShoppingCart className="h-4 w-4" />
+                {out ? "No disponible" : "Agregar al carrito"}
+              </Button>
             </div>
 
             <Card className="mt-6 p-5">
