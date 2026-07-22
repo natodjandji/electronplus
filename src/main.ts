@@ -13,7 +13,10 @@ async function bootstrap() {
   const apiPrefix = config.get('API_PREFIX', { infer: true });
   app.setGlobalPrefix(apiPrefix);
 
-  app.enableCors({ origin: config.get('CORS_ORIGIN', { infer: true }), credentials: true });
+  // Auth is a Bearer token in the Authorization header, not a cookie, so
+  // credentialed CORS isn't needed — and it's invalid alongside a wildcard
+  // origin anyway (browsers reject that combination).
+  app.enableCors({ origin: config.get('CORS_ORIGIN', { infer: true }) });
 
   app.useGlobalPipes(
     new ValidationPipe({
