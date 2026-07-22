@@ -15,13 +15,11 @@ const BS_PILL = {
   lg: "text-sm px-2.5 py-1",
 };
 
-// Cards get a pale corporate-yellow tint (subtle, matches the page's light
-// surfaces); the product page gets a white box sized to its own content
-// instead of stretching full width. Navy text keeps both legible.
+// Same pale corporate-yellow tint at every size — navy text keeps it legible.
 const WHOLESALE_BOX = {
   sm: "mt-1.5 gap-1.5 rounded-md bg-brand-yellow/10 px-2 py-1",
   md: "mt-2 gap-2 rounded-md bg-brand-yellow/10 px-2.5 py-1.5",
-  lg: "mt-3 w-fit gap-2.5 rounded-lg border border-brand-yellow/40 bg-white px-4 py-2.5",
+  lg: "mt-3 gap-2.5 rounded-md bg-brand-yellow/10 px-3.5 py-2",
 };
 
 const WHOLESALE_LABEL = {
@@ -68,10 +66,10 @@ export function PriceTag({
 
       <div className={`flex items-center ${WHOLESALE_BOX[size]}`}>
         <Tag className="h-3.5 w-3.5 shrink-0 text-brand-yellow" />
-        <span className={`font-medium text-brand-navy/70 ${WHOLESALE_LABEL[size]}`}>Mayorista</span>
         <span className={`font-bold leading-none tabular-nums text-brand-navy ${WHOLESALE_AMOUNT[size]}`}>
           {formatMoney(product.wholesalePrice)}
         </span>
+        <span className={`font-medium text-brand-navy/70 ${WHOLESALE_LABEL[size]}`}>Precio al mayor</span>
       </div>
     </div>
   );
