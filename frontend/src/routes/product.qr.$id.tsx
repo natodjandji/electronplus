@@ -66,17 +66,14 @@ function QrProductPage() {
           </Card>
 
           <div>
-            <div className="flex items-center gap-2">
-              <span className="text-[10px] font-semibold uppercase tracking-widest text-brand-blue">
-                Escaneado por QR
-              </span>
-              {isOps && (
+            {isOps && (
+              <div className="flex items-center gap-2">
                 <Badge className="bg-brand-navy text-white">
                   <ShieldCheck className="mr-1 h-3 w-3" />
                   {role === "admin" ? "Vista administrador" : "Vista almacén"}
                 </Badge>
-              )}
-            </div>
+              </div>
+            )}
             <h1 className="mt-2 text-3xl font-bold text-brand-navy">{product.name}</h1>
             <div className="mt-1 text-xs text-muted-foreground">SKU {product.sku}</div>
 
@@ -114,16 +111,18 @@ function QrProductPage() {
               </Card>
             )}
 
-            <div className="mt-6 flex items-center gap-4">
-              <div className="rounded-md border border-border bg-white p-2">
-                <QrBlock seed={`electron-plus:${product.id}`} size={104} />
+            {isOps && (
+              <div className="mt-6 flex items-center gap-4">
+                <div className="rounded-md border border-border bg-white p-2">
+                  <QrBlock seed={`electron-plus:${product.id}`} size={104} />
+                </div>
+                <div className="text-xs text-muted-foreground">
+                  Código QR único de este producto.
+                  <br />
+                  Ruta: <code className="text-brand-navy">/product/qr/{product.id}</code>
+                </div>
               </div>
-              <div className="text-xs text-muted-foreground">
-                Código QR único de este producto.
-                <br />
-                Ruta: <code className="text-brand-navy">/product/qr/{product.id}</code>
-              </div>
-            </div>
+            )}
           </div>
         </div>
       </section>
