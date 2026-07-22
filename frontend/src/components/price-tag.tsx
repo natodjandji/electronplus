@@ -16,9 +16,21 @@ const BS_PILL = {
 };
 
 const WHOLESALE_BOX = {
-  sm: "mt-1.5 px-2 py-1 text-[11px]",
-  md: "mt-2 px-2.5 py-1.5 text-xs",
-  lg: "mt-3 px-3.5 py-2.5 text-sm",
+  sm: "mt-1.5 gap-1.5 px-2 py-1",
+  md: "mt-2 gap-2 px-2.5 py-1.5",
+  lg: "mt-3 gap-2.5 px-3.5 py-2",
+};
+
+const WHOLESALE_LABEL = {
+  sm: "text-[10px]",
+  md: "text-xs",
+  lg: "text-sm",
+};
+
+const WHOLESALE_AMOUNT = {
+  sm: "text-sm",
+  md: "text-lg",
+  lg: "text-3xl",
 };
 
 /**
@@ -51,13 +63,11 @@ export function PriceTag({
         )}
       </div>
 
-      <div
-        className={`flex items-center gap-1.5 rounded-md bg-brand-surface text-brand-navy/70 ${WHOLESALE_BOX[size]}`}
-      >
+      <div className={`flex items-center rounded-md bg-brand-surface ${WHOLESALE_BOX[size]}`}>
         <Tag className="h-3.5 w-3.5 shrink-0 text-brand-yellow" />
-        <span>
-          Mayorista <span className="font-semibold tabular-nums">{formatMoney(product.wholesalePrice)}</span>{" "}
-          · cotiza para acceder
+        <span className={`font-medium text-brand-navy/70 ${WHOLESALE_LABEL[size]}`}>Mayorista</span>
+        <span className={`font-bold leading-none tabular-nums text-brand-navy ${WHOLESALE_AMOUNT[size]}`}>
+          {formatMoney(product.wholesalePrice)}
         </span>
       </div>
     </div>
