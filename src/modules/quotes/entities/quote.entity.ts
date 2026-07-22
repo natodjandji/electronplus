@@ -15,6 +15,8 @@ export interface QuoteItem {
   qty: number;
   /** Snapshot of the retail unit price at the moment the item was added. */
   unitPrice: number;
+  /** Snapshot of the wholesale unit price at the moment the item was added. */
+  wholesalePrice: number;
   discountPct: number;
 }
 

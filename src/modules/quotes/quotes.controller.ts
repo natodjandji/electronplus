@@ -43,6 +43,11 @@ export class QuotesController {
     return { ...quote, totals: computeQuoteTotals(quote) };
   }
 
+  @Delete(':id')
+  remove(@Param('id') id: string, @CurrentUser() user: AuthenticatedUser) {
+    return this.quotesService.remove(id, user);
+  }
+
   @Post(':id/lines')
   addLine(@Param('id') id: string, @CurrentUser() user: AuthenticatedUser, @Body() dto: AddQuoteLineDto) {
     return this.quotesService.addLine(id, user, dto);

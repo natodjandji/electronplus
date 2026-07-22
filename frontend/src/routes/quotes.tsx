@@ -1,9 +1,30 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
-import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useState } from "react";
-import { AlertCircle, ArrowLeft, FileText, Loader2, Plus, Send, Trash2 } from "lucide-react";
+import {
+  AlertCircle,
+  ArrowLeft,
+  FileText,
+  Loader2,
+  Plus,
+  Printer,
+  Send,
+  Tag,
+  Trash2,
+} from "lucide-react";
 import { ElectronLogo } from "@/components/electron-logo";
 import { PublicShell } from "@/components/public-shell";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from "@/components/ui/alert-dialog";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
@@ -20,6 +41,7 @@ import {
 import { apiFetch, ApiError } from "@/lib/api-client";
 import { useAuth } from "@/lib/auth-context";
 import { formatMoney } from "@/lib/electron-store";
+import { formatBs, useBcvRate } from "@/lib/use-bcv-rate";
 import { toast } from "sonner";
 
 export const Route = createFileRoute("/quotes")({
@@ -49,6 +71,7 @@ interface QuoteLine {
   name: string;
   qty: number;
   unitPrice: number;
+  wholesalePrice: number;
   discountPct: number;
 }
 
@@ -93,6 +116,10 @@ function computeTotal(quote: Quote): number {
   return subtotal * (1 - quote.globalDiscountPct / 100);
 }
 
+function computeWholesaleTotal(quote: Quote): number {
+  return quote.items.reduce((s, i) => s + i.wholesalePrice * i.qty, 0);
+}
+
 function reportError(error: unknown) {
   toast.error(error instanceof ApiError ? error.message : "Ocurrió un error inesperado");
 }
@@ -108,7 +135,7 @@ function useMyQuotes(enabled: boolean) {
 function useProductPicker() {
   return useQuery({
     queryKey: ["quotes", "products-picker"],
-    queryFn: () => apiFetch<{ data: CatalogProduct[] }>("/products?limit=200"),
+    queryFn: () => apiFetch<{ data: CatalogProduct[] }>("/products?limit=100"),
     select: (res) => res.data,
   });
 }
@@ -302,38 +329,94 @@ function QuotesPage() {
         {quotes && quotes.length > 0 && (
           <div className="mt-8 space-y-3">
             {quotes.map((q) => (
-              <Card
+              <QuoteListCard
                 key={q.id}
-                onClick={() => handleOpen(q)}
-                className="flex cursor-pointer flex-wrap items-center justify-between gap-4 p-4 transition-colors hover:border-brand-blue/40"
-              >
-                <div>
-                  <div className="font-semibold text-brand-navy">
-                    {q.customerName || "Sin nombre"}
-                  </div>
-                  <div className="text-xs text-muted-foreground">
-                    {new Date(q.createdAt).toLocaleDateString("es-VE", {
-                      day: "2-digit",
-                      month: "short",
-                      year: "numeric",
-                    })}
-                    {" · "}
-                    {q.items.length} producto(s)
-                  </div>
-                </div>
-                <div className="flex items-center gap-3">
-                  <div className="text-right">
-                    <div className="text-xs text-muted-foreground">Total</div>
-                    <div className="font-bold text-brand-navy">{formatMoney(computeTotal(q))}</div>
-                  </div>
-                  <Badge className={STATUS_BADGE[q.status]}>{STATUS_LABEL[q.status]}</Badge>
-                </div>
-              </Card>
+                quote={q}
+                onOpen={() => handleOpen(q)}
+                onDeleted={invalidateMine}
+              />
             ))}
           </div>
         )}
       </section>
     </PublicShell>
+  );
+}
+
+function QuoteListCard({
+  quote,
+  onOpen,
+  onDeleted,
+}: {
+  quote: Quote;
+  onOpen: () => void;
+  onDeleted: () => void;
+}) {
+  const deleteMutation = useMutation({
+    mutationFn: () => apiFetch(`/quotes/${quote.id}`, { method: "DELETE" }),
+    onSuccess: () => {
+      toast.success("Borrador eliminado");
+      onDeleted();
+    },
+    onError: reportError,
+  });
+
+  return (
+    <Card
+      onClick={onOpen}
+      className="flex cursor-pointer flex-wrap items-center justify-between gap-4 p-4 transition-colors hover:border-brand-blue/40"
+    >
+      <div>
+        <div className="font-semibold text-brand-navy">{quote.customerName || "Sin nombre"}</div>
+        <div className="text-xs text-muted-foreground">
+          {new Date(quote.createdAt).toLocaleDateString("es-VE", {
+            day: "2-digit",
+            month: "short",
+            year: "numeric",
+          })}
+          {" · "}
+          {quote.items.length} producto(s)
+        </div>
+      </div>
+      <div className="flex items-center gap-3">
+        <div className="text-right">
+          <div className="text-xs text-muted-foreground">Total</div>
+          <div className="font-bold text-brand-navy">{formatMoney(computeTotal(quote))}</div>
+        </div>
+        <Badge className={STATUS_BADGE[quote.status]}>{STATUS_LABEL[quote.status]}</Badge>
+        {quote.status === "draft" && (
+          <AlertDialog>
+            <AlertDialogTrigger asChild>
+              <button
+                onClick={(e) => e.stopPropagation()}
+                className="text-muted-foreground transition-colors hover:text-destructive"
+                aria-label="Eliminar borrador"
+              >
+                <Trash2 className="h-4 w-4" />
+              </button>
+            </AlertDialogTrigger>
+            <AlertDialogContent onClick={(e) => e.stopPropagation()}>
+              <AlertDialogHeader>
+                <AlertDialogTitle>¿Eliminar este borrador?</AlertDialogTitle>
+                <AlertDialogDescription>
+                  Esta acción no se puede deshacer. Se eliminará la cotización de{" "}
+                  {quote.customerName || "este cliente"}.
+                </AlertDialogDescription>
+              </AlertDialogHeader>
+              <AlertDialogFooter>
+                <AlertDialogCancel>Cancelar</AlertDialogCancel>
+                <AlertDialogAction
+                  onClick={() => deleteMutation.mutate()}
+                  className="bg-destructive text-white hover:bg-destructive/90"
+                >
+                  Eliminar
+                </AlertDialogAction>
+              </AlertDialogFooter>
+            </AlertDialogContent>
+          </AlertDialog>
+        )}
+      </div>
+    </Card>
   );
 }
 
@@ -347,6 +430,7 @@ function QuoteBuilder({ id, onBack }: { id: string; onBack: () => void }) {
     queryFn: () => apiFetch<Quote>(`/quotes/${id}`),
   });
   const { data: products } = useProductPicker();
+  const { data: bcv } = useBcvRate();
 
   const invalidate = () => {
     queryClient.invalidateQueries({ queryKey: ["quotes", id] });
@@ -416,13 +500,14 @@ function QuoteBuilder({ id, onBack }: { id: string; onBack: () => void }) {
   }
 
   const total = computeTotal(quote);
+  const wholesaleTotal = computeWholesaleTotal(quote);
 
   return (
     <PublicShell>
       <section className="mx-auto max-w-6xl px-4 py-10 sm:px-6">
         <button
           onClick={onBack}
-          className="mb-3 inline-flex items-center gap-1.5 text-sm font-medium text-muted-foreground hover:text-brand-navy"
+          className="mb-3 inline-flex items-center gap-1.5 text-sm font-medium text-muted-foreground hover:text-brand-navy print:hidden"
         >
           <ArrowLeft className="h-4 w-4" />
           Volver a mis cotizaciones
@@ -433,18 +518,31 @@ function QuoteBuilder({ id, onBack }: { id: string; onBack: () => void }) {
         </div>
         <div className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-4">
           <h1 className="mt-1 truncate text-3xl font-bold text-brand-navy">{quote.customerName}</h1>
-          {isDraft ? (
-            <Button
-              onClick={handleSend}
-              disabled={quote.items.length === 0 || busy}
-              className="gap-2 bg-brand-blue text-white hover:bg-brand-blue/90"
-            >
-              {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
-              Enviar solicitud
-            </Button>
-          ) : (
-            <Badge className={STATUS_BADGE[quote.status]}>{STATUS_LABEL[quote.status]}</Badge>
-          )}
+          <div className="flex items-center gap-2">
+            {!isDraft && (
+              <Badge className={STATUS_BADGE[quote.status]}>{STATUS_LABEL[quote.status]}</Badge>
+            )}
+            <div className="flex items-center gap-2 print:hidden">
+              <Button variant="outline" onClick={() => window.print()} className="gap-2">
+                <Printer className="h-4 w-4" />
+                Imprimir / PDF
+              </Button>
+              {isDraft && (
+                <Button
+                  onClick={handleSend}
+                  disabled={quote.items.length === 0 || busy}
+                  className="gap-2 bg-brand-blue text-white hover:bg-brand-blue/90"
+                >
+                  {busy ? (
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                  ) : (
+                    <Send className="h-4 w-4" />
+                  )}
+                  Enviar solicitud
+                </Button>
+              )}
+            </div>
+          </div>
         </div>
 
         {!isDraft && (
@@ -492,7 +590,7 @@ function QuoteBuilder({ id, onBack }: { id: string; onBack: () => void }) {
 
           {isDraft && (
             <>
-              <div className="mt-6 flex flex-wrap items-end gap-3">
+              <div className="mt-6 flex flex-wrap items-end gap-3 print:hidden">
                 <div className="grid flex-1 gap-1.5 min-w-64">
                   <Label className="text-xs font-medium text-brand-navy">Agregar producto</Label>
                   <Select value={pick} onValueChange={setPick}>
@@ -525,17 +623,18 @@ function QuoteBuilder({ id, onBack }: { id: string; onBack: () => void }) {
               <thead>
                 <tr className="border-b border-border text-left text-xs uppercase tracking-wider text-muted-foreground">
                   <th className="py-2">Producto</th>
-                  <th className="py-2 text-right">Precio</th>
+                  <th className="py-2 text-right">Detal</th>
+                  <th className="py-2 text-right">Mayor</th>
                   <th className="py-2 text-right">Cant.</th>
                   <th className="py-2 text-right">Total</th>
-                  {isDraft && <th />}
+                  {isDraft && <th className="print:hidden" />}
                 </tr>
               </thead>
               <tbody>
                 {quote.items.length === 0 && (
                   <tr>
                     <td
-                      colSpan={isDraft ? 5 : 4}
+                      colSpan={isDraft ? 6 : 5}
                       className="py-8 text-center text-muted-foreground"
                     >
                       {isDraft
@@ -553,15 +652,21 @@ function QuoteBuilder({ id, onBack }: { id: string; onBack: () => void }) {
                         <div className="text-xs text-muted-foreground">{item.sku}</div>
                       </td>
                       <td className="py-3 text-right">{formatMoney(item.unitPrice)}</td>
+                      <td className="py-3 text-right text-muted-foreground">
+                        {formatMoney(item.wholesalePrice)}
+                      </td>
                       <td className="py-3 text-right">
                         {isDraft ? (
-                          <Input
-                            type="number"
-                            min={1}
-                            value={item.qty}
-                            onChange={(e) => updateQty(item.id, Number(e.target.value))}
-                            className="ml-auto h-8 w-20 text-right"
-                          />
+                          <>
+                            <Input
+                              type="number"
+                              min={1}
+                              value={item.qty}
+                              onChange={(e) => updateQty(item.id, Number(e.target.value))}
+                              className="ml-auto h-8 w-20 text-right print:hidden"
+                            />
+                            <span className="hidden print:inline">{item.qty}</span>
+                          </>
                         ) : (
                           item.qty
                         )}
@@ -570,7 +675,7 @@ function QuoteBuilder({ id, onBack }: { id: string; onBack: () => void }) {
                         {formatMoney(lineTotal)}
                       </td>
                       {isDraft && (
-                        <td className="py-3 pl-2 text-right">
+                        <td className="py-3 pl-2 text-right print:hidden">
                           <button
                             onClick={() => removeLine(item.id)}
                             className="text-muted-foreground hover:text-destructive"
@@ -587,16 +692,32 @@ function QuoteBuilder({ id, onBack }: { id: string; onBack: () => void }) {
             </table>
           </div>
 
-          <div className="mt-6 flex flex-col items-end gap-1">
+          <div className="mt-6 flex flex-col items-end gap-2">
             {quote.globalDiscountPct > 0 && (
               <div className="text-sm text-muted-foreground">
                 Descuento especial:{" "}
                 <span className="font-semibold text-brand-navy">{quote.globalDiscountPct}%</span>
               </div>
             )}
-            <div className="flex justify-between text-lg font-bold text-brand-navy">
-              <span className="mr-8">Total</span>
-              <span>{formatMoney(total)}</span>
+            <div className="flex items-baseline gap-8">
+              <span className="text-lg font-bold text-brand-navy">Total detal</span>
+              <span className="flex items-baseline gap-2">
+                <span className="text-lg font-bold tabular-nums text-brand-navy">
+                  {formatMoney(total)}
+                </span>
+                {bcv && (
+                  <span className="inline-flex items-center rounded-full bg-brand-blue/10 px-2 py-0.5 text-xs font-semibold tabular-nums text-brand-blue">
+                    ≈ {formatBs(total, bcv.rate)}
+                  </span>
+                )}
+              </span>
+            </div>
+            <div className="flex items-center gap-1.5 rounded-md bg-brand-yellow/10 px-2.5 py-1.5 text-sm text-brand-navy/70">
+              <Tag className="h-3.5 w-3.5 shrink-0 text-brand-yellow" />
+              <span className="font-bold tabular-nums text-brand-navy">
+                {formatMoney(wholesaleTotal)}
+              </span>
+              <span>Total al mayor</span>
             </div>
           </div>
         </Card>

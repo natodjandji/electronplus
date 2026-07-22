@@ -67,6 +67,7 @@ export class QuotesService {
       name: product.name,
       qty: dto.qty,
       unitPrice,
+      wholesalePrice: product.wholesalePrice,
       discountPct: dto.discountPct ?? 0,
     };
     return this.repo.update(id, { items: [...quote.items, item] });
@@ -86,6 +87,12 @@ export class QuotesService {
   async removeLine(id: string, lineId: string, user: AuthenticatedUser): Promise<Quote> {
     const quote = await this.assertEditable(id, user);
     return this.repo.update(id, { items: quote.items.filter((i) => i.id !== lineId) });
+  }
+
+  /** Drafts only — once sent, a quote is a real request under review and can't be deleted. */
+  async remove(id: string, user: AuthenticatedUser): Promise<void> {
+    await this.assertEditable(id, user);
+    await this.repo.delete(id);
   }
 
   /** Admin-only (enforced by @Roles on the controller) — grants the "special discount" while reviewing a request. */

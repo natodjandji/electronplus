@@ -86,7 +86,7 @@ const STATUS_BADGE: Record<PurchaseOrderStatus, string> = {
 function useProductOptions() {
   return useQuery({
     queryKey: ["admin", "products-picker"],
-    queryFn: () => apiFetch<{ data: ProductOption[] }>("/products?limit=200"),
+    queryFn: () => apiFetch<{ data: ProductOption[] }>("/products?limit=100"),
     select: (res) => res.data,
   });
 }
