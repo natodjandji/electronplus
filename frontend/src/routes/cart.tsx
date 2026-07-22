@@ -48,46 +48,55 @@ function CartPage() {
               {cart.map(({ product, qty }) => {
                 const unit = priceFor(product);
                 return (
-                  <Card key={product.id} className="flex gap-4 p-4">
-                    <img
-                      src={product.image}
-                      alt={product.name}
-                      className="h-24 w-24 shrink-0 rounded-md object-cover"
-                    />
-                    <div className="flex min-w-0 flex-1 flex-col">
-                      <div className="text-[10px] font-semibold uppercase tracking-widest text-muted-foreground">
-                        {product.sku}
-                      </div>
-                      <div className="truncate text-sm font-semibold text-brand-navy">{product.name}</div>
-                      <div className="mt-1">
-                        <PriceTag product={product} size="sm" />
-                      </div>
-                      <div className="mt-auto flex items-center justify-between gap-3">
-                        <div className="inline-flex items-center rounded-md border border-border">
-                          <button
-                            onClick={() => updateQty(product.id, qty - 1)}
-                            className="grid h-8 w-8 place-items-center hover:bg-brand-surface"
-                            aria-label="Restar"
-                          >
-                            <Minus className="h-3.5 w-3.5" />
-                          </button>
-                          <span className="w-8 text-center text-sm font-semibold">{qty}</span>
-                          <button
-                            onClick={() => updateQty(product.id, qty + 1)}
-                            className="grid h-8 w-8 place-items-center hover:bg-brand-surface"
-                            aria-label="Sumar"
-                          >
-                            <Plus className="h-3.5 w-3.5" />
-                          </button>
+                  <Card
+                    key={product.id}
+                    className="relative flex flex-col gap-4 p-4 sm:flex-row sm:items-center sm:gap-6"
+                  >
+                    <button
+                      onClick={() => removeFromCart(product.id)}
+                      className="absolute right-3 top-3 text-muted-foreground transition-colors hover:text-destructive"
+                      aria-label="Eliminar"
+                    >
+                      <Trash2 className="h-4 w-4" />
+                    </button>
+
+                    <div className="flex gap-4 pr-6 sm:flex-1 sm:pr-0">
+                      <img
+                        src={product.image}
+                        alt={product.name}
+                        className="h-20 w-20 shrink-0 rounded-md object-cover sm:h-24 sm:w-24"
+                      />
+                      <div className="min-w-0 flex-1">
+                        <div className="text-[10px] font-semibold uppercase tracking-widest text-muted-foreground">
+                          {product.sku}
                         </div>
-                        <div className="text-sm font-bold text-brand-navy">{formatMoney(unit * qty)}</div>
+                        <h3 className="truncate text-sm font-semibold text-brand-navy">{product.name}</h3>
+                        <div className="mt-1.5">
+                          <PriceTag product={product} size="sm" />
+                        </div>
+                      </div>
+                    </div>
+
+                    <div className="flex items-center justify-between gap-4 sm:flex-col sm:items-end sm:justify-center sm:gap-2 sm:border-l sm:border-border sm:pl-6">
+                      <div className="inline-flex items-center rounded-md border border-border">
                         <button
-                          onClick={() => removeFromCart(product.id)}
-                          className="text-muted-foreground hover:text-destructive"
-                          aria-label="Eliminar"
+                          onClick={() => updateQty(product.id, qty - 1)}
+                          className="grid h-8 w-8 place-items-center hover:bg-brand-surface"
+                          aria-label="Restar"
                         >
-                          <Trash2 className="h-4 w-4" />
+                          <Minus className="h-3.5 w-3.5" />
                         </button>
+                        <span className="w-8 text-center text-sm font-semibold tabular-nums">{qty}</span>
+                        <button
+                          onClick={() => updateQty(product.id, qty + 1)}
+                          className="grid h-8 w-8 place-items-center hover:bg-brand-surface"
+                          aria-label="Sumar"
+                        >
+                          <Plus className="h-3.5 w-3.5" />
+                        </button>
+                      </div>
+                      <div className="text-base font-bold tabular-nums text-brand-navy sm:text-right">
+                        {formatMoney(unit * qty)}
                       </div>
                     </div>
                   </Card>
