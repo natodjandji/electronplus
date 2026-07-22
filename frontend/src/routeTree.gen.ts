@@ -15,6 +15,7 @@ import { Route as CartRouteImport } from './routes/cart'
 import { Route as CatalogRouteImport } from './routes/catalog'
 import { Route as CheckoutRouteImport } from './routes/checkout'
 import { Route as ClientRouteImport } from './routes/client'
+import { Route as CollectionsRouteImport } from './routes/collections'
 import { Route as LoginRouteImport } from './routes/login'
 import { Route as QuotesRouteImport } from './routes/quotes'
 import { Route as RegisterRouteImport } from './routes/register'
@@ -56,6 +57,11 @@ const CheckoutRoute = CheckoutRouteImport.update({
 const ClientRoute = ClientRouteImport.update({
   id: '/client',
   path: '/client',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const CollectionsRoute = CollectionsRouteImport.update({
+  id: '/collections',
+  path: '/collections',
   getParentRoute: () => rootRouteImport,
 } as any)
 const LoginRoute = LoginRouteImport.update({
@@ -126,6 +132,7 @@ export interface FileRoutesByFullPath {
   '/catalog': typeof CatalogRoute
   '/checkout': typeof CheckoutRoute
   '/client': typeof ClientRouteWithChildren
+  '/collections': typeof CollectionsRoute
   '/login': typeof LoginRoute
   '/quotes': typeof QuotesRoute
   '/register': typeof RegisterRoute
@@ -145,6 +152,7 @@ export interface FileRoutesByTo {
   '/catalog': typeof CatalogRoute
   '/checkout': typeof CheckoutRoute
   '/client': typeof ClientRouteWithChildren
+  '/collections': typeof CollectionsRoute
   '/login': typeof LoginRoute
   '/quotes': typeof QuotesRoute
   '/register': typeof RegisterRoute
@@ -166,6 +174,7 @@ export interface FileRoutesById {
   '/catalog': typeof CatalogRoute
   '/checkout': typeof CheckoutRoute
   '/client': typeof ClientRouteWithChildren
+  '/collections': typeof CollectionsRoute
   '/login': typeof LoginRoute
   '/quotes': typeof QuotesRoute
   '/register': typeof RegisterRoute
@@ -188,6 +197,7 @@ export interface FileRouteTypes {
     | '/catalog'
     | '/checkout'
     | '/client'
+    | '/collections'
     | '/login'
     | '/quotes'
     | '/register'
@@ -207,6 +217,7 @@ export interface FileRouteTypes {
     | '/catalog'
     | '/checkout'
     | '/client'
+    | '/collections'
     | '/login'
     | '/quotes'
     | '/register'
@@ -227,6 +238,7 @@ export interface FileRouteTypes {
     | '/catalog'
     | '/checkout'
     | '/client'
+    | '/collections'
     | '/login'
     | '/quotes'
     | '/register'
@@ -248,6 +260,7 @@ export interface RootRouteChildren {
   CatalogRoute: typeof CatalogRoute
   CheckoutRoute: typeof CheckoutRoute
   ClientRoute: typeof ClientRouteWithChildren
+  CollectionsRoute: typeof CollectionsRoute
   LoginRoute: typeof LoginRoute
   QuotesRoute: typeof QuotesRoute
   RegisterRoute: typeof RegisterRoute
@@ -296,6 +309,13 @@ declare module '@tanstack/react-router' {
       path: '/client'
       fullPath: '/client'
       preLoaderRoute: typeof ClientRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/collections': {
+      id: '/collections'
+      path: '/collections'
+      fullPath: '/collections'
+      preLoaderRoute: typeof CollectionsRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/login': {
@@ -425,6 +445,7 @@ const rootRouteChildren: RootRouteChildren = {
   CatalogRoute: CatalogRoute,
   CheckoutRoute: CheckoutRoute,
   ClientRoute: ClientRouteWithChildren,
+  CollectionsRoute: CollectionsRoute,
   LoginRoute: LoginRoute,
   QuotesRoute: QuotesRoute,
   RegisterRoute: RegisterRoute,

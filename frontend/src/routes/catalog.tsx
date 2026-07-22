@@ -28,8 +28,9 @@ import { useElectronStore } from "@/lib/electron-store";
 import { toast } from "sonner";
 
 export const Route = createFileRoute("/catalog")({
-  validateSearch: (search: Record<string, unknown>): { q?: string } => ({
+  validateSearch: (search: Record<string, unknown>): { q?: string; category?: string } => ({
     q: typeof search.q === "string" ? search.q : undefined,
+    category: typeof search.category === "string" ? search.category : undefined,
   }),
   head: () => ({
     meta: [
@@ -48,10 +49,10 @@ export const Route = createFileRoute("/catalog")({
 const PAGE_SIZE = 9;
 
 function CatalogPage() {
-  const { q: initialQ } = Route.useSearch();
+  const { q: initialQ, category: initialCategory } = Route.useSearch();
   const { priceFor, addToCart } = useElectronStore();
   const [q, setQ] = useState(initialQ ?? "");
-  const [cats, setCats] = useState<string[]>([]);
+  const [cats, setCats] = useState<string[]>(initialCategory ? [initialCategory] : []);
   const [onlyAvailable, setOnlyAvailable] = useState(false);
   const [range, setRange] = useState<[number, number]>([0, 100]);
   const [view, setView] = useState<"grid" | "list">("grid");

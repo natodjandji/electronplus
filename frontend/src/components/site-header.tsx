@@ -43,7 +43,7 @@ export function SiteHeader() {
 
         <nav className="hidden items-center gap-1 md:flex">
           <NavLink to="/catalog">Catálogo</NavLink>
-          <NavLink to="/quotes">Cotizaciones</NavLink>
+          <NavLink to="/collections">Colecciones</NavLink>
         </nav>
 
         <div className="ml-auto flex items-center gap-2">
@@ -109,6 +109,12 @@ export function SiteHeader() {
                   <Link to="/client/orders">
                     <PackageSearch className="h-4 w-4" />
                     Mis pedidos
+                  </Link>
+                </DropdownMenuItem>
+                <DropdownMenuItem asChild className="gap-2">
+                  <Link to="/quotes">
+                    <FileText className="h-4 w-4" />
+                    Cotizaciones
                   </Link>
                 </DropdownMenuItem>
                 <DropdownMenuSeparator />

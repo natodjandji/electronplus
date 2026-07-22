@@ -6,10 +6,12 @@
 // You can pass additional config via defineConfig({ vite: { ... }, etc... }) if needed.
 import { defineConfig } from "@lovable.dev/vite-tanstack-config";
 
+// Firebase Hosting only serves static files (free Spark plan, no Cloud Functions/Cloud Run
+// billing) — so the app builds in TanStack Start's SPA mode (prerendered shell + client-side
+// rendering, no server runtime) instead of the default Cloudflare SSR target.
 export default defineConfig({
   tanstackStart: {
-    // Redirect TanStack Start's bundled server entry to src/server.ts (our SSR error wrapper).
-    // nitro/vite builds from this
-    server: { entry: "server" },
+    spa: { enabled: true, prerender: { enabled: true, crawlLinks: true } },
   },
+  nitro: false,
 });
