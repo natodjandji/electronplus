@@ -242,7 +242,9 @@ function CatalogPage() {
               initial="hidden"
               animate="show"
               className={
-                view === "grid" ? "grid gap-4 sm:grid-cols-2 xl:grid-cols-3" : "flex flex-col gap-3"
+                view === "grid"
+                  ? "grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5"
+                  : "flex flex-col gap-3"
               }
             >
               <AnimatePresence mode="popLayout">
@@ -329,23 +331,24 @@ function ProductCard({ product, onAdd }: { product: Product; onAdd: () => void }
           </Badge>
         )}
       </div>
-      <div className="flex flex-1 flex-col p-4">
-        <div className="text-[10px] font-semibold uppercase tracking-widest text-muted-foreground">
+      <div className="flex flex-1 flex-col p-3">
+        <div className="text-[9px] font-semibold uppercase tracking-widest text-muted-foreground">
           {product.sku}
         </div>
-        <h3 className="mt-1 line-clamp-2 min-h-10 text-sm font-semibold text-brand-navy">
+        <h3 className="mt-0.5 line-clamp-2 min-h-9 text-xs font-semibold text-brand-navy">
           {product.name}
         </h3>
-        <p className="mt-1 line-clamp-1 text-xs text-muted-foreground">{product.specs}</p>
+        <p className="mt-1 line-clamp-1 text-[11px] text-muted-foreground">{product.specs}</p>
 
-        <div className="mt-auto pt-4">
-          <PriceTag product={product} size="md" />
+        <div className="mt-auto pt-3">
+          <PriceTag product={product} size="sm" />
           <Button
-            className="mt-3 w-full gap-2 bg-brand-blue text-white hover:bg-brand-blue/90"
+            size="sm"
+            className="mt-2 w-full gap-2 bg-brand-blue text-white hover:bg-brand-blue/90"
             disabled={out}
             onClick={(e) => stopAndAdd(e, onAdd)}
           >
-            <ShoppingCart className="h-4 w-4" />
+            <ShoppingCart className="h-3.5 w-3.5" />
             {out ? "No disponible" : "Agregar"}
           </Button>
         </div>

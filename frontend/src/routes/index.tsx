@@ -1,11 +1,12 @@
-import { createFileRoute, Link } from "@tanstack/react-router";
+import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
+import type { KeyboardEvent } from "react";
 import { ArrowRight, Zap, Truck, ShieldCheck, Tag, Search, ShoppingCart } from "lucide-react";
 import { PublicShell } from "@/components/public-shell";
 import { CircuitBackground } from "@/components/circuit-traces";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { PriceTag } from "@/components/price-tag";
-import { PRODUCTS } from "@/lib/mock-data";
+import { PRODUCTS, type Product } from "@/lib/mock-data";
 
 export const Route = createFileRoute("/")({
   head: () => ({
@@ -160,34 +161,52 @@ function Home() {
         </div>
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
           {featured.map((p) => (
-            <Card
-              key={p.id}
-              className="overflow-hidden border-border p-0 shadow-sm transition hover:shadow-md"
-            >
-              <div className="aspect-square overflow-hidden bg-brand-surface">
-                <img
-                  src={p.image}
-                  alt={p.name}
-                  className="h-full w-full object-cover"
-                  loading="lazy"
-                />
-              </div>
-              <div className="p-4">
-                <div className="text-[10px] font-semibold uppercase tracking-widest text-muted-foreground">
-                  {p.sku}
-                </div>
-                <div className="mt-1 line-clamp-2 min-h-10 text-sm font-semibold text-brand-navy">
-                  {p.name}
-                </div>
-                <div className="mt-3">
-                  <PriceTag product={p} size="sm" />
-                </div>
-              </div>
-            </Card>
+            <FeaturedProductCard key={p.id} product={p} />
           ))}
         </div>
       </section>
     </PublicShell>
+  );
+}
+
+function FeaturedProductCard({ product }: { product: Product }) {
+  const navigate = useNavigate();
+  const go = () => navigate({ to: "/product/qr/$id", params: { id: product.id } });
+  const onKeyDown = (e: KeyboardEvent<HTMLDivElement>) => {
+    if (e.key === "Enter" || e.key === " ") {
+      e.preventDefault();
+      go();
+    }
+  };
+
+  return (
+    <Card
+      role="link"
+      tabIndex={0}
+      onClick={go}
+      onKeyDown={onKeyDown}
+      className="group cursor-pointer overflow-hidden border-border p-0 shadow-sm transition-all duration-300 hover:-translate-y-1 hover:border-brand-blue/40 hover:shadow-[0_8px_30px_-8px_rgba(0,86,179,0.25)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-blue"
+    >
+      <div className="aspect-square overflow-hidden bg-brand-surface">
+        <img
+          src={product.image}
+          alt={product.name}
+          className="h-full w-full object-cover transition-transform duration-500 group-hover:scale-[1.04]"
+          loading="lazy"
+        />
+      </div>
+      <div className="p-4">
+        <div className="text-[10px] font-semibold uppercase tracking-widest text-muted-foreground">
+          {product.sku}
+        </div>
+        <div className="mt-1 line-clamp-2 min-h-10 text-sm font-semibold text-brand-navy">
+          {product.name}
+        </div>
+        <div className="mt-3">
+          <PriceTag product={product} size="sm" />
+        </div>
+      </div>
+    </Card>
   );
 }
 
