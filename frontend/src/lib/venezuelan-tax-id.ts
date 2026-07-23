@@ -66,3 +66,13 @@ export function formatTaxId(prefix: TaxIdPrefix, rawNumber: string): string | un
   if (!value) return undefined;
   return `${prefix}-${value}`;
 }
+
+/** Splits a stored "J-12345678-4" value back into prefix + number for the field. */
+export function parseTaxId(value: string | undefined): { prefix: TaxIdPrefix; number: string } {
+  if (!value) return { prefix: "V", number: "" };
+  const [prefix, ...rest] = value.split("-");
+  if (TAX_ID_PREFIXES.some((p) => p.value === prefix)) {
+    return { prefix: prefix as TaxIdPrefix, number: rest.join("-") };
+  }
+  return { prefix: "V", number: "" };
+}

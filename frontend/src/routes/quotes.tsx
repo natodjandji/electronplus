@@ -42,12 +42,8 @@ import { apiFetch, ApiError } from "@/lib/api-client";
 import { useAuth } from "@/lib/auth-context";
 import { formatMoney } from "@/lib/electron-store";
 import { formatBs, useBcvRate } from "@/lib/use-bcv-rate";
-import {
-  formatTaxId,
-  TAX_ID_PREFIXES,
-  validateTaxIdNumber,
-  type TaxIdPrefix,
-} from "@/lib/venezuelan-tax-id";
+import { formatTaxId, validateTaxIdNumber, type TaxIdPrefix } from "@/lib/venezuelan-tax-id";
+import { TaxIdField } from "@/components/tax-id-field";
 import { toast } from "sonner";
 
 export const Route = createFileRoute("/quotes")({
@@ -256,37 +252,12 @@ function QuotesPage() {
                   onChange={(e) => setCustomerName(e.target.value)}
                 />
               </div>
-              <div className="grid gap-1.5">
-                <Label className="text-xs font-medium text-brand-navy">
-                  RIF / Cédula (opcional)
-                </Label>
-                <div className="flex gap-2">
-                  <Select
-                    value={taxIdPrefix}
-                    onValueChange={(v) => setTaxIdPrefix(v as TaxIdPrefix)}
-                  >
-                    <SelectTrigger className="w-20 shrink-0">
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {TAX_ID_PREFIXES.map((p) => (
-                        <SelectItem key={p.value} value={p.value}>
-                          {p.value}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                  <Input
-                    placeholder="00000000"
-                    value={taxIdNumber}
-                    onChange={(e) => setTaxIdNumber(e.target.value)}
-                    aria-invalid={!taxIdValidation.valid}
-                  />
-                </div>
-                {!taxIdValidation.valid && (
-                  <p className="text-xs text-destructive">{taxIdValidation.message}</p>
-                )}
-              </div>
+              <TaxIdField
+                prefix={taxIdPrefix}
+                onPrefixChange={setTaxIdPrefix}
+                number={taxIdNumber}
+                onNumberChange={setTaxIdNumber}
+              />
             </div>
             <Button
               onClick={handleCreate}

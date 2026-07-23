@@ -1,5 +1,16 @@
 import { Type } from 'class-transformer';
-import { ArrayMinSize, IsArray, IsEnum, IsInt, IsOptional, IsString, Min, ValidateNested } from 'class-validator';
+import {
+  ArrayMinSize,
+  IsArray,
+  IsEnum,
+  IsInt,
+  IsOptional,
+  IsString,
+  Matches,
+  MaxLength,
+  Min,
+  ValidateNested,
+} from 'class-validator';
 import { PaymentMethod } from '../../payments/entities/payment.entity';
 
 export class OrderItemInputDto {
@@ -50,4 +61,14 @@ export class CreateOrderDto {
   @IsOptional()
   @IsString()
   paymentReference?: string;
+
+  /** Payment proof screenshot as a data URI — capped well under Firestore's
+   * 1MiB document limit (the client compresses the image before sending). */
+  @IsOptional()
+  @IsString()
+  @MaxLength(1_000_000)
+  @Matches(/^data:image\/(png|jpe?g|webp);base64,/, {
+    message: 'paymentProofBase64 must be a base64 image data URI',
+  })
+  paymentProofBase64?: string;
 }

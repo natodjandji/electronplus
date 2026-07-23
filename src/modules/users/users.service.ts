@@ -4,6 +4,7 @@ import type { Firestore } from 'firebase-admin/firestore';
 import { FIREBASE_AUTH, FIRESTORE } from '../../firebase/firebase.constants';
 import { Collections } from '../../firebase/firestore-collections';
 import { FirestoreRepository } from '../../firebase/firestore.repository';
+import { UpdateProfileDto } from './dto/update-profile.dto';
 import { UpdateUserDto } from './dto/update-user.dto';
 import { User } from './entities/user.entity';
 
@@ -34,6 +35,10 @@ export class UsersService {
   }
 
   async update(uid: string, dto: UpdateUserDto): Promise<User> {
+    return this.repo.update(uid, dto);
+  }
+
+  async updateProfile(uid: string, dto: UpdateProfileDto): Promise<User> {
     return this.repo.update(uid, dto);
   }
 }

@@ -2,12 +2,19 @@ import { ClassSerializerInterceptor, ValidationPipe } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { NestFactory, Reflector } from '@nestjs/core';
 import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
+import { json, urlencoded } from 'express';
 import { AppModule } from './app.module';
 import { EnvConfig } from './config/env.validation';
 import { GlobalExceptionFilter } from './common/filters/global-exception.filter';
 
 async function bootstrap() {
-  const app = await NestFactory.create(AppModule);
+  // bodyParser disabled here so the larger limits below (needed for a
+  // base64 payment-proof image) replace Nest's default 100kb parser
+  // instead of stacking behind it.
+  const app = await NestFactory.create(AppModule, { bodyParser: false });
+  app.use(json({ limit: '2mb' }));
+  app.use(urlencoded({ limit: '2mb', extended: true }));
+
   const config = app.get(ConfigService<EnvConfig, true>);
 
   const apiPrefix = config.get('API_PREFIX', { infer: true });

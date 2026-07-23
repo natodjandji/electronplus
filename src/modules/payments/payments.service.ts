@@ -27,7 +27,13 @@ export class PaymentsService {
   }
 
   /** Records a manual-reconciliation or credit-B2B payment intent for an order. */
-  async initiate(orderId: string, method: PaymentMethod, amount: number, reference?: string): Promise<Payment> {
+  async initiate(
+    orderId: string,
+    method: PaymentMethod,
+    amount: number,
+    reference?: string,
+    proofBase64?: string,
+  ): Promise<Payment> {
     const isManual = MANUAL_RECONCILIATION_METHODS.includes(method);
     const isCredit = method === PaymentMethod.CREDIT_B2B;
 
@@ -51,6 +57,7 @@ export class PaymentsService {
       method,
       amount,
       reference,
+      proofUrl: proofBase64,
       // Credit B2B is an internally-extended line of credit — it settles on
       // agreed terms, not via upfront verification, so it's auto-verified.
       status: isCredit ? PaymentStatus.VERIFIED : PaymentStatus.PENDING,

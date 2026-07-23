@@ -8,14 +8,18 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { PriceTag } from "@/components/price-tag";
 import { QrBlock } from "@/components/qr-block";
-import { PRODUCTS } from "@/lib/mock-data";
+import { apiFetch } from "@/lib/api-client";
+import { type ApiProduct, toProduct } from "@/lib/product-api";
 import { useElectronStore } from "@/lib/electron-store";
 
 export const Route = createFileRoute("/product/qr/$id")({
-  loader: ({ params }) => {
-    const product = PRODUCTS.find((p) => p.id === params.id);
-    if (!product) throw notFound();
-    return { product };
+  loader: async ({ params }) => {
+    try {
+      const raw = await apiFetch<ApiProduct>(`/products/${params.id}`);
+      return { product: toProduct(raw) };
+    } catch {
+      throw notFound();
+    }
   },
   head: ({ loaderData }) => ({
     meta: loaderData
@@ -38,9 +42,13 @@ function NotFound() {
     <PublicShell>
       <div className="mx-auto max-w-2xl px-4 py-20 text-center">
         <h1 className="text-2xl font-bold text-brand-navy">Producto no encontrado</h1>
-        <p className="mt-2 text-sm text-muted-foreground">El código QR escaneado no coincide con ningún producto.</p>
+        <p className="mt-2 text-sm text-muted-foreground">
+          El código QR escaneado no coincide con ningún producto.
+        </p>
         <Link to="/catalog">
-          <Button className="mt-6 bg-brand-blue text-white hover:bg-brand-blue/90">Ir al catálogo</Button>
+          <Button className="mt-6 bg-brand-blue text-white hover:bg-brand-blue/90">
+            Ir al catálogo
+          </Button>
         </Link>
       </div>
     </PublicShell>
@@ -64,14 +72,23 @@ function QrProductPage() {
   return (
     <PublicShell>
       <section className="mx-auto max-w-6xl px-4 py-8 sm:px-6">
-        <Link to="/catalog" className="inline-flex items-center gap-2 text-sm text-brand-blue hover:underline">
+        <Link
+          to="/catalog"
+          className="inline-flex items-center gap-2 text-sm text-brand-blue hover:underline"
+        >
           <ArrowLeft className="h-4 w-4" /> Volver al catálogo
         </Link>
 
         <div className="mt-4 grid gap-8 md:grid-cols-2">
           <Card className="overflow-hidden p-0">
             <div className="aspect-square bg-brand-surface">
-              <img src={product.image} alt={product.name} className="h-full w-full object-cover" />
+              {product.image && (
+                <img
+                  src={product.image}
+                  alt={product.name}
+                  className="h-full w-full object-cover"
+                />
+              )}
             </div>
           </Card>
 
@@ -145,8 +162,12 @@ function QrProductPage() {
                 </div>
                 <div className="mt-2">
                   {out && <Badge className="bg-destructive text-white">Agotado</Badge>}
-                  {low && <Badge className="bg-brand-yellow text-brand-navy">Últimas unidades</Badge>}
-                  {!out && !low && <Badge className="bg-brand-blue/10 text-brand-blue">Disponible</Badge>}
+                  {low && (
+                    <Badge className="bg-brand-yellow text-brand-navy">Últimas unidades</Badge>
+                  )}
+                  {!out && !low && (
+                    <Badge className="bg-brand-blue/10 text-brand-blue">Disponible</Badge>
+                  )}
                 </div>
               </Card>
             )}
@@ -170,7 +191,15 @@ function QrProductPage() {
   );
 }
 
-function InfoRow({ icon: Icon, label, value }: { icon: typeof Package; label: string; value: string }) {
+function InfoRow({
+  icon: Icon,
+  label,
+  value,
+}: {
+  icon: typeof Package;
+  label: string;
+  value: string;
+}) {
   return (
     <div className="flex items-center gap-3">
       <div className="grid h-9 w-9 place-items-center rounded-md bg-white/10 text-brand-yellow">

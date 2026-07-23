@@ -1,6 +1,16 @@
-import { createFileRoute, useNavigate } from "@tanstack/react-router";
-import { useState } from "react";
-import { Check, CreditCard, Truck, ClipboardCheck } from "lucide-react";
+import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
+import { useEffect, useState } from "react";
+import { useQuery } from "@tanstack/react-query";
+import {
+  Check,
+  CreditCard,
+  Truck,
+  ClipboardCheck,
+  Upload,
+  Loader2,
+  FileText,
+  X,
+} from "lucide-react";
 import { PublicShell } from "@/components/public-shell";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
@@ -8,14 +18,49 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Separator } from "@/components/ui/separator";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import { TaxIdField } from "@/components/tax-id-field";
+import { PhoneField } from "@/components/phone-field";
+import { apiFetch, ApiError } from "@/lib/api-client";
+import { useAuth } from "@/lib/auth-context";
 import { formatMoney, useElectronStore } from "@/lib/electron-store";
+import { formatBs, useBcvRate } from "@/lib/use-bcv-rate";
+import { compressImageToBase64 } from "@/lib/image-compress";
+import {
+  PAYMENT_METHOD_TO_BACKEND,
+  paymentMethodInfo,
+  PAYMENT_METHODS,
+  type CheckoutPaymentMethod,
+} from "@/lib/payment-info";
+import {
+  formatTaxId,
+  parseTaxId,
+  validateTaxIdNumber,
+  type TaxIdPrefix,
+} from "@/lib/venezuelan-tax-id";
+import {
+  formatPhone,
+  parsePhone,
+  validatePhoneNumber,
+  type PhonePrefix,
+} from "@/lib/venezuelan-phone";
+import { VENEZUELA_STATE_NAMES, citiesForState } from "@/lib/venezuela-locations";
 import { toast } from "sonner";
 
 export const Route = createFileRoute("/checkout")({
   head: () => ({
     meta: [
       { title: "Checkout · Electron Plus" },
-      { name: "description", content: "Completa tu compra en tres pasos: envío, pago y confirmación." },
+      {
+        name: "description",
+        content: "Completa tu compra en tres pasos: envío, pago y confirmación.",
+      },
       { property: "og:title", content: "Checkout · Electron Plus" },
       { property: "og:description", content: "Envío, pago y confirmación." },
     ],
@@ -29,16 +74,194 @@ const STEPS = [
   { id: 3, label: "Confirmación", icon: ClipboardCheck },
 ];
 
+interface MyProfile {
+  uid: string;
+  email: string;
+  displayName?: string;
+  phone?: string;
+  taxId?: string;
+  address?: string;
+  city?: string;
+  state?: string;
+}
+
 function CheckoutPage() {
-  const [step, setStep] = useState(1);
-  const [method, setMethod] = useState("transferencia");
-  const { cart, cartTotal, clearCart } = useElectronStore();
+  const { user, loading: authLoading } = useAuth();
+  const { cart, cartCount, cartTotal, clearCart } = useElectronStore();
+  const { data: bcv } = useBcvRate();
   const navigate = useNavigate();
+
+  const [step, setStep] = useState(1);
+
+  const [fullName, setFullName] = useState("");
+  const [taxIdPrefix, setTaxIdPrefix] = useState<TaxIdPrefix>("V");
+  const [taxIdNumber, setTaxIdNumber] = useState("");
+  const [phonePrefix, setPhonePrefix] = useState<PhonePrefix>("0412");
+  const [phoneNumber, setPhoneNumber] = useState("");
+  const [address, setAddress] = useState("");
+  const [state, setState] = useState("");
+  const [city, setCity] = useState("");
+  const [prefilled, setPrefilled] = useState(false);
+
+  const [method, setMethod] = useState<CheckoutPaymentMethod>("transferencia");
+  const [paymentReference, setPaymentReference] = useState("");
+  const [proofBase64, setProofBase64] = useState<string | undefined>();
+  const [proofFileName, setProofFileName] = useState<string | undefined>();
+  const [proofBusy, setProofBusy] = useState(false);
+
+  const [submitting, setSubmitting] = useState(false);
+
+  const { data: myProfile } = useQuery({
+    queryKey: ["users", "me", "checkout"],
+    queryFn: () => apiFetch<MyProfile>("/users/me"),
+    enabled: !!user,
+  });
+
+  // First purchase: prefill just the name. Once an address has been saved
+  // from a previous order, prefill everything from it (still all editable).
+  useEffect(() => {
+    if (!myProfile || prefilled) return;
+    setFullName((prev) => prev || myProfile.displayName || "");
+    if (myProfile.taxId) {
+      const parsed = parseTaxId(myProfile.taxId);
+      setTaxIdPrefix(parsed.prefix);
+      setTaxIdNumber(parsed.number);
+    }
+    if (myProfile.phone) {
+      const parsed = parsePhone(myProfile.phone);
+      setPhonePrefix(parsed.prefix);
+      setPhoneNumber(parsed.number);
+    }
+    if (myProfile.address) setAddress(myProfile.address);
+    if (myProfile.state) setState(myProfile.state);
+    if (myProfile.city) setCity(myProfile.city);
+    setPrefilled(true);
+  }, [myProfile, prefilled]);
+
+  const email = user?.email ?? "";
+  const taxIdValidation = validateTaxIdNumber(taxIdPrefix, taxIdNumber);
+  const phoneValidation = validatePhoneNumber(phoneNumber);
+  const info = paymentMethodInfo(method);
+
+  const canContinueStep1 = Boolean(
+    fullName.trim() &&
+    taxIdNumber.trim() &&
+    taxIdValidation.valid &&
+    phoneNumber.trim() &&
+    phoneValidation.valid &&
+    address.trim() &&
+    state &&
+    city,
+  );
+  const canContinueStep2 = !info.needsReference || paymentReference.trim().length > 0;
+
+  const handleProofFile = async (file: File) => {
+    setProofBusy(true);
+    try {
+      const base64 = await compressImageToBase64(file);
+      if (base64.length > 900_000) {
+        toast.error("La imagen sigue siendo muy pesada — intenta con otra captura.");
+        return;
+      }
+      setProofBase64(base64);
+      setProofFileName(file.name);
+    } catch {
+      toast.error("No se pudo procesar la imagen del comprobante.");
+    } finally {
+      setProofBusy(false);
+    }
+  };
+
+  const handleSubmit = async () => {
+    setSubmitting(true);
+    const shipping = {
+      fullName: fullName.trim(),
+      phone: formatPhone(phonePrefix, phoneNumber)!,
+      taxId: formatTaxId(taxIdPrefix, taxIdNumber),
+      address: address.trim(),
+      city,
+      state,
+    };
+    try {
+      await apiFetch("/orders", {
+        method: "POST",
+        body: {
+          items: cart.map((i) => ({ productId: i.product.id, qty: i.qty })),
+          paymentMethod: PAYMENT_METHOD_TO_BACKEND[method],
+          shipping,
+          paymentReference: paymentReference.trim() || undefined,
+          paymentProofBase64: proofBase64,
+        },
+      });
+
+      // Best-effort — save this shipping info for next time. Doesn't block
+      // order success if it fails.
+      apiFetch("/users/me", {
+        method: "PATCH",
+        body: {
+          displayName: shipping.fullName,
+          phone: shipping.phone,
+          taxId: shipping.taxId,
+          address: shipping.address,
+          city: shipping.city,
+          state: shipping.state,
+        },
+      }).catch(() => {});
+
+      clearCart();
+      toast.success("¡Pedido confirmado! Te contactaremos pronto.");
+      navigate({ to: "/client/orders" });
+    } catch (error) {
+      toast.error(error instanceof ApiError ? error.message : "No se pudo procesar tu pedido");
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  if (!authLoading && !user) {
+    return (
+      <PublicShell>
+        <section className="mx-auto max-w-xl px-4 py-16 text-center sm:px-6">
+          <ClipboardCheck className="mx-auto h-8 w-8 text-muted-foreground" />
+          <h1 className="mt-3 text-2xl font-bold text-brand-navy">Inicia sesión para pagar</h1>
+          <p className="mt-1 text-sm text-muted-foreground">
+            Necesitas una cuenta para completar tu compra y dar seguimiento a tu pedido.
+          </p>
+          <Link to="/login" search={{ redirect: "/checkout" }}>
+            <Button className="mt-6 gap-2 bg-brand-blue text-white hover:bg-brand-blue/90">
+              Iniciar sesión
+            </Button>
+          </Link>
+        </section>
+      </PublicShell>
+    );
+  }
+
+  if (cart.length === 0) {
+    return (
+      <PublicShell>
+        <section className="mx-auto max-w-xl px-4 py-16 text-center sm:px-6">
+          <ClipboardCheck className="mx-auto h-8 w-8 text-muted-foreground" />
+          <h1 className="mt-3 text-2xl font-bold text-brand-navy">Tu carrito está vacío</h1>
+          <p className="mt-1 text-sm text-muted-foreground">
+            Agrega productos antes de continuar al checkout.
+          </p>
+          <Link to="/catalog">
+            <Button className="mt-6 bg-brand-blue text-white hover:bg-brand-blue/90">
+              Ir al catálogo
+            </Button>
+          </Link>
+        </section>
+      </PublicShell>
+    );
+  }
 
   return (
     <PublicShell>
       <section className="mx-auto max-w-5xl px-4 py-10 sm:px-6">
-        <div className="text-xs font-semibold uppercase tracking-widest text-brand-blue">Checkout</div>
+        <div className="text-xs font-semibold uppercase tracking-widest text-brand-blue">
+          Checkout
+        </div>
         <h1 className="mt-1 text-3xl font-bold text-brand-navy">Finaliza tu compra</h1>
 
         {/* Stepper */}
@@ -53,8 +276,8 @@ function CheckoutPage() {
                     done
                       ? "border-brand-blue bg-brand-blue text-white"
                       : active
-                      ? "border-brand-blue text-brand-blue"
-                      : "border-border text-muted-foreground"
+                        ? "border-brand-blue text-brand-blue"
+                        : "border-border text-muted-foreground"
                   }`}
                 >
                   {done ? <Check className="h-4 w-4" /> : <s.icon className="h-4 w-4" />}
@@ -82,15 +305,79 @@ function CheckoutPage() {
             {step === 1 && (
               <div className="space-y-4">
                 <h2 className="text-lg font-semibold text-brand-navy">Información de envío</h2>
-                <div className="grid gap-3 sm:grid-cols-2">
-                  <Field label="Nombre completo" placeholder="María Pérez" />
-                  <Field label="Cédula / RIF" placeholder="V-00000000" />
-                  <Field label="Teléfono" placeholder="+58 ..." />
-                  <Field label="Correo" placeholder="tucorreo@dominio.com" />
-                  <Field label="Ciudad" placeholder="Caracas" />
-                  <Field label="Estado" placeholder="Miranda" />
+                <div className="grid gap-4 sm:grid-cols-2">
+                  <div className="grid gap-1.5">
+                    <Label className="text-xs font-medium text-brand-navy">Nombre completo</Label>
+                    <Input
+                      placeholder="María Pérez"
+                      value={fullName}
+                      onChange={(e) => setFullName(e.target.value)}
+                    />
+                  </div>
+                  <TaxIdField
+                    label="Cédula / RIF"
+                    prefix={taxIdPrefix}
+                    onPrefixChange={setTaxIdPrefix}
+                    number={taxIdNumber}
+                    onNumberChange={setTaxIdNumber}
+                  />
+                  <PhoneField
+                    prefix={phonePrefix}
+                    onPrefixChange={setPhonePrefix}
+                    number={phoneNumber}
+                    onNumberChange={setPhoneNumber}
+                  />
+                  <div className="grid gap-1.5">
+                    <Label className="text-xs font-medium text-brand-navy">Correo</Label>
+                    <Input value={email} disabled className="bg-brand-surface" />
+                  </div>
+                  <div className="grid gap-1.5">
+                    <Label className="text-xs font-medium text-brand-navy">Estado</Label>
+                    <Select
+                      value={state}
+                      onValueChange={(v) => {
+                        setState(v);
+                        setCity("");
+                      }}
+                    >
+                      <SelectTrigger>
+                        <SelectValue placeholder="Selecciona un estado" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {VENEZUELA_STATE_NAMES.map((s) => (
+                          <SelectItem key={s} value={s}>
+                            {s}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div className="grid gap-1.5">
+                    <Label className="text-xs font-medium text-brand-navy">Ciudad</Label>
+                    <Select value={city} onValueChange={setCity} disabled={!state}>
+                      <SelectTrigger>
+                        <SelectValue
+                          placeholder={state ? "Selecciona una ciudad" : "Elige un estado primero"}
+                        />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {citiesForState(state).map((c) => (
+                          <SelectItem key={c} value={c}>
+                            {c}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
                   <div className="sm:col-span-2">
-                    <Field label="Dirección" placeholder="Av. Principal, edif..." />
+                    <div className="grid gap-1.5">
+                      <Label className="text-xs font-medium text-brand-navy">Dirección</Label>
+                      <Input
+                        placeholder="Av. Principal, edif..."
+                        value={address}
+                        onChange={(e) => setAddress(e.target.value)}
+                      />
+                    </div>
                   </div>
                 </div>
               </div>
@@ -98,13 +385,12 @@ function CheckoutPage() {
             {step === 2 && (
               <div className="space-y-4">
                 <h2 className="text-lg font-semibold text-brand-navy">Método de pago</h2>
-                <RadioGroup value={method} onValueChange={setMethod} className="grid gap-3">
-                  {[
-                    { id: "transferencia", label: "Transferencia bancaria" },
-                    { id: "pago-movil", label: "Pago móvil" },
-                    { id: "efectivo", label: "Efectivo en tienda" },
-                    { id: "credito", label: "Crédito B2B (mayoristas)" },
-                  ].map((m) => (
+                <RadioGroup
+                  value={method}
+                  onValueChange={(v) => setMethod(v as CheckoutPaymentMethod)}
+                  className="grid gap-3"
+                >
+                  {PAYMENT_METHODS.map((m) => (
                     <label
                       key={m.id}
                       className={`flex cursor-pointer items-center gap-3 rounded-md border p-3 transition ${
@@ -116,42 +402,184 @@ function CheckoutPage() {
                     </label>
                   ))}
                 </RadioGroup>
+
+                <div className="rounded-md border border-border bg-brand-surface p-4 text-sm">
+                  <div className="font-semibold text-brand-navy">{info.label}</div>
+                  <ul className="mt-1 space-y-0.5 text-muted-foreground">
+                    {info.details.map((line) => (
+                      <li key={line}>{line}</li>
+                    ))}
+                  </ul>
+                  {(method === "transferencia" || method === "pago-movil") && (
+                    <div className="mt-3 flex items-baseline gap-2 border-t border-border pt-3">
+                      <span className="text-xs text-muted-foreground">Monto a pagar:</span>
+                      <span className="font-bold text-brand-navy">{formatMoney(cartTotal)}</span>
+                      {bcv && (
+                        <span className="text-xs font-semibold text-brand-blue">
+                          ≈ {formatBs(cartTotal, bcv.rate)}
+                        </span>
+                      )}
+                    </div>
+                  )}
+                </div>
+
+                {info.needsReference && (
+                  <div className="grid gap-1.5">
+                    <Label className="text-xs font-medium text-brand-navy">
+                      Número de referencia / confirmación
+                    </Label>
+                    <Input
+                      placeholder="0000000000"
+                      value={paymentReference}
+                      onChange={(e) => setPaymentReference(e.target.value)}
+                    />
+                  </div>
+                )}
+
+                {info.needsProof && (
+                  <div className="grid gap-1.5">
+                    <Label className="text-xs font-medium text-brand-navy">
+                      Comprobante de pago (opcional)
+                    </Label>
+                    {proofFileName ? (
+                      <div className="flex items-center justify-between gap-2 rounded-md border border-border p-2.5 text-sm">
+                        <span className="flex items-center gap-2 truncate text-brand-navy">
+                          <FileText className="h-4 w-4 shrink-0 text-brand-blue" />
+                          <span className="truncate">{proofFileName}</span>
+                        </span>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setProofBase64(undefined);
+                            setProofFileName(undefined);
+                          }}
+                          className="text-muted-foreground hover:text-destructive"
+                          aria-label="Quitar comprobante"
+                        >
+                          <X className="h-4 w-4" />
+                        </button>
+                      </div>
+                    ) : (
+                      <label className="flex cursor-pointer items-center justify-center gap-2 rounded-md border border-dashed border-border p-4 text-sm text-muted-foreground transition hover:border-brand-blue/40 hover:text-brand-blue">
+                        {proofBusy ? (
+                          <Loader2 className="h-4 w-4 animate-spin" />
+                        ) : (
+                          <Upload className="h-4 w-4" />
+                        )}
+                        Subir captura del pago
+                        <input
+                          type="file"
+                          accept="image/png,image/jpeg,image/webp"
+                          className="hidden"
+                          onChange={(e) => {
+                            const file = e.target.files?.[0];
+                            if (file) void handleProofFile(file);
+                          }}
+                        />
+                      </label>
+                    )}
+                  </div>
+                )}
               </div>
             )}
             {step === 3 && (
               <div className="space-y-4">
                 <h2 className="text-lg font-semibold text-brand-navy">Confirma tu pedido</h2>
                 <p className="text-sm text-muted-foreground">
-                  Revisa que todo esté correcto antes de enviar. Recibirás una confirmación por correo.
+                  Revisa que todo esté correcto antes de enviar. Recibirás una confirmación por
+                  correo.
                 </p>
-                <div className="rounded-md border border-border bg-brand-surface p-4 text-sm">
-                  <div className="font-semibold text-brand-navy">Método: {method}</div>
-                  <div className="text-muted-foreground">{cart.length} artículos · {formatMoney(cartTotal)}</div>
+
+                <div className="rounded-md border border-border p-4 text-sm">
+                  <div className="text-xs font-semibold uppercase tracking-widest text-muted-foreground">
+                    Envío
+                  </div>
+                  <div className="mt-1.5 grid gap-1 text-brand-navy sm:grid-cols-2">
+                    <div>{fullName}</div>
+                    <div>{formatTaxId(taxIdPrefix, taxIdNumber) ?? "—"}</div>
+                    <div>{formatPhone(phonePrefix, phoneNumber)}</div>
+                    <div>{email}</div>
+                    <div>
+                      {city}, {state}
+                    </div>
+                    <div className="sm:col-span-2">{address}</div>
+                  </div>
+                </div>
+
+                <div className="rounded-md border border-border p-4 text-sm">
+                  <div className="text-xs font-semibold uppercase tracking-widest text-muted-foreground">
+                    Pago
+                  </div>
+                  <div className="mt-1.5 text-brand-navy">{info.label}</div>
+                  {paymentReference && (
+                    <div className="text-muted-foreground">Referencia: {paymentReference}</div>
+                  )}
+                  {proofFileName && (
+                    <div className="mt-1 flex items-center gap-1.5 text-muted-foreground">
+                      <FileText className="h-3.5 w-3.5" /> Comprobante adjunto: {proofFileName}
+                    </div>
+                  )}
+                </div>
+
+                <div className="rounded-md border border-border p-4 text-sm">
+                  <div className="text-xs font-semibold uppercase tracking-widest text-muted-foreground">
+                    Productos
+                  </div>
+                  <div className="mt-2 space-y-2">
+                    {cart.map(({ product, qty }) => (
+                      <div key={product.id} className="flex items-center justify-between gap-3">
+                        <div className="min-w-0">
+                          <div className="truncate font-medium text-brand-navy">{product.name}</div>
+                          <div className="text-xs text-muted-foreground">
+                            {product.sku} · {formatMoney(product.retailPrice)} × {qty}
+                          </div>
+                        </div>
+                        <div className="shrink-0 font-semibold text-brand-navy">
+                          {formatMoney(product.retailPrice * qty)}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                  <Separator className="my-3" />
+                  <div className="flex items-baseline justify-between">
+                    <span className="font-bold text-brand-navy">Total</span>
+                    <span className="flex items-baseline gap-2">
+                      <span className="font-bold text-brand-navy">{formatMoney(cartTotal)}</span>
+                      {bcv && (
+                        <span className="text-xs font-semibold text-brand-blue">
+                          ≈ {formatBs(cartTotal, bcv.rate)}
+                        </span>
+                      )}
+                    </span>
+                  </div>
                 </div>
               </div>
             )}
 
             <Separator className="my-6" />
             <div className="flex items-center justify-between">
-              <Button variant="ghost" onClick={() => setStep((s) => Math.max(1, s - 1))} disabled={step === 1}>
+              <Button
+                variant="ghost"
+                onClick={() => setStep((s) => Math.max(1, s - 1))}
+                disabled={step === 1}
+              >
                 Atrás
               </Button>
               {step < 3 ? (
                 <Button
                   className="bg-brand-blue text-white hover:bg-brand-blue/90"
+                  disabled={(step === 1 && !canContinueStep1) || (step === 2 && !canContinueStep2)}
                   onClick={() => setStep((s) => s + 1)}
                 >
                   Continuar
                 </Button>
               ) : (
                 <Button
-                  className="bg-brand-yellow text-brand-navy hover:bg-brand-yellow/90"
-                  onClick={() => {
-                    clearCart();
-                    toast.success("¡Pedido confirmado! Te contactaremos pronto.");
-                    navigate({ to: "/" });
-                  }}
+                  className="gap-2 bg-brand-yellow text-brand-navy hover:bg-brand-yellow/90"
+                  disabled={submitting}
+                  onClick={handleSubmit}
                 >
+                  {submitting && <Loader2 className="h-4 w-4 animate-spin" />}
                   Confirmar pedido
                 </Button>
               )}
@@ -163,30 +591,30 @@ function CheckoutPage() {
             <div className="mt-3 space-y-2 text-sm">
               <div className="flex justify-between text-muted-foreground">
                 <span>Artículos</span>
-                <span>{cart.length}</span>
+                <span>{cartCount}</span>
               </div>
               <div className="flex justify-between">
                 <span className="text-brand-navy">Subtotal</span>
                 <span className="text-brand-navy">{formatMoney(cartTotal)}</span>
               </div>
               <Separator className="my-2" />
-              <div className="flex justify-between text-base font-bold text-brand-navy">
-                <span>Total</span>
-                <span>{formatMoney(cartTotal)}</span>
+              <div className="flex items-baseline justify-between">
+                <span className="text-base font-bold text-brand-navy">Total</span>
+                <span className="flex items-baseline gap-2">
+                  <span className="text-base font-bold text-brand-navy">
+                    {formatMoney(cartTotal)}
+                  </span>
+                  {bcv && (
+                    <span className="text-xs font-semibold text-brand-blue">
+                      ≈ {formatBs(cartTotal, bcv.rate)}
+                    </span>
+                  )}
+                </span>
               </div>
             </div>
           </Card>
         </div>
       </section>
     </PublicShell>
-  );
-}
-
-function Field({ label, placeholder }: { label: string; placeholder?: string }) {
-  return (
-    <div className="grid gap-1.5">
-      <Label className="text-xs font-medium text-brand-navy">{label}</Label>
-      <Input placeholder={placeholder} />
-    </div>
   );
 }

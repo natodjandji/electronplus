@@ -1,12 +1,15 @@
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import type { KeyboardEvent } from "react";
+import { useQuery } from "@tanstack/react-query";
 import { ArrowRight, Zap, Truck, ShieldCheck, Tag, Search, ShoppingCart } from "lucide-react";
 import { PublicShell } from "@/components/public-shell";
 import { CircuitBackground } from "@/components/circuit-traces";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { PriceTag } from "@/components/price-tag";
-import { PRODUCTS, type Product } from "@/lib/mock-data";
+import { apiFetch } from "@/lib/api-client";
+import { type ApiProduct, toProduct } from "@/lib/product-api";
+import type { Product } from "@/lib/mock-data";
 
 export const Route = createFileRoute("/")({
   head: () => ({
@@ -29,7 +32,11 @@ export const Route = createFileRoute("/")({
 });
 
 function Home() {
-  const featured = PRODUCTS.slice(0, 4);
+  const { data: featured = [] } = useQuery({
+    queryKey: ["home", "featured"],
+    queryFn: () => apiFetch<{ data: ApiProduct[] }>("/products?limit=4"),
+    select: (res) => res.data.map(toProduct),
+  });
   return (
     <PublicShell>
       {/* Hero */}
@@ -93,12 +100,14 @@ function Home() {
                   }`}
                 >
                   <div className="aspect-square overflow-hidden rounded-xl bg-white">
-                    <img
-                      src={p.image}
-                      alt={p.name}
-                      className="h-full w-full object-cover"
-                      loading="lazy"
-                    />
+                    {p.image && (
+                      <img
+                        src={p.image}
+                        alt={p.name}
+                        className="h-full w-full object-cover"
+                        loading="lazy"
+                      />
+                    )}
                   </div>
                   <div className="mt-2 text-xs font-medium text-white/90 line-clamp-1">
                     {p.name}
@@ -188,12 +197,14 @@ function FeaturedProductCard({ product }: { product: Product }) {
       className="group cursor-pointer overflow-hidden border-border p-0 shadow-sm transition-all duration-300 hover:-translate-y-1 hover:border-brand-blue/40 hover:shadow-[0_8px_30px_-8px_rgba(0,86,179,0.25)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-blue"
     >
       <div className="aspect-square overflow-hidden bg-brand-surface">
-        <img
-          src={product.image}
-          alt={product.name}
-          className="h-full w-full object-cover transition-transform duration-500 group-hover:scale-[1.04]"
-          loading="lazy"
-        />
+        {product.image && (
+          <img
+            src={product.image}
+            alt={product.name}
+            className="h-full w-full object-cover transition-transform duration-500 group-hover:scale-[1.04]"
+            loading="lazy"
+          />
+        )}
       </div>
       <div className="p-4">
         <div className="text-[10px] font-semibold uppercase tracking-widest text-muted-foreground">

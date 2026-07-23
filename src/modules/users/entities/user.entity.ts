@@ -10,6 +10,12 @@ export interface User extends FirestoreDoc {
   phone?: string;
   taxId?: string; // RIF / cédula
 
+  // Shipping address saved from the first completed checkout, reused to
+  // prefill later ones.
+  address?: string;
+  city?: string;
+  state?: string;
+
   role: Role;
 
   creditLimit?: number;

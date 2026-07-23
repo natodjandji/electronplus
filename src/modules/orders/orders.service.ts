@@ -103,7 +103,13 @@ export class OrdersService {
 
     let payment: Payment;
     try {
-      payment = await this.paymentsService.initiate(order.id, dto.paymentMethod, order.totalAmount, dto.paymentReference);
+      payment = await this.paymentsService.initiate(
+        order.id,
+        dto.paymentMethod,
+        order.totalAmount,
+        dto.paymentReference,
+        dto.paymentProofBase64,
+      );
     } catch (error) {
       // Payment initiation failed after stock was committed (e.g. PayPal
       // unreachable) — restore the reserved stock and drop the order rather

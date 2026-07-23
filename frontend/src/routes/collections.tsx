@@ -1,9 +1,12 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
+import { useQuery } from "@tanstack/react-query";
 import { ArrowRight, Cable, Lightbulb, Plug, ShieldCheck, SquareStack } from "lucide-react";
 import { PublicShell } from "@/components/public-shell";
 import { CircuitBackground } from "@/components/circuit-traces";
 import { Card } from "@/components/ui/card";
-import { CATEGORIES, PRODUCTS, type Product } from "@/lib/mock-data";
+import { CATEGORIES, type Product } from "@/lib/mock-data";
+import { apiFetch } from "@/lib/api-client";
+import { type ApiProduct, toProduct } from "@/lib/product-api";
 
 export const Route = createFileRoute("/collections")({
   head: () => ({
@@ -29,6 +32,11 @@ const CATEGORY_ICON: Record<Product["category"], typeof Lightbulb> = {
 };
 
 function CollectionsPage() {
+  const { data: products = [] } = useQuery({
+    queryKey: ["collections", "products"],
+    queryFn: () => apiFetch<{ data: ApiProduct[] }>("/products?limit=100"),
+    select: (res) => res.data.map(toProduct),
+  });
   return (
     <PublicShell>
       <section className="relative overflow-hidden border-b border-border bg-white">
@@ -48,7 +56,7 @@ function CollectionsPage() {
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
           {CATEGORIES.map((c) => {
             const Icon = CATEGORY_ICON[c.id];
-            const items = PRODUCTS.filter((p) => p.category === c.id);
+            const items = products.filter((p) => p.category === c.id);
             const cover = items[0]?.image;
             return (
               <Link key={c.id} to="/catalog" search={{ category: c.id }} className="block">

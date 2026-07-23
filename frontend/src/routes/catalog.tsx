@@ -1,5 +1,6 @@
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useEffect, useMemo, useState, type KeyboardEvent, type MouseEvent } from "react";
+import { useQuery } from "@tanstack/react-query";
 import { AnimatePresence, motion } from "motion/react";
 import {
   ChevronLeft,
@@ -7,6 +8,7 @@ import {
   Filter,
   LayoutGrid,
   List,
+  Loader2,
   Search,
   ShoppingCart,
   Tags,
@@ -23,9 +25,19 @@ import { Badge } from "@/components/ui/badge";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import { PriceTag } from "@/components/price-tag";
-import { CATEGORIES, PRODUCTS, type Product } from "@/lib/mock-data";
+import { CATEGORIES, type Product } from "@/lib/mock-data";
+import { apiFetch } from "@/lib/api-client";
+import { type ApiProduct, toProduct } from "@/lib/product-api";
 import { useElectronStore } from "@/lib/electron-store";
 import { toast } from "sonner";
+
+function useCatalogProducts() {
+  return useQuery({
+    queryKey: ["catalog", "products"],
+    queryFn: () => apiFetch<{ data: ApiProduct[] }>("/products?limit=100"),
+    select: (res) => res.data.map(toProduct),
+  });
+}
 
 export const Route = createFileRoute("/catalog")({
   validateSearch: (search: Record<string, unknown>): { q?: string; category?: string } => ({
@@ -51,6 +63,7 @@ const PAGE_SIZE = 9;
 function CatalogPage() {
   const { q: initialQ, category: initialCategory } = Route.useSearch();
   const { priceFor, addToCart } = useElectronStore();
+  const { data: products, isLoading, isError } = useCatalogProducts();
   const [q, setQ] = useState(initialQ ?? "");
   const [cats, setCats] = useState<string[]>(initialCategory ? [initialCategory] : []);
   const [onlyAvailable, setOnlyAvailable] = useState(false);
@@ -59,7 +72,7 @@ function CatalogPage() {
   const [page, setPage] = useState(1);
 
   const filtered = useMemo(() => {
-    return PRODUCTS.filter((p) => {
+    return (products ?? []).filter((p) => {
       if (q && !`${p.name} ${p.sku}`.toLowerCase().includes(q.toLowerCase())) return false;
       if (cats.length && !cats.includes(p.category)) return false;
       if (onlyAvailable && p.stock <= 0) return false;
@@ -67,7 +80,7 @@ function CatalogPage() {
       if (price < range[0] || price > range[1]) return false;
       return true;
     });
-  }, [q, cats, onlyAvailable, range, priceFor]);
+  }, [products, q, cats, onlyAvailable, range, priceFor]);
 
   useEffect(() => {
     setPage(1);
@@ -225,7 +238,19 @@ function CatalogPage() {
           {filtered.length} producto{filtered.length === 1 ? "" : "s"}
         </div>
 
-        {filtered.length === 0 ? (
+        {isLoading ? (
+          <div className="flex items-center justify-center gap-2 py-16 text-sm text-muted-foreground">
+            <Loader2 className="h-4 w-4 animate-spin" />
+            Cargando productos…
+          </div>
+        ) : isError ? (
+          <Card className="p-10 text-center">
+            <div className="text-sm font-semibold text-brand-navy">
+              No pudimos cargar el catálogo
+            </div>
+            <p className="mt-1 text-sm text-muted-foreground">Intenta de nuevo en unos minutos.</p>
+          </Card>
+        ) : filtered.length === 0 ? (
           <Card className="p-10 text-center">
             <div className="text-sm font-semibold text-brand-navy">
               Sin resultados con estos filtros
@@ -314,12 +339,14 @@ function ProductCard({ product, onAdd }: { product: Product; onAdd: () => void }
       className="group flex h-full cursor-pointer flex-col overflow-hidden border-border p-0 shadow-sm transition-all duration-300 hover:-translate-y-1 hover:border-brand-blue/40 hover:shadow-[0_8px_30px_-8px_rgba(0,86,179,0.25)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-blue"
     >
       <div className="relative aspect-square overflow-hidden bg-brand-surface">
-        <img
-          src={product.image}
-          alt={product.name}
-          className="h-full w-full object-cover transition-transform duration-500 group-hover:scale-[1.04]"
-          loading="lazy"
-        />
+        {product.image && (
+          <img
+            src={product.image}
+            alt={product.name}
+            className="h-full w-full object-cover transition-transform duration-500 group-hover:scale-[1.04]"
+            loading="lazy"
+          />
+        )}
         {out && (
           <Badge className="absolute left-2 top-2 bg-destructive text-destructive-foreground">
             Agotado
@@ -371,12 +398,14 @@ function ProductListRow({ product, onAdd }: { product: Product; onAdd: () => voi
       className="group flex cursor-pointer items-center gap-4 overflow-hidden border-border p-3 shadow-sm transition-all duration-300 hover:border-brand-blue/40 hover:shadow-[0_8px_30px_-8px_rgba(0,86,179,0.25)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-blue sm:p-4"
     >
       <div className="relative h-20 w-20 shrink-0 overflow-hidden rounded-md bg-brand-surface sm:h-24 sm:w-24">
-        <img
-          src={product.image}
-          alt={product.name}
-          className="h-full w-full object-cover transition-transform duration-500 group-hover:scale-[1.04]"
-          loading="lazy"
-        />
+        {product.image && (
+          <img
+            src={product.image}
+            alt={product.name}
+            className="h-full w-full object-cover transition-transform duration-500 group-hover:scale-[1.04]"
+            loading="lazy"
+          />
+        )}
         {out && (
           <Badge className="absolute left-1 top-1 bg-destructive px-1.5 py-0 text-[9px] text-destructive-foreground">
             Agotado
