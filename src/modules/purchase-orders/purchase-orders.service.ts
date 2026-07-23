@@ -1,11 +1,12 @@
-import { BadRequestException, ForbiddenException, Inject, Injectable } from '@nestjs/common';
+import { BadRequestException, ForbiddenException, Inject, Injectable, NotFoundException } from '@nestjs/common';
 import type { Firestore } from 'firebase-admin/firestore';
+import { FieldValue } from 'firebase-admin/firestore';
 import { FIRESTORE } from '../../firebase/firebase.constants';
 import { Collections } from '../../firebase/firestore-collections';
 import { FirestoreRepository, WhereClause } from '../../firebase/firestore.repository';
 import { AuthenticatedUser } from '../../common/interfaces/authenticated-user.interface';
 import { FinanceService } from '../finance/finance.service';
-import { ProductsService } from '../products/products.service';
+import { ProductsService, StockChangedEvent } from '../products/products.service';
 import { CreatePurchaseOrderDto } from './dto/create-purchase-order.dto';
 import { QueryPurchaseOrdersDto } from './dto/query-purchase-orders.dto';
 import { RegisterPurchaseOrderPaymentDto } from './dto/register-purchase-order-payment.dto';
@@ -142,50 +143,80 @@ export class PurchaseOrdersService {
    * Registers a payment against the order. Once the accumulated amount
    * covers the total, the order settles: it's marked `paid`, the linked
    * accounts-payable balance is updated, and the ordered quantities are
-   * added to inventory.
+   * added to inventory — all inside one transaction, so a crash mid-way
+   * can never leave the order "paid" without the payable/stock following,
+   * or vice versa.
    */
   async registerPayment(id: string, dto: RegisterPurchaseOrderPaymentDto, user: AuthenticatedUser): Promise<PurchaseOrder> {
-    const order = await this.findById(id);
-    if (order.status === PurchaseOrderStatus.DRAFT) {
-      throw new BadRequestException('Issue the purchase order before registering payments against it');
-    }
-    if (order.status === PurchaseOrderStatus.PAID || order.status === PurchaseOrderStatus.CANCELLED) {
-      throw new BadRequestException('This purchase order is already settled or cancelled');
-    }
+    const stockChanges: StockChangedEvent[] = [];
 
-    const paidAt = new Date();
-    await this.paymentsRepo(id).create({
-      amount: dto.amount,
-      method: dto.method,
-      reference: dto.reference,
-      paidAt,
-      registeredByUserId: user.id,
-    });
+    await this.firestore.runTransaction(async (tx) => {
+      // ---- reads ----
+      const orderRef = this.repo.doc(id);
+      const orderSnap = await tx.get(orderRef);
+      if (!orderSnap.exists) throw new NotFoundException('Purchase order not found');
+      const orderData = orderSnap.data()!;
+      const order = {
+        ...orderData,
+        id: orderSnap.id,
+        createdAt: orderData.createdAt?.toDate?.() ?? orderData.createdAt,
+        updatedAt: orderData.updatedAt?.toDate?.() ?? orderData.updatedAt,
+      } as PurchaseOrder;
 
-    if (order.linkedPayableId) {
-      await this.financeService.registerPayment(order.linkedPayableId, dto, user.id);
-    }
+      if (order.status === PurchaseOrderStatus.DRAFT) {
+        throw new BadRequestException('Issue the purchase order before registering payments against it');
+      }
+      if (order.status === PurchaseOrderStatus.PAID || order.status === PurchaseOrderStatus.CANCELLED) {
+        throw new BadRequestException('This purchase order is already settled or cancelled');
+      }
 
-    const amountPaid = order.amountPaid + dto.amount;
-    const fullyPaid = amountPaid >= order.totals.totalAmount;
+      const amountPaid = order.amountPaid + dto.amount;
+      const fullyPaid = amountPaid >= order.totals.totalAmount;
 
-    const updated = await this.repo.update(id, {
-      amountPaid,
-      status: fullyPaid ? PurchaseOrderStatus.PAID : PurchaseOrderStatus.PARTIALLY_PAID,
-      paymentDetails: { paidAt, method: dto.method, reference: dto.reference },
-    });
+      const payable = order.linkedPayableId
+        ? await this.financeService.getPayableForUpdate(tx, order.linkedPayableId)
+        : undefined;
 
-    if (fullyPaid) {
-      for (const item of order.items) {
-        await this.productsService.adjustStock(item.productId, {
-          delta: item.quantityOrdered,
-          warehouseId: order.warehouseId,
-          reason: `Purchase order ${order.id} settled`,
+      const stockContexts = fullyPaid
+        ? await Promise.all(
+            order.items.map((item) => this.productsService.getStockForUpdate(tx, item.productId, order.warehouseId)),
+          )
+        : [];
+
+      // ---- writes ----
+      const paidAt = new Date();
+      const now = FieldValue.serverTimestamp();
+      const paymentRef = this.paymentsRepo(id).collection().doc();
+      tx.set(paymentRef, {
+        amount: dto.amount,
+        method: dto.method,
+        reference: dto.reference,
+        paidAt,
+        registeredByUserId: user.id,
+        createdAt: now,
+        updatedAt: now,
+      });
+
+      if (payable && order.linkedPayableId) {
+        this.financeService.applyPayablePayment(tx, order.linkedPayableId, payable, dto, user.id);
+      }
+
+      tx.update(orderRef, {
+        amountPaid,
+        status: fullyPaid ? PurchaseOrderStatus.PAID : PurchaseOrderStatus.PARTIALLY_PAID,
+        paymentDetails: { paidAt, method: dto.method, reference: dto.reference },
+        updatedAt: now,
+      });
+
+      if (fullyPaid) {
+        order.items.forEach((item, idx) => {
+          stockChanges.push(this.productsService.applyStockDelta(tx, stockContexts[idx], item.quantityOrdered));
         });
       }
-    }
+    });
 
-    return updated;
+    for (const change of stockChanges) this.productsService.emitStockChanged(change);
+    return this.findById(id);
   }
 
   /** Any linked accounts-payable entry is left in place for the admin to reconcile/remove manually. */

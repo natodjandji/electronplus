@@ -1,15 +1,27 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
-import { Plus, Trash2, Send, DollarSign, Ban, Clock } from "lucide-react";
+import { Plus, Trash2, Send, DollarSign, Ban, Clock, Loader2, AlertCircle } from "lucide-react";
 import { AdminShell } from "@/components/admin-shell";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
-import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import {
+  Dialog,
+  DialogContent,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { Separator } from "@/components/ui/separator";
 import { Textarea } from "@/components/ui/textarea";
 import { apiFetch, ApiError } from "@/lib/api-client";
@@ -147,7 +159,10 @@ function PurchaseOrdersPage() {
             />
           </div>
         </div>
-        <Button className="gap-2 bg-brand-blue text-white hover:bg-brand-blue/90" onClick={() => setCreating(true)}>
+        <Button
+          className="gap-2 bg-brand-blue text-white hover:bg-brand-blue/90"
+          onClick={() => setCreating(true)}
+        >
           <Plus className="h-4 w-4" /> Nueva orden
         </Button>
       </div>
@@ -187,7 +202,9 @@ function PurchaseOrdersPage() {
                 >
                   <td className="px-4 py-3 font-semibold text-brand-navy">{o.supplierName}</td>
                   <td className="px-4 py-3 text-right">{formatMoney(o.totals.totalAmount)}</td>
-                  <td className="px-4 py-3 text-right text-muted-foreground">{formatMoney(o.amountPaid)}</td>
+                  <td className="px-4 py-3 text-right text-muted-foreground">
+                    {formatMoney(o.amountPaid)}
+                  </td>
                   <td className="px-4 py-3">
                     <Badge className={STATUS_BADGE[o.status]}>{STATUS_LABEL[o.status]}</Badge>
                   </td>
@@ -207,7 +224,14 @@ function PurchaseOrdersPage() {
   );
 }
 
-type DraftLine = { productId: string; sku: string; name: string; quantityOrdered: number; unitCost: number; discountPerItem: number };
+type DraftLine = {
+  productId: string;
+  sku: string;
+  name: string;
+  quantityOrdered: number;
+  unitCost: number;
+  discountPerItem: number;
+};
 
 function CreateOrderDialog({ onClose }: { onClose: () => void }) {
   const queryClient = useQueryClient();
@@ -248,11 +272,22 @@ function CreateOrderDialog({ onClose }: { onClose: () => void }) {
   const addLine = () => {
     const product = products?.find((p) => p.id === pick);
     if (!product || lines.some((l) => l.productId === pick)) return;
-    setLines((prev) => [...prev, { productId: product.id, sku: product.sku, name: product.name, quantityOrdered: 1, unitCost: 0, discountPerItem: 0 }]);
+    setLines((prev) => [
+      ...prev,
+      {
+        productId: product.id,
+        sku: product.sku,
+        name: product.name,
+        quantityOrdered: 1,
+        unitCost: 0,
+        discountPerItem: 0,
+      },
+    ]);
     setPick("");
   };
 
-  const lineSubtotal = (l: DraftLine) => l.unitCost * l.quantityOrdered * (1 - l.discountPerItem / 100);
+  const lineSubtotal = (l: DraftLine) =>
+    l.unitCost * l.quantityOrdered * (1 - l.discountPerItem / 100);
   const subtotalAfterLines = lines.reduce((s, l) => s + lineSubtotal(l), 0);
   const totalAmount = subtotalAfterLines * (1 - globalDiscount / 100);
 
@@ -266,17 +301,29 @@ function CreateOrderDialog({ onClose }: { onClose: () => void }) {
         <div className="grid gap-4 sm:grid-cols-2">
           <div className="grid gap-1.5">
             <Label className="text-xs font-medium text-brand-navy">Proveedor</Label>
-            <Input placeholder="Nombre del proveedor" value={supplierName} onChange={(e) => setSupplierName(e.target.value)} />
+            <Input
+              placeholder="Nombre del proveedor"
+              value={supplierName}
+              onChange={(e) => setSupplierName(e.target.value)}
+            />
           </div>
           <div className="grid gap-1.5">
             <Label className="text-xs font-medium text-brand-navy">Condiciones de pago</Label>
-            <Input placeholder="Ej. 30 días, contado…" value={paymentTerms} onChange={(e) => setPaymentTerms(e.target.value)} />
+            <Input
+              placeholder="Ej. 30 días, contado…"
+              value={paymentTerms}
+              onChange={(e) => setPaymentTerms(e.target.value)}
+            />
           </div>
         </div>
 
         <div className="grid gap-1.5">
           <Label className="text-xs font-medium text-brand-navy">Notas</Label>
-          <Textarea placeholder="Notas especiales para esta orden…" value={notes} onChange={(e) => setNotes(e.target.value)} />
+          <Textarea
+            placeholder="Notas especiales para esta orden…"
+            value={notes}
+            onChange={(e) => setNotes(e.target.value)}
+          />
         </div>
 
         <Separator />
@@ -297,7 +344,11 @@ function CreateOrderDialog({ onClose }: { onClose: () => void }) {
               </SelectContent>
             </Select>
           </div>
-          <Button type="button" onClick={addLine} className="gap-2 bg-brand-blue text-white hover:bg-brand-blue/90">
+          <Button
+            type="button"
+            onClick={addLine}
+            className="gap-2 bg-brand-blue text-white hover:bg-brand-blue/90"
+          >
             <Plus className="h-4 w-4" /> Agregar
           </Button>
         </div>
@@ -335,7 +386,11 @@ function CreateOrderDialog({ onClose }: { onClose: () => void }) {
                       value={l.quantityOrdered}
                       onChange={(e) =>
                         setLines((prev) =>
-                          prev.map((x) => (x.productId === l.productId ? { ...x, quantityOrdered: Math.max(1, Number(e.target.value)) } : x)),
+                          prev.map((x) =>
+                            x.productId === l.productId
+                              ? { ...x, quantityOrdered: Math.max(1, Number(e.target.value)) }
+                              : x,
+                          ),
                         )
                       }
                       className="ml-auto h-8 w-20 text-right"
@@ -349,7 +404,11 @@ function CreateOrderDialog({ onClose }: { onClose: () => void }) {
                       value={l.unitCost}
                       onChange={(e) =>
                         setLines((prev) =>
-                          prev.map((x) => (x.productId === l.productId ? { ...x, unitCost: Math.max(0, Number(e.target.value)) } : x)),
+                          prev.map((x) =>
+                            x.productId === l.productId
+                              ? { ...x, unitCost: Math.max(0, Number(e.target.value)) }
+                              : x,
+                          ),
                         )
                       }
                       className="ml-auto h-8 w-24 text-right"
@@ -365,7 +424,13 @@ function CreateOrderDialog({ onClose }: { onClose: () => void }) {
                         setLines((prev) =>
                           prev.map((x) =>
                             x.productId === l.productId
-                              ? { ...x, discountPerItem: Math.min(100, Math.max(0, Number(e.target.value))) }
+                              ? {
+                                  ...x,
+                                  discountPerItem: Math.min(
+                                    100,
+                                    Math.max(0, Number(e.target.value)),
+                                  ),
+                                }
                               : x,
                           ),
                         )
@@ -373,10 +438,14 @@ function CreateOrderDialog({ onClose }: { onClose: () => void }) {
                       className="ml-auto h-8 w-20 text-right"
                     />
                   </td>
-                  <td className="py-2 text-right font-semibold text-brand-navy">{formatMoney(lineSubtotal(l))}</td>
+                  <td className="py-2 text-right font-semibold text-brand-navy">
+                    {formatMoney(lineSubtotal(l))}
+                  </td>
                   <td className="py-2 pl-2 text-right">
                     <button
-                      onClick={() => setLines((prev) => prev.filter((x) => x.productId !== l.productId))}
+                      onClick={() =>
+                        setLines((prev) => prev.filter((x) => x.productId !== l.productId))
+                      }
                       className="text-muted-foreground hover:text-destructive"
                       aria-label="Quitar"
                     >
@@ -397,7 +466,9 @@ function CreateOrderDialog({ onClose }: { onClose: () => void }) {
               min={0}
               max={100}
               value={globalDiscount}
-              onChange={(e) => setGlobalDiscount(Math.min(100, Math.max(0, Number(e.target.value))))}
+              onChange={(e) =>
+                setGlobalDiscount(Math.min(100, Math.max(0, Number(e.target.value))))
+              }
               className="h-8 w-20 text-right"
             />
           </div>
@@ -435,7 +506,11 @@ function OrderDetailDialog({ orderId, onClose }: { orderId: string; onClose: () 
   const [terms, setTerms] = useState<string | null>(null);
   const [notes, setNotes] = useState<string | null>(null);
 
-  const { data: order } = useQuery({
+  const {
+    data: order,
+    isLoading: orderLoading,
+    isError: orderError,
+  } = useQuery({
     queryKey: ["admin", "purchase-orders", orderId],
     queryFn: () => apiFetch<PurchaseOrder>(`/purchase-orders/${orderId}`),
   });
@@ -495,7 +570,32 @@ function OrderDetailDialog({ orderId, onClose }: { orderId: string; onClose: () 
     onError: reportError,
   });
 
-  if (!order) return null;
+  if (orderLoading) {
+    return (
+      <Dialog open onOpenChange={(open) => !open && onClose()}>
+        <DialogContent className="max-w-md">
+          <div className="flex items-center justify-center gap-2 py-10 text-sm text-muted-foreground">
+            <Loader2 className="h-4 w-4 animate-spin" />
+            Cargando orden…
+          </div>
+        </DialogContent>
+      </Dialog>
+    );
+  }
+
+  if (orderError || !order) {
+    return (
+      <Dialog open onOpenChange={(open) => !open && onClose()}>
+        <DialogContent className="max-w-md">
+          <div className="flex flex-col items-center gap-2 py-10 text-center text-sm">
+            <AlertCircle className="h-6 w-6 text-destructive" />
+            <div className="font-semibold text-brand-navy">No pudimos cargar esta orden</div>
+            <p className="text-muted-foreground">Intenta de nuevo en unos minutos.</p>
+          </div>
+        </DialogContent>
+      </Dialog>
+    );
+  }
 
   const canEditTerms = order.status !== "paid" && order.status !== "cancelled";
   const remaining = order.totals.totalAmount - order.amountPaid;
@@ -512,7 +612,10 @@ function OrderDetailDialog({ orderId, onClose }: { orderId: string; onClose: () 
 
         <div className="space-y-2 text-sm">
           {order.items.map((item) => (
-            <div key={item.productId} className="flex items-center justify-between border-b border-border py-2 last:border-0">
+            <div
+              key={item.productId}
+              className="flex items-center justify-between border-b border-border py-2 last:border-0"
+            >
               <div>
                 <div className="font-medium text-brand-navy">{item.name}</div>
                 <div className="text-xs text-muted-foreground">
@@ -571,7 +674,13 @@ function OrderDetailDialog({ orderId, onClose }: { orderId: string; onClose: () 
             />
           </div>
           {canEditTerms && (terms !== null || notes !== null) && (
-            <Button size="sm" variant="outline" className="justify-self-start" onClick={() => saveTerms.mutate()} disabled={saveTerms.isPending}>
+            <Button
+              size="sm"
+              variant="outline"
+              className="justify-self-start"
+              onClick={() => saveTerms.mutate()}
+              disabled={saveTerms.isPending}
+            >
               Guardar condiciones
             </Button>
           )}
@@ -581,10 +690,15 @@ function OrderDetailDialog({ orderId, onClose }: { orderId: string; onClose: () 
           <>
             <Separator />
             <div>
-              <div className="text-xs font-semibold uppercase tracking-widest text-muted-foreground">Historial de pagos</div>
+              <div className="text-xs font-semibold uppercase tracking-widest text-muted-foreground">
+                Historial de pagos
+              </div>
               <div className="mt-2 space-y-2 text-sm">
                 {payments.map((p) => (
-                  <div key={p.id} className="flex items-center justify-between border-b border-border py-1.5 last:border-0">
+                  <div
+                    key={p.id}
+                    className="flex items-center justify-between border-b border-border py-1.5 last:border-0"
+                  >
                     <div className="flex items-center gap-2 text-muted-foreground">
                       <Clock className="h-3.5 w-3.5" />
                       {new Date(p.paidAt).toLocaleDateString("es-VE")} · {p.method}
@@ -601,14 +715,23 @@ function OrderDetailDialog({ orderId, onClose }: { orderId: string; onClose: () 
         <DialogFooter className="gap-2 sm:justify-between">
           <div className="flex gap-2">
             {order.status !== "paid" && order.status !== "cancelled" && (
-              <Button variant="outline" className="gap-2 text-destructive" onClick={() => cancel.mutate()} disabled={cancel.isPending}>
+              <Button
+                variant="outline"
+                className="gap-2 text-destructive"
+                onClick={() => cancel.mutate()}
+                disabled={cancel.isPending}
+              >
                 <Ban className="h-4 w-4" /> Cancelar
               </Button>
             )}
           </div>
           <div className="flex gap-2">
             {order.status === "draft" && (
-              <Button className="gap-2 bg-brand-blue text-white hover:bg-brand-blue/90" onClick={() => issue.mutate()} disabled={issue.isPending}>
+              <Button
+                className="gap-2 bg-brand-blue text-white hover:bg-brand-blue/90"
+                onClick={() => issue.mutate()}
+                disabled={issue.isPending}
+              >
                 <Send className="h-4 w-4" /> Emitir
               </Button>
             )}
@@ -635,15 +758,29 @@ function OrderDetailDialog({ orderId, onClose }: { orderId: string; onClose: () 
           <div className="grid gap-3">
             <div className="grid gap-1.5">
               <Label className="text-xs font-medium text-brand-navy">Monto</Label>
-              <Input type="number" min={0.01} step="0.01" value={payAmount} onChange={(e) => setPayAmount(Number(e.target.value))} />
+              <Input
+                type="number"
+                min={0.01}
+                step="0.01"
+                value={payAmount}
+                onChange={(e) => setPayAmount(Number(e.target.value))}
+              />
             </div>
             <div className="grid gap-1.5">
               <Label className="text-xs font-medium text-brand-navy">Método</Label>
-              <Input value={payMethod} onChange={(e) => setPayMethod(e.target.value)} placeholder="transferencia, efectivo…" />
+              <Input
+                value={payMethod}
+                onChange={(e) => setPayMethod(e.target.value)}
+                placeholder="transferencia, efectivo…"
+              />
             </div>
             <div className="grid gap-1.5">
               <Label className="text-xs font-medium text-brand-navy">Referencia</Label>
-              <Input value={payReference} onChange={(e) => setPayReference(e.target.value)} placeholder="Opcional" />
+              <Input
+                value={payReference}
+                onChange={(e) => setPayReference(e.target.value)}
+                placeholder="Opcional"
+              />
             </div>
           </div>
           <DialogFooter>

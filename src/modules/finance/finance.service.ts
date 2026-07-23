@@ -1,7 +1,8 @@
-import { BadRequestException, Inject, Injectable, Logger } from '@nestjs/common';
+import { BadRequestException, Inject, Injectable, Logger, NotFoundException } from '@nestjs/common';
 import { Cron, CronExpression } from '@nestjs/schedule';
 import { EventEmitter2 } from '@nestjs/event-emitter';
-import type { Firestore } from 'firebase-admin/firestore';
+import type { Firestore, Transaction } from 'firebase-admin/firestore';
+import { FieldValue } from 'firebase-admin/firestore';
 import { FIRESTORE } from '../../firebase/firebase.constants';
 import { Collections } from '../../firebase/firestore-collections';
 import { FirestoreRepository } from '../../firebase/firestore.repository';
@@ -79,26 +80,58 @@ export class FinanceService {
   }
 
   async registerPayment(invoiceId: string, dto: RegisterPaymentDto, adminUserId: string): Promise<SupplierPayable> {
-    const invoice = await this.findInvoice(invoiceId);
-    if (invoice.status === SupplierPayableStatus.PAID) {
+    await this.firestore.runTransaction(async (tx) => {
+      const invoice = await this.getPayableForUpdate(tx, invoiceId);
+      this.applyPayablePayment(tx, invoiceId, invoice, dto, adminUserId);
+    });
+    return this.findInvoice(invoiceId);
+  }
+
+  // --- Transaction-safe split (read phase / write phase) so callers like
+  // PurchaseOrdersService can settle the payable atomically alongside their
+  // own writes (stock increments, PO status) in a single transaction.
+
+  async getPayableForUpdate(tx: Transaction, invoiceId: string): Promise<SupplierPayable> {
+    const snap = await tx.get(this.payablesRepo.doc(invoiceId));
+    if (!snap.exists) throw new NotFoundException('Supplier invoice not found');
+    const data = snap.data()!;
+    if (data.status === SupplierPayableStatus.PAID) {
       throw new BadRequestException('This invoice is already fully paid');
     }
+    return {
+      ...data,
+      id: snap.id,
+      createdAt: data.createdAt?.toDate?.() ?? data.createdAt,
+      updatedAt: data.updatedAt?.toDate?.() ?? data.updatedAt,
+    } as SupplierPayable;
+  }
 
-    await this.paymentsRepo(invoiceId).create({
+  applyPayablePayment(
+    tx: Transaction,
+    invoiceId: string,
+    invoice: SupplierPayable,
+    dto: RegisterPaymentDto,
+    adminUserId: string,
+  ): void {
+    const paymentRef = this.paymentsRepo(invoiceId).collection().doc();
+    const now = FieldValue.serverTimestamp();
+    tx.set(paymentRef, {
       amount: dto.amount,
       paidAt: new Date(),
       method: dto.method,
       reference: dto.reference,
       registeredByUserId: adminUserId,
+      createdAt: now,
+      updatedAt: now,
     });
 
     const newAmountPaid = invoice.amountPaid + dto.amount;
     const fullyPaid = newAmountPaid >= invoice.amount;
-
-    return this.payablesRepo.update(invoiceId, {
+    tx.update(this.payablesRepo.doc(invoiceId), {
       amountPaid: newAmountPaid,
       status: fullyPaid ? SupplierPayableStatus.PAID : SupplierPayableStatus.PENDING,
       dueStatus: fullyPaid ? PayableDueStatus.CURRENT : dueStatusForDueDate(invoice.dueDate),
+      updatedAt: now,
     });
   }
 

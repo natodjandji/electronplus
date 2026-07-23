@@ -26,6 +26,19 @@ export interface StockChangedEvent {
   minStockThreshold?: number;
 }
 
+export interface StockUpdateContext {
+  productId: string;
+  productRef: DocumentReference;
+  levelRef?: DocumentReference;
+  currentStock: number;
+  currentLevelQty: number;
+  levelExists: boolean;
+  warehouseInfo?: { id: string; code: string; name: string };
+  sku: string;
+  name: string;
+  minStockThreshold?: number;
+}
+
 function generateQrToken(): string {
   return randomBytes(24).toString('base64url');
 }
@@ -137,49 +150,77 @@ export class ProductsService {
 
   /** Manual admin stock adjustment (+ restock / - shrinkage), optionally scoped to a warehouse. */
   async adjustStock(id: string, dto: AdjustStockDto): Promise<Product> {
-    const productRef = this.repo.doc(id);
-    const levelRef = dto.warehouseId ? productRef.collection(Collections.STOCK_LEVELS).doc(dto.warehouseId) : undefined;
-
     const changed = await this.firestore.runTransaction(async (tx) => {
-      const productSnap = await tx.get(productRef);
-      if (!productSnap.exists) throw new NotFoundException('Product not found');
-      const levelSnap = levelRef ? await tx.get(levelRef) : undefined;
-      const warehouseSnap =
-        levelRef && !levelSnap?.exists ? await tx.get(this.warehousesRepo.doc(dto.warehouseId!)) : undefined;
-
-      const data = productSnap.data()!;
-      const nextStock = Math.max(0, (data.stock as number) + dto.delta);
-      tx.update(productRef, { stock: nextStock, updatedAt: FieldValue.serverTimestamp() });
-
-      if (levelRef) {
-        const currentQty = levelSnap?.exists ? (levelSnap.data()!.quantity as number) : 0;
-        const nextQty = Math.max(0, currentQty + dto.delta);
-        if (levelSnap?.exists) {
-          tx.update(levelRef, { quantity: nextQty, updatedAt: FieldValue.serverTimestamp() });
-        } else if (warehouseSnap?.exists) {
-          const w = warehouseSnap.data()!;
-          tx.set(levelRef, {
-            productId: id,
-            warehouseId: dto.warehouseId,
-            warehouse: { id: warehouseSnap.id, code: w.code, name: w.name },
-            quantity: nextQty,
-            createdAt: FieldValue.serverTimestamp(),
-            updatedAt: FieldValue.serverTimestamp(),
-          });
-        }
-      }
-
-      return {
-        productId: id,
-        sku: data.sku as string,
-        name: data.name as string,
-        stock: nextStock,
-        minStockThreshold: data.minStockThreshold as number | undefined,
-      } satisfies StockChangedEvent;
+      const ctx = await this.getStockForUpdate(tx, id, dto.warehouseId);
+      return this.applyStockDelta(tx, ctx, dto.delta);
     });
 
     this.events.emit(STOCK_CHANGED_EVENT, changed);
     return this.findById(id);
+  }
+
+  // --- Transaction-safe split of adjustStock (read phase / write phase) for
+  // callers (e.g. PurchaseOrdersService) that need the stock change to commit
+  // atomically alongside other writes of their own, in a single transaction.
+  // Firestore requires every read in a transaction before any write, so —
+  // same as getForUpdate/reserveStock below — call getStockForUpdate for
+  // every item first, then applyStockDelta for every item.
+
+  async getStockForUpdate(tx: Transaction, id: string, warehouseId?: string): Promise<StockUpdateContext> {
+    const productRef = this.repo.doc(id);
+    const levelRef = warehouseId ? productRef.collection(Collections.STOCK_LEVELS).doc(warehouseId) : undefined;
+
+    const productSnap = await tx.get(productRef);
+    if (!productSnap.exists) throw new NotFoundException('Product not found');
+    const levelSnap = levelRef ? await tx.get(levelRef) : undefined;
+    const warehouseSnap =
+      levelRef && !levelSnap?.exists ? await tx.get(this.warehousesRepo.doc(warehouseId!)) : undefined;
+
+    const data = productSnap.data()!;
+    return {
+      productId: id,
+      productRef,
+      levelRef,
+      currentStock: data.stock as number,
+      currentLevelQty: levelSnap?.exists ? (levelSnap.data()!.quantity as number) : 0,
+      levelExists: Boolean(levelSnap?.exists),
+      warehouseInfo:
+        warehouseSnap?.exists && warehouseId
+          ? { id: warehouseId, code: warehouseSnap.data()!.code, name: warehouseSnap.data()!.name }
+          : undefined,
+      sku: data.sku as string,
+      name: data.name as string,
+      minStockThreshold: data.minStockThreshold as number | undefined,
+    };
+  }
+
+  applyStockDelta(tx: Transaction, ctx: StockUpdateContext, delta: number): StockChangedEvent {
+    const nextStock = Math.max(0, ctx.currentStock + delta);
+    tx.update(ctx.productRef, { stock: nextStock, updatedAt: FieldValue.serverTimestamp() });
+
+    if (ctx.levelRef) {
+      const nextQty = Math.max(0, ctx.currentLevelQty + delta);
+      if (ctx.levelExists) {
+        tx.update(ctx.levelRef, { quantity: nextQty, updatedAt: FieldValue.serverTimestamp() });
+      } else if (ctx.warehouseInfo) {
+        tx.set(ctx.levelRef, {
+          productId: ctx.productId,
+          warehouseId: ctx.warehouseInfo.id,
+          warehouse: ctx.warehouseInfo,
+          quantity: nextQty,
+          createdAt: FieldValue.serverTimestamp(),
+          updatedAt: FieldValue.serverTimestamp(),
+        });
+      }
+    }
+
+    return {
+      productId: ctx.productId,
+      sku: ctx.sku,
+      name: ctx.name,
+      stock: nextStock,
+      minStockThreshold: ctx.minStockThreshold,
+    };
   }
 
   // --- Transaction-safe primitives for callers (Orders) that reserve stock

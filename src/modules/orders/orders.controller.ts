@@ -7,6 +7,7 @@ import { FirebaseAuthGuard } from '../../common/guards/firebase-auth.guard';
 import { RolesGuard } from '../../common/guards/roles.guard';
 import { AuthenticatedUser } from '../../common/interfaces/authenticated-user.interface';
 import { CreateOrderDto } from './dto/create-order.dto';
+import { toOrderDto } from './mappers/order.mapper';
 import { OrdersService } from './orders.service';
 
 @ApiTags('orders')
@@ -17,13 +18,15 @@ export class OrdersController {
   constructor(private readonly ordersService: OrdersService) {}
 
   @Post()
-  create(@CurrentUser() user: AuthenticatedUser, @Body() dto: CreateOrderDto) {
-    return this.ordersService.create(user, dto);
+  async create(@CurrentUser() user: AuthenticatedUser, @Body() dto: CreateOrderDto) {
+    const order = await this.ordersService.create(user, dto);
+    return toOrderDto(order, user.role);
   }
 
   @Get('mine')
-  findMine(@CurrentUser() user: AuthenticatedUser) {
-    return this.ordersService.findMine(user);
+  async findMine(@CurrentUser() user: AuthenticatedUser) {
+    const orders = await this.ordersService.findMine(user);
+    return orders.map((o) => toOrderDto(o, user.role));
   }
 
   @Get()
@@ -33,8 +36,9 @@ export class OrdersController {
   }
 
   @Get(':id')
-  findOne(@Param('id') id: string, @CurrentUser() user: AuthenticatedUser) {
-    return this.ordersService.findById(id, user);
+  async findOne(@Param('id') id: string, @CurrentUser() user: AuthenticatedUser) {
+    const order = await this.ordersService.findById(id, user);
+    return toOrderDto(order, user.role);
   }
 
   @Patch(':id/fulfill')
