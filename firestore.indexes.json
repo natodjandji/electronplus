@@ -187,17 +187,6 @@
           "queryScope": "COLLECTION_GROUP"
         }
       ]
-    },
-    {
-      "collectionGroup": "supplierPayments",
-      "fieldPath": "paidAt",
-      "ttl": false,
-      "indexes": [
-        {
-          "order": "ASCENDING",
-          "queryScope": "COLLECTION_GROUP"
-        }
-      ]
     }
   ]
 }

@@ -6,5 +6,6 @@ export interface SupplierPayment extends FirestoreDoc {
   paidAt: Date;
   method: string; // transferencia / efectivo / etc — free text, this is A/P not the storefront's A/R
   reference?: string;
+  proofUrl?: string;
   registeredByUserId: string;
 }

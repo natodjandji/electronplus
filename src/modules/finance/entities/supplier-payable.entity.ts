@@ -24,4 +24,6 @@ export interface SupplierPayable extends FirestoreDoc {
   status: SupplierPayableStatus;
   dueStatus: PayableDueStatus;
   amountPaid: number;
+  paymentTerms?: string;
+  notes?: string;
 }

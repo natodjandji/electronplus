@@ -24,4 +24,12 @@ export class CreateInvoiceDto {
 
   @IsDateString()
   dueDate: string;
+
+  @IsOptional()
+  @IsString()
+  paymentTerms?: string;
+
+  @IsOptional()
+  @IsString()
+  notes?: string;
 }

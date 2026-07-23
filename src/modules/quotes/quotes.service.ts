@@ -43,8 +43,11 @@ export class QuotesService {
     });
   }
 
-  findAll(): Promise<Quote[]> {
-    return this.repo.findAll({ orderBy: { field: 'createdAt', direction: 'desc' } });
+  findAll(userId?: string): Promise<Quote[]> {
+    return this.repo.findAll({
+      where: userId ? [{ field: 'userId', op: '==', value: userId }] : [],
+      orderBy: { field: 'createdAt', direction: 'desc' },
+    });
   }
 
   async findOneForUser(id: string, user: AuthenticatedUser): Promise<Quote> {

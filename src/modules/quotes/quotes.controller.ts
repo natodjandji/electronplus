@@ -1,4 +1,4 @@
-import { Body, Controller, Delete, Get, Param, Patch, Post, UseGuards } from '@nestjs/common';
+import { Body, Controller, Delete, Get, Param, Patch, Post, Query, UseGuards } from '@nestjs/common';
 import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
 import { Roles } from '../../common/decorators/roles.decorator';
@@ -33,8 +33,8 @@ export class QuotesController {
 
   @Get()
   @Roles(Role.ADMIN)
-  findAll() {
-    return this.quotesService.findAll();
+  findAll(@Query('userId') userId?: string) {
+    return this.quotesService.findAll(userId);
   }
 
   @Get(':id')

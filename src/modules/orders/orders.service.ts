@@ -143,8 +143,11 @@ export class OrdersService {
     });
   }
 
-  findAll(): Promise<Order[]> {
-    return this.repo.findAll({ orderBy: { field: 'createdAt', direction: 'desc' } });
+  findAll(userId?: string): Promise<Order[]> {
+    return this.repo.findAll({
+      where: userId ? [{ field: 'userId', op: '==', value: userId }] : [],
+      orderBy: { field: 'createdAt', direction: 'desc' },
+    });
   }
 
   async findById(id: string, user?: AuthenticatedUser): Promise<Order> {

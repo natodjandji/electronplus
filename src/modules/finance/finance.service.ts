@@ -9,6 +9,7 @@ import { FirestoreRepository } from '../../firebase/firestore.repository';
 import { CreateInvoiceDto } from './dto/create-invoice.dto';
 import { CreateSupplierDto } from './dto/create-supplier.dto';
 import { RegisterPaymentDto } from './dto/register-payment.dto';
+import { UpdatePaymentTermsDto } from './dto/update-payment-terms.dto';
 import { PayableDueStatus, SupplierPayable, SupplierPayableStatus } from './entities/supplier-payable.entity';
 import { SupplierPayment } from './entities/supplier-payment.entity';
 import { Supplier } from './entities/supplier.entity';
@@ -58,7 +59,17 @@ export class FinanceService {
       status: SupplierPayableStatus.PENDING,
       dueStatus: dueStatusForDueDate(dto.dueDate),
       amountPaid: 0,
+      paymentTerms: dto.paymentTerms,
+      notes: dto.notes,
     });
+  }
+
+  async updatePaymentTerms(id: string, dto: UpdatePaymentTermsDto): Promise<SupplierPayable> {
+    const invoice = await this.findInvoice(id);
+    if (invoice.status === SupplierPayableStatus.PAID) {
+      throw new BadRequestException('Payment terms can only be changed on an open invoice');
+    }
+    return this.payablesRepo.update(id, { paymentTerms: dto.paymentTerms, notes: dto.notes });
   }
 
   async listInvoices(status?: SupplierPayableStatus): Promise<SupplierPayable[]> {
@@ -120,6 +131,7 @@ export class FinanceService {
       paidAt: new Date(),
       method: dto.method,
       reference: dto.reference,
+      proofUrl: dto.proofBase64,
       registeredByUserId: adminUserId,
       createdAt: now,
       updatedAt: now,
@@ -135,8 +147,13 @@ export class FinanceService {
     });
   }
 
-  listPayments(invoiceId: string): Promise<SupplierPayment[]> {
-    return this.paymentsRepo(invoiceId).findAll({ orderBy: { field: 'paidAt', direction: 'desc' } });
+  // Sorted in Node rather than via Firestore orderBy: a stray field-index
+  // override on suppliersPayables/*/payments.paidAt (unrelated to this
+  // module, scoped to COLLECTION_GROUP ASCENDING only) blocks the
+  // DESCENDING/COLLECTION query Firestore would otherwise need here.
+  async listPayments(invoiceId: string): Promise<SupplierPayment[]> {
+    const payments = await this.paymentsRepo(invoiceId).findAll();
+    return payments.sort((a, b) => new Date(b.paidAt).getTime() - new Date(a.paidAt).getTime());
   }
 
   @Cron(CronExpression.EVERY_DAY_AT_6AM)

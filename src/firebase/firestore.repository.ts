@@ -39,14 +39,16 @@ export class FirestoreRepository<T extends FirestoreDoc> {
     return this.collection().doc(id);
   }
 
+  /** Converts every top-level Firestore Timestamp field (createdAt/updatedAt
+   * plus any doc-specific one like paidAt/issuedAt/verifiedAt) to a JS Date —
+   * otherwise it round-trips as a raw {_seconds, _nanoseconds} object. */
   private fromSnapshot(snap: FirebaseFirestore.DocumentSnapshot): T {
     const data = snap.data()!;
-    return {
-      ...data,
-      id: snap.id,
-      createdAt: data.createdAt?.toDate?.() ?? data.createdAt,
-      updatedAt: data.updatedAt?.toDate?.() ?? data.updatedAt,
-    } as T;
+    const converted: Record<string, unknown> = {};
+    for (const [key, value] of Object.entries(data)) {
+      converted[key] = (value as { toDate?: () => Date })?.toDate?.() ?? value;
+    }
+    return { ...converted, id: snap.id } as T;
   }
 
   async findById(id: string): Promise<T | null> {

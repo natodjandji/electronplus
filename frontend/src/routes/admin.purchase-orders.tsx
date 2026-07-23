@@ -103,6 +103,33 @@ function useProductOptions() {
   });
 }
 
+function monthKey(dateStr: string) {
+  const d = new Date(dateStr);
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
+}
+
+function monthLabel(key: string) {
+  const [year, month] = key.split("-").map(Number);
+  return new Date(year, month - 1, 1).toLocaleDateString("es-VE", {
+    month: "long",
+    year: "numeric",
+  });
+}
+
+function groupByMonth(
+  orders: PurchaseOrder[],
+): { key: string; label: string; items: PurchaseOrder[] }[] {
+  const groups = new Map<string, PurchaseOrder[]>();
+  for (const order of orders) {
+    const key = monthKey(order.createdAt);
+    if (!groups.has(key)) groups.set(key, []);
+    groups.get(key)!.push(order);
+  }
+  return [...groups.entries()]
+    .sort(([a], [b]) => b.localeCompare(a))
+    .map(([key, items]) => ({ key, label: monthLabel(key), items }));
+}
+
 function usePurchaseOrders(filters: { status?: string; supplierId?: string }) {
   const params = new URLSearchParams();
   if (filters.status) params.set("status", filters.status);
@@ -167,56 +194,60 @@ function PurchaseOrdersPage() {
         </Button>
       </div>
 
-      <Card className="mt-6 overflow-hidden">
-        <div className="overflow-x-auto">
-          <table className="w-full text-sm">
-            <thead className="bg-brand-surface">
-              <tr className="text-left text-xs uppercase tracking-wider text-muted-foreground">
-                <th className="px-4 py-2">Proveedor</th>
-                <th className="px-4 py-2 text-right">Total</th>
-                <th className="px-4 py-2 text-right">Pagado</th>
-                <th className="px-4 py-2">Estado</th>
-                <th className="px-4 py-2">Creada</th>
-              </tr>
-            </thead>
-            <tbody>
-              {isLoading && (
-                <tr>
-                  <td colSpan={5} className="py-8 text-center text-muted-foreground">
-                    Cargando…
-                  </td>
-                </tr>
-              )}
-              {!isLoading && (orders?.length ?? 0) === 0 && (
-                <tr>
-                  <td colSpan={5} className="py-8 text-center text-muted-foreground">
-                    No hay órdenes de compra con estos filtros.
-                  </td>
-                </tr>
-              )}
-              {orders?.map((o) => (
-                <tr
-                  key={o.id}
-                  className="cursor-pointer border-t border-border hover:bg-brand-surface"
-                  onClick={() => setSelectedId(o.id)}
-                >
-                  <td className="px-4 py-3 font-semibold text-brand-navy">{o.supplierName}</td>
-                  <td className="px-4 py-3 text-right">{formatMoney(o.totals.totalAmount)}</td>
-                  <td className="px-4 py-3 text-right text-muted-foreground">
-                    {formatMoney(o.amountPaid)}
-                  </td>
-                  <td className="px-4 py-3">
-                    <Badge className={STATUS_BADGE[o.status]}>{STATUS_LABEL[o.status]}</Badge>
-                  </td>
-                  <td className="px-4 py-3 text-muted-foreground">
-                    {new Date(o.createdAt).toLocaleDateString("es-VE")}
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
+      {isLoading && (
+        <div className="mt-6 flex items-center justify-center gap-2 py-16 text-sm text-muted-foreground">
+          <Loader2 className="h-4 w-4 animate-spin" />
+          Cargando…
         </div>
-      </Card>
+      )}
+
+      {!isLoading && (orders?.length ?? 0) === 0 && (
+        <Card className="mt-6 p-10 text-center text-muted-foreground">
+          No hay órdenes de compra con estos filtros.
+        </Card>
+      )}
+
+      {groupByMonth(orders ?? []).map((group) => (
+        <Card key={group.key} className="mt-6 overflow-hidden">
+          <div className="border-b border-border p-4">
+            <h3 className="text-base font-semibold capitalize text-brand-navy">{group.label}</h3>
+          </div>
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead className="bg-brand-surface">
+                <tr className="text-left text-xs uppercase tracking-wider text-muted-foreground">
+                  <th className="px-4 py-2">Proveedor</th>
+                  <th className="px-4 py-2 text-right">Total</th>
+                  <th className="px-4 py-2 text-right">Pagado</th>
+                  <th className="px-4 py-2">Estado</th>
+                  <th className="px-4 py-2">Creada</th>
+                </tr>
+              </thead>
+              <tbody>
+                {group.items.map((o) => (
+                  <tr
+                    key={o.id}
+                    className="cursor-pointer border-t border-border hover:bg-brand-surface"
+                    onClick={() => setSelectedId(o.id)}
+                  >
+                    <td className="px-4 py-3 font-semibold text-brand-navy">{o.supplierName}</td>
+                    <td className="px-4 py-3 text-right">{formatMoney(o.totals.totalAmount)}</td>
+                    <td className="px-4 py-3 text-right text-muted-foreground">
+                      {formatMoney(o.amountPaid)}
+                    </td>
+                    <td className="px-4 py-3">
+                      <Badge className={STATUS_BADGE[o.status]}>{STATUS_LABEL[o.status]}</Badge>
+                    </td>
+                    <td className="px-4 py-3 text-muted-foreground">
+                      {new Date(o.createdAt).toLocaleDateString("es-VE")}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </Card>
+      ))}
 
       {creating && <CreateOrderDialog onClose={() => setCreating(false)} />}
       {selectedId && <OrderDetailDialog orderId={selectedId} onClose={() => setSelectedId(null)} />}

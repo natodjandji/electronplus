@@ -1,4 +1,4 @@
-import { Body, Controller, Get, Param, Post, Query, UseGuards } from '@nestjs/common';
+import { Body, Controller, Get, Param, Patch, Post, Query, UseGuards } from '@nestjs/common';
 import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
 import { Roles } from '../../common/decorators/roles.decorator';
@@ -9,6 +9,7 @@ import { AuthenticatedUser } from '../../common/interfaces/authenticated-user.in
 import { CreateInvoiceDto } from './dto/create-invoice.dto';
 import { CreateSupplierDto } from './dto/create-supplier.dto';
 import { RegisterPaymentDto } from './dto/register-payment.dto';
+import { UpdatePaymentTermsDto } from './dto/update-payment-terms.dto';
 import { SupplierPayableStatus } from './entities/supplier-payable.entity';
 import { FinanceService } from './finance.service';
 
@@ -38,6 +39,11 @@ export class FinanceController {
   @Get('invoices')
   listInvoices(@Query('status') status?: SupplierPayableStatus) {
     return this.financeService.listInvoices(status);
+  }
+
+  @Patch('invoices/:id/payment-terms')
+  updatePaymentTerms(@Param('id') id: string, @Body() dto: UpdatePaymentTermsDto) {
+    return this.financeService.updatePaymentTerms(id, dto);
   }
 
   @Get('invoices/:id/payments')
