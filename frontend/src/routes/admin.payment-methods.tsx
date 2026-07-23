@@ -48,10 +48,6 @@ const BACKEND_METHODS = [
   { value: "credit_b2b", label: "Crédito B2B" },
 ] as const;
 
-function backendMethodLabel(value: string): string {
-  return BACKEND_METHODS.find((m) => m.value === value)?.label ?? value;
-}
-
 interface PaymentMethodConfig {
   id: string;
   backendMethod: string;
@@ -146,15 +142,7 @@ function PaymentMethodsPage() {
                   <div className="grid h-9 w-9 shrink-0 place-items-center rounded-md bg-brand-blue/10 text-brand-blue">
                     <CreditCard className="h-4 w-4" />
                   </div>
-                  <div>
-                    <div className="font-semibold text-brand-navy">{m.label}</div>
-                    <div className="mt-0.5 flex flex-wrap gap-1">
-                      <Badge className="bg-brand-surface text-muted-foreground">{m.id}</Badge>
-                      <Badge className="bg-brand-surface text-muted-foreground">
-                        {backendMethodLabel(m.backendMethod)}
-                      </Badge>
-                    </div>
-                  </div>
+                  <div className="font-semibold text-brand-navy">{m.label}</div>
                 </div>
                 <Switch
                   checked={m.enabled}
@@ -169,9 +157,13 @@ function PaymentMethodsPage() {
                 ))}
               </ul>
 
-              <div className="mt-3 flex flex-wrap gap-1.5 text-xs text-muted-foreground">
-                {m.needsReference && <Badge className="bg-brand-surface">Pide referencia</Badge>}
-                {m.needsProof && <Badge className="bg-brand-surface">Pide comprobante</Badge>}
+              <div className="mt-3 flex flex-wrap gap-1.5 text-xs">
+                {m.needsReference && (
+                  <Badge className="bg-brand-surface text-brand-navy">Pide referencia</Badge>
+                )}
+                {m.needsProof && (
+                  <Badge className="bg-brand-surface text-brand-navy">Pide comprobante</Badge>
+                )}
               </div>
 
               <div className="mt-4 flex gap-2">
