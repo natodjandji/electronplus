@@ -8,6 +8,7 @@ import { Collections } from '../../firebase/firestore-collections';
 import { FirestoreRepository } from '../../firebase/firestore.repository';
 import { CreateInvoiceDto } from './dto/create-invoice.dto';
 import { CreateSupplierDto } from './dto/create-supplier.dto';
+import { UpdateSupplierDto } from './dto/update-supplier.dto';
 import { RegisterPaymentDto } from './dto/register-payment.dto';
 import { UpdateInvoiceDto } from './dto/update-invoice.dto';
 import { UpdatePaymentTermsDto } from './dto/update-payment-terms.dto';
@@ -46,6 +47,10 @@ export class FinanceService {
 
   listSuppliers(): Promise<Supplier[]> {
     return this.suppliersRepo.findAll({ orderBy: { field: 'name' } });
+  }
+
+  updateSupplier(id: string, dto: UpdateSupplierDto): Promise<Supplier> {
+    return this.suppliersRepo.update(id, dto);
   }
 
   async createInvoice(dto: CreateInvoiceDto): Promise<SupplierPayable> {

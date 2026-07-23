@@ -1,7 +1,7 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
-import { AlertTriangle, Loader2, Plus, Search } from "lucide-react";
+import { AlertTriangle, Loader2, PackageX, Plus, Search } from "lucide-react";
 import { AdminShell } from "@/components/admin-shell";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -170,7 +170,12 @@ function InventoryPage() {
                     <td className="px-4 py-3 text-right">{formatMoney(p.wholesalePrice)}</td>
                     <td className="px-4 py-3">
                       <div className="flex flex-wrap gap-1.5">
-                        {low && (
+                        {p.stock === 0 && (
+                          <Badge className="gap-1 bg-destructive text-white">
+                            <PackageX className="h-3 w-3" /> Agotado
+                          </Badge>
+                        )}
+                        {low && p.stock > 0 && (
                           <Badge className="gap-1 bg-brand-yellow text-brand-navy">
                             <AlertTriangle className="h-3 w-3" /> Bajo
                           </Badge>
@@ -211,6 +216,7 @@ function ProductFormDialog({ product, onClose }: { product?: AdminProduct; onClo
   const [imageUrl, setImageUrl] = useState(product?.imageUrl ?? "");
   const [active, setActive] = useState(product?.active ?? true);
   const [creatingCategory, setCreatingCategory] = useState(false);
+  const [stockTarget, setStockTarget] = useState(product?.stock ?? 0);
 
   const save = useMutation({
     mutationFn: () => {
@@ -235,6 +241,19 @@ function ProductFormDialog({ product, onClose }: { product?: AdminProduct; onClo
       queryClient.invalidateQueries({ queryKey: ["admin", "products"] });
       toast.success(isEdit ? "Producto actualizado" : "Producto creado");
       onClose();
+    },
+    onError: reportError,
+  });
+
+  const adjustStock = useMutation({
+    mutationFn: () =>
+      apiFetch(`/products/${product!.id}/stock`, {
+        method: "PATCH",
+        body: { delta: stockTarget - product!.stock },
+      }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["admin", "products"] });
+      toast.success("Stock actualizado");
     },
     onError: reportError,
   });
@@ -334,6 +353,34 @@ function ProductFormDialog({ product, onClose }: { product?: AdminProduct; onClo
               onChange={(e) => setMinStockThreshold(Math.max(0, Number(e.target.value)))}
             />
           </div>
+          {isEdit && (
+            <div className="grid gap-1.5 sm:col-span-2">
+              <Label className="text-xs font-medium text-brand-navy">
+                Stock real (unidades en existencia)
+              </Label>
+              <div className="flex gap-2">
+                <Input
+                  type="number"
+                  min={0}
+                  value={stockTarget}
+                  onChange={(e) => setStockTarget(Math.max(0, Number(e.target.value)))}
+                  className="flex-1"
+                />
+                <Button
+                  type="button"
+                  variant="outline"
+                  className="shrink-0"
+                  disabled={stockTarget === product!.stock || adjustStock.isPending}
+                  onClick={() => adjustStock.mutate()}
+                >
+                  Actualizar stock
+                </Button>
+              </div>
+              <p className="text-xs text-muted-foreground">
+                Stock actualmente registrado: {product!.stock} uds.
+              </p>
+            </div>
+          )}
           <div className="grid gap-1.5 sm:col-span-2">
             <Label className="text-xs font-medium text-brand-navy">URL de imagen</Label>
             <Input

@@ -11,6 +11,7 @@ import { CreateSupplierDto } from './dto/create-supplier.dto';
 import { RegisterPaymentDto } from './dto/register-payment.dto';
 import { UpdateInvoiceDto } from './dto/update-invoice.dto';
 import { UpdatePaymentTermsDto } from './dto/update-payment-terms.dto';
+import { UpdateSupplierDto } from './dto/update-supplier.dto';
 import { SupplierPayableStatus } from './entities/supplier-payable.entity';
 import { FinanceService } from './finance.service';
 
@@ -30,6 +31,11 @@ export class FinanceController {
   @Get('suppliers')
   listSuppliers() {
     return this.financeService.listSuppliers();
+  }
+
+  @Patch('suppliers/:id')
+  updateSupplier(@Param('id') id: string, @Body() dto: UpdateSupplierDto) {
+    return this.financeService.updateSupplier(id, dto);
   }
 
   @Post('invoices')

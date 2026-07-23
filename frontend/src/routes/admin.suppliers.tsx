@@ -1,14 +1,31 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { useQuery } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
-import { Building2, Loader2, Mail, Phone, Plus } from "lucide-react";
+import { Building2, Loader2, Mail, Pencil, Phone, Plus } from "lucide-react";
 import { AdminShell } from "@/components/admin-shell";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import { CreateSupplierDialog, useSuppliers, type Supplier } from "@/components/supplier-picker";
-import { apiFetch } from "@/lib/api-client";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { TaxIdField } from "@/components/tax-id-field";
+import { PhoneField } from "@/components/phone-field";
+import { CreateSupplierDialog, useSuppliers } from "@/components/supplier-picker";
+import { apiFetch, ApiError } from "@/lib/api-client";
+import {
+  formatTaxId,
+  parseTaxId,
+  validateTaxIdNumber,
+  type TaxIdPrefix,
+} from "@/lib/venezuelan-tax-id";
+import {
+  formatPhone,
+  parsePhone,
+  validatePhoneNumber,
+  type PhonePrefix,
+} from "@/lib/venezuelan-phone";
+import { toast } from "sonner";
 
 export const Route = createFileRoute("/admin/suppliers")({
   head: () => ({
@@ -23,12 +40,18 @@ export const Route = createFileRoute("/admin/suppliers")({
   component: SuppliersPage,
 });
 
+const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
 interface AdminProduct {
   id: string;
   sku: string;
   name: string;
   stock: number;
   supplierId?: string;
+}
+
+function reportError(error: unknown) {
+  toast.error(error instanceof ApiError ? error.message : "Ocurrió un error inesperado");
 }
 
 function useAdminProducts() {
@@ -42,7 +65,7 @@ function SuppliersPage() {
   const { data: suppliers, isLoading } = useSuppliers();
   const { data: products } = useAdminProducts();
   const [creating, setCreating] = useState(false);
-  const [selected, setSelected] = useState<Supplier | null>(null);
+  const [selectedId, setSelectedId] = useState<string | null>(null);
 
   const productsFor = (supplierId: string) =>
     (products ?? []).filter((p) => p.supplierId === supplierId);
@@ -79,7 +102,7 @@ function SuppliersPage() {
           {suppliers.map((s) => (
             <Card
               key={s.id}
-              onClick={() => setSelected(s)}
+              onClick={() => setSelectedId(s.id)}
               className="cursor-pointer p-4 transition-colors hover:border-brand-blue/40"
             >
               <div className="flex items-start gap-3">
@@ -111,11 +134,11 @@ function SuppliersPage() {
 
       {creating && <CreateSupplierDialog onClose={() => setCreating(false)} />}
 
-      {selected && (
+      {selectedId && (
         <SupplierDetailDialog
-          supplier={selected}
-          products={productsFor(selected.id)}
-          onClose={() => setSelected(null)}
+          supplierId={selectedId}
+          products={productsFor(selectedId)}
+          onClose={() => setSelectedId(null)}
         />
       )}
     </AdminShell>
@@ -123,39 +146,151 @@ function SuppliersPage() {
 }
 
 function SupplierDetailDialog({
-  supplier,
+  supplierId,
   products,
   onClose,
 }: {
-  supplier: Supplier;
+  supplierId: string;
   products: AdminProduct[];
   onClose: () => void;
 }) {
+  const queryClient = useQueryClient();
+  const { data: suppliers } = useSuppliers();
+  const supplier = suppliers?.find((s) => s.id === supplierId);
+
+  const [editing, setEditing] = useState(false);
+  const [name, setName] = useState("");
+  const [taxIdPrefix, setTaxIdPrefix] = useState<TaxIdPrefix>("J");
+  const [taxIdNumber, setTaxIdNumber] = useState("");
+  const [contactEmail, setContactEmail] = useState("");
+  const [phonePrefix, setPhonePrefix] = useState<PhonePrefix>("0212");
+  const [phoneNumber, setPhoneNumber] = useState("");
+
+  const taxIdValid = validateTaxIdNumber(taxIdPrefix, taxIdNumber).valid;
+  const phoneValid = validatePhoneNumber(phoneNumber).valid;
+  const emailValid = !contactEmail || EMAIL_PATTERN.test(contactEmail);
+
+  const startEditing = () => {
+    if (!supplier) return;
+    setName(supplier.name);
+    const parsedTaxId = parseTaxId(supplier.taxId);
+    setTaxIdPrefix(parsedTaxId.prefix);
+    setTaxIdNumber(parsedTaxId.number);
+    setContactEmail(supplier.contactEmail ?? "");
+    const parsedPhone = parsePhone(supplier.contactPhone);
+    setPhonePrefix(parsedPhone.prefix);
+    setPhoneNumber(parsedPhone.number);
+    setEditing(true);
+  };
+
+  const save = useMutation({
+    mutationFn: () =>
+      apiFetch(`/finance/suppliers/${supplierId}`, {
+        method: "PATCH",
+        body: {
+          name,
+          taxId: formatTaxId(taxIdPrefix, taxIdNumber),
+          contactEmail: contactEmail || undefined,
+          contactPhone: formatPhone(phonePrefix, phoneNumber),
+        },
+      }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["admin", "suppliers"] });
+      toast.success("Proveedor actualizado");
+      setEditing(false);
+    },
+    onError: reportError,
+  });
+
+  if (!supplier) return null;
+
   return (
     <Dialog open onOpenChange={(open) => !open && onClose()}>
       <DialogContent className="max-h-[80vh] max-w-md overflow-y-auto">
         <DialogHeader>
-          <div className="flex items-center gap-3">
-            <div className="grid h-10 w-10 shrink-0 place-items-center rounded-md bg-brand-blue/10 text-brand-blue">
-              <Building2 className="h-5 w-5" />
+          <div className="flex items-center justify-between gap-3 pr-6">
+            <div className="flex min-w-0 items-center gap-3">
+              <div className="grid h-10 w-10 shrink-0 place-items-center rounded-md bg-brand-blue/10 text-brand-blue">
+                <Building2 className="h-5 w-5" />
+              </div>
+              <DialogTitle className="truncate">{supplier.name}</DialogTitle>
             </div>
-            <DialogTitle className="truncate">{supplier.name}</DialogTitle>
+            {!editing && (
+              <Button
+                size="sm"
+                variant="outline"
+                className="shrink-0 gap-1.5"
+                onClick={startEditing}
+              >
+                <Pencil className="h-3.5 w-3.5" /> Editar
+              </Button>
+            )}
           </div>
         </DialogHeader>
 
-        <div className="grid gap-1.5 text-sm">
-          {supplier.taxId && <div className="text-muted-foreground">RIF: {supplier.taxId}</div>}
-          {supplier.contactEmail && (
-            <div className="flex items-center gap-1.5 text-muted-foreground">
-              <Mail className="h-3.5 w-3.5" /> {supplier.contactEmail}
+        {!editing && (
+          <div className="grid gap-1.5 text-sm">
+            {supplier.taxId && <div className="text-muted-foreground">RIF: {supplier.taxId}</div>}
+            {supplier.contactEmail && (
+              <div className="flex items-center gap-1.5 text-muted-foreground">
+                <Mail className="h-3.5 w-3.5" /> {supplier.contactEmail}
+              </div>
+            )}
+            {supplier.contactPhone && (
+              <div className="flex items-center gap-1.5 text-muted-foreground">
+                <Phone className="h-3.5 w-3.5" /> {supplier.contactPhone}
+              </div>
+            )}
+          </div>
+        )}
+
+        {editing && (
+          <div className="grid gap-3">
+            <div className="grid gap-1.5">
+              <Label className="text-xs font-medium text-brand-navy">Nombre</Label>
+              <Input value={name} onChange={(e) => setName(e.target.value)} />
             </div>
-          )}
-          {supplier.contactPhone && (
-            <div className="flex items-center gap-1.5 text-muted-foreground">
-              <Phone className="h-3.5 w-3.5" /> {supplier.contactPhone}
+            <TaxIdField
+              label="RIF (opcional)"
+              prefix={taxIdPrefix}
+              onPrefixChange={setTaxIdPrefix}
+              number={taxIdNumber}
+              onNumberChange={setTaxIdNumber}
+            />
+            <div className="grid gap-1.5">
+              <Label className="text-xs font-medium text-brand-navy">
+                Correo de contacto (opcional)
+              </Label>
+              <Input
+                type="email"
+                value={contactEmail}
+                onChange={(e) => setContactEmail(e.target.value)}
+                aria-invalid={!emailValid}
+              />
+              {!emailValid && <p className="text-xs text-destructive">Correo inválido.</p>}
             </div>
-          )}
-        </div>
+            <PhoneField
+              label="Teléfono de contacto (opcional)"
+              prefix={phonePrefix}
+              onPrefixChange={setPhonePrefix}
+              number={phoneNumber}
+              onNumberChange={setPhoneNumber}
+            />
+            <div className="flex justify-end gap-2">
+              <Button variant="outline" size="sm" onClick={() => setEditing(false)}>
+                Cancelar
+              </Button>
+              <Button
+                size="sm"
+                className="bg-brand-blue text-white hover:bg-brand-blue/90"
+                disabled={!name || !taxIdValid || !phoneValid || !emailValid || save.isPending}
+                onClick={() => save.mutate()}
+              >
+                Guardar cambios
+              </Button>
+            </div>
+          </div>
+        )}
 
         <div>
           <div className="mb-2 text-xs font-semibold uppercase tracking-widest text-muted-foreground">
