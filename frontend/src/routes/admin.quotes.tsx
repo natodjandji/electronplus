@@ -1,7 +1,7 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
-import { Check, Loader2, Printer, X } from "lucide-react";
+import { Check, Loader2, Printer, Tag, X } from "lucide-react";
 import { AdminShell } from "@/components/admin-shell";
 import { ElectronLogo } from "@/components/electron-logo";
 import { Badge } from "@/components/ui/badge";
@@ -21,6 +21,7 @@ import { Separator } from "@/components/ui/separator";
 import { Textarea } from "@/components/ui/textarea";
 import { apiFetch, ApiError } from "@/lib/api-client";
 import { formatMoney } from "@/lib/electron-store";
+import { formatBs, useBcvRate } from "@/lib/use-bcv-rate";
 import { toast } from "sonner";
 
 export const Route = createFileRoute("/admin/quotes")({
@@ -42,6 +43,7 @@ interface QuoteLine {
   name: string;
   qty: number;
   unitPrice: number;
+  wholesalePrice: number;
   discountPct: number;
 }
 
@@ -77,6 +79,10 @@ function computeTotal(quote: Quote): number {
     0,
   );
   return subtotal * (1 - quote.globalDiscountPct / 100);
+}
+
+function computeWholesaleTotal(quote: Quote): number {
+  return quote.items.reduce((s, i) => s + i.wholesalePrice * i.qty, 0);
 }
 
 function reportError(error: unknown) {
@@ -182,6 +188,7 @@ function QuoteDetailDialog({ id, onClose }: { id: string; onClose: () => void })
     queryKey: ["admin", "quotes", id],
     queryFn: () => apiFetch<Quote>(`/quotes/${id}`),
   });
+  const { data: bcv } = useBcvRate();
 
   const invalidate = () => {
     queryClient.invalidateQueries({ queryKey: ["admin", "quotes"] });
@@ -224,6 +231,7 @@ function QuoteDetailDialog({ id, onClose }: { id: string; onClose: () => void })
 
   const canDecide = quote.status === "sent";
   const total = computeTotal(quote);
+  const wholesaleTotal = computeWholesaleTotal(quote);
 
   return (
     <>
@@ -352,7 +360,7 @@ function QuoteDetailDialog({ id, onClose }: { id: string; onClose: () => void })
           <div className="flex items-center justify-between gap-4 border-b border-border pb-4">
             <ElectronLogo layout="full" tone="color" className="h-8" />
             <div className="text-right text-xs text-muted-foreground">
-              <div className="font-semibold text-brand-navy">Cotización</div>
+              <div className="font-semibold text-brand-navy">Solicitud de cotización</div>
               <div>
                 {new Date(quote.createdAt).toLocaleDateString("es-VE", {
                   day: "2-digit",
@@ -375,24 +383,29 @@ function QuoteDetailDialog({ id, onClose }: { id: string; onClose: () => void })
             </div>
           </div>
 
-          <table className="mt-4 w-full text-sm">
+          <table className="mt-6 w-full text-sm">
             <thead>
               <tr className="border-b border-border text-left text-xs uppercase tracking-wider text-muted-foreground">
                 <th className="py-2">Producto</th>
+                <th className="py-2 text-right">Detal</th>
+                <th className="py-2 text-right">Mayor</th>
                 <th className="py-2 text-right">Cant.</th>
-                <th className="py-2 text-right">Precio</th>
                 <th className="py-2 text-right">Total</th>
               </tr>
             </thead>
             <tbody>
               {quote.items.map((item) => (
                 <tr key={item.id} className="border-b border-border">
-                  <td className="py-2">
-                    {item.name} <span className="text-xs text-muted-foreground">({item.sku})</span>
+                  <td className="py-3">
+                    <div className="font-semibold text-brand-navy">{item.name}</div>
+                    <div className="text-xs text-muted-foreground">{item.sku}</div>
                   </td>
-                  <td className="py-2 text-right">{item.qty}</td>
-                  <td className="py-2 text-right">{formatMoney(item.unitPrice)}</td>
-                  <td className="py-2 text-right font-semibold">
+                  <td className="py-3 text-right">{formatMoney(item.unitPrice)}</td>
+                  <td className="py-3 text-right text-muted-foreground">
+                    {formatMoney(item.wholesalePrice)}
+                  </td>
+                  <td className="py-3 text-right">{item.qty}</td>
+                  <td className="py-3 text-right font-semibold text-brand-navy">
                     {formatMoney(item.unitPrice * item.qty * (1 - item.discountPct / 100))}
                   </td>
                 </tr>
@@ -400,14 +413,33 @@ function QuoteDetailDialog({ id, onClose }: { id: string; onClose: () => void })
             </tbody>
           </table>
 
-          {quote.globalDiscountPct > 0 && (
-            <div className="mt-2 text-right text-sm text-muted-foreground">
-              Descuento especial: {quote.globalDiscountPct}%
+          <div className="mt-6 flex flex-col items-end gap-2">
+            {quote.globalDiscountPct > 0 && (
+              <div className="text-sm text-muted-foreground">
+                Descuento especial:{" "}
+                <span className="font-semibold text-brand-navy">{quote.globalDiscountPct}%</span>
+              </div>
+            )}
+            <div className="flex items-baseline gap-8">
+              <span className="text-lg font-bold text-brand-navy">Total detal</span>
+              <span className="flex items-baseline gap-2">
+                <span className="text-lg font-bold tabular-nums text-brand-navy">
+                  {formatMoney(total)}
+                </span>
+                {bcv && (
+                  <span className="inline-flex items-center rounded-full bg-brand-blue/10 px-2 py-0.5 text-xs font-semibold tabular-nums text-brand-blue">
+                    ≈ {formatBs(total, bcv.rate)}
+                  </span>
+                )}
+              </span>
             </div>
-          )}
-
-          <div className="mt-2 flex justify-end text-lg font-bold text-brand-navy">
-            Total {formatMoney(total)}
+            <div className="flex items-center gap-1.5 rounded-md bg-brand-yellow/10 px-2.5 py-1.5 text-sm text-brand-navy/70">
+              <Tag className="h-3.5 w-3.5 shrink-0 text-brand-yellow" />
+              <span className="font-bold tabular-nums text-brand-navy">
+                {formatMoney(wholesaleTotal)}
+              </span>
+              <span>Total al mayor</span>
+            </div>
           </div>
         </div>
       </div>

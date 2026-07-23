@@ -210,6 +210,7 @@ function ProductFormDialog({ product, onClose }: { product?: AdminProduct; onClo
   const [minStockThreshold, setMinStockThreshold] = useState(product?.minStockThreshold ?? 0);
   const [imageUrl, setImageUrl] = useState(product?.imageUrl ?? "");
   const [active, setActive] = useState(product?.active ?? true);
+  const [creatingCategory, setCreatingCategory] = useState(false);
 
   const save = useMutation({
     mutationFn: () => {
@@ -264,22 +265,33 @@ function ProductFormDialog({ product, onClose }: { product?: AdminProduct; onClo
               placeholder="Opcional"
             />
           </div>
-          <div className="grid gap-1.5">
+          <div className="grid min-w-0 gap-1.5">
             <Label className="text-xs font-medium text-brand-navy">Categoría</Label>
-            <Select value={categoryId} onValueChange={setCategoryId}>
-              <SelectTrigger>
-                <SelectValue placeholder="Seleccionar…" />
-              </SelectTrigger>
-              <SelectContent>
-                {categories?.map((c) => (
-                  <SelectItem key={c.id} value={c.id}>
-                    {c.label}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+            <div className="flex min-w-0 gap-2">
+              <Select value={categoryId} onValueChange={setCategoryId}>
+                <SelectTrigger className="min-w-0 flex-1">
+                  <SelectValue placeholder="Seleccionar…" />
+                </SelectTrigger>
+                <SelectContent>
+                  {categories?.map((c) => (
+                    <SelectItem key={c.id} value={c.id}>
+                      {c.label}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              <Button
+                type="button"
+                variant="outline"
+                size="icon"
+                className="shrink-0"
+                onClick={() => setCreatingCategory(true)}
+              >
+                <Plus className="h-4 w-4" />
+              </Button>
+            </div>
           </div>
-          <div className="grid gap-1.5">
+          <div className="grid min-w-0 gap-1.5">
             <Label className="text-xs font-medium text-brand-navy">Proveedor</Label>
             <SupplierPicker value={supplierId} onChange={(id) => setSupplierId(id)} />
           </div>
@@ -348,6 +360,89 @@ function ProductFormDialog({ product, onClose }: { product?: AdminProduct; onClo
             onClick={() => save.mutate()}
           >
             {isEdit ? "Guardar cambios" : "Crear producto"}
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+
+      {creatingCategory && (
+        <CreateCategoryDialog
+          onClose={() => setCreatingCategory(false)}
+          onCreated={(category) => {
+            setCategoryId(category.id);
+            setCreatingCategory(false);
+          }}
+        />
+      )}
+    </Dialog>
+  );
+}
+
+/** Strips combining diacritical marks (U+0300–U+036F) left behind by NFD normalization. */
+function stripDiacritics(value: string): string {
+  return Array.from(value)
+    .filter((ch) => {
+      const code = ch.codePointAt(0)!;
+      return code < 0x0300 || code > 0x036f;
+    })
+    .join("");
+}
+
+function slugify(label: string): string {
+  return stripDiacritics(label.normalize("NFD"))
+    .toLowerCase()
+    .trim()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "");
+}
+
+function CreateCategoryDialog({
+  onClose,
+  onCreated,
+}: {
+  onClose: () => void;
+  onCreated: (category: Category) => void;
+}) {
+  const queryClient = useQueryClient();
+  const [label, setLabel] = useState("");
+
+  const create = useMutation({
+    mutationFn: () =>
+      apiFetch<Category>("/categories", {
+        method: "POST",
+        body: { code: slugify(label), label },
+      }),
+    onSuccess: (category) => {
+      queryClient.invalidateQueries({ queryKey: ["categories"] });
+      toast.success("Categoría creada");
+      onCreated(category);
+    },
+    onError: reportError,
+  });
+
+  return (
+    <Dialog open onOpenChange={(open) => !open && onClose()}>
+      <DialogContent className="max-w-sm">
+        <DialogHeader>
+          <DialogTitle>Nueva categoría</DialogTitle>
+        </DialogHeader>
+        <div className="grid gap-1.5">
+          <Label className="text-xs font-medium text-brand-navy">Nombre</Label>
+          <Input
+            value={label}
+            onChange={(e) => setLabel(e.target.value)}
+            placeholder="Ej. Iluminación"
+          />
+        </div>
+        <DialogFooter>
+          <Button variant="outline" onClick={onClose}>
+            Cancelar
+          </Button>
+          <Button
+            className="bg-brand-blue text-white hover:bg-brand-blue/90"
+            disabled={!label.trim() || create.isPending}
+            onClick={() => create.mutate()}
+          >
+            Crear categoría
           </Button>
         </DialogFooter>
       </DialogContent>

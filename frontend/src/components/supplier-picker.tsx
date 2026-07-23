@@ -18,8 +18,14 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { TaxIdField } from "@/components/tax-id-field";
+import { PhoneField } from "@/components/phone-field";
 import { apiFetch, ApiError } from "@/lib/api-client";
+import { formatTaxId, validateTaxIdNumber, type TaxIdPrefix } from "@/lib/venezuelan-tax-id";
+import { formatPhone, validatePhoneNumber, type PhonePrefix } from "@/lib/venezuelan-phone";
 import { toast } from "sonner";
+
+const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
 export interface Supplier {
   id: string;
@@ -53,7 +59,7 @@ export function SupplierPicker({
   const [creating, setCreating] = useState(false);
 
   return (
-    <div className="flex gap-2">
+    <div className="flex min-w-0 gap-2">
       <Select
         value={value ?? ""}
         onValueChange={(id) => {
@@ -61,8 +67,8 @@ export function SupplierPicker({
           if (supplier) onChange(supplier.id, supplier.name);
         }}
       >
-        <SelectTrigger className="flex-1">
-          <SelectValue placeholder={isLoading ? "Cargando…" : placeholder} />
+        <SelectTrigger className="min-w-0 flex-1">
+          <SelectValue className="truncate" placeholder={isLoading ? "Cargando…" : placeholder} />
         </SelectTrigger>
         <SelectContent>
           {suppliers?.length === 0 && (
@@ -77,7 +83,13 @@ export function SupplierPicker({
           ))}
         </SelectContent>
       </Select>
-      <Button type="button" variant="outline" size="icon" onClick={() => setCreating(true)}>
+      <Button
+        type="button"
+        variant="outline"
+        size="icon"
+        className="shrink-0"
+        onClick={() => setCreating(true)}
+      >
         <Plus className="h-4 w-4" />
       </Button>
       {creating && (
@@ -102,9 +114,15 @@ export function CreateSupplierDialog({
 }) {
   const queryClient = useQueryClient();
   const [name, setName] = useState("");
-  const [taxId, setTaxId] = useState("");
+  const [taxIdPrefix, setTaxIdPrefix] = useState<TaxIdPrefix>("J");
+  const [taxIdNumber, setTaxIdNumber] = useState("");
   const [contactEmail, setContactEmail] = useState("");
-  const [contactPhone, setContactPhone] = useState("");
+  const [phonePrefix, setPhonePrefix] = useState<PhonePrefix>("0212");
+  const [phoneNumber, setPhoneNumber] = useState("");
+
+  const taxIdValid = validateTaxIdNumber(taxIdPrefix, taxIdNumber).valid;
+  const phoneValid = validatePhoneNumber(phoneNumber).valid;
+  const emailValid = !contactEmail || EMAIL_PATTERN.test(contactEmail);
 
   const create = useMutation({
     mutationFn: () =>
@@ -112,9 +130,9 @@ export function CreateSupplierDialog({
         method: "POST",
         body: {
           name,
-          taxId: taxId || undefined,
+          taxId: formatTaxId(taxIdPrefix, taxIdNumber),
           contactEmail: contactEmail || undefined,
-          contactPhone: contactPhone || undefined,
+          contactPhone: formatPhone(phonePrefix, phoneNumber),
         },
       }),
     onSuccess: (supplier) => {
@@ -141,14 +159,13 @@ export function CreateSupplierDialog({
               placeholder="Nombre del proveedor"
             />
           </div>
-          <div className="grid gap-1.5">
-            <Label className="text-xs font-medium text-brand-navy">RIF (opcional)</Label>
-            <Input
-              value={taxId}
-              onChange={(e) => setTaxId(e.target.value)}
-              placeholder="J-12345678-9"
-            />
-          </div>
+          <TaxIdField
+            label="RIF (opcional)"
+            prefix={taxIdPrefix}
+            onPrefixChange={setTaxIdPrefix}
+            number={taxIdNumber}
+            onNumberChange={setTaxIdNumber}
+          />
           <div className="grid gap-1.5">
             <Label className="text-xs font-medium text-brand-navy">
               Correo de contacto (opcional)
@@ -158,18 +175,17 @@ export function CreateSupplierDialog({
               value={contactEmail}
               onChange={(e) => setContactEmail(e.target.value)}
               placeholder="contacto@proveedor.com"
+              aria-invalid={!emailValid}
             />
+            {!emailValid && <p className="text-xs text-destructive">Correo inválido.</p>}
           </div>
-          <div className="grid gap-1.5">
-            <Label className="text-xs font-medium text-brand-navy">
-              Teléfono de contacto (opcional)
-            </Label>
-            <Input
-              value={contactPhone}
-              onChange={(e) => setContactPhone(e.target.value)}
-              placeholder="0212-1234567"
-            />
-          </div>
+          <PhoneField
+            label="Teléfono de contacto (opcional)"
+            prefix={phonePrefix}
+            onPrefixChange={setPhonePrefix}
+            number={phoneNumber}
+            onNumberChange={setPhoneNumber}
+          />
         </div>
         <DialogFooter>
           <Button variant="outline" onClick={onClose}>
@@ -177,7 +193,7 @@ export function CreateSupplierDialog({
           </Button>
           <Button
             className="bg-brand-blue text-white hover:bg-brand-blue/90"
-            disabled={!name || create.isPending}
+            disabled={!name || !taxIdValid || !phoneValid || !emailValid || create.isPending}
             onClick={() => create.mutate()}
           >
             Crear proveedor

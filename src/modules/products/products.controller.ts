@@ -10,6 +10,7 @@ import { AuthenticatedUser } from '../../common/interfaces/authenticated-user.in
 import { CategoriesService } from './categories.service';
 import { AdjustStockDto } from './dto/adjust-stock.dto';
 import { AdminQueryProductsDto } from './dto/admin-query-products.dto';
+import { CreateCategoryDto } from './dto/create-category.dto';
 import { CreateProductDto } from './dto/create-product.dto';
 import { QueryProductsDto } from './dto/query-products.dto';
 import { UpdateProductDto } from './dto/update-product.dto';
@@ -31,6 +32,14 @@ export class ProductsController {
   @Get('categories')
   categories() {
     return this.categoriesService.findAll();
+  }
+
+  @Post('categories')
+  @UseGuards(FirebaseAuthGuard, RolesGuard)
+  @Roles(Role.ADMIN)
+  @ApiBearerAuth()
+  createCategory(@Body() dto: CreateCategoryDto) {
+    return this.categoriesService.create(dto.code, dto.label);
   }
 
   @Get('warehouses')
