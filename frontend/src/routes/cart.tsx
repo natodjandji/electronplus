@@ -140,7 +140,11 @@ function CartPage() {
                     </div>
 
                     <div className="flex items-center justify-between gap-4 sm:flex-col sm:items-end sm:justify-center sm:gap-2 sm:border-l sm:border-border sm:pl-6">
-                      <QuantityStepper qty={qty} onChange={(next) => updateQty(product.id, next)} />
+                      <QuantityStepper
+                        qty={qty}
+                        onChange={(next) => updateQty(product.id, next)}
+                        max={product.stock}
+                      />
                       <div className="text-base font-bold tabular-nums text-brand-navy sm:text-right">
                         {formatMoney(unit * qty)}
                       </div>

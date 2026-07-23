@@ -90,6 +90,7 @@ interface PaymentMethodConfig {
   id: string;
   backendMethod: string;
   label: string;
+  details: string[];
   needsReference: boolean;
   needsProof: boolean;
   enabled: boolean;
@@ -384,6 +385,17 @@ function RetryPaymentForm({ order }: { order: Order }) {
             </label>
           ))}
         </RadioGroup>
+      )}
+
+      {selected && (
+        <div className="mt-3 rounded-md border border-border bg-brand-surface p-3 text-sm">
+          <div className="font-semibold text-brand-navy">{selected.label}</div>
+          <ul className="mt-1 space-y-0.5 text-muted-foreground">
+            {selected.details.map((line) => (
+              <li key={line}>{line}</li>
+            ))}
+          </ul>
+        </div>
       )}
 
       {selected?.needsReference && (

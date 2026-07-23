@@ -3,15 +3,13 @@ import type { ReactNode } from "react";
 import { ElectronLogo } from "./electron-logo";
 import { CONTACT_INFO } from "@/lib/contact-info";
 
-type StoreLink = { label: string; to: "/catalog" | "/quotes" };
+type StoreLink = { label: string; to: "/catalog" | "/quotes" | "/collections" | "/client/orders" };
 
-// "Ofertas" and "Envíos" don't have dedicated pages yet — point them at the
-// catalog (where current stock/pricing actually lives) instead of a dead link.
 const STORE_LINKS: StoreLink[] = [
   { label: "Catálogo", to: "/catalog" },
-  { label: "Ofertas", to: "/catalog" },
+  { label: "Colecciones", to: "/collections" },
   { label: "Cotizaciones", to: "/quotes" },
-  { label: "Envíos", to: "/catalog" },
+  { label: "Pedidos", to: "/client/orders" },
 ];
 
 export function SiteFooter() {

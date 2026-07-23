@@ -15,7 +15,8 @@ export interface QrLabel {
   retailPrice: number;
   wholesalePrice: number;
   token: string;
-  scanUrl: string;
+  /** The product's public storefront page — what the printed QR code encodes. */
+  productUrl: string;
   qrImageDataUrl: string;
 }
 
@@ -29,8 +30,10 @@ export class QrService {
 
   async issueLabel(productId: string): Promise<QrLabel> {
     const product = await this.productsService.findById(productId);
-    const scanUrl = `${this.config.get('API_PUBLIC_URL', { infer: true })}/qr/scan/${product.qrToken}`;
-    const qrImageDataUrl = await QRCode.toDataURL(scanUrl, { margin: 1, width: 256 });
+    // Points at the real storefront product page — not the backend API —
+    // so scanning the printed label opens a normal webpage for anyone.
+    const productUrl = `${this.config.get('PUBLIC_SITE_URL', { infer: true })}/product/qr/${product.id}`;
+    const qrImageDataUrl = await QRCode.toDataURL(productUrl, { margin: 1, width: 256 });
     return {
       productId: product.id,
       sku: product.sku,
@@ -38,7 +41,7 @@ export class QrService {
       retailPrice: product.retailPrice,
       wholesalePrice: product.wholesalePrice,
       token: product.qrToken,
-      scanUrl,
+      productUrl,
       qrImageDataUrl,
     };
   }

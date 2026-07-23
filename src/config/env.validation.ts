@@ -14,6 +14,8 @@ export const envSchema = z.object({
   FIREBASE_SERVICE_ACCOUNT_BASE64: z.string().optional(),
 
   API_PUBLIC_URL: z.string().default('http://localhost:3000/api'),
+  // The public storefront's URL — what product QR codes point to.
+  PUBLIC_SITE_URL: z.string().default('https://electronplus.com.ve'),
 
   PROFIT_PLUS_ADAPTER: z.enum(['mock', 'db', 'api']).default('mock'),
   PROFIT_PLUS_SYNC_CRON: z.string().default('*/15 * * * *'),

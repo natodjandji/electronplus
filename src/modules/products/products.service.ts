@@ -7,6 +7,7 @@ import { FIRESTORE } from '../../firebase/firebase.constants';
 import { Collections } from '../../firebase/firestore-collections';
 import { FirestoreRepository } from '../../firebase/firestore.repository';
 import { PaginatedResult } from '../../common/dto/pagination.dto';
+import { OrderStatus } from '../orders/entities/order.entity';
 import { AdjustStockDto } from './dto/adjust-stock.dto';
 import { AdminQueryProductsDto } from './dto/admin-query-products.dto';
 import { CreateProductDto } from './dto/create-product.dto';
@@ -16,6 +17,8 @@ import { Category } from './entities/category.entity';
 import { Product } from './entities/product.entity';
 import { StockLevel } from './entities/stock-level.entity';
 import { Warehouse } from './entities/warehouse.entity';
+
+const REVENUE_STATUSES = [OrderStatus.PAID, OrderStatus.PREPARING, OrderStatus.SHIPPED, OrderStatus.FULFILLED];
 
 export const STOCK_CHANGED_EVENT = 'stock.changed';
 
@@ -85,6 +88,49 @@ export class ProductsService {
 
   findById(id: string): Promise<Product> {
     return this.repo.getOrThrow(id, 'Product not found');
+  }
+
+  /** Best-selling active products by units sold across paid/fulfilled orders — falls back to
+   * filling remaining slots with other active products so a fresh store never looks sparse. */
+  async topSelling(limit = 8): Promise<Product[]> {
+    const ordersSnap = await this.firestore
+      .collection(Collections.ORDERS)
+      .where('status', 'in', REVENUE_STATUSES)
+      .get();
+
+    const unitsSold = new Map<string, number>();
+    for (const doc of ordersSnap.docs) {
+      const items = (doc.data().items ?? []) as { productId: string; qty: number }[];
+      for (const item of items) {
+        unitsSold.set(item.productId, (unitsSold.get(item.productId) ?? 0) + item.qty);
+      }
+    }
+
+    const rankedIds = [...unitsSold.entries()]
+      .sort(([, a], [, b]) => b - a)
+      .map(([productId]) => productId);
+
+    const ranked: Product[] = [];
+    for (const id of rankedIds) {
+      if (ranked.length >= limit) break;
+      const product = await this.repo.findById(id);
+      if (product?.active) ranked.push(product);
+    }
+
+    if (ranked.length < limit) {
+      const filler = await this.repo.findAll({
+        where: [{ field: 'active', op: '==', value: true }],
+        orderBy: { field: 'name' },
+        limit: limit * 2,
+      });
+      const seen = new Set(ranked.map((p) => p.id));
+      for (const product of filler) {
+        if (ranked.length >= limit) break;
+        if (!seen.has(product.id)) ranked.push(product);
+      }
+    }
+
+    return ranked;
   }
 
   /** Full-fidelity listing for the admin inventory panel — includes inactive

@@ -1,6 +1,7 @@
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
-import type { KeyboardEvent } from "react";
+import { useEffect, useState, type KeyboardEvent } from "react";
 import { useQuery } from "@tanstack/react-query";
+import { AnimatePresence, motion } from "motion/react";
 import { ArrowRight, Zap, Truck, ShieldCheck, Tag, Search, ShoppingCart } from "lucide-react";
 import { PublicShell } from "@/components/public-shell";
 import { CircuitBackground } from "@/components/circuit-traces";
@@ -11,6 +12,29 @@ import { ProductImage } from "@/components/product-image";
 import { apiFetch } from "@/lib/api-client";
 import { type ApiProduct, toProduct } from "@/lib/product-api";
 import type { Product } from "@/lib/mock-data";
+
+const HERO_GROUP_SIZE = 4;
+const HERO_ROTATE_MS = 5000;
+
+/** Cycles through `items` in fixed-size groups every `intervalMs` — used to rotate the
+ * hero showcase through best-sellers instead of freezing on the first four. */
+function useRotatingGroups<T>(items: T[], groupSize: number, intervalMs: number) {
+  const [index, setIndex] = useState(0);
+  const groupCount = Math.max(1, Math.ceil(items.length / groupSize));
+
+  useEffect(() => {
+    setIndex(0);
+  }, [items.length]);
+
+  useEffect(() => {
+    if (groupCount <= 1) return;
+    const id = setInterval(() => setIndex((i) => (i + 1) % groupCount), intervalMs);
+    return () => clearInterval(id);
+  }, [groupCount, intervalMs]);
+
+  const start = index * groupSize;
+  return { group: items.slice(start, start + groupSize), index };
+}
 
 export const Route = createFileRoute("/")({
   head: () => ({
@@ -33,11 +57,16 @@ export const Route = createFileRoute("/")({
 });
 
 function Home() {
-  const { data: featured = [] } = useQuery({
-    queryKey: ["home", "featured"],
-    queryFn: () => apiFetch<{ data: ApiProduct[] }>("/products?limit=4"),
-    select: (res) => res.data.map(toProduct),
+  const { data: bestSellers = [] } = useQuery({
+    queryKey: ["home", "best-sellers"],
+    queryFn: () => apiFetch<ApiProduct[]>("/products/best-sellers?limit=8"),
+    select: (data) => data.map(toProduct),
   });
+  const { group: heroProducts, index: heroIndex } = useRotatingGroups(
+    bestSellers,
+    HERO_GROUP_SIZE,
+    HERO_ROTATE_MS,
+  );
   return (
     <PublicShell>
       {/* Hero */}
@@ -92,23 +121,37 @@ function Home() {
 
           <div className="relative">
             <div className="absolute -inset-6 rounded-3xl bg-brand-blue/30 blur-3xl" />
-            <div className="relative grid grid-cols-2 gap-3">
-              {featured.slice(0, 4).map((p, i) => (
-                <div
-                  key={p.id}
-                  className={`rounded-2xl border border-white/10 bg-white/5 p-3 backdrop-blur-sm ${
-                    i % 2 === 1 ? "translate-y-6" : ""
-                  }`}
-                >
-                  <div className="aspect-square overflow-hidden rounded-xl bg-white">
-                    <ProductImage src={p.image} alt={p.name} className="h-full w-full" />
-                  </div>
-                  <div className="mt-2 text-xs font-medium text-white/90 line-clamp-1">
-                    {p.name}
-                  </div>
-                </div>
-              ))}
+            <div className="pointer-events-none absolute -top-8 left-1/2 -translate-x-1/2 text-[10px] font-semibold uppercase tracking-widest text-brand-yellow/80">
+              Lo más vendido
             </div>
+            <AnimatePresence mode="wait">
+              <motion.div
+                key={heroIndex}
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                exit={{ opacity: 0 }}
+                transition={{ duration: 0.5 }}
+                className="relative grid grid-cols-2 gap-3"
+              >
+                {heroProducts.map((p, i) => (
+                  <Link
+                    key={p.id}
+                    to="/product/qr/$id"
+                    params={{ id: p.id }}
+                    className={`block rounded-2xl border border-white/10 bg-white/5 p-3 backdrop-blur-sm transition-colors hover:border-brand-yellow/40 ${
+                      i % 2 === 1 ? "translate-y-6" : ""
+                    }`}
+                  >
+                    <div className="aspect-square overflow-hidden rounded-xl bg-white">
+                      <ProductImage src={p.image} alt={p.name} className="h-full w-full" />
+                    </div>
+                    <div className="mt-2 text-xs font-medium text-white/90 line-clamp-1">
+                      {p.name}
+                    </div>
+                  </Link>
+                ))}
+              </motion.div>
+            </AnimatePresence>
           </div>
         </div>
       </section>
@@ -163,7 +206,7 @@ function Home() {
           </Link>
         </div>
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-          {featured.map((p) => (
+          {bestSellers.slice(0, 4).map((p) => (
             <FeaturedProductCard key={p.id} product={p} />
           ))}
         </div>

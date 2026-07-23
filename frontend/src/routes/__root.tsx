@@ -134,7 +134,7 @@ function RootComponent() {
       <AuthProvider>
         <ElectronStoreProvider>
           <Outlet />
-          <Toaster richColors position="top-right" />
+          <Toaster richColors position="top-right" offset={{ top: "80px", right: "16px" }} />
         </ElectronStoreProvider>
       </AuthProvider>
     </QueryClientProvider>

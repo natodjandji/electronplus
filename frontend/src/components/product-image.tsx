@@ -7,21 +7,25 @@ export function ProductImage({
   alt,
   className,
   iconClassName,
+  label,
 }: {
   src?: string;
   alt: string;
   className?: string;
   iconClassName?: string;
+  /** Optional caption under the icon — use on large placeholders where a bare icon looks unfinished. */
+  label?: string;
 }) {
   if (!src) {
     return (
       <div
         className={cn(
-          "grid place-items-center bg-brand-surface text-muted-foreground/50",
+          "grid place-items-center gap-2 bg-brand-surface text-muted-foreground/50",
           className,
         )}
       >
         <ImageOff className={cn("h-6 w-6", iconClassName)} />
+        {label && <span className="text-xs font-medium text-muted-foreground/70">{label}</span>}
       </div>
     );
   }

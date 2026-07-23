@@ -403,6 +403,7 @@ function ProductCard({
               disabled={out}
               fullWidth
               addLabel={out ? "No disponible" : "Agregar"}
+              max={product.stock}
             />
           </div>
         </div>
@@ -466,6 +467,7 @@ function ProductListRow({
             onChange={onQtyChange}
             disabled={out}
             addLabel={out ? "No disponible" : "Agregar"}
+            max={product.stock}
           />
         </div>
       </div>

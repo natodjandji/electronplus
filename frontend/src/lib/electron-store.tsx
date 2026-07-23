@@ -85,14 +85,24 @@ export function ElectronStoreProvider({ children }: { children: ReactNode }) {
       addToCart: (p, qty = 1) =>
         setCart((prev) => {
           const existing = prev.find((i) => i.product.id === p.id);
-          if (existing)
-            return prev.map((i) => (i.product.id === p.id ? { ...i, qty: i.qty + qty } : i));
-          return [...prev, { product: p, qty }];
+          const cap = p.stock > 0 ? p.stock : qty;
+          if (existing) {
+            const nextQty = Math.min(cap, existing.qty + qty);
+            return prev.map((i) => (i.product.id === p.id ? { ...i, qty: nextQty } : i));
+          }
+          return [...prev, { product: p, qty: Math.min(cap, Math.max(1, qty)) }];
         }),
       removeFromCart: (id) => setCart((prev) => prev.filter((i) => i.product.id !== id)),
       updateQty: (id, qty) =>
         setCart((prev) =>
-          prev.map((i) => (i.product.id === id ? { ...i, qty: Math.max(1, qty) } : i)),
+          prev.map((i) =>
+            i.product.id === id
+              ? {
+                  ...i,
+                  qty: Math.min(i.product.stock > 0 ? i.product.stock : qty, Math.max(1, qty)),
+                }
+              : i,
+          ),
         ),
       clearCart: () => setCart([]),
       cartTotal,

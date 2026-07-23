@@ -1,6 +1,16 @@
 import { useState } from "react";
 import { createFileRoute, Link, notFound } from "@tanstack/react-router";
-import { ArrowLeft, Minus, MapPin, Package, Plus, ShieldCheck, ShoppingCart } from "lucide-react";
+import { useQuery } from "@tanstack/react-query";
+import {
+  ArrowLeft,
+  Loader2,
+  Minus,
+  MapPin,
+  Package,
+  Plus,
+  ShieldCheck,
+  ShoppingCart,
+} from "lucide-react";
 import { toast } from "sonner";
 import { PublicShell } from "@/components/public-shell";
 import { Card } from "@/components/ui/card";
@@ -8,7 +18,6 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { PriceTag } from "@/components/price-tag";
 import { ProductImage } from "@/components/product-image";
-import { QrBlock } from "@/components/qr-block";
 import { apiFetch } from "@/lib/api-client";
 import { type ApiProduct, toProduct } from "@/lib/product-api";
 import { useElectronStore } from "@/lib/electron-store";
@@ -61,6 +70,12 @@ function QrProductPage() {
   const { product } = Route.useLoaderData();
   const { isOps, role, addToCart } = useElectronStore();
   const { data: bcv } = useBcvRate();
+  const { data: qrLabel } = useQuery({
+    queryKey: ["qr", "token", product.id],
+    queryFn: () =>
+      apiFetch<{ qrImageDataUrl: string }>(`/qr/tokens/${product.id}`, { method: "POST" }),
+    enabled: isOps,
+  });
   const out = product.stock === 0;
   const low = product.stock > 0 && product.stock <= 10;
   const [qty, setQty] = useState(1);
@@ -89,7 +104,8 @@ function QrProductPage() {
                 src={product.image}
                 alt={product.name}
                 className="h-full w-full"
-                iconClassName="h-12 w-12"
+                iconClassName="h-16 w-16"
+                label="Sin imagen disponible"
               />
             </div>
           </Card>
@@ -182,11 +198,19 @@ function QrProductPage() {
 
             {isOps && (
               <div className="mt-6 flex items-center gap-4">
-                <div className="rounded-md border border-border bg-white p-2">
-                  <QrBlock seed={`electron-plus:${product.id}`} size={104} />
+                <div className="grid h-[104px] w-[104px] shrink-0 place-items-center rounded-md border border-border bg-white p-2">
+                  {qrLabel ? (
+                    <img
+                      src={qrLabel.qrImageDataUrl}
+                      alt=""
+                      className="h-full w-full object-contain"
+                    />
+                  ) : (
+                    <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
+                  )}
                 </div>
                 <div className="text-xs text-muted-foreground">
-                  Código QR único de este producto.
+                  Mismo código QR que se imprime en la etiqueta del producto.
                   <br />
                   Ruta: <code className="text-brand-navy">/product/qr/{product.id}</code>
                 </div>
