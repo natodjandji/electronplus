@@ -3,6 +3,7 @@ import { useQuery } from "@tanstack/react-query";
 import { useState } from "react";
 import { Loader2, Printer, QrCode, Search } from "lucide-react";
 import { AdminShell } from "@/components/admin-shell";
+import { ElectronLogo } from "@/components/electron-logo";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -190,18 +191,19 @@ function LabelsPage() {
             {printItems.map((label) => (
               <div
                 key={label.key}
-                className="qr-label flex items-center gap-1.5 overflow-hidden border border-dashed border-brand-navy/30 bg-white p-1.5 print:border-none"
+                className="qr-label flex items-center gap-2 overflow-hidden border border-dashed border-brand-navy/30 bg-white p-1.5 print:border-none"
               >
                 <img
                   src={label.qrImageDataUrl}
                   alt=""
-                  className="h-[22mm] w-[22mm] shrink-0 object-contain"
+                  className="h-[20mm] w-[20mm] shrink-0 object-contain"
                 />
-                <div className="min-w-0 flex-1">
-                  <div className="line-clamp-3 text-[6.5px] font-bold leading-tight text-black">
+                <div className="flex min-w-0 flex-1 flex-col justify-center gap-1">
+                  <ElectronLogo layout="isotype" tone="color" className="h-3.5 shrink-0" />
+                  <div className="line-clamp-2 text-[9.5px] font-bold leading-tight text-black">
                     {label.name}
                   </div>
-                  <div className="mt-0.5 font-mono text-[6px] text-black">{label.sku}</div>
+                  <div className="font-mono text-[9px] text-black">{label.sku}</div>
                 </div>
               </div>
             ))}
