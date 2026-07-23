@@ -1,10 +1,11 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
-import { Minus, Plus, Trash2, ShoppingBag, Tag } from "lucide-react";
+import { Trash2, ShoppingBag, Tag } from "lucide-react";
 import { PublicShell } from "@/components/public-shell";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Separator } from "@/components/ui/separator";
 import { PriceTag } from "@/components/price-tag";
+import { QuantityStepper } from "@/components/quantity-stepper";
 import { formatBs, useBcvRate } from "@/lib/use-bcv-rate";
 import { formatMoney, useElectronStore } from "@/lib/electron-store";
 
@@ -12,9 +13,15 @@ export const Route = createFileRoute("/cart")({
   head: () => ({
     meta: [
       { title: "Carrito · Electron Plus" },
-      { name: "description", content: "Revisa los productos que agregaste antes de finalizar tu compra." },
+      {
+        name: "description",
+        content: "Revisa los productos que agregaste antes de finalizar tu compra.",
+      },
       { property: "og:title", content: "Carrito · Electron Plus" },
-      { property: "og:description", content: "Tu selección con precios actualizados según tu rol." },
+      {
+        property: "og:description",
+        content: "Tu selección con precios actualizados según tu rol.",
+      },
     ],
   }),
   component: CartPage,
@@ -28,7 +35,9 @@ function CartPage() {
   return (
     <PublicShell>
       <section className="mx-auto max-w-7xl px-4 py-10 sm:px-6">
-        <div className="text-xs font-semibold uppercase tracking-widest text-brand-blue">Carrito</div>
+        <div className="text-xs font-semibold uppercase tracking-widest text-brand-blue">
+          Carrito
+        </div>
         <h1 className="mt-1 text-3xl font-bold text-brand-navy">Tu compra</h1>
 
         {cart.length === 0 ? (
@@ -39,7 +48,9 @@ function CartPage() {
               Agrega productos desde el catálogo para verlos aquí.
             </p>
             <Link to="/catalog">
-              <Button className="bg-brand-blue text-white hover:bg-brand-blue/90">Ir al catálogo</Button>
+              <Button className="bg-brand-blue text-white hover:bg-brand-blue/90">
+                Ir al catálogo
+              </Button>
             </Link>
           </Card>
         ) : (
@@ -70,7 +81,9 @@ function CartPage() {
                         <div className="text-[10px] font-semibold uppercase tracking-widest text-muted-foreground">
                           {product.sku}
                         </div>
-                        <h3 className="truncate text-sm font-semibold text-brand-navy">{product.name}</h3>
+                        <h3 className="truncate text-sm font-semibold text-brand-navy">
+                          {product.name}
+                        </h3>
                         <div className="mt-1.5">
                           <PriceTag product={product} size="sm" />
                         </div>
@@ -78,23 +91,7 @@ function CartPage() {
                     </div>
 
                     <div className="flex items-center justify-between gap-4 sm:flex-col sm:items-end sm:justify-center sm:gap-2 sm:border-l sm:border-border sm:pl-6">
-                      <div className="inline-flex items-center rounded-md border border-border">
-                        <button
-                          onClick={() => updateQty(product.id, qty - 1)}
-                          className="grid h-8 w-8 place-items-center hover:bg-brand-surface"
-                          aria-label="Restar"
-                        >
-                          <Minus className="h-3.5 w-3.5" />
-                        </button>
-                        <span className="w-8 text-center text-sm font-semibold tabular-nums">{qty}</span>
-                        <button
-                          onClick={() => updateQty(product.id, qty + 1)}
-                          className="grid h-8 w-8 place-items-center hover:bg-brand-surface"
-                          aria-label="Sumar"
-                        >
-                          <Plus className="h-3.5 w-3.5" />
-                        </button>
-                      </div>
+                      <QuantityStepper qty={qty} onChange={(next) => updateQty(product.id, next)} />
                       <div className="text-base font-bold tabular-nums text-brand-navy sm:text-right">
                         {formatMoney(unit * qty)}
                       </div>
@@ -102,7 +99,10 @@ function CartPage() {
                   </Card>
                 );
               })}
-              <button onClick={clearCart} className="text-sm text-muted-foreground hover:text-destructive">
+              <button
+                onClick={clearCart}
+                className="text-sm text-muted-foreground hover:text-destructive"
+              >
                 Vaciar carrito
               </button>
             </div>
@@ -154,11 +154,23 @@ function CartPage() {
   );
 }
 
-function Row({ label, value, muted, bold }: { label: string; value: string; muted?: boolean; bold?: boolean }) {
+function Row({
+  label,
+  value,
+  muted,
+  bold,
+}: {
+  label: string;
+  value: string;
+  muted?: boolean;
+  bold?: boolean;
+}) {
   return (
     <div className="flex justify-between">
       <span className={muted ? "text-muted-foreground" : "text-brand-navy"}>{label}</span>
-      <span className={bold ? "text-base font-bold text-brand-navy" : "text-brand-navy"}>{value}</span>
+      <span className={bold ? "text-base font-bold text-brand-navy" : "text-brand-navy"}>
+        {value}
+      </span>
     </div>
   );
 }

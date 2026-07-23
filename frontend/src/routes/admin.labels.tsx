@@ -7,6 +7,7 @@ import { ElectronLogo } from "@/components/electron-logo";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { QuantityStepper } from "@/components/quantity-stepper";
 import { apiFetch } from "@/lib/api-client";
 
 export const Route = createFileRoute("/admin/labels")({
@@ -143,12 +144,10 @@ function LabelsPage() {
                   <div className="truncate text-sm font-semibold text-brand-navy">{p.name}</div>
                   <div className="text-xs text-muted-foreground">{p.sku}</div>
                 </div>
-                <Input
-                  type="number"
-                  min={0}
-                  value={quantities[p.id] ?? 0}
-                  onChange={(e) => setQty(p.id, Number(e.target.value))}
-                  className="h-8 w-16 shrink-0 text-right"
+                <QuantityStepper
+                  qty={quantities[p.id] ?? 0}
+                  onChange={(qty) => setQty(p.id, qty)}
+                  size="sm"
                 />
               </div>
             ))}

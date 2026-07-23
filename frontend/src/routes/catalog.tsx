@@ -10,7 +10,6 @@ import {
   List,
   Loader2,
   Search,
-  ShoppingCart,
   Tags,
 } from "lucide-react";
 import { PublicShell } from "@/components/public-shell";
@@ -25,6 +24,7 @@ import { Badge } from "@/components/ui/badge";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import { PriceTag } from "@/components/price-tag";
+import { QuantityStepper } from "@/components/quantity-stepper";
 import { CATEGORIES, type Product } from "@/lib/mock-data";
 import { apiFetch } from "@/lib/api-client";
 import { type ApiProduct, toProduct } from "@/lib/product-api";
@@ -62,7 +62,7 @@ const PAGE_SIZE = 9;
 
 function CatalogPage() {
   const { q: initialQ, category: initialCategory } = Route.useSearch();
-  const { priceFor, addToCart } = useElectronStore();
+  const { priceFor, cart, addToCart, updateQty, removeFromCart } = useElectronStore();
   const { data: products, isLoading, isError } = useCatalogProducts();
   const [q, setQ] = useState(initialQ ?? "");
   const [cats, setCats] = useState<string[]>(initialCategory ? [initialCategory] : []);
@@ -92,9 +92,15 @@ function CatalogPage() {
 
   const activeFilterCount = (onlyAvailable ? 1 : 0) + (range[0] > 0 || range[1] < 100 ? 1 : 0);
 
-  const handleAdd = (p: Product) => {
-    addToCart(p);
-    toast.success(`Agregado: ${p.name}`);
+  const handleQtyChange = (p: Product, currentQty: number, nextQty: number) => {
+    if (nextQty <= 0) {
+      removeFromCart(p.id);
+    } else if (currentQty === 0) {
+      addToCart(p, nextQty);
+      toast.success(`Agregado: ${p.name}`);
+    } else {
+      updateQty(p.id, nextQty);
+    }
   };
 
   return (
@@ -273,15 +279,20 @@ function CatalogPage() {
               }
             >
               <AnimatePresence mode="popLayout">
-                {paged.map((p) =>
-                  view === "grid" ? (
+                {paged.map((p) => {
+                  const qty = cart.find((i) => i.product.id === p.id)?.qty ?? 0;
+                  return view === "grid" ? (
                     <motion.div
                       key={p.id}
                       layout
                       variants={staggerItem}
                       exit={{ opacity: 0, scale: 0.96 }}
                     >
-                      <ProductCard product={p} onAdd={() => handleAdd(p)} />
+                      <ProductCard
+                        product={p}
+                        qty={qty}
+                        onQtyChange={(next) => handleQtyChange(p, qty, next)}
+                      />
                     </motion.div>
                   ) : (
                     <motion.div
@@ -290,10 +301,14 @@ function CatalogPage() {
                       variants={staggerItem}
                       exit={{ opacity: 0, scale: 0.96 }}
                     >
-                      <ProductListRow product={p} onAdd={() => handleAdd(p)} />
+                      <ProductListRow
+                        product={p}
+                        qty={qty}
+                        onQtyChange={(next) => handleQtyChange(p, qty, next)}
+                      />
                     </motion.div>
-                  ),
-                )}
+                  );
+                })}
               </AnimatePresence>
             </motion.div>
 
@@ -320,12 +335,19 @@ function useGoToProduct(id: string) {
   return { onClick, onKeyDown };
 }
 
-function stopAndAdd(e: MouseEvent, onAdd: () => void) {
+function stopPropagation(e: MouseEvent) {
   e.stopPropagation();
-  onAdd();
 }
 
-function ProductCard({ product, onAdd }: { product: Product; onAdd: () => void }) {
+function ProductCard({
+  product,
+  qty,
+  onQtyChange,
+}: {
+  product: Product;
+  qty: number;
+  onQtyChange: (qty: number) => void;
+}) {
   const low = product.stock > 0 && product.stock <= 10;
   const out = product.stock <= 0;
   const { onClick, onKeyDown } = useGoToProduct(product.id);
@@ -369,22 +391,30 @@ function ProductCard({ product, onAdd }: { product: Product; onAdd: () => void }
 
         <div className="mt-auto pt-3">
           <PriceTag product={product} size="sm" />
-          <Button
-            size="sm"
-            className="mt-2 w-full gap-2 bg-brand-blue text-white hover:bg-brand-blue/90"
-            disabled={out}
-            onClick={(e) => stopAndAdd(e, onAdd)}
-          >
-            <ShoppingCart className="h-3.5 w-3.5" />
-            {out ? "No disponible" : "Agregar"}
-          </Button>
+          <div className="mt-2" onClick={stopPropagation}>
+            <QuantityStepper
+              qty={qty}
+              onChange={onQtyChange}
+              disabled={out}
+              fullWidth
+              addLabel={out ? "No disponible" : "Agregar"}
+            />
+          </div>
         </div>
       </div>
     </Card>
   );
 }
 
-function ProductListRow({ product, onAdd }: { product: Product; onAdd: () => void }) {
+function ProductListRow({
+  product,
+  qty,
+  onQtyChange,
+}: {
+  product: Product;
+  qty: number;
+  onQtyChange: (qty: number) => void;
+}) {
   const out = product.stock <= 0;
   const low = product.stock > 0 && product.stock <= 10;
   const { onClick, onKeyDown } = useGoToProduct(product.id);
@@ -428,15 +458,14 @@ function ProductListRow({ product, onAdd }: { product: Product; onAdd: () => voi
 
       <div className="flex shrink-0 flex-col items-end gap-2 sm:flex-row sm:items-center sm:gap-4">
         <PriceTag product={product} size="sm" />
-        <Button
-          className="gap-2 bg-brand-blue text-white hover:bg-brand-blue/90"
-          size="sm"
-          disabled={out}
-          onClick={(e) => stopAndAdd(e, onAdd)}
-        >
-          <ShoppingCart className="h-4 w-4" />
-          <span className="hidden sm:inline">{out ? "No disponible" : "Agregar"}</span>
-        </Button>
+        <div onClick={stopPropagation}>
+          <QuantityStepper
+            qty={qty}
+            onChange={onQtyChange}
+            disabled={out}
+            addLabel={out ? "No disponible" : "Agregar"}
+          />
+        </div>
       </div>
     </Card>
   );
