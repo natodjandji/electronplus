@@ -1,6 +1,7 @@
-import { Inject, Injectable } from '@nestjs/common';
+import { ForbiddenException, Inject, Injectable } from '@nestjs/common';
 import type { Auth } from 'firebase-admin/auth';
 import type { Firestore } from 'firebase-admin/firestore';
+import { Role } from '../../common/enums/role.enum';
 import { FIREBASE_AUTH, FIRESTORE } from '../../firebase/firebase.constants';
 import { Collections } from '../../firebase/firestore-collections';
 import { FirestoreRepository } from '../../firebase/firestore.repository';
@@ -34,7 +35,12 @@ export class UsersService {
     return this.findById(userRecord.uid);
   }
 
+  /** The admin role can never be granted through the app — only by a direct
+   * change outside of it, so privilege escalation isn't a self-service UI action. */
   async update(uid: string, dto: UpdateUserDto): Promise<User> {
+    if (dto.role === Role.ADMIN) {
+      throw new ForbiddenException('The admin role cannot be granted from the panel');
+    }
     return this.repo.update(uid, dto);
   }
 

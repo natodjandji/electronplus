@@ -8,7 +8,7 @@ import { FirestoreRepository } from '../../firebase/firestore.repository';
 import { OrderStatus } from '../orders/entities/order.entity';
 import { SalesDailySummary } from './entities/sales-daily-summary.entity';
 
-const REVENUE_STATUSES = [OrderStatus.PAID, OrderStatus.FULFILLED];
+const REVENUE_STATUSES = [OrderStatus.PAID, OrderStatus.PREPARING, OrderStatus.SHIPPED, OrderStatus.FULFILLED];
 
 function toIsoDate(date: Date): string {
   return date.toISOString().slice(0, 10);

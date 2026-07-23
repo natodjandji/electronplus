@@ -4,9 +4,20 @@ import { PaymentMethod } from '../../payments/entities/payment.entity';
 export enum OrderStatus {
   PENDING_PAYMENT_VERIFICATION = 'pending_payment_verification',
   PAID = 'paid',
+  PREPARING = 'preparing',
+  SHIPPED = 'shipped',
   FULFILLED = 'fulfilled',
   CANCELLED = 'cancelled',
 }
+
+/** Linear post-payment fulfillment pipeline — advanceStatus() steps through
+ * these in order; pending-verification and cancelled sit outside it. */
+export const ORDER_FULFILLMENT_PIPELINE = [
+  OrderStatus.PAID,
+  OrderStatus.PREPARING,
+  OrderStatus.SHIPPED,
+  OrderStatus.FULFILLED,
+];
 
 export interface OrderItem {
   productId: string;

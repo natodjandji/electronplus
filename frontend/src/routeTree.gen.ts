@@ -22,6 +22,7 @@ import { Route as RegisterRouteImport } from './routes/register'
 import { Route as AdminIndexRouteImport } from './routes/admin.index'
 import { Route as AdminInventoryRouteImport } from './routes/admin.inventory'
 import { Route as AdminLabelsRouteImport } from './routes/admin.labels'
+import { Route as AdminOrdersRouteImport } from './routes/admin.orders'
 import { Route as AdminPurchaseOrdersRouteImport } from './routes/admin.purchase-orders'
 import { Route as AdminPurchasesRouteImport } from './routes/admin.purchases'
 import { Route as AdminQuotesRouteImport } from './routes/admin.quotes'
@@ -96,6 +97,11 @@ const AdminLabelsRoute = AdminLabelsRouteImport.update({
   path: '/labels',
   getParentRoute: () => AdminRoute,
 } as any)
+const AdminOrdersRoute = AdminOrdersRouteImport.update({
+  id: '/orders',
+  path: '/orders',
+  getParentRoute: () => AdminRoute,
+} as any)
 const AdminPurchaseOrdersRoute = AdminPurchaseOrdersRouteImport.update({
   id: '/purchase-orders',
   path: '/purchase-orders',
@@ -150,6 +156,7 @@ export interface FileRoutesByFullPath {
   '/register': typeof RegisterRoute
   '/admin/inventory': typeof AdminInventoryRoute
   '/admin/labels': typeof AdminLabelsRoute
+  '/admin/orders': typeof AdminOrdersRoute
   '/admin/purchase-orders': typeof AdminPurchaseOrdersRoute
   '/admin/purchases': typeof AdminPurchasesRoute
   '/admin/quotes': typeof AdminQuotesRoute
@@ -172,6 +179,7 @@ export interface FileRoutesByTo {
   '/register': typeof RegisterRoute
   '/admin/inventory': typeof AdminInventoryRoute
   '/admin/labels': typeof AdminLabelsRoute
+  '/admin/orders': typeof AdminOrdersRoute
   '/admin/purchase-orders': typeof AdminPurchaseOrdersRoute
   '/admin/purchases': typeof AdminPurchasesRoute
   '/admin/quotes': typeof AdminQuotesRoute
@@ -196,6 +204,7 @@ export interface FileRoutesById {
   '/register': typeof RegisterRoute
   '/admin/inventory': typeof AdminInventoryRoute
   '/admin/labels': typeof AdminLabelsRoute
+  '/admin/orders': typeof AdminOrdersRoute
   '/admin/purchase-orders': typeof AdminPurchaseOrdersRoute
   '/admin/purchases': typeof AdminPurchasesRoute
   '/admin/quotes': typeof AdminQuotesRoute
@@ -221,6 +230,7 @@ export interface FileRouteTypes {
     | '/register'
     | '/admin/inventory'
     | '/admin/labels'
+    | '/admin/orders'
     | '/admin/purchase-orders'
     | '/admin/purchases'
     | '/admin/quotes'
@@ -243,6 +253,7 @@ export interface FileRouteTypes {
     | '/register'
     | '/admin/inventory'
     | '/admin/labels'
+    | '/admin/orders'
     | '/admin/purchase-orders'
     | '/admin/purchases'
     | '/admin/quotes'
@@ -266,6 +277,7 @@ export interface FileRouteTypes {
     | '/register'
     | '/admin/inventory'
     | '/admin/labels'
+    | '/admin/orders'
     | '/admin/purchase-orders'
     | '/admin/purchases'
     | '/admin/quotes'
@@ -384,6 +396,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AdminLabelsRouteImport
       parentRoute: typeof AdminRoute
     }
+    '/admin/orders': {
+      id: '/admin/orders'
+      path: '/orders'
+      fullPath: '/admin/orders'
+      preLoaderRoute: typeof AdminOrdersRouteImport
+      parentRoute: typeof AdminRoute
+    }
     '/admin/purchase-orders': {
       id: '/admin/purchase-orders'
       path: '/purchase-orders'
@@ -446,6 +465,7 @@ declare module '@tanstack/react-router' {
 interface AdminRouteChildren {
   AdminInventoryRoute: typeof AdminInventoryRoute
   AdminLabelsRoute: typeof AdminLabelsRoute
+  AdminOrdersRoute: typeof AdminOrdersRoute
   AdminPurchaseOrdersRoute: typeof AdminPurchaseOrdersRoute
   AdminPurchasesRoute: typeof AdminPurchasesRoute
   AdminQuotesRoute: typeof AdminQuotesRoute
@@ -458,6 +478,7 @@ interface AdminRouteChildren {
 const AdminRouteChildren: AdminRouteChildren = {
   AdminInventoryRoute: AdminInventoryRoute,
   AdminLabelsRoute: AdminLabelsRoute,
+  AdminOrdersRoute: AdminOrdersRoute,
   AdminPurchaseOrdersRoute: AdminPurchaseOrdersRoute,
   AdminPurchasesRoute: AdminPurchasesRoute,
   AdminQuotesRoute: AdminQuotesRoute,

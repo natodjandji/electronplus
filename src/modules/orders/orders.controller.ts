@@ -42,9 +42,17 @@ export class OrdersController {
     return toOrderDto(order, user.role);
   }
 
-  @Patch(':id/fulfill')
+  @Patch(':id/advance')
   @Roles(Role.ADMIN, Role.WAREHOUSE_OPERATOR)
-  fulfill(@Param('id') id: string) {
-    return this.ordersService.markFulfilled(id);
+  async advance(@Param('id') id: string, @CurrentUser() user: AuthenticatedUser) {
+    const order = await this.ordersService.advanceStatus(id);
+    return toOrderDto(order, user.role);
+  }
+
+  @Patch(':id/cancel')
+  @Roles(Role.ADMIN)
+  async cancel(@Param('id') id: string, @CurrentUser() user: AuthenticatedUser) {
+    const order = await this.ordersService.cancel(id);
+    return toOrderDto(order, user.role);
   }
 }

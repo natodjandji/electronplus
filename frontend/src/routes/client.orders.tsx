@@ -7,6 +7,12 @@ import { Badge } from "@/components/ui/badge";
 import { Card } from "@/components/ui/card";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Separator } from "@/components/ui/separator";
+import {
+  OrderStepper,
+  ORDER_STATUS_BADGE,
+  ORDER_STATUS_LABEL,
+  type OrderStatus,
+} from "@/components/order-stepper";
 import { apiFetch } from "@/lib/api-client";
 import { formatMoney } from "@/lib/electron-store";
 
@@ -20,8 +26,6 @@ export const Route = createFileRoute("/client/orders")({
   }),
   component: ClientOrdersPage,
 });
-
-type OrderStatus = "pending_payment_verification" | "paid" | "fulfilled" | "cancelled";
 
 type PaymentMethod = "bank_transfer" | "pago_movil" | "cash" | "zelle" | "paypal" | "credit_b2b";
 
@@ -49,20 +53,6 @@ interface Order {
   items: OrderItem[];
   createdAt: string;
 }
-
-const STATUS_LABEL: Record<OrderStatus, string> = {
-  pending_payment_verification: "Procesando",
-  paid: "Pagado",
-  fulfilled: "Entregado",
-  cancelled: "Cancelado",
-};
-
-const STATUS_BADGE: Record<OrderStatus, string> = {
-  pending_payment_verification: "border-transparent bg-brand-yellow/25 text-brand-navy",
-  paid: "border-transparent bg-brand-blue/10 text-brand-blue",
-  fulfilled: "border-transparent bg-emerald-100 text-emerald-700",
-  cancelled: "border-transparent bg-destructive/10 text-destructive",
-};
 
 const PAYMENT_METHOD_LABEL: Record<PaymentMethod, string> = {
   bank_transfer: "Transferencia bancaria",
@@ -157,8 +147,8 @@ function ClientOrdersPage() {
                         {formatMoney(order.totalAmount)}
                       </div>
                     </div>
-                    <Badge className={STATUS_BADGE[order.status]}>
-                      {STATUS_LABEL[order.status]}
+                    <Badge className={ORDER_STATUS_BADGE[order.status]}>
+                      {ORDER_STATUS_LABEL[order.status]}
                     </Badge>
                   </div>
                 </Card>
@@ -174,11 +164,13 @@ function ClientOrdersPage() {
             <DialogHeader>
               <div className="flex items-center justify-between gap-3 pr-6">
                 <DialogTitle>Pedido #{selectedOrder.id.slice(0, 8).toUpperCase()}</DialogTitle>
-                <Badge className={STATUS_BADGE[selectedOrder.status]}>
-                  {STATUS_LABEL[selectedOrder.status]}
+                <Badge className={ORDER_STATUS_BADGE[selectedOrder.status]}>
+                  {ORDER_STATUS_LABEL[selectedOrder.status]}
                 </Badge>
               </div>
             </DialogHeader>
+
+            <OrderStepper status={selectedOrder.status} />
 
             <div className="text-xs text-muted-foreground">
               Emitido el {formatDate(selectedOrder.createdAt)} ·{" "}

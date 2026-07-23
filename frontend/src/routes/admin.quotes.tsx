@@ -1,8 +1,9 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
-import { Check, Loader2, X } from "lucide-react";
+import { Check, Loader2, Printer, X } from "lucide-react";
 import { AdminShell } from "@/components/admin-shell";
+import { ElectronLogo } from "@/components/electron-logo";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
@@ -225,114 +226,191 @@ function QuoteDetailDialog({ id, onClose }: { id: string; onClose: () => void })
   const total = computeTotal(quote);
 
   return (
-    <Dialog open onOpenChange={(open) => !open && onClose()}>
-      <DialogContent className="max-w-lg">
-        <DialogHeader>
-          <div className="flex items-center justify-between gap-3 pr-6">
-            <DialogTitle>{quote.customerName || "Sin nombre"}</DialogTitle>
-            <Badge className={STATUS_BADGE[quote.status]}>{STATUS_LABEL[quote.status]}</Badge>
+    <>
+      <Dialog open onOpenChange={(open) => !open && onClose()}>
+        <DialogContent className="max-w-lg print:hidden">
+          <DialogHeader>
+            <div className="flex items-center justify-between gap-3 pr-6">
+              <DialogTitle>{quote.customerName || "Sin nombre"}</DialogTitle>
+              <div className="flex items-center gap-2">
+                <Badge className={STATUS_BADGE[quote.status]}>{STATUS_LABEL[quote.status]}</Badge>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="gap-1.5"
+                  onClick={() => window.print()}
+                >
+                  <Printer className="h-3.5 w-3.5" /> Imprimir / PDF
+                </Button>
+              </div>
+            </div>
+          </DialogHeader>
+
+          {quote.customerTaxId && (
+            <div className="text-xs text-muted-foreground">RIF/Cédula: {quote.customerTaxId}</div>
+          )}
+
+          <div className="max-h-56 overflow-y-auto rounded-md border border-border">
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="border-b border-border bg-brand-surface text-left text-xs uppercase tracking-wider text-muted-foreground">
+                  <th className="px-3 py-2">Producto</th>
+                  <th className="px-3 py-2 text-right">Cant.</th>
+                  <th className="px-3 py-2 text-right">Precio</th>
+                  <th className="px-3 py-2 text-right">Total</th>
+                </tr>
+              </thead>
+              <tbody>
+                {quote.items.map((item) => (
+                  <tr key={item.id} className="border-b border-border last:border-0">
+                    <td className="px-3 py-2">
+                      <div className="font-medium text-brand-navy">{item.name}</div>
+                      <div className="text-xs text-muted-foreground">{item.sku}</div>
+                    </td>
+                    <td className="px-3 py-2 text-right">{item.qty}</td>
+                    <td className="px-3 py-2 text-right">{formatMoney(item.unitPrice)}</td>
+                    <td className="px-3 py-2 text-right font-semibold text-brand-navy">
+                      {formatMoney(item.unitPrice * item.qty * (1 - item.discountPct / 100))}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
           </div>
-        </DialogHeader>
 
-        {quote.customerTaxId && (
-          <div className="text-xs text-muted-foreground">RIF/Cédula: {quote.customerTaxId}</div>
-        )}
+          <div className="flex justify-end text-lg font-bold text-brand-navy">
+            Total {formatMoney(total)}
+          </div>
 
-        <div className="max-h-56 overflow-y-auto rounded-md border border-border">
-          <table className="w-full text-sm">
+          {canDecide ? (
+            <>
+              <Separator />
+              <div className="grid gap-1.5">
+                <Label className="text-xs font-medium text-brand-navy">
+                  Descuento especial % (opcional, al aprobar)
+                </Label>
+                <Input
+                  type="number"
+                  min={0}
+                  max={100}
+                  value={discountPct}
+                  onChange={(e) => {
+                    setDiscountTouched(true);
+                    setDiscountPct(Math.min(100, Math.max(0, Number(e.target.value))));
+                  }}
+                />
+              </div>
+              <div className="grid gap-1.5">
+                <Label className="text-xs font-medium text-brand-navy">
+                  Motivo de rechazo (opcional)
+                </Label>
+                <Textarea
+                  value={rejectReason}
+                  onChange={(e) => setRejectReason(e.target.value)}
+                  placeholder="Explica por qué se rechaza, si aplica…"
+                  rows={2}
+                />
+              </div>
+              <div className="flex gap-2">
+                <Button
+                  onClick={() => reject.mutate()}
+                  disabled={reject.isPending || approve.isPending}
+                  variant="outline"
+                  className="flex-1 gap-2 text-destructive hover:bg-destructive/5"
+                >
+                  {reject.isPending ? (
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                  ) : (
+                    <X className="h-4 w-4" />
+                  )}
+                  Rechazar
+                </Button>
+                <Button
+                  onClick={() => approve.mutate()}
+                  disabled={approve.isPending || reject.isPending}
+                  className="flex-1 gap-2 bg-brand-blue text-white hover:bg-brand-blue/90"
+                >
+                  {approve.isPending ? (
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                  ) : (
+                    <Check className="h-4 w-4" />
+                  )}
+                  Aprobar
+                </Button>
+              </div>
+            </>
+          ) : quote.status === "rejected" && quote.rejectionReason ? (
+            <div className="rounded-md bg-destructive/5 p-3 text-sm text-destructive">
+              Motivo: {quote.rejectionReason}
+            </div>
+          ) : null}
+        </DialogContent>
+      </Dialog>
+
+      <div className="hidden print:block">
+        <div className="mx-auto max-w-2xl p-6">
+          <div className="flex items-center justify-between gap-4 border-b border-border pb-4">
+            <ElectronLogo layout="full" tone="color" className="h-8" />
+            <div className="text-right text-xs text-muted-foreground">
+              <div className="font-semibold text-brand-navy">Cotización</div>
+              <div>
+                {new Date(quote.createdAt).toLocaleDateString("es-VE", {
+                  day: "2-digit",
+                  month: "short",
+                  year: "numeric",
+                })}
+              </div>
+            </div>
+          </div>
+
+          <div className="mt-4">
+            <div className="text-lg font-bold text-brand-navy">
+              {quote.customerName || "Sin nombre"}
+            </div>
+            {quote.customerTaxId && (
+              <div className="text-sm text-muted-foreground">RIF/Cédula: {quote.customerTaxId}</div>
+            )}
+            <div className="text-sm text-muted-foreground">
+              Estado: {STATUS_LABEL[quote.status]}
+            </div>
+          </div>
+
+          <table className="mt-4 w-full text-sm">
             <thead>
-              <tr className="border-b border-border bg-brand-surface text-left text-xs uppercase tracking-wider text-muted-foreground">
-                <th className="px-3 py-2">Producto</th>
-                <th className="px-3 py-2 text-right">Cant.</th>
-                <th className="px-3 py-2 text-right">Precio</th>
-                <th className="px-3 py-2 text-right">Total</th>
+              <tr className="border-b border-border text-left text-xs uppercase tracking-wider text-muted-foreground">
+                <th className="py-2">Producto</th>
+                <th className="py-2 text-right">Cant.</th>
+                <th className="py-2 text-right">Precio</th>
+                <th className="py-2 text-right">Total</th>
               </tr>
             </thead>
             <tbody>
               {quote.items.map((item) => (
-                <tr key={item.id} className="border-b border-border last:border-0">
-                  <td className="px-3 py-2">
-                    <div className="font-medium text-brand-navy">{item.name}</div>
-                    <div className="text-xs text-muted-foreground">{item.sku}</div>
+                <tr key={item.id} className="border-b border-border">
+                  <td className="py-2">
+                    {item.name} <span className="text-xs text-muted-foreground">({item.sku})</span>
                   </td>
-                  <td className="px-3 py-2 text-right">{item.qty}</td>
-                  <td className="px-3 py-2 text-right">{formatMoney(item.unitPrice)}</td>
-                  <td className="px-3 py-2 text-right font-semibold text-brand-navy">
+                  <td className="py-2 text-right">{item.qty}</td>
+                  <td className="py-2 text-right">{formatMoney(item.unitPrice)}</td>
+                  <td className="py-2 text-right font-semibold">
                     {formatMoney(item.unitPrice * item.qty * (1 - item.discountPct / 100))}
                   </td>
                 </tr>
               ))}
             </tbody>
           </table>
-        </div>
 
-        <div className="flex justify-end text-lg font-bold text-brand-navy">
-          Total {formatMoney(total)}
-        </div>
+          {quote.globalDiscountPct > 0 && (
+            <div className="mt-2 text-right text-sm text-muted-foreground">
+              Descuento especial: {quote.globalDiscountPct}%
+            </div>
+          )}
 
-        {canDecide ? (
-          <>
-            <Separator />
-            <div className="grid gap-1.5">
-              <Label className="text-xs font-medium text-brand-navy">
-                Descuento especial % (opcional, al aprobar)
-              </Label>
-              <Input
-                type="number"
-                min={0}
-                max={100}
-                value={discountPct}
-                onChange={(e) => {
-                  setDiscountTouched(true);
-                  setDiscountPct(Math.min(100, Math.max(0, Number(e.target.value))));
-                }}
-              />
-            </div>
-            <div className="grid gap-1.5">
-              <Label className="text-xs font-medium text-brand-navy">
-                Motivo de rechazo (opcional)
-              </Label>
-              <Textarea
-                value={rejectReason}
-                onChange={(e) => setRejectReason(e.target.value)}
-                placeholder="Explica por qué se rechaza, si aplica…"
-                rows={2}
-              />
-            </div>
-            <div className="flex gap-2">
-              <Button
-                onClick={() => reject.mutate()}
-                disabled={reject.isPending || approve.isPending}
-                variant="outline"
-                className="flex-1 gap-2 text-destructive hover:bg-destructive/5"
-              >
-                {reject.isPending ? (
-                  <Loader2 className="h-4 w-4 animate-spin" />
-                ) : (
-                  <X className="h-4 w-4" />
-                )}
-                Rechazar
-              </Button>
-              <Button
-                onClick={() => approve.mutate()}
-                disabled={approve.isPending || reject.isPending}
-                className="flex-1 gap-2 bg-brand-blue text-white hover:bg-brand-blue/90"
-              >
-                {approve.isPending ? (
-                  <Loader2 className="h-4 w-4 animate-spin" />
-                ) : (
-                  <Check className="h-4 w-4" />
-                )}
-                Aprobar
-              </Button>
-            </div>
-          </>
-        ) : quote.status === "rejected" && quote.rejectionReason ? (
-          <div className="rounded-md bg-destructive/5 p-3 text-sm text-destructive">
-            Motivo: {quote.rejectionReason}
+          <div className="mt-2 flex justify-end text-lg font-bold text-brand-navy">
+            Total {formatMoney(total)}
           </div>
-        ) : null}
-      </DialogContent>
-    </Dialog>
+        </div>
+      </div>
+    </>
   );
 }

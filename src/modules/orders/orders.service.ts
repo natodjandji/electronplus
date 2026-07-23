@@ -12,7 +12,7 @@ import { PaymentsService } from '../payments/payments.service';
 import { PricingService } from '../products/pricing.service';
 import { ProductsService, StockChangedEvent } from '../products/products.service';
 import { CreateOrderDto } from './dto/create-order.dto';
-import { Order, OrderItem, OrderStatus } from './entities/order.entity';
+import { ORDER_FULFILLMENT_PIPELINE, Order, OrderItem, OrderStatus } from './entities/order.entity';
 
 export const ORDER_PAID_EVENT = 'order.paid';
 
@@ -172,7 +172,29 @@ export class OrdersService {
     }
   }
 
-  markFulfilled(orderId: string): Promise<Order> {
-    return this.repo.update(orderId, { status: OrderStatus.FULFILLED });
+  /** Steps a paid order forward one stage in the fulfillment pipeline
+   * (paid -> preparing -> shipped -> fulfilled). */
+  async advanceStatus(orderId: string): Promise<Order> {
+    const order = await this.findById(orderId);
+    const idx = ORDER_FULFILLMENT_PIPELINE.indexOf(order.status);
+    if (idx === -1) {
+      throw new BadRequestException('This order is not in an advanceable state');
+    }
+    if (idx === ORDER_FULFILLMENT_PIPELINE.length - 1) {
+      throw new BadRequestException('This order has already reached its final stage');
+    }
+    return this.repo.update(orderId, { status: ORDER_FULFILLMENT_PIPELINE[idx + 1] });
+  }
+
+  /** Cancels an order that hasn't been delivered yet and releases its reserved stock. */
+  async cancel(orderId: string): Promise<Order> {
+    const order = await this.findById(orderId);
+    if (order.status === OrderStatus.FULFILLED || order.status === OrderStatus.CANCELLED) {
+      throw new BadRequestException('This order cannot be cancelled');
+    }
+    for (const item of order.items) {
+      await this.productsService.adjustStock(item.productId, { delta: item.qty });
+    }
+    return this.repo.update(orderId, { status: OrderStatus.CANCELLED });
   }
 }
