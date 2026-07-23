@@ -1,8 +1,6 @@
-import { createFileRoute } from "@tanstack/react-router";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 import { CreditCard, Loader2, Pencil, Plus, Trash2 } from "lucide-react";
-import { AdminShell } from "@/components/admin-shell";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
@@ -26,19 +24,6 @@ import { Switch } from "@/components/ui/switch";
 import { Textarea } from "@/components/ui/textarea";
 import { apiFetch, ApiError } from "@/lib/api-client";
 import { toast } from "sonner";
-
-export const Route = createFileRoute("/admin/payment-methods")({
-  head: () => ({
-    meta: [
-      { title: "Métodos de pago · Admin Electron Plus" },
-      {
-        name: "description",
-        content: "Personaliza los métodos de pago que se ofrecen en el checkout.",
-      },
-    ],
-  }),
-  component: PaymentMethodsPage,
-});
 
 const BACKEND_METHODS = [
   { value: "bank_transfer", label: "Transferencia bancaria" },
@@ -87,7 +72,7 @@ function slugify(label: string): string {
     .replace(/^-+|-+$/g, "");
 }
 
-function PaymentMethodsPage() {
+export function PaymentMethodsPanel() {
   const { data: methods, isLoading } = usePaymentMethods();
   const [editing, setEditing] = useState<PaymentMethodConfig | null>(null);
   const [creating, setCreating] = useState(false);
@@ -112,7 +97,7 @@ function PaymentMethodsPage() {
   });
 
   return (
-    <AdminShell title="Métodos de pago">
+    <div>
       <div className="flex flex-wrap items-start justify-between gap-3">
         <p className="max-w-2xl text-sm text-muted-foreground">
           Personaliza la información que ven tus clientes al pagar: datos bancarios, referencias
@@ -210,7 +195,7 @@ function PaymentMethodsPage() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
-    </AdminShell>
+    </div>
   );
 }
 

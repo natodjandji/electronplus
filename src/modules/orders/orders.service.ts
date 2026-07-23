@@ -14,6 +14,7 @@ import { PricingService } from '../products/pricing.service';
 import { ProductsService, StockChangedEvent } from '../products/products.service';
 import { ShippingRatesService } from '../shipping-rates/shipping-rates.service';
 import { CreateOrderDto } from './dto/create-order.dto';
+import { RetryPaymentDto } from './dto/retry-payment.dto';
 import { ORDER_FULFILLMENT_PIPELINE, Order, OrderItem, OrderStatus } from './entities/order.entity';
 
 export const ORDER_PAID_EVENT = 'order.paid';
@@ -156,6 +157,32 @@ export class OrdersService {
       return this.markPaid(order.id);
     }
     return this.findById(order.id, user);
+  }
+
+  /** After a rejection, lets the buyer switch payment method and/or resubmit a reference/proof. */
+  async retryPayment(orderId: string, user: AuthenticatedUser, dto: RetryPaymentDto): Promise<Order> {
+    const order = await this.findById(orderId, user);
+    if (order.status !== OrderStatus.PENDING_PAYMENT_VERIFICATION) {
+      throw new BadRequestException('This order is not awaiting payment verification');
+    }
+    const payments = await this.paymentsService.findByOrder(orderId);
+    if (payments[0]?.status !== PaymentStatus.REJECTED) {
+      throw new BadRequestException('Only a rejected payment can be retried');
+    }
+
+    await this.repo.update(orderId, { paymentMethod: dto.paymentMethod });
+    const payment = await this.paymentsService.initiate(
+      orderId,
+      dto.paymentMethod,
+      order.totalAmount,
+      dto.paymentReference,
+      dto.paymentProofBase64,
+    );
+
+    if (payment.status === PaymentStatus.VERIFIED) {
+      return this.markPaid(orderId);
+    }
+    return this.findById(orderId, user);
   }
 
   private async compensate(order: Order): Promise<void> {

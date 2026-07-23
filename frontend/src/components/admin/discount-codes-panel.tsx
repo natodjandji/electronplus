@@ -1,8 +1,6 @@
-import { createFileRoute } from "@tanstack/react-router";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 import { Pencil, Plus, Trash2 } from "lucide-react";
-import { AdminShell } from "@/components/admin-shell";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
@@ -26,16 +24,6 @@ import { Switch } from "@/components/ui/switch";
 import { apiFetch, ApiError } from "@/lib/api-client";
 import { formatMoney } from "@/lib/electron-store";
 import { toast } from "sonner";
-
-export const Route = createFileRoute("/admin/discounts")({
-  head: () => ({
-    meta: [
-      { title: "Códigos de descuento · Admin Electron Plus" },
-      { name: "description", content: "Crea y administra los códigos de descuento del checkout." },
-    ],
-  }),
-  component: DiscountCodesPage,
-});
 
 type DiscountType = "percentage" | "fixed";
 
@@ -62,7 +50,7 @@ function valueLabel(d: Pick<DiscountCode, "type" | "value">): string {
   return d.type === "percentage" ? `${d.value}%` : formatMoney(d.value);
 }
 
-function DiscountCodesPage() {
+export function DiscountCodesPanel() {
   const { data: codes, isLoading } = useDiscountCodes();
   const [creating, setCreating] = useState(false);
   const [editing, setEditing] = useState<DiscountCode | null>(null);
@@ -87,7 +75,7 @@ function DiscountCodesPage() {
   });
 
   return (
-    <AdminShell title="Códigos de descuento">
+    <div>
       <div className="flex flex-wrap items-start justify-between gap-3">
         <p className="max-w-2xl text-sm text-muted-foreground">
           Crea códigos que tus clientes puedan aplicar en el carrito — porcentaje o monto fijo sobre
@@ -192,7 +180,7 @@ function DiscountCodesPage() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
-    </AdminShell>
+    </div>
   );
 }
 

@@ -1,8 +1,6 @@
-import { createFileRoute } from "@tanstack/react-router";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
-import { Loader2, MapPin, Pencil, Plus, Trash2 } from "lucide-react";
-import { AdminShell } from "@/components/admin-shell";
+import { MapPin, Pencil, Plus, Trash2 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
@@ -26,19 +24,6 @@ import { apiFetch, ApiError } from "@/lib/api-client";
 import { formatMoney } from "@/lib/electron-store";
 import { VENEZUELA_STATE_NAMES, citiesForState } from "@/lib/venezuela-locations";
 import { toast } from "sonner";
-
-export const Route = createFileRoute("/admin/shipping")({
-  head: () => ({
-    meta: [
-      { title: "Costos de envío · Admin Electron Plus" },
-      {
-        name: "description",
-        content: "Personaliza el costo de envío por estado y municipio.",
-      },
-    ],
-  }),
-  component: ShippingRatesPage,
-});
 
 const STATE_WIDE_CITY = "*";
 
@@ -64,7 +49,7 @@ function cityLabel(city: string): string {
   return city === STATE_WIDE_CITY ? "Todos los municipios (tarifa por defecto)" : city;
 }
 
-function ShippingRatesPage() {
+export function ShippingRatesPanel() {
   const { data: rates, isLoading } = useShippingRates();
   const [creating, setCreating] = useState(false);
   const [editing, setEditing] = useState<ShippingRate | null>(null);
@@ -82,7 +67,7 @@ function ShippingRatesPage() {
   });
 
   return (
-    <AdminShell title="Costos de envío">
+    <div>
       <div className="flex flex-wrap items-start justify-between gap-3">
         <p className="max-w-2xl text-sm text-muted-foreground">
           Define el costo de envío según el estado y municipio del cliente — se calcula
@@ -185,7 +170,7 @@ function ShippingRatesPage() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
-    </AdminShell>
+    </div>
   );
 }
 

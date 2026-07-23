@@ -209,18 +209,18 @@ function CartPage() {
                 <Row label="IVA (16%)" value={formatMoney(taxAmount)} />
                 <Row label="Envío" value="Se calcula en el checkout" muted />
                 <Separator className="my-3" />
-                <div className="flex items-baseline justify-between">
-                  <span className="text-brand-navy">Total antes de envío</span>
-                  <span className="flex items-baseline gap-2">
-                    <span className="text-base font-bold tabular-nums text-brand-navy">
+                <div className="flex items-start justify-between gap-3">
+                  <span className="pt-0.5 text-brand-navy">Total antes de envío</span>
+                  <div className="text-right">
+                    <div className="text-base font-bold tabular-nums text-brand-navy">
                       {formatMoney(total)}
-                    </span>
+                    </div>
                     {bcv && (
-                      <span className="inline-flex items-center rounded-full bg-brand-blue/10 px-2 py-0.5 text-xs font-semibold tabular-nums text-brand-blue">
+                      <div className="mt-1 inline-flex items-center rounded-full bg-brand-blue/10 px-2 py-0.5 text-xs font-semibold tabular-nums text-brand-blue">
                         ≈ {formatBs(total, bcv.rate)}
-                      </span>
+                      </div>
                     )}
-                  </span>
+                  </div>
                 </div>
               </div>
 

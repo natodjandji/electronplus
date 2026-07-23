@@ -7,6 +7,7 @@ import { FirebaseAuthGuard } from '../../common/guards/firebase-auth.guard';
 import { RolesGuard } from '../../common/guards/roles.guard';
 import { AuthenticatedUser } from '../../common/interfaces/authenticated-user.interface';
 import { CreateOrderDto } from './dto/create-order.dto';
+import { RetryPaymentDto } from './dto/retry-payment.dto';
 import { toOrderDto } from './mappers/order.mapper';
 import { OrdersService } from './orders.service';
 
@@ -39,6 +40,16 @@ export class OrdersController {
   @Get(':id')
   async findOne(@Param('id') id: string, @CurrentUser() user: AuthenticatedUser) {
     const order = await this.ordersService.findById(id, user);
+    return toOrderDto(order, user.role);
+  }
+
+  @Post(':id/retry-payment')
+  async retryPayment(
+    @Param('id') id: string,
+    @CurrentUser() user: AuthenticatedUser,
+    @Body() dto: RetryPaymentDto,
+  ) {
+    const order = await this.ordersService.retryPayment(id, user, dto);
     return toOrderDto(order, user.role);
   }
 
