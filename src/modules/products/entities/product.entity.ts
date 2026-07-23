@@ -9,6 +9,9 @@ export interface Product extends FirestoreDoc {
   /** Denormalized so catalog reads never need a join. */
   category: { id: string; code: string; label: string };
 
+  /** Supplier this product is restocked from — drives supplier-filtered product pickers on POs/invoices. */
+  supplierId?: string;
+
   retailPrice: number;
   wholesalePrice: number;
   cost?: number;

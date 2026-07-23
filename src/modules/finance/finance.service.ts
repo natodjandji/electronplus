@@ -9,6 +9,7 @@ import { FirestoreRepository } from '../../firebase/firestore.repository';
 import { CreateInvoiceDto } from './dto/create-invoice.dto';
 import { CreateSupplierDto } from './dto/create-supplier.dto';
 import { RegisterPaymentDto } from './dto/register-payment.dto';
+import { UpdateInvoiceDto } from './dto/update-invoice.dto';
 import { UpdatePaymentTermsDto } from './dto/update-payment-terms.dto';
 import { PayableDueStatus, SupplierPayable, SupplierPayableStatus } from './entities/supplier-payable.entity';
 import { SupplierPayment } from './entities/supplier-payment.entity';
@@ -61,6 +62,32 @@ export class FinanceService {
       amountPaid: 0,
       paymentTerms: dto.paymentTerms,
       notes: dto.notes,
+    });
+  }
+
+  /** General edit for the invoice's own fields — separate from payment-terms
+   * and from payment registration, which have their own narrower endpoints. */
+  async updateInvoice(id: string, dto: UpdateInvoiceDto): Promise<SupplierPayable> {
+    const invoice = await this.findInvoice(id);
+    if (invoice.status === SupplierPayableStatus.PAID) {
+      throw new BadRequestException('A fully paid invoice cannot be edited');
+    }
+    if (dto.amount !== undefined && dto.amount < invoice.amountPaid) {
+      throw new BadRequestException(
+        `Amount cannot be less than what has already been paid (${invoice.amountPaid})`,
+      );
+    }
+
+    const dueDate = dto.dueDate ?? invoice.dueDate;
+    return this.payablesRepo.update(id, {
+      supplierId: dto.supplierId ?? invoice.supplierId,
+      supplierName: dto.supplierName ?? invoice.supplierName,
+      invoiceNumber: dto.invoiceNumber ?? invoice.invoiceNumber,
+      amount: dto.amount ?? invoice.amount,
+      currency: dto.currency ?? invoice.currency,
+      issueDate: dto.issueDate ?? invoice.issueDate,
+      dueDate,
+      dueStatus: dueStatusForDueDate(dueDate),
     });
   }
 

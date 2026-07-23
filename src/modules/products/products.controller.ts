@@ -9,6 +9,7 @@ import { RolesGuard } from '../../common/guards/roles.guard';
 import { AuthenticatedUser } from '../../common/interfaces/authenticated-user.interface';
 import { CategoriesService } from './categories.service';
 import { AdjustStockDto } from './dto/adjust-stock.dto';
+import { AdminQueryProductsDto } from './dto/admin-query-products.dto';
 import { CreateProductDto } from './dto/create-product.dto';
 import { QueryProductsDto } from './dto/query-products.dto';
 import { UpdateProductDto } from './dto/update-product.dto';
@@ -48,6 +49,14 @@ export class ProductsController {
       ...result,
       data: result.data.map((p) => toCatalogDto(p, user?.role, this.pricingService)),
     };
+  }
+
+  @Get('products/admin')
+  @UseGuards(FirebaseAuthGuard, RolesGuard)
+  @Roles(Role.ADMIN)
+  @ApiBearerAuth()
+  adminFindAll(@Query() query: AdminQueryProductsDto) {
+    return this.productsService.adminFindAll(query);
   }
 
   @Get('products/:id')

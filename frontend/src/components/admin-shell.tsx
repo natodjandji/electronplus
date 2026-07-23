@@ -9,6 +9,8 @@ import {
   ClipboardList,
   FileCheck2,
   Users,
+  Boxes,
+  Building2,
 } from "lucide-react";
 import { ElectronLogo } from "./electron-logo";
 import { PageTransition } from "./motion-primitives";
@@ -26,6 +28,8 @@ const NAV = [
   { to: "/admin", label: "Dashboard", icon: LayoutDashboard, exact: true },
   { to: "/admin/quotes", label: "Cotizaciones", icon: FileCheck2 },
   { to: "/admin/users", label: "Usuarios", icon: Users },
+  { to: "/admin/inventory", label: "Inventario", icon: Boxes },
+  { to: "/admin/suppliers", label: "Proveedores", icon: Building2 },
   { to: "/admin/purchases", label: "Compras & Facturas", icon: Receipt },
   { to: "/admin/purchase-orders", label: "Órdenes de Compra", icon: ClipboardList },
   { to: "/admin/stock", label: "Alertas de stock", icon: PackageSearch },

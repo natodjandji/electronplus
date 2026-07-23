@@ -14,6 +14,10 @@ export class CreateProductDto {
   @IsString()
   categoryId: string;
 
+  @IsOptional()
+  @IsString()
+  supplierId?: string;
+
   @IsNumber()
   @Min(0)
   retailPrice: number;

@@ -9,6 +9,7 @@ import {
   ImageIcon,
   Loader2,
   Paperclip,
+  Pencil,
   Plus,
 } from "lucide-react";
 import { AdminShell } from "@/components/admin-shell";
@@ -26,6 +27,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Separator } from "@/components/ui/separator";
 import { Textarea } from "@/components/ui/textarea";
+import { SupplierPicker } from "@/components/supplier-picker";
 import { apiFetch, ApiError } from "@/lib/api-client";
 import { formatMoney } from "@/lib/electron-store";
 import { compressImageToBase64 } from "@/lib/image-compress";
@@ -286,6 +288,7 @@ function SummaryCard({
 
 function CreateInvoiceDialog({ onClose }: { onClose: () => void }) {
   const queryClient = useQueryClient();
+  const [supplierId, setSupplierId] = useState<string | undefined>();
   const [supplierName, setSupplierName] = useState("");
   const [invoiceNumber, setInvoiceNumber] = useState("");
   const [amount, setAmount] = useState(0);
@@ -299,6 +302,7 @@ function CreateInvoiceDialog({ onClose }: { onClose: () => void }) {
       apiFetch<Invoice>("/finance/invoices", {
         method: "POST",
         body: {
+          supplierId,
           supplierName,
           invoiceNumber,
           amount,
@@ -328,10 +332,12 @@ function CreateInvoiceDialog({ onClose }: { onClose: () => void }) {
         <div className="grid gap-4 sm:grid-cols-2">
           <div className="grid gap-1.5">
             <Label className="text-xs font-medium text-brand-navy">Proveedor</Label>
-            <Input
-              value={supplierName}
-              onChange={(e) => setSupplierName(e.target.value)}
-              placeholder="Nombre del proveedor"
+            <SupplierPicker
+              value={supplierId}
+              onChange={(id, name) => {
+                setSupplierId(id);
+                setSupplierName(name);
+              }}
             />
           </div>
           <div className="grid gap-1.5">
@@ -406,6 +412,14 @@ function InvoiceDetailDialog({ invoiceId, onClose }: { invoiceId: string; onClos
   const [terms, setTerms] = useState<string | null>(null);
   const [notes, setNotes] = useState<string | null>(null);
 
+  const [editingInvoice, setEditingInvoice] = useState(false);
+  const [editSupplierId, setEditSupplierId] = useState<string | undefined>();
+  const [editSupplierName, setEditSupplierName] = useState("");
+  const [editInvoiceNumber, setEditInvoiceNumber] = useState("");
+  const [editAmount, setEditAmount] = useState(0);
+  const [editIssueDate, setEditIssueDate] = useState("");
+  const [editDueDate, setEditDueDate] = useState("");
+
   const { data: invoices, isLoading, isError } = useInvoices();
   const invoice = invoices?.find((i) => i.id === invoiceId);
 
@@ -456,6 +470,27 @@ function InvoiceDetailDialog({ invoiceId, onClose }: { invoiceId: string; onClos
     onError: reportError,
   });
 
+  const saveInvoice = useMutation({
+    mutationFn: () =>
+      apiFetch(`/finance/invoices/${invoiceId}`, {
+        method: "PATCH",
+        body: {
+          supplierId: editSupplierId,
+          supplierName: editSupplierName,
+          invoiceNumber: editInvoiceNumber,
+          amount: editAmount,
+          issueDate: editIssueDate,
+          dueDate: editDueDate,
+        },
+      }),
+    onSuccess: () => {
+      invalidate();
+      setEditingInvoice(false);
+      toast.success("Factura actualizada");
+    },
+    onError: reportError,
+  });
+
   if (isLoading) {
     return (
       <Dialog open onOpenChange={(open) => !open && onClose()}>
@@ -486,46 +521,139 @@ function InvoiceDetailDialog({ invoiceId, onClose }: { invoiceId: string; onClos
   const canEditTerms = invoice.status !== "paid";
   const remaining = invoice.amount - invoice.amountPaid;
 
+  const startEditingInvoice = () => {
+    setEditSupplierId(invoice.supplierId);
+    setEditSupplierName(invoice.supplierName);
+    setEditInvoiceNumber(invoice.invoiceNumber);
+    setEditAmount(invoice.amount);
+    setEditIssueDate(invoice.issueDate);
+    setEditDueDate(invoice.dueDate);
+    setEditingInvoice(true);
+  };
+
   return (
     <Dialog open onOpenChange={(open) => !open && onClose()}>
       <DialogContent className="max-h-[85vh] max-w-lg overflow-y-auto">
         <DialogHeader>
-          <DialogTitle className="flex items-center gap-2">
-            {invoice.invoiceNumber}
-            {invoice.status === "paid" ? (
-              <Badge className="bg-emerald-100 text-emerald-700">Pagada</Badge>
-            ) : (
-              <Badge className={DUE_BADGE[invoice.dueStatus]}>{DUE_LABEL[invoice.dueStatus]}</Badge>
+          <div className="flex items-center justify-between gap-3 pr-6">
+            <DialogTitle className="flex items-center gap-2">
+              {invoice.invoiceNumber}
+              {invoice.status === "paid" ? (
+                <Badge className="bg-emerald-100 text-emerald-700">Pagada</Badge>
+              ) : (
+                <Badge className={DUE_BADGE[invoice.dueStatus]}>
+                  {DUE_LABEL[invoice.dueStatus]}
+                </Badge>
+              )}
+            </DialogTitle>
+            {canEditTerms && !editingInvoice && (
+              <Button size="sm" variant="outline" className="gap-1.5" onClick={startEditingInvoice}>
+                <Pencil className="h-3.5 w-3.5" /> Editar
+              </Button>
             )}
-          </DialogTitle>
+          </div>
         </DialogHeader>
 
-        <div className="text-sm text-muted-foreground">{invoice.supplierName}</div>
+        {!editingInvoice && (
+          <div className="text-sm text-muted-foreground">{invoice.supplierName}</div>
+        )}
 
-        <div className="space-y-1 text-sm">
-          <div className="flex justify-between text-muted-foreground">
-            <span>Emitida</span>
-            <span>{new Date(invoice.issueDate).toLocaleDateString("es-VE")}</span>
-          </div>
-          <div className="flex justify-between text-muted-foreground">
-            <span>Vence</span>
-            <span>{new Date(invoice.dueDate).toLocaleDateString("es-VE")}</span>
-          </div>
-          <div className="flex justify-between text-base font-bold text-brand-navy">
-            <span>Total</span>
-            <span>{formatMoney(invoice.amount)}</span>
-          </div>
-          <div className="flex justify-between text-muted-foreground">
-            <span>Pagado</span>
-            <span>{formatMoney(invoice.amountPaid)}</span>
-          </div>
-          {invoice.status !== "paid" && (
-            <div className="flex justify-between font-medium text-brand-navy">
-              <span>Saldo pendiente</span>
-              <span>{formatMoney(Math.max(0, remaining))}</span>
+        {!editingInvoice && (
+          <div className="space-y-1 text-sm">
+            <div className="flex justify-between text-muted-foreground">
+              <span>Emitida</span>
+              <span>{new Date(invoice.issueDate).toLocaleDateString("es-VE")}</span>
             </div>
-          )}
-        </div>
+            <div className="flex justify-between text-muted-foreground">
+              <span>Vence</span>
+              <span>{new Date(invoice.dueDate).toLocaleDateString("es-VE")}</span>
+            </div>
+            <div className="flex justify-between text-base font-bold text-brand-navy">
+              <span>Total</span>
+              <span>{formatMoney(invoice.amount)}</span>
+            </div>
+            <div className="flex justify-between text-muted-foreground">
+              <span>Pagado</span>
+              <span>{formatMoney(invoice.amountPaid)}</span>
+            </div>
+            {invoice.status !== "paid" && (
+              <div className="flex justify-between font-medium text-brand-navy">
+                <span>Saldo pendiente</span>
+                <span>{formatMoney(Math.max(0, remaining))}</span>
+              </div>
+            )}
+          </div>
+        )}
+
+        {editingInvoice && (
+          <div className="grid gap-3">
+            <div className="grid gap-1.5">
+              <Label className="text-xs font-medium text-brand-navy">Proveedor</Label>
+              <SupplierPicker
+                value={editSupplierId}
+                onChange={(id, name) => {
+                  setEditSupplierId(id);
+                  setEditSupplierName(name);
+                }}
+              />
+            </div>
+            <div className="grid gap-4 sm:grid-cols-2">
+              <div className="grid gap-1.5">
+                <Label className="text-xs font-medium text-brand-navy">N° de factura</Label>
+                <Input
+                  value={editInvoiceNumber}
+                  onChange={(e) => setEditInvoiceNumber(e.target.value)}
+                />
+              </div>
+              <div className="grid gap-1.5">
+                <Label className="text-xs font-medium text-brand-navy">Monto (USD)</Label>
+                <Input
+                  type="number"
+                  min={invoice.amountPaid || 0.01}
+                  step="0.01"
+                  value={editAmount}
+                  onChange={(e) => setEditAmount(Math.max(0, Number(e.target.value)))}
+                />
+              </div>
+              <div className="grid gap-1.5">
+                <Label className="text-xs font-medium text-brand-navy">Fecha de emisión</Label>
+                <Input
+                  type="date"
+                  value={editIssueDate}
+                  onChange={(e) => setEditIssueDate(e.target.value)}
+                />
+              </div>
+              <div className="grid gap-1.5">
+                <Label className="text-xs font-medium text-brand-navy">Fecha de vencimiento</Label>
+                <Input
+                  type="date"
+                  value={editDueDate}
+                  onChange={(e) => setEditDueDate(e.target.value)}
+                />
+              </div>
+            </div>
+            <div className="flex justify-end gap-2">
+              <Button variant="outline" size="sm" onClick={() => setEditingInvoice(false)}>
+                Cancelar
+              </Button>
+              <Button
+                size="sm"
+                className="bg-brand-blue text-white hover:bg-brand-blue/90"
+                disabled={
+                  !editSupplierName ||
+                  !editInvoiceNumber ||
+                  editAmount <= 0 ||
+                  !editIssueDate ||
+                  !editDueDate ||
+                  saveInvoice.isPending
+                }
+                onClick={() => saveInvoice.mutate()}
+              >
+                Guardar cambios
+              </Button>
+            </div>
+          </div>
+        )}
 
         <Separator />
 
@@ -596,7 +724,7 @@ function InvoiceDetailDialog({ invoiceId, onClose }: { invoiceId: string; onClos
           </>
         )}
 
-        {invoice.status !== "paid" && (
+        {invoice.status !== "paid" && !editingInvoice && (
           <DialogFooter>
             <Button
               className="gap-2 bg-brand-yellow text-brand-navy hover:bg-brand-yellow/90"

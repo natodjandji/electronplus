@@ -8,6 +8,7 @@ import { Collections } from '../../firebase/firestore-collections';
 import { FirestoreRepository } from '../../firebase/firestore.repository';
 import { PaginatedResult } from '../../common/dto/pagination.dto';
 import { AdjustStockDto } from './dto/adjust-stock.dto';
+import { AdminQueryProductsDto } from './dto/admin-query-products.dto';
 import { CreateProductDto } from './dto/create-product.dto';
 import { QueryProductsDto } from './dto/query-products.dto';
 import { UpdateProductDto } from './dto/update-product.dto';
@@ -86,6 +87,27 @@ export class ProductsService {
     return this.repo.getOrThrow(id, 'Product not found');
   }
 
+  /** Full-fidelity listing for the admin inventory panel — includes inactive
+   * products and cost/supplier fields. Filtered in Node, same tradeoff as
+   * the public search above: fine at this catalog's scale. */
+  async adminFindAll(query: AdminQueryProductsDto): Promise<Product[]> {
+    let products = await this.repo.findAll({ orderBy: { field: 'name' } });
+
+    if (query.supplierId) products = products.filter((p) => p.supplierId === query.supplierId);
+    if (query.categoryId) products = products.filter((p) => p.categoryId === query.categoryId);
+    if (query.search) {
+      const needle = query.search.toLowerCase();
+      products = products.filter(
+        (p) => p.name.toLowerCase().includes(needle) || p.sku.toLowerCase().includes(needle),
+      );
+    }
+    if (query.lowStockOnly === 'true') {
+      products = products.filter((p) => (p.minStockThreshold ?? 0) > 0 && p.stock <= p.minStockThreshold!);
+    }
+
+    return products;
+  }
+
   async findByQrToken(token: string): Promise<Product> {
     const product = await this.repo.findOne([{ field: 'qrToken', op: '==', value: token }]);
     if (!product) throw new NotFoundException('Product not found');
@@ -124,6 +146,7 @@ export class ProductsService {
       specs: dto.specs,
       categoryId: category.id,
       category: { id: category.id, code: category.code, label: category.label },
+      supplierId: dto.supplierId,
       retailPrice: dto.retailPrice,
       wholesalePrice: dto.wholesalePrice,
       cost: dto.cost,

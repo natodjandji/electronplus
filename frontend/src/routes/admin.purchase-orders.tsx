@@ -1,7 +1,17 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { useState } from "react";
-import { Plus, Trash2, Send, DollarSign, Ban, Clock, Loader2, AlertCircle } from "lucide-react";
+import { useState, type Dispatch, type SetStateAction } from "react";
+import {
+  Plus,
+  Trash2,
+  Send,
+  DollarSign,
+  Ban,
+  Clock,
+  Loader2,
+  AlertCircle,
+  Pencil,
+} from "lucide-react";
 import { AdminShell } from "@/components/admin-shell";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -24,6 +34,7 @@ import {
 } from "@/components/ui/select";
 import { Separator } from "@/components/ui/separator";
 import { Textarea } from "@/components/ui/textarea";
+import { SupplierPicker } from "@/components/supplier-picker";
 import { apiFetch, ApiError } from "@/lib/api-client";
 import { formatMoney } from "@/lib/electron-store";
 import { toast } from "sonner";
@@ -77,6 +88,8 @@ interface ProductOption {
   id: string;
   sku: string;
   name: string;
+  cost?: number;
+  supplierId?: string;
 }
 
 const STATUS_LABEL: Record<PurchaseOrderStatus, string> = {
@@ -95,11 +108,11 @@ const STATUS_BADGE: Record<PurchaseOrderStatus, string> = {
   cancelled: "bg-destructive/10 text-destructive",
 };
 
-function useProductOptions() {
+function useProductOptions(supplierId?: string) {
   return useQuery({
-    queryKey: ["admin", "products-picker"],
-    queryFn: () => apiFetch<{ data: ProductOption[] }>("/products?limit=100"),
-    select: (res) => res.data,
+    queryKey: ["admin", "products", "picker", supplierId],
+    queryFn: () =>
+      apiFetch<ProductOption[]>(`/products/admin${supplierId ? `?supplierId=${supplierId}` : ""}`),
   });
 }
 
@@ -143,6 +156,24 @@ function usePurchaseOrders(filters: { status?: string; supplierId?: string }) {
 
 function reportError(error: unknown) {
   toast.error(error instanceof ApiError ? error.message : "Ocurrió un error inesperado");
+}
+
+type DraftLine = {
+  productId: string;
+  sku: string;
+  name: string;
+  quantityOrdered: number;
+  unitCost: number;
+  discountPerItem: number;
+};
+
+function lineSubtotal(l: DraftLine) {
+  return l.unitCost * l.quantityOrdered * (1 - l.discountPerItem / 100);
+}
+
+function computeDraftTotal(lines: DraftLine[], globalDiscount: number) {
+  const subtotal = lines.reduce((s, l) => s + lineSubtotal(l), 0);
+  return subtotal * (1 - globalDiscount / 100);
 }
 
 function PurchaseOrdersPage() {
@@ -255,24 +286,180 @@ function PurchaseOrdersPage() {
   );
 }
 
-type DraftLine = {
-  productId: string;
-  sku: string;
-  name: string;
-  quantityOrdered: number;
-  unitCost: number;
-  discountPerItem: number;
-};
+function LineItemsEditor({
+  products,
+  lines,
+  setLines,
+}: {
+  products: ProductOption[] | undefined;
+  lines: DraftLine[];
+  setLines: Dispatch<SetStateAction<DraftLine[]>>;
+}) {
+  const [pick, setPick] = useState("");
+
+  const addLine = () => {
+    const product = products?.find((p) => p.id === pick);
+    if (!product || lines.some((l) => l.productId === pick)) return;
+    setLines((prev) => [
+      ...prev,
+      {
+        productId: product.id,
+        sku: product.sku,
+        name: product.name,
+        quantityOrdered: 1,
+        unitCost: product.cost ?? 0,
+        discountPerItem: 0,
+      },
+    ]);
+    setPick("");
+  };
+
+  return (
+    <>
+      <div className="flex flex-wrap items-end gap-3">
+        <div className="grid min-w-64 flex-1 gap-1.5">
+          <Label className="text-xs font-medium text-brand-navy">Agregar producto</Label>
+          <Select value={pick} onValueChange={setPick}>
+            <SelectTrigger>
+              <SelectValue placeholder="Seleccionar producto…" />
+            </SelectTrigger>
+            <SelectContent>
+              {(products?.length ?? 0) === 0 && (
+                <div className="px-2 py-1.5 text-xs text-muted-foreground">
+                  Sin productos para este proveedor
+                </div>
+              )}
+              {products?.map((p) => (
+                <SelectItem key={p.id} value={p.id}>
+                  {p.sku} — {p.name}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+        <Button
+          type="button"
+          onClick={addLine}
+          className="gap-2 bg-brand-blue text-white hover:bg-brand-blue/90"
+        >
+          <Plus className="h-4 w-4" /> Agregar
+        </Button>
+      </div>
+
+      <div className="overflow-x-auto">
+        <table className="w-full text-sm">
+          <thead>
+            <tr className="border-b border-border text-left text-xs uppercase tracking-wider text-muted-foreground">
+              <th className="py-2">Producto</th>
+              <th className="py-2 text-right">Cant.</th>
+              <th className="py-2 text-right">Costo unit.</th>
+              <th className="py-2 text-right">Desc. %</th>
+              <th className="py-2 text-right">Subtotal</th>
+              <th />
+            </tr>
+          </thead>
+          <tbody>
+            {lines.length === 0 && (
+              <tr>
+                <td colSpan={6} className="py-6 text-center text-muted-foreground">
+                  Agrega productos a la orden.
+                </td>
+              </tr>
+            )}
+            {lines.map((l) => (
+              <tr key={l.productId} className="border-b border-border">
+                <td className="py-2">
+                  <div className="font-medium text-brand-navy">{l.name}</div>
+                  <div className="text-xs text-muted-foreground">{l.sku}</div>
+                </td>
+                <td className="py-2 text-right">
+                  <Input
+                    type="number"
+                    min={1}
+                    value={l.quantityOrdered}
+                    onChange={(e) =>
+                      setLines((prev) =>
+                        prev.map((x) =>
+                          x.productId === l.productId
+                            ? { ...x, quantityOrdered: Math.max(1, Number(e.target.value)) }
+                            : x,
+                        ),
+                      )
+                    }
+                    className="ml-auto h-8 w-20 text-right"
+                  />
+                </td>
+                <td className="py-2 text-right">
+                  <Input
+                    type="number"
+                    min={0}
+                    step="0.01"
+                    value={l.unitCost}
+                    onChange={(e) =>
+                      setLines((prev) =>
+                        prev.map((x) =>
+                          x.productId === l.productId
+                            ? { ...x, unitCost: Math.max(0, Number(e.target.value)) }
+                            : x,
+                        ),
+                      )
+                    }
+                    className="ml-auto h-8 w-24 text-right"
+                  />
+                </td>
+                <td className="py-2 text-right">
+                  <Input
+                    type="number"
+                    min={0}
+                    max={100}
+                    value={l.discountPerItem}
+                    onChange={(e) =>
+                      setLines((prev) =>
+                        prev.map((x) =>
+                          x.productId === l.productId
+                            ? {
+                                ...x,
+                                discountPerItem: Math.min(100, Math.max(0, Number(e.target.value))),
+                              }
+                            : x,
+                        ),
+                      )
+                    }
+                    className="ml-auto h-8 w-20 text-right"
+                  />
+                </td>
+                <td className="py-2 text-right font-semibold text-brand-navy">
+                  {formatMoney(lineSubtotal(l))}
+                </td>
+                <td className="py-2 pl-2 text-right">
+                  <button
+                    onClick={() =>
+                      setLines((prev) => prev.filter((x) => x.productId !== l.productId))
+                    }
+                    className="text-muted-foreground hover:text-destructive"
+                    aria-label="Quitar"
+                  >
+                    <Trash2 className="h-4 w-4" />
+                  </button>
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </>
+  );
+}
 
 function CreateOrderDialog({ onClose }: { onClose: () => void }) {
   const queryClient = useQueryClient();
-  const { data: products } = useProductOptions();
-
+  const [supplierId, setSupplierId] = useState<string | undefined>();
   const [supplierName, setSupplierName] = useState("");
+  const { data: products } = useProductOptions(supplierId);
+
   const [paymentTerms, setPaymentTerms] = useState("");
   const [notes, setNotes] = useState("");
   const [globalDiscount, setGlobalDiscount] = useState(0);
-  const [pick, setPick] = useState("");
   const [lines, setLines] = useState<DraftLine[]>([]);
 
   const create = useMutation({
@@ -280,6 +467,7 @@ function CreateOrderDialog({ onClose }: { onClose: () => void }) {
       apiFetch<PurchaseOrder>("/purchase-orders", {
         method: "POST",
         body: {
+          supplierId,
           supplierName,
           paymentTerms: paymentTerms || undefined,
           notes: notes || undefined,
@@ -300,27 +488,7 @@ function CreateOrderDialog({ onClose }: { onClose: () => void }) {
     onError: reportError,
   });
 
-  const addLine = () => {
-    const product = products?.find((p) => p.id === pick);
-    if (!product || lines.some((l) => l.productId === pick)) return;
-    setLines((prev) => [
-      ...prev,
-      {
-        productId: product.id,
-        sku: product.sku,
-        name: product.name,
-        quantityOrdered: 1,
-        unitCost: 0,
-        discountPerItem: 0,
-      },
-    ]);
-    setPick("");
-  };
-
-  const lineSubtotal = (l: DraftLine) =>
-    l.unitCost * l.quantityOrdered * (1 - l.discountPerItem / 100);
-  const subtotalAfterLines = lines.reduce((s, l) => s + lineSubtotal(l), 0);
-  const totalAmount = subtotalAfterLines * (1 - globalDiscount / 100);
+  const totalAmount = computeDraftTotal(lines, globalDiscount);
 
   return (
     <Dialog open onOpenChange={(open) => !open && onClose()}>
@@ -332,10 +500,13 @@ function CreateOrderDialog({ onClose }: { onClose: () => void }) {
         <div className="grid gap-4 sm:grid-cols-2">
           <div className="grid gap-1.5">
             <Label className="text-xs font-medium text-brand-navy">Proveedor</Label>
-            <Input
-              placeholder="Nombre del proveedor"
-              value={supplierName}
-              onChange={(e) => setSupplierName(e.target.value)}
+            <SupplierPicker
+              value={supplierId}
+              onChange={(id, name) => {
+                setSupplierId(id);
+                setSupplierName(name);
+                setLines([]);
+              }}
             />
           </div>
           <div className="grid gap-1.5">
@@ -359,135 +530,7 @@ function CreateOrderDialog({ onClose }: { onClose: () => void }) {
 
         <Separator />
 
-        <div className="flex flex-wrap items-end gap-3">
-          <div className="grid min-w-64 flex-1 gap-1.5">
-            <Label className="text-xs font-medium text-brand-navy">Agregar producto</Label>
-            <Select value={pick} onValueChange={setPick}>
-              <SelectTrigger>
-                <SelectValue placeholder="Seleccionar producto…" />
-              </SelectTrigger>
-              <SelectContent>
-                {products?.map((p) => (
-                  <SelectItem key={p.id} value={p.id}>
-                    {p.sku} — {p.name}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
-          <Button
-            type="button"
-            onClick={addLine}
-            className="gap-2 bg-brand-blue text-white hover:bg-brand-blue/90"
-          >
-            <Plus className="h-4 w-4" /> Agregar
-          </Button>
-        </div>
-
-        <div className="overflow-x-auto">
-          <table className="w-full text-sm">
-            <thead>
-              <tr className="border-b border-border text-left text-xs uppercase tracking-wider text-muted-foreground">
-                <th className="py-2">Producto</th>
-                <th className="py-2 text-right">Cant.</th>
-                <th className="py-2 text-right">Costo unit.</th>
-                <th className="py-2 text-right">Desc. %</th>
-                <th className="py-2 text-right">Subtotal</th>
-                <th />
-              </tr>
-            </thead>
-            <tbody>
-              {lines.length === 0 && (
-                <tr>
-                  <td colSpan={6} className="py-6 text-center text-muted-foreground">
-                    Agrega productos a la orden.
-                  </td>
-                </tr>
-              )}
-              {lines.map((l) => (
-                <tr key={l.productId} className="border-b border-border">
-                  <td className="py-2">
-                    <div className="font-medium text-brand-navy">{l.name}</div>
-                    <div className="text-xs text-muted-foreground">{l.sku}</div>
-                  </td>
-                  <td className="py-2 text-right">
-                    <Input
-                      type="number"
-                      min={1}
-                      value={l.quantityOrdered}
-                      onChange={(e) =>
-                        setLines((prev) =>
-                          prev.map((x) =>
-                            x.productId === l.productId
-                              ? { ...x, quantityOrdered: Math.max(1, Number(e.target.value)) }
-                              : x,
-                          ),
-                        )
-                      }
-                      className="ml-auto h-8 w-20 text-right"
-                    />
-                  </td>
-                  <td className="py-2 text-right">
-                    <Input
-                      type="number"
-                      min={0}
-                      step="0.01"
-                      value={l.unitCost}
-                      onChange={(e) =>
-                        setLines((prev) =>
-                          prev.map((x) =>
-                            x.productId === l.productId
-                              ? { ...x, unitCost: Math.max(0, Number(e.target.value)) }
-                              : x,
-                          ),
-                        )
-                      }
-                      className="ml-auto h-8 w-24 text-right"
-                    />
-                  </td>
-                  <td className="py-2 text-right">
-                    <Input
-                      type="number"
-                      min={0}
-                      max={100}
-                      value={l.discountPerItem}
-                      onChange={(e) =>
-                        setLines((prev) =>
-                          prev.map((x) =>
-                            x.productId === l.productId
-                              ? {
-                                  ...x,
-                                  discountPerItem: Math.min(
-                                    100,
-                                    Math.max(0, Number(e.target.value)),
-                                  ),
-                                }
-                              : x,
-                          ),
-                        )
-                      }
-                      className="ml-auto h-8 w-20 text-right"
-                    />
-                  </td>
-                  <td className="py-2 text-right font-semibold text-brand-navy">
-                    {formatMoney(lineSubtotal(l))}
-                  </td>
-                  <td className="py-2 pl-2 text-right">
-                    <button
-                      onClick={() =>
-                        setLines((prev) => prev.filter((x) => x.productId !== l.productId))
-                      }
-                      className="text-muted-foreground hover:text-destructive"
-                      aria-label="Quitar"
-                    >
-                      <Trash2 className="h-4 w-4" />
-                    </button>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
+        <LineItemsEditor products={products} lines={lines} setLines={setLines} />
 
         <div className="flex flex-col items-end gap-2">
           <div className="flex items-center gap-2">
@@ -536,6 +579,13 @@ function OrderDetailDialog({ orderId, onClose }: { orderId: string; onClose: () 
   const [payReference, setPayReference] = useState("");
   const [terms, setTerms] = useState<string | null>(null);
   const [notes, setNotes] = useState<string | null>(null);
+
+  const [editingItems, setEditingItems] = useState(false);
+  const [editSupplierId, setEditSupplierId] = useState<string | undefined>();
+  const [editSupplierName, setEditSupplierName] = useState("");
+  const [editGlobalDiscount, setEditGlobalDiscount] = useState(0);
+  const [editLines, setEditLines] = useState<DraftLine[]>([]);
+  const { data: editProducts } = useProductOptions(editSupplierId);
 
   const {
     data: order,
@@ -601,6 +651,30 @@ function OrderDetailDialog({ orderId, onClose }: { orderId: string; onClose: () 
     onError: reportError,
   });
 
+  const saveItems = useMutation({
+    mutationFn: () =>
+      apiFetch(`/purchase-orders/${orderId}/items`, {
+        method: "PATCH",
+        body: {
+          supplierId: editSupplierId,
+          supplierName: editSupplierName,
+          globalDiscount: editGlobalDiscount,
+          items: editLines.map((l) => ({
+            productId: l.productId,
+            quantityOrdered: l.quantityOrdered,
+            unitCost: l.unitCost,
+            discountPerItem: l.discountPerItem,
+          })),
+        },
+      }),
+    onSuccess: () => {
+      invalidate();
+      setEditingItems(false);
+      toast.success("Orden actualizada");
+    },
+    onError: reportError,
+  });
+
   if (orderLoading) {
     return (
       <Dialog open onOpenChange={(open) => !open && onClose()}>
@@ -631,6 +705,23 @@ function OrderDetailDialog({ orderId, onClose }: { orderId: string; onClose: () 
   const canEditTerms = order.status !== "paid" && order.status !== "cancelled";
   const remaining = order.totals.totalAmount - order.amountPaid;
 
+  const startEditing = () => {
+    setEditSupplierId(order.supplierId);
+    setEditSupplierName(order.supplierName);
+    setEditGlobalDiscount(order.globalDiscount);
+    setEditLines(
+      order.items.map((i) => ({
+        productId: i.productId,
+        sku: i.sku,
+        name: i.name,
+        quantityOrdered: i.quantityOrdered,
+        unitCost: i.unitCost,
+        discountPerItem: i.discountPerItem,
+      })),
+    );
+    setEditingItems(true);
+  };
+
   return (
     <Dialog open onOpenChange={(open) => !open && onClose()}>
       <DialogContent className="max-h-[85vh] max-w-2xl overflow-y-auto">
@@ -641,48 +732,110 @@ function OrderDetailDialog({ orderId, onClose }: { orderId: string; onClose: () 
           </DialogTitle>
         </DialogHeader>
 
-        <div className="space-y-2 text-sm">
-          {order.items.map((item) => (
-            <div
-              key={item.productId}
-              className="flex items-center justify-between border-b border-border py-2 last:border-0"
-            >
-              <div>
-                <div className="font-medium text-brand-navy">{item.name}</div>
-                <div className="text-xs text-muted-foreground">
-                  {item.sku} · {item.quantityOrdered} × {formatMoney(item.unitCost)}
-                  {item.discountPerItem > 0 ? ` · -${item.discountPerItem}%` : ""}
-                </div>
-              </div>
-              <div className="font-semibold text-brand-navy">{formatMoney(item.subtotal)}</div>
-            </div>
-          ))}
-        </div>
-
-        <div className="space-y-1 text-sm">
-          <div className="flex justify-between text-muted-foreground">
-            <span>Subtotal</span>
-            <span>{formatMoney(order.totals.subtotal)}</span>
+        <div className="flex items-center justify-between">
+          <div className="text-xs font-semibold uppercase tracking-widest text-muted-foreground">
+            Productos
           </div>
-          <div className="flex justify-between text-muted-foreground">
-            <span>Descuento total</span>
-            <span>-{formatMoney(order.totals.totalDiscount)}</span>
-          </div>
-          <div className="flex justify-between text-base font-bold text-brand-navy">
-            <span>Total</span>
-            <span>{formatMoney(order.totals.totalAmount)}</span>
-          </div>
-          <div className="flex justify-between text-muted-foreground">
-            <span>Pagado</span>
-            <span>{formatMoney(order.amountPaid)}</span>
-          </div>
-          {order.status !== "paid" && order.status !== "cancelled" && (
-            <div className="flex justify-between font-medium text-brand-navy">
-              <span>Saldo pendiente</span>
-              <span>{formatMoney(Math.max(0, remaining))}</span>
-            </div>
+          {order.status === "draft" && !editingItems && (
+            <Button size="sm" variant="outline" className="gap-2" onClick={startEditing}>
+              <Pencil className="h-3.5 w-3.5" /> Editar
+            </Button>
           )}
         </div>
+
+        {!editingItems && (
+          <div className="space-y-2 text-sm">
+            {order.items.map((item) => (
+              <div
+                key={item.productId}
+                className="flex items-center justify-between border-b border-border py-2 last:border-0"
+              >
+                <div>
+                  <div className="font-medium text-brand-navy">{item.name}</div>
+                  <div className="text-xs text-muted-foreground">
+                    {item.sku} · {item.quantityOrdered} × {formatMoney(item.unitCost)}
+                    {item.discountPerItem > 0 ? ` · -${item.discountPerItem}%` : ""}
+                  </div>
+                </div>
+                <div className="font-semibold text-brand-navy">{formatMoney(item.subtotal)}</div>
+              </div>
+            ))}
+          </div>
+        )}
+
+        {editingItems && (
+          <div className="space-y-3">
+            <div className="grid gap-1.5">
+              <Label className="text-xs font-medium text-brand-navy">Proveedor</Label>
+              <SupplierPicker
+                value={editSupplierId}
+                onChange={(id, name) => {
+                  setEditSupplierId(id);
+                  setEditSupplierName(name);
+                  setEditLines([]);
+                }}
+              />
+            </div>
+            <LineItemsEditor products={editProducts} lines={editLines} setLines={setEditLines} />
+            <div className="flex items-center justify-end gap-2">
+              <Label className="text-xs text-muted-foreground">Descuento global %</Label>
+              <Input
+                type="number"
+                min={0}
+                max={100}
+                value={editGlobalDiscount}
+                onChange={(e) =>
+                  setEditGlobalDiscount(Math.min(100, Math.max(0, Number(e.target.value))))
+                }
+                className="h-8 w-20 text-right"
+              />
+            </div>
+            <div className="flex justify-between text-base font-bold text-brand-navy">
+              <span>Total (nuevo)</span>
+              <span>{formatMoney(computeDraftTotal(editLines, editGlobalDiscount))}</span>
+            </div>
+            <div className="flex justify-end gap-2">
+              <Button variant="outline" size="sm" onClick={() => setEditingItems(false)}>
+                Cancelar
+              </Button>
+              <Button
+                size="sm"
+                className="bg-brand-blue text-white hover:bg-brand-blue/90"
+                disabled={editLines.length === 0 || !editSupplierName || saveItems.isPending}
+                onClick={() => saveItems.mutate()}
+              >
+                Guardar cambios
+              </Button>
+            </div>
+          </div>
+        )}
+
+        {!editingItems && (
+          <div className="space-y-1 text-sm">
+            <div className="flex justify-between text-muted-foreground">
+              <span>Subtotal</span>
+              <span>{formatMoney(order.totals.subtotal)}</span>
+            </div>
+            <div className="flex justify-between text-muted-foreground">
+              <span>Descuento total</span>
+              <span>-{formatMoney(order.totals.totalDiscount)}</span>
+            </div>
+            <div className="flex justify-between text-base font-bold text-brand-navy">
+              <span>Total</span>
+              <span>{formatMoney(order.totals.totalAmount)}</span>
+            </div>
+            <div className="flex justify-between text-muted-foreground">
+              <span>Pagado</span>
+              <span>{formatMoney(order.amountPaid)}</span>
+            </div>
+            {order.status !== "paid" && order.status !== "cancelled" && (
+              <div className="flex justify-between font-medium text-brand-navy">
+                <span>Saldo pendiente</span>
+                <span>{formatMoney(Math.max(0, remaining))}</span>
+              </div>
+            )}
+          </div>
+        )}
 
         <Separator />
 
@@ -743,42 +896,44 @@ function OrderDetailDialog({ orderId, onClose }: { orderId: string; onClose: () 
           </>
         )}
 
-        <DialogFooter className="gap-2 sm:justify-between">
-          <div className="flex gap-2">
-            {order.status !== "paid" && order.status !== "cancelled" && (
-              <Button
-                variant="outline"
-                className="gap-2 text-destructive"
-                onClick={() => cancel.mutate()}
-                disabled={cancel.isPending}
-              >
-                <Ban className="h-4 w-4" /> Cancelar
-              </Button>
-            )}
-          </div>
-          <div className="flex gap-2">
-            {order.status === "draft" && (
-              <Button
-                className="gap-2 bg-brand-blue text-white hover:bg-brand-blue/90"
-                onClick={() => issue.mutate()}
-                disabled={issue.isPending}
-              >
-                <Send className="h-4 w-4" /> Emitir
-              </Button>
-            )}
-            {(order.status === "issued" || order.status === "partially_paid") && (
-              <Button
-                className="gap-2 bg-brand-yellow text-brand-navy hover:bg-brand-yellow/90"
-                onClick={() => {
-                  setPayAmount(Math.max(0, remaining));
-                  setPayOpen(true);
-                }}
-              >
-                <DollarSign className="h-4 w-4" /> Registrar pago
-              </Button>
-            )}
-          </div>
-        </DialogFooter>
+        {!editingItems && (
+          <DialogFooter className="gap-2 sm:justify-between">
+            <div className="flex gap-2">
+              {order.status !== "paid" && order.status !== "cancelled" && (
+                <Button
+                  variant="outline"
+                  className="gap-2 text-destructive"
+                  onClick={() => cancel.mutate()}
+                  disabled={cancel.isPending}
+                >
+                  <Ban className="h-4 w-4" /> Cancelar
+                </Button>
+              )}
+            </div>
+            <div className="flex gap-2">
+              {order.status === "draft" && (
+                <Button
+                  className="gap-2 bg-brand-blue text-white hover:bg-brand-blue/90"
+                  onClick={() => issue.mutate()}
+                  disabled={issue.isPending}
+                >
+                  <Send className="h-4 w-4" /> Emitir
+                </Button>
+              )}
+              {(order.status === "issued" || order.status === "partially_paid") && (
+                <Button
+                  className="gap-2 bg-brand-yellow text-brand-navy hover:bg-brand-yellow/90"
+                  onClick={() => {
+                    setPayAmount(Math.max(0, remaining));
+                    setPayOpen(true);
+                  }}
+                >
+                  <DollarSign className="h-4 w-4" /> Registrar pago
+                </Button>
+              )}
+            </div>
+          </DialogFooter>
+        )}
       </DialogContent>
 
       <Dialog open={payOpen} onOpenChange={setPayOpen}>

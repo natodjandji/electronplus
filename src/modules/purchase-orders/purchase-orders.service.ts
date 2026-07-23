@@ -100,7 +100,13 @@ export class PurchaseOrdersService {
     const items = buildItems(dto.items, products);
     const totals = computeTotals(items, dto.globalDiscount ?? order.globalDiscount);
 
-    return this.repo.update(id, { items, globalDiscount: dto.globalDiscount ?? order.globalDiscount, totals });
+    return this.repo.update(id, {
+      items,
+      globalDiscount: dto.globalDiscount ?? order.globalDiscount,
+      totals,
+      supplierId: dto.supplierId ?? order.supplierId,
+      supplierName: dto.supplierName ?? order.supplierName,
+    });
   }
 
   async updatePaymentTerms(id: string, dto: UpdatePaymentTermsDto): Promise<PurchaseOrder> {
