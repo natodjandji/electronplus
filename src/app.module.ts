@@ -22,6 +22,8 @@ import { QrModule } from './modules/qr/qr.module';
 import { NotificationsModule } from './modules/notifications/notifications.module';
 import { ExchangeRateModule } from './modules/exchange-rate/exchange-rate.module';
 import { PaymentMethodsModule } from './modules/payment-methods/payment-methods.module';
+import { ShippingRatesModule } from './modules/shipping-rates/shipping-rates.module';
+import { DiscountCodesModule } from './modules/discount-codes/discount-codes.module';
 
 @Module({
   imports: [
@@ -51,6 +53,8 @@ import { PaymentMethodsModule } from './modules/payment-methods/payment-methods.
     NotificationsModule,
     ExchangeRateModule,
     PaymentMethodsModule,
+    ShippingRatesModule,
+    DiscountCodesModule,
   ],
 })
 export class AppModule {}

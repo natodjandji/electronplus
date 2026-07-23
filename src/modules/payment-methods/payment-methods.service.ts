@@ -1,9 +1,10 @@
-import { Inject, Injectable } from '@nestjs/common';
+import { BadRequestException, Inject, Injectable } from '@nestjs/common';
 import type { Firestore } from 'firebase-admin/firestore';
 import { FIRESTORE } from '../../firebase/firebase.constants';
 import { Collections } from '../../firebase/firestore-collections';
 import { FirestoreRepository } from '../../firebase/firestore.repository';
 import { PaymentMethod } from '../payments/entities/payment.entity';
+import { CreatePaymentMethodDto } from './dto/create-payment-method.dto';
 import { UpdatePaymentMethodDto } from './dto/update-payment-method.dto';
 import { PaymentMethodConfig } from './entities/payment-method.entity';
 
@@ -70,12 +71,30 @@ export class PaymentMethodsService {
   async list(): Promise<PaymentMethodConfig[]> {
     await this.ensureSeeded();
     const all = await this.repo.findAll();
-    return all.sort((a, b) => DISPLAY_ORDER.indexOf(a.id) - DISPLAY_ORDER.indexOf(b.id));
+    return all.sort((a, b) => {
+      const ai = DISPLAY_ORDER.indexOf(a.id);
+      const bi = DISPLAY_ORDER.indexOf(b.id);
+      if (ai !== -1 || bi !== -1) return (ai === -1 ? DISPLAY_ORDER.length : ai) - (bi === -1 ? DISPLAY_ORDER.length : bi);
+      return a.createdAt.getTime() - b.createdAt.getTime();
+    });
+  }
+
+  async create(dto: CreatePaymentMethodDto): Promise<PaymentMethodConfig> {
+    const existing = await this.repo.findById(dto.id);
+    if (existing) throw new BadRequestException(`A payment method with id "${dto.id}" already exists`);
+    const { id, ...data } = dto;
+    return this.repo.create({ ...data, enabled: dto.enabled ?? true }, id);
   }
 
   async update(id: string, dto: UpdatePaymentMethodDto): Promise<PaymentMethodConfig> {
     await this.ensureSeeded();
     await this.repo.getOrThrow(id, 'Payment method not found');
     return this.repo.update(id, dto);
+  }
+
+  async delete(id: string): Promise<void> {
+    await this.ensureSeeded();
+    await this.repo.getOrThrow(id, 'Payment method not found');
+    await this.repo.delete(id);
   }
 }

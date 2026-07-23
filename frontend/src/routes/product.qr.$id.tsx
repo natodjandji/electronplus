@@ -12,6 +12,7 @@ import { QrBlock } from "@/components/qr-block";
 import { apiFetch } from "@/lib/api-client";
 import { type ApiProduct, toProduct } from "@/lib/product-api";
 import { useElectronStore } from "@/lib/electron-store";
+import { formatBs, useBcvRate } from "@/lib/use-bcv-rate";
 
 export const Route = createFileRoute("/product/qr/$id")({
   loader: async ({ params }) => {
@@ -59,6 +60,7 @@ function NotFound() {
 function QrProductPage() {
   const { product } = Route.useLoaderData();
   const { isOps, role, addToCart } = useElectronStore();
+  const { data: bcv } = useBcvRate();
   const out = product.stock === 0;
   const low = product.stock > 0 && product.stock <= 10;
   const [qty, setQty] = useState(1);
@@ -106,6 +108,12 @@ function QrProductPage() {
 
             <div className="mt-6">
               <PriceTag product={product} size="lg" />
+              <p className="mt-1.5 text-xs text-muted-foreground">Precios no incluyen IVA (16%).</p>
+              {bcv && (
+                <p className="mt-1 text-xs font-medium text-brand-blue">
+                  Tasa BCV del día: {formatBs(1, bcv.rate)} por USD
+                </p>
+              )}
             </div>
 
             <div className="mt-5 flex flex-wrap items-center gap-3">

@@ -9,6 +9,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { QuantityStepper } from "@/components/quantity-stepper";
 import { apiFetch } from "@/lib/api-client";
+import { formatMoney } from "@/lib/electron-store";
 
 export const Route = createFileRoute("/admin/labels")({
   head: () => ({
@@ -35,6 +36,8 @@ interface QrLabel {
   productId: string;
   sku: string;
   name: string;
+  retailPrice: number;
+  wholesalePrice: number;
   qrImageDataUrl: string;
 }
 
@@ -196,14 +199,19 @@ function LabelsPage() {
                 <img
                   src={label.qrImageDataUrl}
                   alt=""
-                  className="h-[20mm] w-[20mm] shrink-0 object-contain"
+                  className="h-[18mm] w-[18mm] shrink-0 object-contain"
                 />
-                <div className="flex min-w-0 flex-1 flex-col justify-center gap-1">
-                  <ElectronLogo layout="isotype" tone="color" className="h-3.5 shrink-0" />
-                  <div className="line-clamp-2 text-[9.5px] font-bold leading-tight text-black">
+                <div className="flex min-w-0 flex-1 flex-col justify-center gap-0.5">
+                  <ElectronLogo layout="isotype" tone="color" className="h-3 shrink-0" />
+                  <div className="line-clamp-1 text-[8.5px] font-bold leading-tight text-black">
                     {label.name}
                   </div>
-                  <div className="font-mono text-[9px] text-black">{label.sku}</div>
+                  <div className="font-mono text-[7.5px] leading-tight text-black">{label.sku}</div>
+                  <div className="text-[7.5px] font-semibold leading-tight text-black">
+                    Detal {formatMoney(label.retailPrice)} · Mayor{" "}
+                    {formatMoney(label.wholesalePrice)}
+                  </div>
+                  <div className="text-[6px] leading-tight text-gray-500">IVA no incluido</div>
                 </div>
               </div>
             ))}

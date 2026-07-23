@@ -4,6 +4,15 @@ import { useAuth, type BackendRole } from "./auth-context";
 
 export type UserRole = "guest" | "client" | "admin" | "warehouse_operator";
 
+/** Venezuela's standard IVA rate. */
+export const TAX_RATE = 0.16;
+
+export interface DiscountInfo {
+  code: string;
+  type: "percentage" | "fixed";
+  value: number;
+}
+
 type CartItem = { product: Product; qty: number };
 
 type StoreValue = {
@@ -20,7 +29,18 @@ type StoreValue = {
   clearCart: () => void;
   cartTotal: number;
   cartCount: number;
+  discount: DiscountInfo | null;
+  setDiscount: (d: DiscountInfo) => void;
+  clearDiscount: () => void;
+  /** cartTotal minus discountAmount — before IVA and shipping. */
+  taxableBase: number;
+  discountAmount: number;
+  taxAmount: number;
 };
+
+function round2(n: number): number {
+  return Math.round(n * 100) / 100;
+}
 
 const StoreContext = createContext<StoreValue | null>(null);
 
@@ -41,11 +61,21 @@ export function ElectronStoreProvider({ children }: { children: ReactNode }) {
   const { profile } = useAuth();
   const role = roleFromBackend(profile?.role);
   const [cart, setCart] = useState<CartItem[]>([]);
+  const [discount, setDiscountState] = useState<DiscountInfo | null>(null);
 
   const value = useMemo<StoreValue>(() => {
     const priceFor = (p: Product) => p.retailPrice;
     const cartTotal = cart.reduce((s, i) => s + priceFor(i.product) * i.qty, 0);
     const cartCount = cart.reduce((s, i) => s + i.qty, 0);
+    const discountAmount = discount
+      ? round2(
+          discount.type === "percentage"
+            ? (cartTotal * discount.value) / 100
+            : Math.min(discount.value, cartTotal),
+        )
+      : 0;
+    const taxableBase = Math.max(0, round2(cartTotal - discountAmount));
+    const taxAmount = round2(taxableBase * TAX_RATE);
     return {
       role,
       isAdmin: role === "admin",
@@ -67,8 +97,14 @@ export function ElectronStoreProvider({ children }: { children: ReactNode }) {
       clearCart: () => setCart([]),
       cartTotal,
       cartCount,
+      discount,
+      setDiscount: setDiscountState,
+      clearDiscount: () => setDiscountState(null),
+      taxableBase,
+      discountAmount,
+      taxAmount,
     };
-  }, [role, cart]);
+  }, [role, cart, discount]);
 
   return <StoreContext.Provider value={value}>{children}</StoreContext.Provider>;
 }

@@ -17,4 +17,6 @@ export const Collections = {
   NOTIFICATIONS: 'notifications',
   SALES_DAILY_SUMMARIES: 'salesDailySummaries',
   PAYMENT_METHODS: 'paymentMethods',
+  SHIPPING_RATES: 'shippingRates',
+  DISCOUNT_CODES: 'discountCodes',
 } as const;

@@ -62,6 +62,10 @@ export class CreateOrderDto {
   @IsString()
   paymentReference?: string;
 
+  @IsOptional()
+  @IsString()
+  discountCode?: string;
+
   /** Payment proof screenshot as a data URI — capped well under Firestore's
    * 1MiB document limit (the client compresses the image before sending). */
   @IsOptional()

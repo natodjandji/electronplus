@@ -20,6 +20,7 @@ import { Route as LoginRouteImport } from './routes/login'
 import { Route as QuotesRouteImport } from './routes/quotes'
 import { Route as RegisterRouteImport } from './routes/register'
 import { Route as AdminIndexRouteImport } from './routes/admin.index'
+import { Route as AdminDiscountsRouteImport } from './routes/admin.discounts'
 import { Route as AdminInventoryRouteImport } from './routes/admin.inventory'
 import { Route as AdminLabelsRouteImport } from './routes/admin.labels'
 import { Route as AdminOrdersRouteImport } from './routes/admin.orders'
@@ -27,6 +28,7 @@ import { Route as AdminPaymentMethodsRouteImport } from './routes/admin.payment-
 import { Route as AdminPurchaseOrdersRouteImport } from './routes/admin.purchase-orders'
 import { Route as AdminPurchasesRouteImport } from './routes/admin.purchases'
 import { Route as AdminQuotesRouteImport } from './routes/admin.quotes'
+import { Route as AdminShippingRouteImport } from './routes/admin.shipping'
 import { Route as AdminStockRouteImport } from './routes/admin.stock'
 import { Route as AdminSuppliersRouteImport } from './routes/admin.suppliers'
 import { Route as AdminUsersRouteImport } from './routes/admin.users'
@@ -88,6 +90,11 @@ const AdminIndexRoute = AdminIndexRouteImport.update({
   path: '/',
   getParentRoute: () => AdminRoute,
 } as any)
+const AdminDiscountsRoute = AdminDiscountsRouteImport.update({
+  id: '/discounts',
+  path: '/discounts',
+  getParentRoute: () => AdminRoute,
+} as any)
 const AdminInventoryRoute = AdminInventoryRouteImport.update({
   id: '/inventory',
   path: '/inventory',
@@ -121,6 +128,11 @@ const AdminPurchasesRoute = AdminPurchasesRouteImport.update({
 const AdminQuotesRoute = AdminQuotesRouteImport.update({
   id: '/quotes',
   path: '/quotes',
+  getParentRoute: () => AdminRoute,
+} as any)
+const AdminShippingRoute = AdminShippingRouteImport.update({
+  id: '/shipping',
+  path: '/shipping',
   getParentRoute: () => AdminRoute,
 } as any)
 const AdminStockRoute = AdminStockRouteImport.update({
@@ -160,6 +172,7 @@ export interface FileRoutesByFullPath {
   '/login': typeof LoginRoute
   '/quotes': typeof QuotesRoute
   '/register': typeof RegisterRoute
+  '/admin/discounts': typeof AdminDiscountsRoute
   '/admin/inventory': typeof AdminInventoryRoute
   '/admin/labels': typeof AdminLabelsRoute
   '/admin/orders': typeof AdminOrdersRoute
@@ -167,6 +180,7 @@ export interface FileRoutesByFullPath {
   '/admin/purchase-orders': typeof AdminPurchaseOrdersRoute
   '/admin/purchases': typeof AdminPurchasesRoute
   '/admin/quotes': typeof AdminQuotesRoute
+  '/admin/shipping': typeof AdminShippingRoute
   '/admin/stock': typeof AdminStockRoute
   '/admin/suppliers': typeof AdminSuppliersRoute
   '/admin/users': typeof AdminUsersRoute
@@ -184,6 +198,7 @@ export interface FileRoutesByTo {
   '/login': typeof LoginRoute
   '/quotes': typeof QuotesRoute
   '/register': typeof RegisterRoute
+  '/admin/discounts': typeof AdminDiscountsRoute
   '/admin/inventory': typeof AdminInventoryRoute
   '/admin/labels': typeof AdminLabelsRoute
   '/admin/orders': typeof AdminOrdersRoute
@@ -191,6 +206,7 @@ export interface FileRoutesByTo {
   '/admin/purchase-orders': typeof AdminPurchaseOrdersRoute
   '/admin/purchases': typeof AdminPurchasesRoute
   '/admin/quotes': typeof AdminQuotesRoute
+  '/admin/shipping': typeof AdminShippingRoute
   '/admin/stock': typeof AdminStockRoute
   '/admin/suppliers': typeof AdminSuppliersRoute
   '/admin/users': typeof AdminUsersRoute
@@ -210,6 +226,7 @@ export interface FileRoutesById {
   '/login': typeof LoginRoute
   '/quotes': typeof QuotesRoute
   '/register': typeof RegisterRoute
+  '/admin/discounts': typeof AdminDiscountsRoute
   '/admin/inventory': typeof AdminInventoryRoute
   '/admin/labels': typeof AdminLabelsRoute
   '/admin/orders': typeof AdminOrdersRoute
@@ -217,6 +234,7 @@ export interface FileRoutesById {
   '/admin/purchase-orders': typeof AdminPurchaseOrdersRoute
   '/admin/purchases': typeof AdminPurchasesRoute
   '/admin/quotes': typeof AdminQuotesRoute
+  '/admin/shipping': typeof AdminShippingRoute
   '/admin/stock': typeof AdminStockRoute
   '/admin/suppliers': typeof AdminSuppliersRoute
   '/admin/users': typeof AdminUsersRoute
@@ -237,6 +255,7 @@ export interface FileRouteTypes {
     | '/login'
     | '/quotes'
     | '/register'
+    | '/admin/discounts'
     | '/admin/inventory'
     | '/admin/labels'
     | '/admin/orders'
@@ -244,6 +263,7 @@ export interface FileRouteTypes {
     | '/admin/purchase-orders'
     | '/admin/purchases'
     | '/admin/quotes'
+    | '/admin/shipping'
     | '/admin/stock'
     | '/admin/suppliers'
     | '/admin/users'
@@ -261,6 +281,7 @@ export interface FileRouteTypes {
     | '/login'
     | '/quotes'
     | '/register'
+    | '/admin/discounts'
     | '/admin/inventory'
     | '/admin/labels'
     | '/admin/orders'
@@ -268,6 +289,7 @@ export interface FileRouteTypes {
     | '/admin/purchase-orders'
     | '/admin/purchases'
     | '/admin/quotes'
+    | '/admin/shipping'
     | '/admin/stock'
     | '/admin/suppliers'
     | '/admin/users'
@@ -286,6 +308,7 @@ export interface FileRouteTypes {
     | '/login'
     | '/quotes'
     | '/register'
+    | '/admin/discounts'
     | '/admin/inventory'
     | '/admin/labels'
     | '/admin/orders'
@@ -293,6 +316,7 @@ export interface FileRouteTypes {
     | '/admin/purchase-orders'
     | '/admin/purchases'
     | '/admin/quotes'
+    | '/admin/shipping'
     | '/admin/stock'
     | '/admin/suppliers'
     | '/admin/users'
@@ -394,6 +418,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AdminIndexRouteImport
       parentRoute: typeof AdminRoute
     }
+    '/admin/discounts': {
+      id: '/admin/discounts'
+      path: '/discounts'
+      fullPath: '/admin/discounts'
+      preLoaderRoute: typeof AdminDiscountsRouteImport
+      parentRoute: typeof AdminRoute
+    }
     '/admin/inventory': {
       id: '/admin/inventory'
       path: '/inventory'
@@ -443,6 +474,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AdminQuotesRouteImport
       parentRoute: typeof AdminRoute
     }
+    '/admin/shipping': {
+      id: '/admin/shipping'
+      path: '/shipping'
+      fullPath: '/admin/shipping'
+      preLoaderRoute: typeof AdminShippingRouteImport
+      parentRoute: typeof AdminRoute
+    }
     '/admin/stock': {
       id: '/admin/stock'
       path: '/stock'
@@ -482,6 +520,7 @@ declare module '@tanstack/react-router' {
 }
 
 interface AdminRouteChildren {
+  AdminDiscountsRoute: typeof AdminDiscountsRoute
   AdminInventoryRoute: typeof AdminInventoryRoute
   AdminLabelsRoute: typeof AdminLabelsRoute
   AdminOrdersRoute: typeof AdminOrdersRoute
@@ -489,6 +528,7 @@ interface AdminRouteChildren {
   AdminPurchaseOrdersRoute: typeof AdminPurchaseOrdersRoute
   AdminPurchasesRoute: typeof AdminPurchasesRoute
   AdminQuotesRoute: typeof AdminQuotesRoute
+  AdminShippingRoute: typeof AdminShippingRoute
   AdminStockRoute: typeof AdminStockRoute
   AdminSuppliersRoute: typeof AdminSuppliersRoute
   AdminUsersRoute: typeof AdminUsersRoute
@@ -496,6 +536,7 @@ interface AdminRouteChildren {
 }
 
 const AdminRouteChildren: AdminRouteChildren = {
+  AdminDiscountsRoute: AdminDiscountsRoute,
   AdminInventoryRoute: AdminInventoryRoute,
   AdminLabelsRoute: AdminLabelsRoute,
   AdminOrdersRoute: AdminOrdersRoute,
@@ -503,6 +544,7 @@ const AdminRouteChildren: AdminRouteChildren = {
   AdminPurchaseOrdersRoute: AdminPurchaseOrdersRoute,
   AdminPurchasesRoute: AdminPurchasesRoute,
   AdminQuotesRoute: AdminQuotesRoute,
+  AdminShippingRoute: AdminShippingRoute,
   AdminStockRoute: AdminStockRoute,
   AdminSuppliersRoute: AdminSuppliersRoute,
   AdminUsersRoute: AdminUsersRoute,

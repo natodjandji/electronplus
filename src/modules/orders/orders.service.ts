@@ -7,14 +7,22 @@ import { Collections } from '../../firebase/firestore-collections';
 import { FirestoreRepository } from '../../firebase/firestore.repository';
 import { Role } from '../../common/enums/role.enum';
 import { AuthenticatedUser } from '../../common/interfaces/authenticated-user.interface';
+import { DiscountCodesService } from '../discount-codes/discount-codes.service';
 import { Payment, PaymentStatus } from '../payments/entities/payment.entity';
 import { PaymentsService } from '../payments/payments.service';
 import { PricingService } from '../products/pricing.service';
 import { ProductsService, StockChangedEvent } from '../products/products.service';
+import { ShippingRatesService } from '../shipping-rates/shipping-rates.service';
 import { CreateOrderDto } from './dto/create-order.dto';
 import { ORDER_FULFILLMENT_PIPELINE, Order, OrderItem, OrderStatus } from './entities/order.entity';
 
 export const ORDER_PAID_EVENT = 'order.paid';
+/** Venezuela's standard IVA rate — applied to (subtotal - discount). */
+const TAX_RATE = 0.16;
+
+function round2(n: number): number {
+  return Math.round(n * 100) / 100;
+}
 
 export interface OrderPaidEvent {
   orderId: string;
@@ -29,6 +37,8 @@ export class OrdersService {
     private readonly productsService: ProductsService,
     private readonly pricingService: PricingService,
     private readonly paymentsService: PaymentsService,
+    private readonly shippingRatesService: ShippingRatesService,
+    private readonly discountCodesService: DiscountCodesService,
     private readonly events: EventEmitter2,
   ) {
     this.repo = new FirestoreRepository<Order>(firestore, Collections.ORDERS);
@@ -48,7 +58,7 @@ export class OrdersService {
       );
 
       // Phase 2 — ALL writes.
-      let totalAmount = 0;
+      let subtotal = 0;
       const items: OrderItem[] = [];
       const stockChanges: StockChangedEvent[] = [];
 
@@ -57,7 +67,7 @@ export class OrdersService {
         const nextStock = this.productsService.reserveStock(tx, ref, product, line.qty);
         const unitPrice = this.pricingService.priceFor(product);
         const lineTotal = unitPrice * line.qty;
-        totalAmount += lineTotal;
+        subtotal += lineTotal;
         items.push({
           productId: product.id,
           sku: product.sku,
@@ -77,12 +87,31 @@ export class OrdersService {
         });
       });
 
+      let discountCode: string | undefined;
+      let discountAmount = 0;
+      if (dto.discountCode) {
+        const result = await this.discountCodesService.validate(dto.discountCode, subtotal);
+        if (!result.valid) throw new BadRequestException(result.message ?? 'Código de descuento inválido');
+        discountCode = result.code;
+        discountAmount = result.discountAmount;
+      }
+
+      const taxableBase = subtotal - discountAmount;
+      const taxAmount = round2(taxableBase * TAX_RATE);
+      const { amount: shippingCost } = await this.shippingRatesService.quote(dto.shipping.state, dto.shipping.city);
+      const totalAmount = round2(taxableBase + taxAmount + shippingCost);
+
       const orderRef = this.repo.collection().doc();
       const now = FieldValue.serverTimestamp();
       tx.set(orderRef, {
         userId: user.id,
         status: OrderStatus.PENDING_PAYMENT_VERIFICATION,
         paymentMethod: dto.paymentMethod,
+        subtotal,
+        taxAmount,
+        shippingCost,
+        discountCode,
+        discountAmount,
         totalAmount,
         shippingFullName: dto.shipping.fullName,
         shippingPhone: dto.shipping.phone,

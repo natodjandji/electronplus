@@ -13,6 +13,7 @@ export interface QrLabel {
   sku: string;
   name: string;
   retailPrice: number;
+  wholesalePrice: number;
   token: string;
   scanUrl: string;
   qrImageDataUrl: string;
@@ -35,6 +36,7 @@ export class QrService {
       sku: product.sku,
       name: product.name,
       retailPrice: product.retailPrice,
+      wholesalePrice: product.wholesalePrice,
       token: product.qrToken,
       scanUrl,
       qrImageDataUrl,

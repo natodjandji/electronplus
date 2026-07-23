@@ -35,6 +35,13 @@ export interface Order extends FirestoreDoc {
   userId: string;
   status: OrderStatus;
   paymentMethod: PaymentMethod;
+  /** Sum of line totals before tax, shipping and discount. */
+  subtotal: number;
+  taxAmount: number;
+  shippingCost: number;
+  discountCode?: string;
+  discountAmount: number;
+  /** subtotal - discountAmount + taxAmount + shippingCost — the amount actually charged. */
   totalAmount: number;
 
   shippingFullName: string;

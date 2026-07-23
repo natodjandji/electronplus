@@ -1,7 +1,7 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
-import { CreditCard, Loader2, Pencil } from "lucide-react";
+import { CreditCard, Loader2, Pencil, Plus, Trash2 } from "lucide-react";
 import { AdminShell } from "@/components/admin-shell";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -15,6 +15,13 @@ import {
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
 import { Textarea } from "@/components/ui/textarea";
 import { apiFetch, ApiError } from "@/lib/api-client";
@@ -32,6 +39,18 @@ export const Route = createFileRoute("/admin/payment-methods")({
   }),
   component: PaymentMethodsPage,
 });
+
+const BACKEND_METHODS = [
+  { value: "bank_transfer", label: "Transferencia bancaria" },
+  { value: "pago_movil", label: "Pago móvil" },
+  { value: "cash", label: "Efectivo" },
+  { value: "zelle", label: "Zelle" },
+  { value: "credit_b2b", label: "Crédito B2B" },
+] as const;
+
+function backendMethodLabel(value: string): string {
+  return BACKEND_METHODS.find((m) => m.value === value)?.label ?? value;
+}
 
 interface PaymentMethodConfig {
   id: string;
@@ -54,9 +73,29 @@ function usePaymentMethods() {
   });
 }
 
+/** Strips combining diacritical marks (U+0300–U+036F) left behind by NFD normalization. */
+function stripDiacritics(value: string): string {
+  return Array.from(value)
+    .filter((ch) => {
+      const code = ch.codePointAt(0)!;
+      return code < 0x0300 || code > 0x036f;
+    })
+    .join("");
+}
+
+function slugify(label: string): string {
+  return stripDiacritics(label.normalize("NFD"))
+    .toLowerCase()
+    .trim()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "");
+}
+
 function PaymentMethodsPage() {
   const { data: methods, isLoading } = usePaymentMethods();
   const [editing, setEditing] = useState<PaymentMethodConfig | null>(null);
+  const [creating, setCreating] = useState(false);
+  const [deleting, setDeleting] = useState<PaymentMethodConfig | null>(null);
   const queryClient = useQueryClient();
 
   const toggleEnabled = useMutation({
@@ -66,12 +105,30 @@ function PaymentMethodsPage() {
     onError: reportError,
   });
 
+  const remove = useMutation({
+    mutationFn: (id: string) => apiFetch(`/payment-methods/${id}`, { method: "DELETE" }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["payment-methods"] });
+      toast.success("Método de pago eliminado");
+      setDeleting(null);
+    },
+    onError: reportError,
+  });
+
   return (
     <AdminShell title="Métodos de pago">
-      <p className="max-w-2xl text-sm text-muted-foreground">
-        Personaliza la información que ven tus clientes al pagar: datos bancarios, referencias
-        requeridas y si piden comprobante. Actívalos o desactívalos según los canales que aceptes.
-      </p>
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <p className="max-w-2xl text-sm text-muted-foreground">
+          Personaliza la información que ven tus clientes al pagar: datos bancarios, referencias
+          requeridas y si piden comprobante. Actívalos, desactívalos, o crea nuevos canales de pago.
+        </p>
+        <Button
+          className="shrink-0 gap-2 bg-brand-blue text-white hover:bg-brand-blue/90"
+          onClick={() => setCreating(true)}
+        >
+          <Plus className="h-4 w-4" /> Nuevo método
+        </Button>
+      </div>
 
       {isLoading && (
         <div className="mt-6 flex items-center justify-center gap-2 py-16 text-sm text-muted-foreground">
@@ -91,7 +148,12 @@ function PaymentMethodsPage() {
                   </div>
                   <div>
                     <div className="font-semibold text-brand-navy">{m.label}</div>
-                    <Badge className="mt-0.5 bg-brand-surface text-muted-foreground">{m.id}</Badge>
+                    <div className="mt-0.5 flex flex-wrap gap-1">
+                      <Badge className="bg-brand-surface text-muted-foreground">{m.id}</Badge>
+                      <Badge className="bg-brand-surface text-muted-foreground">
+                        {backendMethodLabel(m.backendMethod)}
+                      </Badge>
+                    </div>
                   </div>
                 </div>
                 <Switch
@@ -112,20 +174,50 @@ function PaymentMethodsPage() {
                 {m.needsProof && <Badge className="bg-brand-surface">Pide comprobante</Badge>}
               </div>
 
-              <Button
-                variant="outline"
-                size="sm"
-                className="mt-4 gap-2"
-                onClick={() => setEditing(m)}
-              >
-                <Pencil className="h-3.5 w-3.5" /> Editar
-              </Button>
+              <div className="mt-4 flex gap-2">
+                <Button variant="outline" size="sm" className="gap-2" onClick={() => setEditing(m)}>
+                  <Pencil className="h-3.5 w-3.5" /> Editar
+                </Button>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="gap-2 text-destructive"
+                  onClick={() => setDeleting(m)}
+                >
+                  <Trash2 className="h-3.5 w-3.5" /> Eliminar
+                </Button>
+              </div>
             </Card>
           ))}
         </div>
       )}
 
       {editing && <EditMethodDialog method={editing} onClose={() => setEditing(null)} />}
+      {creating && <CreateMethodDialog onClose={() => setCreating(false)} />}
+
+      <Dialog open={!!deleting} onOpenChange={(open) => !open && setDeleting(null)}>
+        <DialogContent className="max-w-sm">
+          <DialogHeader>
+            <DialogTitle>¿Eliminar {deleting?.label}?</DialogTitle>
+          </DialogHeader>
+          <p className="text-sm text-muted-foreground">
+            Los clientes ya no podrán elegir este método en el checkout. Esta acción no se puede
+            deshacer.
+          </p>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setDeleting(null)}>
+              Cancelar
+            </Button>
+            <Button
+              className="bg-destructive text-white hover:bg-destructive/90"
+              disabled={remove.isPending}
+              onClick={() => deleting && remove.mutate(deleting.id)}
+            >
+              Eliminar
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </AdminShell>
   );
 }
@@ -208,6 +300,128 @@ function EditMethodDialog({
             onClick={() => save.mutate()}
           >
             Guardar cambios
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+function CreateMethodDialog({ onClose }: { onClose: () => void }) {
+  const queryClient = useQueryClient();
+  const [label, setLabel] = useState("");
+  const [id, setId] = useState("");
+  const [idTouched, setIdTouched] = useState(false);
+  const [backendMethod, setBackendMethod] = useState<string>("bank_transfer");
+  const [detailsText, setDetailsText] = useState("");
+  const [needsReference, setNeedsReference] = useState(true);
+  const [needsProof, setNeedsProof] = useState(true);
+
+  const effectiveId = idTouched ? id : slugify(label);
+
+  const create = useMutation({
+    mutationFn: () =>
+      apiFetch("/payment-methods", {
+        method: "POST",
+        body: {
+          id: effectiveId,
+          label,
+          backendMethod,
+          details: detailsText
+            .split("\n")
+            .map((l) => l.trim())
+            .filter(Boolean),
+          needsReference,
+          needsProof,
+        },
+      }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["payment-methods"] });
+      toast.success("Método de pago creado");
+      onClose();
+    },
+    onError: reportError,
+  });
+
+  const canSave = label.trim().length > 0 && /^[a-z0-9]+(-[a-z0-9]+)*$/.test(effectiveId);
+
+  return (
+    <Dialog open onOpenChange={(open) => !open && onClose()}>
+      <DialogContent className="max-w-md">
+        <DialogHeader>
+          <DialogTitle>Nuevo método de pago</DialogTitle>
+        </DialogHeader>
+
+        <div className="grid gap-4">
+          <div className="grid gap-1.5">
+            <Label className="text-xs font-medium text-brand-navy">Nombre visible</Label>
+            <Input
+              value={label}
+              onChange={(e) => setLabel(e.target.value)}
+              placeholder="Ej. Zelle empresarial"
+            />
+          </div>
+          <div className="grid gap-1.5">
+            <Label className="text-xs font-medium text-brand-navy">Clave interna (checkout)</Label>
+            <Input
+              value={effectiveId}
+              onChange={(e) => {
+                setIdTouched(true);
+                setId(e.target.value);
+              }}
+              placeholder="zelle-empresarial"
+            />
+            <p className="text-xs text-muted-foreground">Solo minúsculas, números y guiones.</p>
+          </div>
+          <div className="grid gap-1.5">
+            <Label className="text-xs font-medium text-brand-navy">Tipo de pago (backend)</Label>
+            <Select value={backendMethod} onValueChange={setBackendMethod}>
+              <SelectTrigger>
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {BACKEND_METHODS.map((m) => (
+                  <SelectItem key={m.value} value={m.value}>
+                    {m.label}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            <p className="text-xs text-muted-foreground">
+              Determina cómo se concilia el pago (manual, o crédito auto-verificado).
+            </p>
+          </div>
+          <div className="grid gap-1.5">
+            <Label className="text-xs font-medium text-brand-navy">
+              Datos mostrados al cliente (una línea por dato)
+            </Label>
+            <Textarea
+              rows={4}
+              value={detailsText}
+              onChange={(e) => setDetailsText(e.target.value)}
+              placeholder={"Banco: Banesco\nCuenta: 0134-...\nRIF: J-000000000"}
+            />
+          </div>
+          <div className="flex items-center justify-between gap-2">
+            <Label className="text-sm text-brand-navy">Pide número de referencia</Label>
+            <Switch checked={needsReference} onCheckedChange={setNeedsReference} />
+          </div>
+          <div className="flex items-center justify-between gap-2">
+            <Label className="text-sm text-brand-navy">Pide comprobante de pago</Label>
+            <Switch checked={needsProof} onCheckedChange={setNeedsProof} />
+          </div>
+        </div>
+
+        <DialogFooter>
+          <Button variant="outline" onClick={onClose}>
+            Cancelar
+          </Button>
+          <Button
+            className="bg-brand-blue text-white hover:bg-brand-blue/90"
+            disabled={!canSave || create.isPending}
+            onClick={() => create.mutate()}
+          >
+            Crear método
           </Button>
         </DialogFooter>
       </DialogContent>

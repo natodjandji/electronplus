@@ -89,9 +89,24 @@ interface PaymentMethodConfig {
   enabled: boolean;
 }
 
+interface ShippingQuote {
+  amount: number;
+  matched: boolean;
+}
+
 function CheckoutPage() {
   const { user, loading: authLoading } = useAuth();
-  const { cart, cartCount, cartTotal, clearCart } = useElectronStore();
+  const {
+    cart,
+    cartCount,
+    cartTotal,
+    clearCart,
+    discount,
+    clearDiscount,
+    taxableBase,
+    discountAmount,
+    taxAmount,
+  } = useElectronStore();
   const { data: bcv } = useBcvRate();
   const navigate = useNavigate();
 
@@ -134,6 +149,17 @@ function CheckoutPage() {
       if (first) setMethod(first.id);
     }
   }, [method, paymentMethods]);
+
+  const { data: shippingQuote } = useQuery({
+    queryKey: ["shipping-rates", "quote", state, city],
+    queryFn: () =>
+      apiFetch<ShippingQuote>(
+        `/shipping-rates/quote?state=${encodeURIComponent(state)}&city=${encodeURIComponent(city)}`,
+      ),
+    enabled: !!state && !!city,
+  });
+  const shippingCost = state && city ? (shippingQuote?.amount ?? 0) : 0;
+  const total = taxableBase + taxAmount + shippingCost;
 
   // First purchase: prefill just the name. Once an address has been saved
   // from a previous order, prefill everything from it (still all editable).
@@ -211,6 +237,7 @@ function CheckoutPage() {
           shipping,
           paymentReference: paymentReference.trim() || undefined,
           paymentProofBase64: proofBase64,
+          discountCode: discount?.code,
         },
       });
 
@@ -229,6 +256,7 @@ function CheckoutPage() {
       }).catch(() => {});
 
       clearCart();
+      clearDiscount();
       toast.success("¡Pedido confirmado! Te contactaremos pronto.");
       navigate({ to: "/client/orders" });
     } catch (error) {
@@ -400,6 +428,19 @@ function CheckoutPage() {
                     </div>
                   </div>
                 </div>
+                {state && city && (
+                  <div className="rounded-md border border-border bg-brand-surface px-3 py-2 text-sm text-brand-navy">
+                    Costo de envío a {city}, {state}:{" "}
+                    <span className="font-semibold">
+                      {shippingQuote ? formatMoney(shippingCost) : "calculando…"}
+                    </span>
+                    {shippingQuote && !shippingQuote.matched && (
+                      <span className="ml-1 text-xs text-muted-foreground">
+                        (sin tarifa configurada, te contactaremos para confirmarlo)
+                      </span>
+                    )}
+                  </div>
+                )}
               </div>
             )}
             {step === 2 && (
@@ -437,10 +478,10 @@ function CheckoutPage() {
                     {(info.needsReference || info.needsProof) && (
                       <div className="mt-3 flex items-baseline gap-2 border-t border-border pt-3">
                         <span className="text-xs text-muted-foreground">Monto a pagar:</span>
-                        <span className="font-bold text-brand-navy">{formatMoney(cartTotal)}</span>
+                        <span className="font-bold text-brand-navy">{formatMoney(total)}</span>
                         {bcv && (
                           <span className="text-xs font-semibold text-brand-blue">
-                            ≈ {formatBs(cartTotal, bcv.rate)}
+                            ≈ {formatBs(total, bcv.rate)}
                           </span>
                         )}
                       </div>
@@ -566,13 +607,34 @@ function CheckoutPage() {
                     ))}
                   </div>
                   <Separator className="my-3" />
+                  <div className="space-y-1.5">
+                    <div className="flex justify-between text-muted-foreground">
+                      <span>Subtotal</span>
+                      <span>{formatMoney(cartTotal)}</span>
+                    </div>
+                    {discount && (
+                      <div className="flex justify-between text-muted-foreground">
+                        <span>Descuento ({discount.code})</span>
+                        <span>-{formatMoney(discountAmount)}</span>
+                      </div>
+                    )}
+                    <div className="flex justify-between text-muted-foreground">
+                      <span>IVA (16%)</span>
+                      <span>{formatMoney(taxAmount)}</span>
+                    </div>
+                    <div className="flex justify-between text-muted-foreground">
+                      <span>Envío</span>
+                      <span>{formatMoney(shippingCost)}</span>
+                    </div>
+                  </div>
+                  <Separator className="my-3" />
                   <div className="flex items-baseline justify-between">
                     <span className="font-bold text-brand-navy">Total</span>
                     <span className="flex items-baseline gap-2">
-                      <span className="font-bold text-brand-navy">{formatMoney(cartTotal)}</span>
+                      <span className="font-bold text-brand-navy">{formatMoney(total)}</span>
                       {bcv && (
                         <span className="text-xs font-semibold text-brand-blue">
-                          ≈ {formatBs(cartTotal, bcv.rate)}
+                          ≈ {formatBs(total, bcv.rate)}
                         </span>
                       )}
                     </span>
@@ -622,16 +684,30 @@ function CheckoutPage() {
                 <span className="text-brand-navy">Subtotal</span>
                 <span className="text-brand-navy">{formatMoney(cartTotal)}</span>
               </div>
+              {discount && (
+                <div className="flex justify-between">
+                  <span className="text-brand-navy">Descuento ({discount.code})</span>
+                  <span className="text-brand-navy">-{formatMoney(discountAmount)}</span>
+                </div>
+              )}
+              <div className="flex justify-between">
+                <span className="text-brand-navy">IVA (16%)</span>
+                <span className="text-brand-navy">{formatMoney(taxAmount)}</span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-brand-navy">Envío</span>
+                <span className="text-brand-navy">
+                  {state && city ? formatMoney(shippingCost) : "A calcular"}
+                </span>
+              </div>
               <Separator className="my-2" />
               <div className="flex items-baseline justify-between">
                 <span className="text-base font-bold text-brand-navy">Total</span>
                 <span className="flex items-baseline gap-2">
-                  <span className="text-base font-bold text-brand-navy">
-                    {formatMoney(cartTotal)}
-                  </span>
+                  <span className="text-base font-bold text-brand-navy">{formatMoney(total)}</span>
                   {bcv && (
                     <span className="text-xs font-semibold text-brand-blue">
-                      ≈ {formatBs(cartTotal, bcv.rate)}
+                      ≈ {formatBs(total, bcv.rate)}
                     </span>
                   )}
                 </span>

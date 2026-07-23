@@ -30,6 +30,7 @@ import { CATEGORIES, type Product } from "@/lib/mock-data";
 import { apiFetch } from "@/lib/api-client";
 import { type ApiProduct, toProduct } from "@/lib/product-api";
 import { useElectronStore } from "@/lib/electron-store";
+import { formatBs, useBcvRate } from "@/lib/use-bcv-rate";
 import { toast } from "sonner";
 
 function useCatalogProducts() {
@@ -65,6 +66,7 @@ function CatalogPage() {
   const { q: initialQ, category: initialCategory } = Route.useSearch();
   const { priceFor, cart, addToCart, updateQty, removeFromCart } = useElectronStore();
   const { data: products, isLoading, isError } = useCatalogProducts();
+  const { data: bcv } = useBcvRate();
   const [q, setQ] = useState(initialQ ?? "");
   const [cats, setCats] = useState<string[]>(initialCategory ? [initialCategory] : []);
   const [onlyAvailable, setOnlyAvailable] = useState(false);
@@ -115,8 +117,13 @@ function CatalogPage() {
           <h1 className="mt-1 text-3xl font-bold text-brand-navy">Productos eléctricos</h1>
           <p className="mt-1 max-w-2xl text-sm text-muted-foreground">
             Precio detal y precio mayorista de referencia en cada producto — cotiza para acceder a
-            descuentos especiales.
+            descuentos especiales. Los precios no incluyen IVA (16%).
           </p>
+          {bcv && (
+            <div className="mt-3 inline-flex items-center rounded-full bg-brand-blue/10 px-3 py-1 text-xs font-semibold text-brand-blue">
+              Tasa BCV del día: {formatBs(1, bcv.rate)} por USD
+            </div>
+          )}
         </div>
       </section>
 

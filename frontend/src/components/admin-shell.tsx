@@ -14,6 +14,8 @@ import {
   Truck,
   AlertTriangle,
   CreditCard,
+  MapPin,
+  Percent,
 } from "lucide-react";
 import { ElectronLogo } from "./electron-logo";
 import { PageTransition } from "./motion-primitives";
@@ -38,6 +40,8 @@ const NAV_GROUPS = [
         icon: CreditCard,
         exact: false,
       },
+      { to: "/admin/shipping", label: "Costos de envío", icon: MapPin, exact: false },
+      { to: "/admin/discounts", label: "Códigos de descuento", icon: Percent, exact: false },
     ],
   },
   {

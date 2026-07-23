@@ -1,14 +1,29 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
-import { Trash2, ShoppingBag, Tag } from "lucide-react";
+import { useState } from "react";
+import { useMutation } from "@tanstack/react-query";
+import { Trash2, ShoppingBag, Tag, Loader2, X } from "lucide-react";
 import { PublicShell } from "@/components/public-shell";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import { Separator } from "@/components/ui/separator";
 import { PriceTag } from "@/components/price-tag";
 import { ProductImage } from "@/components/product-image";
 import { QuantityStepper } from "@/components/quantity-stepper";
+import { apiFetch, ApiError } from "@/lib/api-client";
 import { formatBs, useBcvRate } from "@/lib/use-bcv-rate";
 import { formatMoney, useElectronStore } from "@/lib/electron-store";
+import { toast } from "sonner";
+
+interface DiscountValidation {
+  valid: boolean;
+  code?: string;
+  type?: "percentage" | "fixed";
+  value?: number;
+  discountAmount: number;
+  message?: string;
+}
 
 export const Route = createFileRoute("/cart")({
   head: () => ({
@@ -29,9 +44,42 @@ export const Route = createFileRoute("/cart")({
 });
 
 function CartPage() {
-  const { cart, updateQty, removeFromCart, cartTotal, priceFor, clearCart } = useElectronStore();
+  const {
+    cart,
+    updateQty,
+    removeFromCart,
+    cartTotal,
+    priceFor,
+    clearCart,
+    discount,
+    setDiscount,
+    clearDiscount,
+    taxableBase,
+    discountAmount,
+    taxAmount,
+  } = useElectronStore();
   const { data: bcv } = useBcvRate();
   const wholesaleTotal = cart.reduce((s, i) => s + i.product.wholesalePrice * i.qty, 0);
+  const [codeInput, setCodeInput] = useState("");
+  const total = taxableBase + taxAmount;
+
+  const applyCode = useMutation({
+    mutationFn: () =>
+      apiFetch<DiscountValidation>(
+        `/discount-codes/validate?code=${encodeURIComponent(codeInput.trim())}&subtotal=${cartTotal}`,
+      ),
+    onSuccess: (result) => {
+      if (!result.valid || !result.code || !result.type || result.value === undefined) {
+        toast.error(result.message ?? "Código de descuento inválido");
+        return;
+      }
+      setDiscount({ code: result.code, type: result.type, value: result.value });
+      toast.success(`Código ${result.code} aplicado`);
+      setCodeInput("");
+    },
+    onError: (error) =>
+      toast.error(error instanceof ApiError ? error.message : "No se pudo validar el código"),
+  });
 
   return (
     <PublicShell>
@@ -110,19 +158,66 @@ function CartPage() {
 
             <Card className="h-fit p-6">
               <h2 className="text-lg font-semibold text-brand-navy">Resumen</h2>
+
+              <div className="mt-4 grid gap-1.5">
+                <Label className="text-xs font-medium text-brand-navy">
+                  ¿Tienes un código de descuento?
+                </Label>
+                {discount ? (
+                  <div className="flex items-center justify-between gap-2 rounded-md border border-brand-blue/30 bg-brand-blue/5 px-2.5 py-2 text-sm">
+                    <span className="font-mono font-semibold text-brand-navy">{discount.code}</span>
+                    <button
+                      onClick={clearDiscount}
+                      className="text-muted-foreground hover:text-destructive"
+                      aria-label="Quitar código"
+                    >
+                      <X className="h-4 w-4" />
+                    </button>
+                  </div>
+                ) : (
+                  <div className="flex gap-2">
+                    <Input
+                      value={codeInput}
+                      onChange={(e) => setCodeInput(e.target.value.toUpperCase())}
+                      placeholder="CÓDIGO"
+                      className="font-mono"
+                    />
+                    <Button
+                      variant="outline"
+                      className="shrink-0"
+                      disabled={!codeInput.trim() || applyCode.isPending}
+                      onClick={() => applyCode.mutate()}
+                    >
+                      {applyCode.isPending ? (
+                        <Loader2 className="h-4 w-4 animate-spin" />
+                      ) : (
+                        "Aplicar"
+                      )}
+                    </Button>
+                  </div>
+                )}
+              </div>
+
               <div className="mt-4 space-y-2 text-sm">
                 <Row label="Subtotal" value={formatMoney(cartTotal)} />
-                <Row label="Envío" value="A calcular" muted />
+                {discount && (
+                  <Row
+                    label={`Descuento (${discount.code})`}
+                    value={`-${formatMoney(discountAmount)}`}
+                  />
+                )}
+                <Row label="IVA (16%)" value={formatMoney(taxAmount)} />
+                <Row label="Envío" value="Se calcula en el checkout" muted />
                 <Separator className="my-3" />
                 <div className="flex items-baseline justify-between">
-                  <span className="text-brand-navy">Total</span>
+                  <span className="text-brand-navy">Total antes de envío</span>
                   <span className="flex items-baseline gap-2">
                     <span className="text-base font-bold tabular-nums text-brand-navy">
-                      {formatMoney(cartTotal)}
+                      {formatMoney(total)}
                     </span>
                     {bcv && (
                       <span className="inline-flex items-center rounded-full bg-brand-blue/10 px-2 py-0.5 text-xs font-semibold tabular-nums text-brand-blue">
-                        ≈ {formatBs(cartTotal, bcv.rate)}
+                        ≈ {formatBs(total, bcv.rate)}
                       </span>
                     )}
                   </span>
