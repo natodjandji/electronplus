@@ -1,7 +1,7 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { useState } from "react";
-import { AlertTriangle, Loader2, PackageX, Plus, Search } from "lucide-react";
+import { useState, type ChangeEvent } from "react";
+import { AlertTriangle, ImageIcon, Loader2, PackageX, Plus, Search } from "lucide-react";
 import { AdminShell } from "@/components/admin-shell";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -25,6 +25,7 @@ import {
 import { Switch } from "@/components/ui/switch";
 import { SupplierPicker, useSuppliers } from "@/components/supplier-picker";
 import { apiFetch, ApiError } from "@/lib/api-client";
+import { compressImageToBase64 } from "@/lib/image-compress";
 import { formatMoney } from "@/lib/electron-store";
 import { toast } from "sonner";
 
@@ -217,6 +218,21 @@ function ProductFormDialog({ product, onClose }: { product?: AdminProduct; onClo
   const [active, setActive] = useState(product?.active ?? true);
   const [creatingCategory, setCreatingCategory] = useState(false);
   const [stockTarget, setStockTarget] = useState(product?.stock ?? 0);
+  const [imageUploading, setImageUploading] = useState(false);
+
+  const handleImageSelect = async (e: ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    e.target.value = "";
+    if (!file) return;
+    setImageUploading(true);
+    try {
+      setImageUrl(await compressImageToBase64(file));
+    } catch {
+      toast.error("No se pudo procesar la imagen");
+    } finally {
+      setImageUploading(false);
+    }
+  };
 
   const save = useMutation({
     mutationFn: () => {
@@ -382,12 +398,38 @@ function ProductFormDialog({ product, onClose }: { product?: AdminProduct; onClo
             </div>
           )}
           <div className="grid gap-1.5 sm:col-span-2">
-            <Label className="text-xs font-medium text-brand-navy">URL de imagen</Label>
-            <Input
-              value={imageUrl}
-              onChange={(e) => setImageUrl(e.target.value)}
-              placeholder="Opcional"
-            />
+            <Label className="text-xs font-medium text-brand-navy">Imagen del producto</Label>
+            <div className="flex items-center gap-3">
+              <div className="grid h-16 w-16 shrink-0 place-items-center overflow-hidden rounded-md border border-border bg-brand-surface">
+                {imageUrl ? (
+                  <img src={imageUrl} alt="" className="h-full w-full object-cover" />
+                ) : (
+                  <ImageIcon className="h-6 w-6 text-muted-foreground" />
+                )}
+              </div>
+              <div className="flex-1 space-y-1.5">
+                <label className="flex cursor-pointer items-center justify-center gap-2 rounded-md border border-dashed border-border p-2 text-sm text-muted-foreground hover:border-brand-blue/40">
+                  <ImageIcon className="h-4 w-4" />
+                  {imageUploading ? "Subiendo…" : "Subir imagen"}
+                  <input
+                    type="file"
+                    accept="image/png,image/jpeg,image/webp"
+                    className="hidden"
+                    disabled={imageUploading}
+                    onChange={handleImageSelect}
+                  />
+                </label>
+                {imageUrl && (
+                  <button
+                    type="button"
+                    onClick={() => setImageUrl("")}
+                    className="text-xs text-muted-foreground hover:text-destructive"
+                  >
+                    Quitar imagen
+                  </button>
+                )}
+              </div>
+            </div>
           </div>
           <div className="flex items-center gap-2 sm:col-span-2">
             <Switch checked={active} onCheckedChange={setActive} />

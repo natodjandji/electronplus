@@ -7,6 +7,7 @@ import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { PriceTag } from "@/components/price-tag";
+import { ProductImage } from "@/components/product-image";
 import { QrBlock } from "@/components/qr-block";
 import { apiFetch } from "@/lib/api-client";
 import { type ApiProduct, toProduct } from "@/lib/product-api";
@@ -82,13 +83,12 @@ function QrProductPage() {
         <div className="mt-4 grid gap-8 md:grid-cols-2">
           <Card className="overflow-hidden p-0">
             <div className="aspect-square bg-brand-surface">
-              {product.image && (
-                <img
-                  src={product.image}
-                  alt={product.name}
-                  className="h-full w-full object-cover"
-                />
-              )}
+              <ProductImage
+                src={product.image}
+                alt={product.name}
+                className="h-full w-full"
+                iconClassName="h-12 w-12"
+              />
             </div>
           </Card>
 

@@ -148,6 +148,7 @@ function LabelsPage() {
                   qty={quantities[p.id] ?? 0}
                   onChange={(qty) => setQty(p.id, qty)}
                   size="sm"
+                  showIcon={false}
                 />
               </div>
             ))}

@@ -24,6 +24,7 @@ import { Badge } from "@/components/ui/badge";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import { PriceTag } from "@/components/price-tag";
+import { ProductImage } from "@/components/product-image";
 import { QuantityStepper } from "@/components/quantity-stepper";
 import { CATEGORIES, type Product } from "@/lib/mock-data";
 import { apiFetch } from "@/lib/api-client";
@@ -361,14 +362,11 @@ function ProductCard({
       className="group flex h-full cursor-pointer flex-col overflow-hidden border-border p-0 shadow-sm transition-all duration-300 hover:-translate-y-1 hover:border-brand-blue/40 hover:shadow-[0_8px_30px_-8px_rgba(0,86,179,0.25)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-blue"
     >
       <div className="relative aspect-square overflow-hidden bg-brand-surface">
-        {product.image && (
-          <img
-            src={product.image}
-            alt={product.name}
-            className="h-full w-full object-cover transition-transform duration-500 group-hover:scale-[1.04]"
-            loading="lazy"
-          />
-        )}
+        <ProductImage
+          src={product.image}
+          alt={product.name}
+          className="h-full w-full transition-transform duration-500 group-hover:scale-[1.04]"
+        />
         {out && (
           <Badge className="absolute left-2 top-2 bg-destructive text-destructive-foreground">
             Agotado
@@ -428,14 +426,11 @@ function ProductListRow({
       className="group flex cursor-pointer items-center gap-4 overflow-hidden border-border p-3 shadow-sm transition-all duration-300 hover:border-brand-blue/40 hover:shadow-[0_8px_30px_-8px_rgba(0,86,179,0.25)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-blue sm:p-4"
     >
       <div className="relative h-20 w-20 shrink-0 overflow-hidden rounded-md bg-brand-surface sm:h-24 sm:w-24">
-        {product.image && (
-          <img
-            src={product.image}
-            alt={product.name}
-            className="h-full w-full object-cover transition-transform duration-500 group-hover:scale-[1.04]"
-            loading="lazy"
-          />
-        )}
+        <ProductImage
+          src={product.image}
+          alt={product.name}
+          className="h-full w-full transition-transform duration-500 group-hover:scale-[1.04]"
+        />
         {out && (
           <Badge className="absolute left-1 top-1 bg-destructive px-1.5 py-0 text-[9px] text-destructive-foreground">
             Agotado

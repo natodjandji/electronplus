@@ -7,6 +7,7 @@ import { CircuitBackground } from "@/components/circuit-traces";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { PriceTag } from "@/components/price-tag";
+import { ProductImage } from "@/components/product-image";
 import { apiFetch } from "@/lib/api-client";
 import { type ApiProduct, toProduct } from "@/lib/product-api";
 import type { Product } from "@/lib/mock-data";
@@ -100,14 +101,7 @@ function Home() {
                   }`}
                 >
                   <div className="aspect-square overflow-hidden rounded-xl bg-white">
-                    {p.image && (
-                      <img
-                        src={p.image}
-                        alt={p.name}
-                        className="h-full w-full object-cover"
-                        loading="lazy"
-                      />
-                    )}
+                    <ProductImage src={p.image} alt={p.name} className="h-full w-full" />
                   </div>
                   <div className="mt-2 text-xs font-medium text-white/90 line-clamp-1">
                     {p.name}
@@ -197,14 +191,11 @@ function FeaturedProductCard({ product }: { product: Product }) {
       className="group cursor-pointer overflow-hidden border-border p-0 shadow-sm transition-all duration-300 hover:-translate-y-1 hover:border-brand-blue/40 hover:shadow-[0_8px_30px_-8px_rgba(0,86,179,0.25)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-blue"
     >
       <div className="aspect-square overflow-hidden bg-brand-surface">
-        {product.image && (
-          <img
-            src={product.image}
-            alt={product.name}
-            className="h-full w-full object-cover transition-transform duration-500 group-hover:scale-[1.04]"
-            loading="lazy"
-          />
-        )}
+        <ProductImage
+          src={product.image}
+          alt={product.name}
+          className="h-full w-full transition-transform duration-500 group-hover:scale-[1.04]"
+        />
       </div>
       <div className="p-4">
         <div className="text-[10px] font-semibold uppercase tracking-widest text-muted-foreground">

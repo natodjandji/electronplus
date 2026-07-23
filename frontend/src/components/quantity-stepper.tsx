@@ -12,6 +12,7 @@ export function QuantityStepper({
   disabled,
   fullWidth,
   addLabel = "Agregar",
+  showIcon = true,
   size = "default",
 }: {
   qty: number;
@@ -19,6 +20,7 @@ export function QuantityStepper({
   disabled?: boolean;
   fullWidth?: boolean;
   addLabel?: string;
+  showIcon?: boolean;
   size?: "sm" | "default";
 }) {
   if (qty <= 0) {
@@ -32,7 +34,7 @@ export function QuantityStepper({
         disabled={disabled}
         onClick={() => onChange(1)}
       >
-        <ShoppingCart className="h-3.5 w-3.5" />
+        {showIcon && <ShoppingCart className="h-3.5 w-3.5" />}
         {addLabel}
       </Button>
     );

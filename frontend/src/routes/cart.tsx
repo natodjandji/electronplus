@@ -5,6 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Separator } from "@/components/ui/separator";
 import { PriceTag } from "@/components/price-tag";
+import { ProductImage } from "@/components/product-image";
 import { QuantityStepper } from "@/components/quantity-stepper";
 import { formatBs, useBcvRate } from "@/lib/use-bcv-rate";
 import { formatMoney, useElectronStore } from "@/lib/electron-store";
@@ -72,10 +73,10 @@ function CartPage() {
                     </button>
 
                     <div className="flex gap-4 pr-6 sm:flex-1 sm:pr-0">
-                      <img
+                      <ProductImage
                         src={product.image}
                         alt={product.name}
-                        className="h-20 w-20 shrink-0 rounded-md object-cover sm:h-24 sm:w-24"
+                        className="h-20 w-20 shrink-0 rounded-md sm:h-24 sm:w-24"
                       />
                       <div className="min-w-0 flex-1">
                         <div className="text-[10px] font-semibold uppercase tracking-widest text-muted-foreground">

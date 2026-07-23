@@ -7,6 +7,7 @@ import { CATEGORIES, PRODUCTS, type Product } from "@/lib/mock-data";
 import { useElectronStore, formatMoney } from "@/lib/electron-store";
 import { CONTACT_INFO } from "@/lib/contact-info";
 import { cn } from "@/lib/utils";
+import { ProductImage } from "@/components/product-image";
 
 type QuickReply = { label: string; send: string };
 type ExternalLink = { label: string; href: string };
@@ -393,11 +394,11 @@ function MessageBubble({
               key={p.id}
               className="flex items-center gap-2 rounded-xl border border-border bg-white p-2 shadow-sm"
             >
-              <img
+              <ProductImage
                 src={p.image}
-                alt=""
-                className="h-12 w-12 shrink-0 rounded-lg object-cover"
-                loading="lazy"
+                alt={p.name}
+                className="h-12 w-12 shrink-0 rounded-lg"
+                iconClassName="h-4 w-4"
               />
               <div className="min-w-0 flex-1">
                 <Link
