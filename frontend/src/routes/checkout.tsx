@@ -33,12 +33,6 @@ import { formatMoney, useElectronStore } from "@/lib/electron-store";
 import { formatBs, useBcvRate } from "@/lib/use-bcv-rate";
 import { compressImageToBase64 } from "@/lib/image-compress";
 import {
-  PAYMENT_METHOD_TO_BACKEND,
-  paymentMethodInfo,
-  PAYMENT_METHODS,
-  type CheckoutPaymentMethod,
-} from "@/lib/payment-info";
-import {
   formatTaxId,
   parseTaxId,
   validateTaxIdNumber,
@@ -85,6 +79,16 @@ interface MyProfile {
   state?: string;
 }
 
+interface PaymentMethodConfig {
+  id: string;
+  backendMethod: string;
+  label: string;
+  details: string[];
+  needsReference: boolean;
+  needsProof: boolean;
+  enabled: boolean;
+}
+
 function CheckoutPage() {
   const { user, loading: authLoading } = useAuth();
   const { cart, cartCount, cartTotal, clearCart } = useElectronStore();
@@ -103,7 +107,7 @@ function CheckoutPage() {
   const [city, setCity] = useState("");
   const [prefilled, setPrefilled] = useState(false);
 
-  const [method, setMethod] = useState<CheckoutPaymentMethod>("transferencia");
+  const [method, setMethod] = useState("");
   const [paymentReference, setPaymentReference] = useState("");
   const [proofBase64, setProofBase64] = useState<string | undefined>();
   const [proofFileName, setProofFileName] = useState<string | undefined>();
@@ -116,6 +120,20 @@ function CheckoutPage() {
     queryFn: () => apiFetch<MyProfile>("/users/me"),
     enabled: !!user,
   });
+
+  const { data: paymentMethods } = useQuery({
+    queryKey: ["payment-methods"],
+    queryFn: () => apiFetch<PaymentMethodConfig[]>("/payment-methods"),
+    enabled: !!user,
+  });
+  const enabledMethods = paymentMethods?.filter((m) => m.enabled) ?? [];
+
+  useEffect(() => {
+    if (!method && paymentMethods) {
+      const first = paymentMethods.find((m) => m.enabled);
+      if (first) setMethod(first.id);
+    }
+  }, [method, paymentMethods]);
 
   // First purchase: prefill just the name. Once an address has been saved
   // from a previous order, prefill everything from it (still all editable).
@@ -141,7 +159,7 @@ function CheckoutPage() {
   const email = user?.email ?? "";
   const taxIdValidation = validateTaxIdNumber(taxIdPrefix, taxIdNumber);
   const phoneValidation = validatePhoneNumber(phoneNumber);
-  const info = paymentMethodInfo(method);
+  const info = enabledMethods.find((m) => m.id === method);
 
   const canContinueStep1 = Boolean(
     fullName.trim() &&
@@ -153,7 +171,8 @@ function CheckoutPage() {
     state &&
     city,
   );
-  const canContinueStep2 = !info.needsReference || paymentReference.trim().length > 0;
+  const canContinueStep2 =
+    Boolean(info) && (!info!.needsReference || paymentReference.trim().length > 0);
 
   const handleProofFile = async (file: File) => {
     setProofBusy(true);
@@ -173,6 +192,7 @@ function CheckoutPage() {
   };
 
   const handleSubmit = async () => {
+    if (!info) return;
     setSubmitting(true);
     const shipping = {
       fullName: fullName.trim(),
@@ -187,7 +207,7 @@ function CheckoutPage() {
         method: "POST",
         body: {
           items: cart.map((i) => ({ productId: i.product.id, qty: i.qty })),
-          paymentMethod: PAYMENT_METHOD_TO_BACKEND[method],
+          paymentMethod: info.backendMethod,
           shipping,
           paymentReference: paymentReference.trim() || undefined,
           paymentProofBase64: proofBase64,
@@ -385,45 +405,50 @@ function CheckoutPage() {
             {step === 2 && (
               <div className="space-y-4">
                 <h2 className="text-lg font-semibold text-brand-navy">Método de pago</h2>
-                <RadioGroup
-                  value={method}
-                  onValueChange={(v) => setMethod(v as CheckoutPaymentMethod)}
-                  className="grid gap-3"
-                >
-                  {PAYMENT_METHODS.map((m) => (
-                    <label
-                      key={m.id}
-                      className={`flex cursor-pointer items-center gap-3 rounded-md border p-3 transition ${
-                        method === m.id ? "border-brand-blue bg-brand-blue/5" : "border-border"
-                      }`}
-                    >
-                      <RadioGroupItem value={m.id} />
-                      <span className="font-medium text-brand-navy">{m.label}</span>
-                    </label>
-                  ))}
-                </RadioGroup>
-
-                <div className="rounded-md border border-border bg-brand-surface p-4 text-sm">
-                  <div className="font-semibold text-brand-navy">{info.label}</div>
-                  <ul className="mt-1 space-y-0.5 text-muted-foreground">
-                    {info.details.map((line) => (
-                      <li key={line}>{line}</li>
+                {enabledMethods.length === 0 ? (
+                  <div className="flex items-center justify-center gap-2 py-6 text-sm text-muted-foreground">
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                    Cargando métodos de pago…
+                  </div>
+                ) : (
+                  <RadioGroup value={method} onValueChange={setMethod} className="grid gap-3">
+                    {enabledMethods.map((m) => (
+                      <label
+                        key={m.id}
+                        className={`flex cursor-pointer items-center gap-3 rounded-md border p-3 transition ${
+                          method === m.id ? "border-brand-blue bg-brand-blue/5" : "border-border"
+                        }`}
+                      >
+                        <RadioGroupItem value={m.id} />
+                        <span className="font-medium text-brand-navy">{m.label}</span>
+                      </label>
                     ))}
-                  </ul>
-                  {(method === "transferencia" || method === "pago-movil") && (
-                    <div className="mt-3 flex items-baseline gap-2 border-t border-border pt-3">
-                      <span className="text-xs text-muted-foreground">Monto a pagar:</span>
-                      <span className="font-bold text-brand-navy">{formatMoney(cartTotal)}</span>
-                      {bcv && (
-                        <span className="text-xs font-semibold text-brand-blue">
-                          ≈ {formatBs(cartTotal, bcv.rate)}
-                        </span>
-                      )}
-                    </div>
-                  )}
-                </div>
+                  </RadioGroup>
+                )}
 
-                {info.needsReference && (
+                {info && (
+                  <div className="rounded-md border border-border bg-brand-surface p-4 text-sm">
+                    <div className="font-semibold text-brand-navy">{info.label}</div>
+                    <ul className="mt-1 space-y-0.5 text-muted-foreground">
+                      {info.details.map((line) => (
+                        <li key={line}>{line}</li>
+                      ))}
+                    </ul>
+                    {(info.needsReference || info.needsProof) && (
+                      <div className="mt-3 flex items-baseline gap-2 border-t border-border pt-3">
+                        <span className="text-xs text-muted-foreground">Monto a pagar:</span>
+                        <span className="font-bold text-brand-navy">{formatMoney(cartTotal)}</span>
+                        {bcv && (
+                          <span className="text-xs font-semibold text-brand-blue">
+                            ≈ {formatBs(cartTotal, bcv.rate)}
+                          </span>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                )}
+
+                {info?.needsReference && (
                   <div className="grid gap-1.5">
                     <Label className="text-xs font-medium text-brand-navy">
                       Número de referencia / confirmación
@@ -436,7 +461,7 @@ function CheckoutPage() {
                   </div>
                 )}
 
-                {info.needsProof && (
+                {info?.needsProof && (
                   <div className="grid gap-1.5">
                     <Label className="text-xs font-medium text-brand-navy">
                       Comprobante de pago (opcional)
@@ -510,7 +535,7 @@ function CheckoutPage() {
                   <div className="text-xs font-semibold uppercase tracking-widest text-muted-foreground">
                     Pago
                   </div>
-                  <div className="mt-1.5 text-brand-navy">{info.label}</div>
+                  <div className="mt-1.5 text-brand-navy">{info?.label}</div>
                   {paymentReference && (
                     <div className="text-muted-foreground">Referencia: {paymentReference}</div>
                   )}

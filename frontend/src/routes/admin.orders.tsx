@@ -1,7 +1,7 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
-import { AlertCircle, Ban, ChevronRight, Loader2 } from "lucide-react";
+import { AlertCircle, Ban, Check, ChevronRight, FileText, Loader2, X } from "lucide-react";
 import { AdminShell } from "@/components/admin-shell";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -13,6 +13,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import {
   Select,
@@ -69,6 +70,30 @@ interface Order {
   items: OrderItem[];
   createdAt: string;
 }
+
+interface Payment {
+  id: string;
+  orderId: string;
+  method: PaymentMethod;
+  status: "pending" | "verified" | "rejected";
+  amount: number;
+  reference?: string;
+  proofUrl?: string;
+  rejectionReason?: string;
+  createdAt: string;
+}
+
+const PAYMENT_STATUS_LABEL: Record<Payment["status"], string> = {
+  pending: "Pendiente de verificación",
+  verified: "Verificado",
+  rejected: "Rechazado",
+};
+
+const PAYMENT_STATUS_BADGE: Record<Payment["status"], string> = {
+  pending: "bg-brand-yellow text-brand-navy",
+  verified: "bg-emerald-100 text-emerald-800",
+  rejected: "bg-destructive text-white",
+};
 
 const PAYMENT_METHOD_LABEL: Record<PaymentMethod, string> = {
   bank_transfer: "Transferencia bancaria",
@@ -180,6 +205,8 @@ function AdminOrdersPage() {
 
 function OrderDetailDialog({ orderId, onClose }: { orderId: string; onClose: () => void }) {
   const queryClient = useQueryClient();
+  const [rejecting, setRejecting] = useState(false);
+  const [rejectReason, setRejectReason] = useState("");
   const {
     data: order,
     isLoading,
@@ -188,6 +215,12 @@ function OrderDetailDialog({ orderId, onClose }: { orderId: string; onClose: () 
     queryKey: ["admin", "orders", "detail", orderId],
     queryFn: () => apiFetch<Order>(`/orders/${orderId}`),
   });
+
+  const { data: payments } = useQuery({
+    queryKey: ["admin", "orders", "payments", orderId],
+    queryFn: () => apiFetch<Payment[]>(`/payments/order/${orderId}`),
+  });
+  const payment = payments?.[0];
 
   const invalidate = () => {
     queryClient.invalidateQueries({ queryKey: ["admin", "orders"] });
@@ -207,6 +240,30 @@ function OrderDetailDialog({ orderId, onClose }: { orderId: string; onClose: () 
     onSuccess: () => {
       invalidate();
       toast.success("Pedido cancelado");
+    },
+    onError: reportError,
+  });
+
+  const verifyPayment = useMutation({
+    mutationFn: () => apiFetch(`/payments/${payment!.id}/verify`, { method: "PATCH" }),
+    onSuccess: () => {
+      invalidate();
+      toast.success("Pago verificado — pedido avanzado a Pagado");
+    },
+    onError: reportError,
+  });
+
+  const rejectPayment = useMutation({
+    mutationFn: () =>
+      apiFetch(`/payments/${payment!.id}/reject`, {
+        method: "PATCH",
+        body: { reason: rejectReason.trim() },
+      }),
+    onSuccess: () => {
+      invalidate();
+      toast.success("Pago rechazado");
+      setRejecting(false);
+      setRejectReason("");
     },
     onError: reportError,
   });
@@ -311,6 +368,92 @@ function OrderDetailDialog({ orderId, onClose }: { orderId: string; onClose: () 
             </div>
           </div>
         </div>
+
+        {payment && (
+          <>
+            <Separator />
+            <div>
+              <div className="mb-2 flex items-center justify-between">
+                <div className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+                  Pago
+                </div>
+                <Badge className={PAYMENT_STATUS_BADGE[payment.status]}>
+                  {PAYMENT_STATUS_LABEL[payment.status]}
+                </Badge>
+              </div>
+              <div className="grid gap-1 text-sm text-brand-navy">
+                <div>{PAYMENT_METHOD_LABEL[payment.method]}</div>
+                {payment.reference && (
+                  <div className="text-muted-foreground">Referencia: {payment.reference}</div>
+                )}
+                {payment.status === "rejected" && payment.rejectionReason && (
+                  <div className="text-destructive">Motivo: {payment.rejectionReason}</div>
+                )}
+              </div>
+              {payment.proofUrl && (
+                <a
+                  href={payment.proofUrl}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="mt-2 inline-flex items-center gap-1.5 text-xs font-medium text-brand-blue hover:underline"
+                >
+                  <FileText className="h-3.5 w-3.5" /> Ver comprobante
+                </a>
+              )}
+              {payment.proofUrl && (
+                <img
+                  src={payment.proofUrl}
+                  alt="Comprobante de pago"
+                  className="mt-2 max-h-64 rounded-md border border-border object-contain"
+                />
+              )}
+
+              {order.status === "pending_payment_verification" && payment.status === "pending" && (
+                <div className="mt-3 flex flex-wrap gap-2">
+                  <Button
+                    size="sm"
+                    className="gap-2 bg-emerald-600 text-white hover:bg-emerald-700"
+                    onClick={() => verifyPayment.mutate()}
+                    disabled={verifyPayment.isPending}
+                  >
+                    <Check className="h-4 w-4" /> Verificar pago
+                  </Button>
+                  {rejecting ? (
+                    <div className="flex flex-1 flex-wrap items-center gap-2">
+                      <Input
+                        placeholder="Motivo del rechazo"
+                        value={rejectReason}
+                        onChange={(e) => setRejectReason(e.target.value)}
+                        className="h-9 min-w-40 flex-1"
+                      />
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        className="gap-2 text-destructive"
+                        disabled={!rejectReason.trim() || rejectPayment.isPending}
+                        onClick={() => rejectPayment.mutate()}
+                      >
+                        <X className="h-4 w-4" /> Confirmar rechazo
+                      </Button>
+                      <Button size="sm" variant="ghost" onClick={() => setRejecting(false)}>
+                        Cancelar
+                      </Button>
+                    </div>
+                  ) : (
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      className="gap-2 text-destructive"
+                      onClick={() => setRejecting(true)}
+                    >
+                      <X className="h-4 w-4" /> Rechazar pago
+                    </Button>
+                  )}
+                </div>
+              )}
+            </div>
+          </>
+        )}
 
         <DialogFooter className="gap-2 sm:justify-between">
           <div>

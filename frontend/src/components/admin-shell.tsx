@@ -13,6 +13,7 @@ import {
   Building2,
   Truck,
   AlertTriangle,
+  CreditCard,
 } from "lucide-react";
 import { ElectronLogo } from "./electron-logo";
 import { PageTransition } from "./motion-primitives";
@@ -29,7 +30,15 @@ const ROLE_LABEL: Record<UserRole, string> = {
 const NAV_GROUPS = [
   {
     label: "General",
-    items: [{ to: "/admin", label: "Dashboard", icon: LayoutDashboard, exact: true }],
+    items: [
+      { to: "/admin", label: "Dashboard", icon: LayoutDashboard, exact: true },
+      {
+        to: "/admin/payment-methods",
+        label: "Métodos de pago",
+        icon: CreditCard,
+        exact: false,
+      },
+    ],
   },
   {
     label: "Clientes",

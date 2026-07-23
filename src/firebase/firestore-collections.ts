@@ -16,4 +16,5 @@ export const Collections = {
   PURCHASE_ORDER_PAYMENTS: 'purchaseOrderPayments', // subcollection of purchase_orders/{id}
   NOTIFICATIONS: 'notifications',
   SALES_DAILY_SUMMARIES: 'salesDailySummaries',
+  PAYMENT_METHODS: 'paymentMethods',
 } as const;

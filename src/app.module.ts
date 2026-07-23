@@ -21,6 +21,7 @@ import { ReportsModule } from './modules/reports/reports.module';
 import { QrModule } from './modules/qr/qr.module';
 import { NotificationsModule } from './modules/notifications/notifications.module';
 import { ExchangeRateModule } from './modules/exchange-rate/exchange-rate.module';
+import { PaymentMethodsModule } from './modules/payment-methods/payment-methods.module';
 
 @Module({
   imports: [
@@ -49,6 +50,7 @@ import { ExchangeRateModule } from './modules/exchange-rate/exchange-rate.module
     QrModule,
     NotificationsModule,
     ExchangeRateModule,
+    PaymentMethodsModule,
   ],
 })
 export class AppModule {}

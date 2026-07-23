@@ -23,6 +23,7 @@ import { Route as AdminIndexRouteImport } from './routes/admin.index'
 import { Route as AdminInventoryRouteImport } from './routes/admin.inventory'
 import { Route as AdminLabelsRouteImport } from './routes/admin.labels'
 import { Route as AdminOrdersRouteImport } from './routes/admin.orders'
+import { Route as AdminPaymentMethodsRouteImport } from './routes/admin.payment-methods'
 import { Route as AdminPurchaseOrdersRouteImport } from './routes/admin.purchase-orders'
 import { Route as AdminPurchasesRouteImport } from './routes/admin.purchases'
 import { Route as AdminQuotesRouteImport } from './routes/admin.quotes'
@@ -102,6 +103,11 @@ const AdminOrdersRoute = AdminOrdersRouteImport.update({
   path: '/orders',
   getParentRoute: () => AdminRoute,
 } as any)
+const AdminPaymentMethodsRoute = AdminPaymentMethodsRouteImport.update({
+  id: '/payment-methods',
+  path: '/payment-methods',
+  getParentRoute: () => AdminRoute,
+} as any)
 const AdminPurchaseOrdersRoute = AdminPurchaseOrdersRouteImport.update({
   id: '/purchase-orders',
   path: '/purchase-orders',
@@ -157,6 +163,7 @@ export interface FileRoutesByFullPath {
   '/admin/inventory': typeof AdminInventoryRoute
   '/admin/labels': typeof AdminLabelsRoute
   '/admin/orders': typeof AdminOrdersRoute
+  '/admin/payment-methods': typeof AdminPaymentMethodsRoute
   '/admin/purchase-orders': typeof AdminPurchaseOrdersRoute
   '/admin/purchases': typeof AdminPurchasesRoute
   '/admin/quotes': typeof AdminQuotesRoute
@@ -180,6 +187,7 @@ export interface FileRoutesByTo {
   '/admin/inventory': typeof AdminInventoryRoute
   '/admin/labels': typeof AdminLabelsRoute
   '/admin/orders': typeof AdminOrdersRoute
+  '/admin/payment-methods': typeof AdminPaymentMethodsRoute
   '/admin/purchase-orders': typeof AdminPurchaseOrdersRoute
   '/admin/purchases': typeof AdminPurchasesRoute
   '/admin/quotes': typeof AdminQuotesRoute
@@ -205,6 +213,7 @@ export interface FileRoutesById {
   '/admin/inventory': typeof AdminInventoryRoute
   '/admin/labels': typeof AdminLabelsRoute
   '/admin/orders': typeof AdminOrdersRoute
+  '/admin/payment-methods': typeof AdminPaymentMethodsRoute
   '/admin/purchase-orders': typeof AdminPurchaseOrdersRoute
   '/admin/purchases': typeof AdminPurchasesRoute
   '/admin/quotes': typeof AdminQuotesRoute
@@ -231,6 +240,7 @@ export interface FileRouteTypes {
     | '/admin/inventory'
     | '/admin/labels'
     | '/admin/orders'
+    | '/admin/payment-methods'
     | '/admin/purchase-orders'
     | '/admin/purchases'
     | '/admin/quotes'
@@ -254,6 +264,7 @@ export interface FileRouteTypes {
     | '/admin/inventory'
     | '/admin/labels'
     | '/admin/orders'
+    | '/admin/payment-methods'
     | '/admin/purchase-orders'
     | '/admin/purchases'
     | '/admin/quotes'
@@ -278,6 +289,7 @@ export interface FileRouteTypes {
     | '/admin/inventory'
     | '/admin/labels'
     | '/admin/orders'
+    | '/admin/payment-methods'
     | '/admin/purchase-orders'
     | '/admin/purchases'
     | '/admin/quotes'
@@ -403,6 +415,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AdminOrdersRouteImport
       parentRoute: typeof AdminRoute
     }
+    '/admin/payment-methods': {
+      id: '/admin/payment-methods'
+      path: '/payment-methods'
+      fullPath: '/admin/payment-methods'
+      preLoaderRoute: typeof AdminPaymentMethodsRouteImport
+      parentRoute: typeof AdminRoute
+    }
     '/admin/purchase-orders': {
       id: '/admin/purchase-orders'
       path: '/purchase-orders'
@@ -466,6 +485,7 @@ interface AdminRouteChildren {
   AdminInventoryRoute: typeof AdminInventoryRoute
   AdminLabelsRoute: typeof AdminLabelsRoute
   AdminOrdersRoute: typeof AdminOrdersRoute
+  AdminPaymentMethodsRoute: typeof AdminPaymentMethodsRoute
   AdminPurchaseOrdersRoute: typeof AdminPurchaseOrdersRoute
   AdminPurchasesRoute: typeof AdminPurchasesRoute
   AdminQuotesRoute: typeof AdminQuotesRoute
@@ -479,6 +499,7 @@ const AdminRouteChildren: AdminRouteChildren = {
   AdminInventoryRoute: AdminInventoryRoute,
   AdminLabelsRoute: AdminLabelsRoute,
   AdminOrdersRoute: AdminOrdersRoute,
+  AdminPaymentMethodsRoute: AdminPaymentMethodsRoute,
   AdminPurchaseOrdersRoute: AdminPurchaseOrdersRoute,
   AdminPurchasesRoute: AdminPurchasesRoute,
   AdminQuotesRoute: AdminQuotesRoute,

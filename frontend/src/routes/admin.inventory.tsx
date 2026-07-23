@@ -3,6 +3,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState, type ChangeEvent } from "react";
 import { AlertTriangle, ImageIcon, Loader2, PackageX, Plus, Search } from "lucide-react";
 import { AdminShell } from "@/components/admin-shell";
+import { ProductImage } from "@/components/product-image";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -153,9 +154,19 @@ function InventoryPage() {
                     onClick={() => setEditing(p)}
                   >
                     <td className="px-4 py-3">
-                      <div className="font-semibold text-brand-navy">{p.name}</div>
-                      <div className="text-xs text-muted-foreground">
-                        {p.sku} · {p.category.label}
+                      <div className="flex items-center gap-3">
+                        <ProductImage
+                          src={p.imageUrl}
+                          alt={p.name}
+                          className="h-10 w-10 shrink-0 rounded-md border border-border"
+                          iconClassName="h-4 w-4"
+                        />
+                        <div className="min-w-0">
+                          <div className="truncate font-semibold text-brand-navy">{p.name}</div>
+                          <div className="text-xs text-muted-foreground">
+                            {p.sku} · {p.category.label}
+                          </div>
+                        </div>
                       </div>
                     </td>
                     <td className="px-4 py-3 text-muted-foreground">
@@ -246,7 +257,7 @@ function ProductFormDialog({ product, onClose }: { product?: AdminProduct; onClo
         wholesalePrice,
         cost: cost || undefined,
         minStockThreshold: minStockThreshold || undefined,
-        imageUrl: imageUrl || undefined,
+        imageUrl,
         active,
       };
       return isEdit
