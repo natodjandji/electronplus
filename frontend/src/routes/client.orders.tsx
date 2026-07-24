@@ -1,6 +1,7 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
+import { motion } from "motion/react";
 import {
   AlertCircle,
   AlertTriangle,
@@ -11,9 +12,11 @@ import {
   X,
 } from "lucide-react";
 import { PublicShell } from "@/components/public-shell";
+import { staggerContainer, staggerItem } from "@/components/motion-primitives";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
+import { Skeleton } from "@/components/ui/skeleton";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -132,9 +135,22 @@ function ClientOrdersPage() {
         </p>
 
         {isLoading && (
-          <div className="mt-8 flex items-center justify-center gap-2 py-16 text-sm text-muted-foreground">
-            <Loader2 className="h-4 w-4 animate-spin" />
-            Cargando pedidos…
+          <div className="mt-8 space-y-3">
+            {[0, 1, 2].map((i) => (
+              <Card key={i} className="flex items-center justify-between gap-4 p-4">
+                <div className="space-y-2">
+                  <Skeleton className="h-4 w-40" />
+                  <Skeleton className="h-3 w-56" />
+                </div>
+                <div className="flex items-center gap-3">
+                  <div className="space-y-2 text-right">
+                    <Skeleton className="ml-auto h-3 w-10" />
+                    <Skeleton className="ml-auto h-4 w-16" />
+                  </div>
+                  <Skeleton className="h-6 w-20 rounded-full" />
+                </div>
+              </Card>
+            ))}
           </div>
         )}
 
@@ -159,39 +175,45 @@ function ClientOrdersPage() {
         )}
 
         {orders && orders.length > 0 && (
-          <div className="mt-8 space-y-3">
+          <motion.div
+            className="mt-8 space-y-3"
+            variants={staggerContainer}
+            initial="hidden"
+            animate="show"
+          >
             {orders.map((order) => {
               const itemCount = order.items.reduce((s, i) => s + i.qty, 0);
               return (
-                <Card
-                  key={order.id}
-                  onClick={() => setSelectedId(order.id)}
-                  className="flex cursor-pointer flex-wrap items-center justify-between gap-4 p-4 transition-colors hover:border-brand-blue/40"
-                >
-                  <div>
-                    <div className="font-semibold text-brand-navy">
-                      Pedido #{order.id.slice(0, 8).toUpperCase()}
-                    </div>
-                    <div className="text-xs text-muted-foreground">
-                      {formatDate(order.createdAt)} · {order.items.length} producto(s) · {itemCount}{" "}
-                      unidad(es)
-                    </div>
-                  </div>
-                  <div className="flex items-center gap-3">
-                    <div className="text-right">
-                      <div className="text-xs text-muted-foreground">Total</div>
-                      <div className="font-bold text-brand-navy">
-                        {formatMoney(order.totalAmount)}
+                <motion.div key={order.id} variants={staggerItem}>
+                  <Card
+                    onClick={() => setSelectedId(order.id)}
+                    className="flex cursor-pointer flex-wrap items-center justify-between gap-4 p-4 transition-colors hover:border-brand-blue/40"
+                  >
+                    <div>
+                      <div className="font-semibold text-brand-navy">
+                        Pedido #{order.id.slice(0, 8).toUpperCase()}
+                      </div>
+                      <div className="text-xs text-muted-foreground">
+                        {formatDate(order.createdAt)} · {order.items.length} producto(s) ·{" "}
+                        {itemCount} unidad(es)
                       </div>
                     </div>
-                    <Badge className={ORDER_STATUS_BADGE[order.status]}>
-                      {ORDER_STATUS_LABEL[order.status]}
-                    </Badge>
-                  </div>
-                </Card>
+                    <div className="flex items-center gap-3">
+                      <div className="text-right">
+                        <div className="text-xs text-muted-foreground">Total</div>
+                        <div className="font-bold text-brand-navy">
+                          {formatMoney(order.totalAmount)}
+                        </div>
+                      </div>
+                      <Badge className={ORDER_STATUS_BADGE[order.status]}>
+                        {ORDER_STATUS_LABEL[order.status]}
+                      </Badge>
+                    </div>
+                  </Card>
+                </motion.div>
               );
             })}
-          </div>
+          </motion.div>
         )}
       </section>
 

@@ -1,6 +1,7 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useState } from "react";
+import { motion } from "motion/react";
 import {
   AlertCircle,
   ArrowLeft,
@@ -31,6 +32,8 @@ import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Separator } from "@/components/ui/separator";
+import { Skeleton } from "@/components/ui/skeleton";
+import { staggerContainer, staggerItem } from "@/components/motion-primitives";
 import {
   Select,
   SelectContent,
@@ -301,9 +304,22 @@ function QuotesPage() {
         </div>
 
         {isLoading && (
-          <div className="mt-8 flex items-center justify-center gap-2 py-16 text-sm text-muted-foreground">
-            <Loader2 className="h-4 w-4 animate-spin" />
-            Cargando cotizaciones…
+          <div className="mt-8 space-y-3">
+            {[0, 1, 2].map((i) => (
+              <Card key={i} className="flex items-center justify-between gap-4 p-4">
+                <div className="space-y-2">
+                  <Skeleton className="h-4 w-40" />
+                  <Skeleton className="h-3 w-48" />
+                </div>
+                <div className="flex items-center gap-3">
+                  <div className="space-y-2 text-right">
+                    <Skeleton className="ml-auto h-3 w-10" />
+                    <Skeleton className="ml-auto h-4 w-16" />
+                  </div>
+                  <Skeleton className="h-6 w-20 rounded-full" />
+                </div>
+              </Card>
+            ))}
           </div>
         )}
 
@@ -337,16 +353,18 @@ function QuotesPage() {
         )}
 
         {quotes && quotes.length > 0 && (
-          <div className="mt-8 space-y-3">
+          <motion.div
+            className="mt-8 space-y-3"
+            variants={staggerContainer}
+            initial="hidden"
+            animate="show"
+          >
             {quotes.map((q) => (
-              <QuoteListCard
-                key={q.id}
-                quote={q}
-                onOpen={() => handleOpen(q)}
-                onDeleted={invalidateMine}
-              />
+              <motion.div key={q.id} variants={staggerItem}>
+                <QuoteListCard quote={q} onOpen={() => handleOpen(q)} onDeleted={invalidateMine} />
+              </motion.div>
             ))}
-          </div>
+          </motion.div>
         )}
       </section>
     </PublicShell>
