@@ -5,11 +5,11 @@ import {
   ArrowLeft,
   Loader2,
   Minus,
-  MapPin,
   Package,
   Plus,
   ShieldCheck,
   ShoppingCart,
+  Store,
 } from "lucide-react";
 import { toast } from "sonner";
 import { PublicShell } from "@/components/public-shell";
@@ -48,6 +48,13 @@ export const Route = createFileRoute("/product/qr/$id")({
   component: QrProductPage,
 });
 
+interface SecondStoreProduct {
+  id: string;
+  name: string;
+  stock: number;
+  linkedProduct: { id: string; sku: string; name: string; stock: number } | null;
+}
+
 function NotFound() {
   return (
     <PublicShell>
@@ -76,6 +83,13 @@ function QrProductPage() {
       apiFetch<{ qrImageDataUrl: string }>(`/qr/tokens/${product.id}`, { method: "POST" }),
     enabled: isOps,
   });
+  const { data: secondStoreProducts } = useQuery({
+    queryKey: ["admin", "second-store-products"],
+    queryFn: () => apiFetch<SecondStoreProduct[]>("/second-store-products"),
+    enabled: isOps,
+  });
+  const secondStoreLink =
+    secondStoreProducts?.find((s) => s.linkedProduct?.id === product.id) ?? null;
   const out = product.stock === 0;
   const low = product.stock > 0 && product.stock <= 10;
   const [qty, setQty] = useState(1);
@@ -175,8 +189,16 @@ function QrProductPage() {
                   Información interna
                 </div>
                 <div className="mt-3 grid gap-3 sm:grid-cols-2">
-                  <InfoRow icon={Package} label="Stock disponible" value={`${product.stock} uds`} />
-                  <InfoRow icon={MapPin} label="Ubicación física" value={product.warehouse} />
+                  <InfoRow
+                    icon={Package}
+                    label="Stock tienda principal"
+                    value={`${product.stock} uds`}
+                  />
+                  <InfoRow
+                    icon={Store}
+                    label="Stock tienda secundaria"
+                    value={secondStoreLink ? `${secondStoreLink.stock} uds` : "Sin vincular"}
+                  />
                 </div>
               </Card>
             ) : (
