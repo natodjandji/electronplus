@@ -1,9 +1,12 @@
-import { useEffect, useRef, useState, type FormEvent } from "react";
+import { useEffect, useMemo, useRef, useState, type FormEvent } from "react";
 import { Link, useNavigate } from "@tanstack/react-router";
+import { useQuery } from "@tanstack/react-query";
 import { AnimatePresence, motion } from "motion/react";
 import { Send, X, ShoppingCart } from "lucide-react";
 import { toast } from "sonner";
-import { CATEGORIES, PRODUCTS, type Product } from "@/lib/mock-data";
+import { type Product } from "@/lib/mock-data";
+import { apiFetch } from "@/lib/api-client";
+import { type ApiProduct, toProduct } from "@/lib/product-api";
 import { useElectronStore, formatMoney } from "@/lib/electron-store";
 import { CONTACT_INFO } from "@/lib/contact-info";
 import { cn } from "@/lib/utils";
@@ -21,9 +24,11 @@ type ChatMessage = {
   products?: Product[];
 };
 
-const CATEGORY_LABEL: Record<Product["category"], string> = Object.fromEntries(
-  CATEGORIES.map((c) => [c.id, c.label]),
-) as Record<Product["category"], string>;
+interface ChatCategory {
+  id: string;
+  code: string;
+  label: string;
+}
 
 const MAIN_MENU: QuickReply[] = [
   { label: "🔎 Buscar productos", send: "buscar productos" },
@@ -38,14 +43,22 @@ function normalize(text: string) {
   return text.normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase().trim();
 }
 
-function searchProducts(normalizedText: string): Product[] {
+function searchProducts(
+  normalizedText: string,
+  products: Product[],
+  categoryLabel: Record<string, string>,
+): Product[] {
   const tokens = normalizedText.split(/\s+/).filter((w) => w.length >= 3);
   if (!tokens.length) return [];
-  const scored = PRODUCTS.map((p) => {
-    const haystack = normalize(`${p.name} ${p.sku} ${p.specs} ${CATEGORY_LABEL[p.category]}`);
-    const hits = tokens.filter((tok) => haystack.includes(tok)).length;
-    return { p, hits };
-  }).filter((x) => x.hits > 0);
+  const scored = products
+    .map((p) => {
+      const haystack = normalize(
+        `${p.name} ${p.sku} ${p.specs} ${categoryLabel[p.category] ?? ""}`,
+      );
+      const hits = tokens.filter((tok) => haystack.includes(tok)).length;
+      return { p, hits };
+    })
+    .filter((x) => x.hits > 0);
   scored.sort((a, b) => b.hits - a.hits);
   return scored.slice(0, 3).map((x) => x.p);
 }
@@ -63,6 +76,8 @@ type Ctx = {
   role: ReturnType<typeof useElectronStore>["role"];
   cartCount: number;
   cartTotal: number;
+  products: Product[];
+  categoryLabel: Record<string, string>;
 };
 
 function buildReply(raw: string, ctx: Ctx): ChatMessage[] {
@@ -199,7 +214,7 @@ function buildReply(raw: string, ctx: Ctx): ChatMessage[] {
     });
   }
 
-  const matches = searchProducts(t);
+  const matches = searchProducts(t, ctx.products, ctx.categoryLabel);
   if (matches.length > 0) {
     return bot({
       text: `Encontré esto en el catálogo para "${raw}":`,
@@ -223,13 +238,25 @@ export function ChatPanel({ open, onClose }: { open: boolean; onClose: () => voi
   const listRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
 
+  const { data: productsResp } = useQuery({
+    queryKey: ["chat-widget", "products"],
+    queryFn: () => apiFetch<{ data: ApiProduct[] }>("/products?limit=100"),
+    staleTime: 5 * 60 * 1000,
+  });
+  const { data: categories } = useQuery({
+    queryKey: ["chat-widget", "categories"],
+    queryFn: () => apiFetch<ChatCategory[]>("/categories"),
+    staleTime: 5 * 60 * 1000,
+  });
+  const products = useMemo(() => productsResp?.data.map(toProduct) ?? [], [productsResp]);
+  const categoryLabel = useMemo(
+    () => Object.fromEntries((categories ?? []).map((c) => [c.code, c.label])),
+    [categories],
+  );
+
   useEffect(() => {
     listRef.current?.scrollTo({ top: listRef.current.scrollHeight, behavior: "smooth" });
   }, [messages, typing]);
-
-  useEffect(() => {
-    if (open) inputRef.current?.focus();
-  }, [open]);
 
   const respond = (raw: string, { echoAsUser = true } = {}) => {
     if (raw.startsWith("__nav:")) {
@@ -256,6 +283,8 @@ export function ChatPanel({ open, onClose }: { open: boolean; onClose: () => voi
             role: store.role,
             cartCount: store.cartCount,
             cartTotal: store.cartTotal,
+            products,
+            categoryLabel,
           }),
         ]);
       },
@@ -288,9 +317,9 @@ export function ChatPanel({ open, onClose }: { open: boolean; onClose: () => voi
     <AnimatePresence>
       {open && (
         <motion.div
-          initial={{ opacity: 0, y: 16, scale: 0.96 }}
-          animate={{ opacity: 1, y: 0, scale: 1 }}
-          exit={{ opacity: 0, y: 16, scale: 0.96 }}
+          initial={{ opacity: 0, y: 16 }}
+          animate={{ opacity: 1, y: 0 }}
+          exit={{ opacity: 0, y: 16 }}
           transition={{ type: "spring", stiffness: 320, damping: 28 }}
           className="pointer-events-auto flex h-[min(560px,70vh)] w-[min(360px,90vw)] flex-col overflow-hidden rounded-2xl border border-border bg-white shadow-2xl"
         >
@@ -345,7 +374,7 @@ export function ChatPanel({ open, onClose }: { open: boolean; onClose: () => voi
               value={input}
               onChange={(e) => setInput(e.target.value)}
               placeholder="Escribe tu pregunta…"
-              className="flex-1 rounded-full border border-input bg-brand-surface px-3.5 py-2 text-sm text-brand-navy outline-none focus:border-brand-blue"
+              className="flex-1 rounded-full border border-input bg-brand-surface px-3.5 py-2 text-base text-brand-navy outline-none focus:border-brand-blue sm:text-sm"
             />
             <button
               type="submit"
