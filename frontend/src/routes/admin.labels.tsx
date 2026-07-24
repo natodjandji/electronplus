@@ -60,14 +60,14 @@ function useQrLabels(productIds: string[]) {
   });
 }
 
-/** 30x50mm portrait — the physical label size the Xprinter XP-D4601B is loaded with. */
+/** 50x30mm landscape — the physical label size the Xprinter XP-D4601B is loaded with. */
 const LABEL_PRINT_STYLE = `
   @media print {
-    @page { size: 30mm 50mm; margin: 0; }
+    @page { size: 50mm 30mm landscape; margin: 0; }
     html, body { margin: 0; padding: 0; }
     * { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
   }
-  .qr-label { width: 30mm; height: 50mm; page-break-inside: avoid; }
+  .qr-label { width: 50mm; height: 30mm; page-break-inside: avoid; }
   @media print {
     .qr-label { break-after: page; page-break-after: always; }
     .qr-label:last-child { break-after: auto; page-break-after: auto; }
@@ -195,37 +195,43 @@ function LabelsPage() {
             {printItems.map((label) => (
               <div
                 key={label.key}
-                className="qr-label flex flex-col items-center justify-between overflow-hidden border border-dashed border-brand-navy/30 bg-white p-1.5 text-center print:border-none"
+                className="qr-label flex items-center gap-1.5 overflow-hidden border border-dashed border-brand-navy/30 bg-white p-1.5 print:border-none"
               >
                 <img
                   src={label.qrImageDataUrl}
                   alt=""
                   className="h-[20mm] w-[20mm] shrink-0 object-contain"
                 />
-                <ElectronLogo layout="wordmark" tone="black" className="h-[3mm] w-auto shrink-0" />
-                <div className="line-clamp-2 w-full text-[9.5px] font-bold leading-tight text-black">
-                  {label.name}
-                </div>
-                <div className="font-mono text-[8px] leading-tight text-black">{label.sku}</div>
-                <div className="flex w-full gap-[2px]">
-                  <div className="flex-1 rounded-[1px] border border-black px-[2px] py-[2px] leading-none">
-                    <div className="text-[6px] font-semibold uppercase tracking-wide text-black">
-                      Detal
+                <div className="flex h-full min-w-0 flex-1 flex-col justify-between py-[1px]">
+                  <ElectronLogo
+                    layout="wordmark"
+                    tone="black"
+                    className="h-[3mm] w-auto shrink-0"
+                  />
+                  <div className="line-clamp-1 text-[9.5px] font-bold leading-tight text-black">
+                    {label.name}
+                  </div>
+                  <div className="font-mono text-[8px] leading-tight text-black">{label.sku}</div>
+                  <div className="flex gap-[2px]">
+                    <div className="flex-1 rounded-[1px] border border-black px-[2px] py-[1.5px] text-center leading-none">
+                      <div className="text-[5.5px] font-semibold uppercase tracking-wide text-black">
+                        Detal
+                      </div>
+                      <div className="text-[10px] font-bold leading-tight text-black">
+                        {formatMoney(label.retailPrice)}
+                      </div>
                     </div>
-                    <div className="text-[11px] font-bold leading-tight text-black">
-                      {formatMoney(label.retailPrice)}
+                    <div className="flex-1 rounded-[1px] border border-black px-[2px] py-[1.5px] text-center leading-none">
+                      <div className="text-[5.5px] font-semibold uppercase tracking-wide text-black">
+                        Mayor
+                      </div>
+                      <div className="text-[10px] font-bold leading-tight text-black">
+                        {formatMoney(label.wholesalePrice)}
+                      </div>
                     </div>
                   </div>
-                  <div className="flex-1 rounded-[1px] border border-black px-[2px] py-[2px] leading-none">
-                    <div className="text-[6px] font-semibold uppercase tracking-wide text-black">
-                      Mayor
-                    </div>
-                    <div className="text-[11px] font-bold leading-tight text-black">
-                      {formatMoney(label.wholesalePrice)}
-                    </div>
-                  </div>
+                  <div className="text-[6px] leading-tight text-black/60">IVA no incluido</div>
                 </div>
-                <div className="text-[6px] leading-tight text-black/60">IVA no incluido</div>
               </div>
             ))}
           </div>
