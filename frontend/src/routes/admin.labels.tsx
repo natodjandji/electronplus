@@ -200,35 +200,33 @@ function LabelsPage() {
                 <img
                   src={label.qrImageDataUrl}
                   alt=""
-                  className="h-[20mm] w-[20mm] shrink-0 object-contain"
+                  className="h-[17mm] w-[17mm] shrink-0 object-contain"
                 />
-                <div className="flex h-full min-w-0 flex-1 flex-col justify-between py-[1px]">
+                <div className="flex min-w-0 flex-1 flex-col gap-[1.5px]">
                   <ElectronLogo
                     layout="wordmark"
                     tone="black"
-                    className="h-[3mm] w-auto shrink-0"
+                    className="h-[2.8mm] w-auto shrink-0"
                   />
-                  <div className="line-clamp-1 text-[9.5px] font-bold leading-tight text-black">
+                  <div className="line-clamp-1 text-[10px] font-bold leading-tight text-black">
                     {label.name}
                   </div>
-                  <div className="font-mono text-[8px] leading-tight text-black">{label.sku}</div>
-                  <div className="flex gap-[2px]">
-                    <div className="flex-1 rounded-[1px] border border-black px-[2px] py-[1.5px] text-center leading-none">
-                      <div className="text-[5.5px] font-semibold uppercase tracking-wide text-black">
-                        Detal
-                      </div>
-                      <div className="text-[10px] font-bold leading-tight text-black">
-                        {formatMoney(label.retailPrice)}
-                      </div>
-                    </div>
-                    <div className="flex-1 rounded-[1px] border border-black px-[2px] py-[1.5px] text-center leading-none">
-                      <div className="text-[5.5px] font-semibold uppercase tracking-wide text-black">
-                        Mayor
-                      </div>
-                      <div className="text-[10px] font-bold leading-tight text-black">
-                        {formatMoney(label.wholesalePrice)}
-                      </div>
-                    </div>
+                  <div className="font-mono text-[7.5px] leading-tight text-black">{label.sku}</div>
+                  <div className="mt-[1px] flex items-center justify-between gap-1 rounded-[1px] border border-black px-[3px] py-[1.5px] leading-none">
+                    <span className="text-[6px] font-semibold uppercase tracking-wide text-black">
+                      Detal
+                    </span>
+                    <span className="text-[10.5px] font-bold leading-tight text-black">
+                      {formatMoney(label.retailPrice)}
+                    </span>
+                  </div>
+                  <div className="flex items-center justify-between gap-1 rounded-[1px] border border-black px-[3px] py-[1.5px] leading-none">
+                    <span className="text-[6px] font-semibold uppercase tracking-wide text-black">
+                      Mayor
+                    </span>
+                    <span className="text-[10.5px] font-bold leading-tight text-black">
+                      {formatMoney(label.wholesalePrice)}
+                    </span>
                   </div>
                   <div className="text-[6px] leading-tight text-black/60">IVA no incluido</div>
                 </div>
