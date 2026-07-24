@@ -16,6 +16,7 @@ import {
 import { AdminShell } from "@/components/admin-shell";
 import { ElectronLogo } from "@/components/electron-logo";
 import { TableRowsSkeleton } from "@/components/table-skeleton";
+import { MonthPagerBar, useMonthPager } from "@/components/month-pager";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
@@ -121,33 +122,6 @@ function useProductOptions(supplierId?: string) {
   });
 }
 
-function monthKey(dateStr: string) {
-  const d = new Date(dateStr);
-  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
-}
-
-function monthLabel(key: string) {
-  const [year, month] = key.split("-").map(Number);
-  return new Date(year, month - 1, 1).toLocaleDateString("es-VE", {
-    month: "long",
-    year: "numeric",
-  });
-}
-
-function groupByMonth(
-  orders: PurchaseOrder[],
-): { key: string; label: string; items: PurchaseOrder[] }[] {
-  const groups = new Map<string, PurchaseOrder[]>();
-  for (const order of orders) {
-    const key = monthKey(order.createdAt);
-    if (!groups.has(key)) groups.set(key, []);
-    groups.get(key)!.push(order);
-  }
-  return [...groups.entries()]
-    .sort(([a], [b]) => b.localeCompare(a))
-    .map(([key, items]) => ({ key, label: monthLabel(key), items }));
-}
-
 function usePurchaseOrders(filters: { status?: string; supplierId?: string }) {
   const params = new URLSearchParams();
   if (filters.status) params.set("status", filters.status);
@@ -191,6 +165,8 @@ function PurchaseOrdersPage() {
     status: statusFilter === "all" ? undefined : statusFilter,
     supplierId: supplierFilter || undefined,
   });
+  const pager = useMonthPager(orders, (o) => o.createdAt);
+  const visibleOrders = pager.filtered;
 
   return (
     <AdminShell title="Órdenes de compra">
@@ -223,12 +199,24 @@ function PurchaseOrdersPage() {
               />
             </div>
           </div>
-          <Button
-            className="gap-2 bg-brand-blue text-white hover:bg-brand-blue/90"
-            onClick={() => setCreating(true)}
-          >
-            <Plus className="h-4 w-4" /> Nueva orden
-          </Button>
+          <div className="flex flex-wrap items-center gap-3">
+            {orders && orders.length > 0 && (
+              <MonthPagerBar
+                label={pager.label}
+                showAll={pager.showAll}
+                onPrev={pager.goPrev}
+                onNext={pager.goNext}
+                onToggleAll={() => pager.setShowAll((v) => !v)}
+                canGoNext={pager.canGoNext}
+              />
+            )}
+            <Button
+              className="gap-2 bg-brand-blue text-white hover:bg-brand-blue/90"
+              onClick={() => setCreating(true)}
+            >
+              <Plus className="h-4 w-4" /> Nueva orden
+            </Button>
+          </div>
         </div>
 
         {isLoading &&
@@ -251,11 +239,14 @@ function PurchaseOrdersPage() {
           </Card>
         )}
 
-        {groupByMonth(orders ?? []).map((group) => (
-          <Card key={group.key} className="mt-6 overflow-hidden">
-            <div className="border-b border-border p-4">
-              <h3 className="text-base font-semibold capitalize text-brand-navy">{group.label}</h3>
-            </div>
+        {!isLoading && (orders?.length ?? 0) > 0 && (visibleOrders?.length ?? 0) === 0 && (
+          <Card className="mt-6 p-10 text-center text-muted-foreground">
+            No hay órdenes de compra en este período.
+          </Card>
+        )}
+
+        {visibleOrders && visibleOrders.length > 0 && (
+          <Card className="mt-6 overflow-hidden">
             <div className="overflow-x-auto">
               <table className="w-full text-sm">
                 <thead className="bg-brand-surface">
@@ -268,7 +259,7 @@ function PurchaseOrdersPage() {
                   </tr>
                 </thead>
                 <tbody>
-                  {group.items.map((o) => (
+                  {visibleOrders.map((o) => (
                     <tr
                       key={o.id}
                       className="cursor-pointer border-t border-border hover:bg-brand-surface"
@@ -291,7 +282,7 @@ function PurchaseOrdersPage() {
               </table>
             </div>
           </Card>
-        ))}
+        )}
       </div>
 
       {creating && <CreateOrderDialog onClose={() => setCreating(false)} />}

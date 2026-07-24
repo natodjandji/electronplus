@@ -14,6 +14,7 @@ import {
 } from "lucide-react";
 import { AdminShell } from "@/components/admin-shell";
 import { TableRowsSkeleton } from "@/components/table-skeleton";
+import { MonthPagerBar, useMonthPager } from "@/components/month-pager";
 import { Card } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Badge } from "@/components/ui/badge";
@@ -117,37 +118,6 @@ function useInvoices() {
   });
 }
 
-function monthKey(dateStr: string) {
-  const d = new Date(dateStr);
-  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
-}
-
-function monthLabel(key: string) {
-  const [year, month] = key.split("-").map(Number);
-  return new Date(year, month - 1, 1).toLocaleDateString("es-VE", {
-    month: "long",
-    year: "numeric",
-  });
-}
-
-function groupByMonth(invoices: Invoice[]): { key: string; label: string; items: Invoice[] }[] {
-  const groups = new Map<string, Invoice[]>();
-  for (const inv of invoices) {
-    const key = monthKey(inv.dueDate);
-    if (!groups.has(key)) groups.set(key, []);
-    groups.get(key)!.push(inv);
-  }
-  return [...groups.entries()]
-    .sort(([a], [b]) => a.localeCompare(b))
-    .map(([key, items]) => ({
-      key,
-      label: monthLabel(key),
-      items: [...items].sort(
-        (a, b) => new Date(a.dueDate).getTime() - new Date(b.dueDate).getTime(),
-      ),
-    }));
-}
-
 function sum(arr: Invoice[]) {
   return arr.reduce((s, i) => s + i.amount, 0);
 }
@@ -161,11 +131,22 @@ function PurchasesPage() {
   const overdue = all.filter((f) => f.status === "pending" && f.dueStatus === "overdue");
   const dueSoon = all.filter((f) => f.status === "pending" && f.dueStatus === "due_soon");
   const current = all.filter((f) => f.status === "pending" && f.dueStatus === "current");
-  const groups = groupByMonth(all);
+  const pager = useMonthPager(all, (f) => f.dueDate);
+  const visibleInvoices = pager.filtered ?? [];
 
   return (
     <AdminShell title="Compras & vencimiento de facturas">
       <div className="flex flex-wrap items-center justify-end gap-3">
+        {all.length > 0 && (
+          <MonthPagerBar
+            label={pager.label}
+            showAll={pager.showAll}
+            onPrev={pager.goPrev}
+            onNext={pager.goNext}
+            onToggleAll={() => pager.setShowAll((v) => !v)}
+            canGoNext={pager.canGoNext}
+          />
+        )}
         <Button
           className="gap-2 bg-brand-blue text-white hover:bg-brand-blue/90"
           onClick={() => setCreating(true)}
@@ -173,6 +154,10 @@ function PurchasesPage() {
           <Plus className="h-4 w-4" /> Nueva factura
         </Button>
       </div>
+      <p className="mt-2 text-xs text-muted-foreground">
+        Los resúmenes de vencidas/por vencer/vigentes consideran todas las facturas, sin importar el
+        mes que estés viendo abajo.
+      </p>
 
       <div className="mt-4 grid gap-4 md:grid-cols-3">
         <SummaryCard
@@ -218,10 +203,15 @@ function PurchasesPage() {
         </Card>
       )}
 
-      {groups.map((group) => (
-        <Card key={group.key} className="mt-6 overflow-hidden">
+      {!isLoading && all.length > 0 && visibleInvoices.length === 0 && (
+        <Card className="mt-6 p-10 text-center text-muted-foreground">
+          No hay facturas con vencimiento en este período.
+        </Card>
+      )}
+
+      {visibleInvoices.length > 0 && (
+        <Card className="mt-6 overflow-hidden">
           <div className="border-b border-border p-4">
-            <h3 className="text-base font-semibold capitalize text-brand-navy">{group.label}</h3>
             <p className="text-xs text-muted-foreground">
               Ordenadas por fecha de vencimiento más próxima.
             </p>
@@ -239,35 +229,37 @@ function PurchasesPage() {
                 </tr>
               </thead>
               <tbody>
-                {group.items.map((f) => (
-                  <tr
-                    key={f.id}
-                    className="cursor-pointer border-t border-border hover:bg-brand-surface"
-                    onClick={() => setSelectedId(f.id)}
-                  >
-                    <td className="px-4 py-3 font-semibold text-brand-navy">{f.invoiceNumber}</td>
-                    <td className="px-4 py-3">{f.supplierName}</td>
-                    <td className="px-4 py-3 text-right">{formatMoney(f.amount)}</td>
-                    <td className="px-4 py-3 text-right text-muted-foreground">
-                      {formatMoney(f.amountPaid)}
-                    </td>
-                    <td className="px-4 py-3 text-muted-foreground">
-                      {new Date(f.dueDate).toLocaleDateString("es-VE")}
-                    </td>
-                    <td className="px-4 py-3">
-                      {f.status === "paid" ? (
-                        <Badge className="bg-emerald-100 text-emerald-700">Pagada</Badge>
-                      ) : (
-                        <Badge className={DUE_BADGE[f.dueStatus]}>{DUE_LABEL[f.dueStatus]}</Badge>
-                      )}
-                    </td>
-                  </tr>
-                ))}
+                {[...visibleInvoices]
+                  .sort((a, b) => new Date(a.dueDate).getTime() - new Date(b.dueDate).getTime())
+                  .map((f) => (
+                    <tr
+                      key={f.id}
+                      className="cursor-pointer border-t border-border hover:bg-brand-surface"
+                      onClick={() => setSelectedId(f.id)}
+                    >
+                      <td className="px-4 py-3 font-semibold text-brand-navy">{f.invoiceNumber}</td>
+                      <td className="px-4 py-3">{f.supplierName}</td>
+                      <td className="px-4 py-3 text-right">{formatMoney(f.amount)}</td>
+                      <td className="px-4 py-3 text-right text-muted-foreground">
+                        {formatMoney(f.amountPaid)}
+                      </td>
+                      <td className="px-4 py-3 text-muted-foreground">
+                        {new Date(f.dueDate).toLocaleDateString("es-VE")}
+                      </td>
+                      <td className="px-4 py-3">
+                        {f.status === "paid" ? (
+                          <Badge className="bg-emerald-100 text-emerald-700">Pagada</Badge>
+                        ) : (
+                          <Badge className={DUE_BADGE[f.dueStatus]}>{DUE_LABEL[f.dueStatus]}</Badge>
+                        )}
+                      </td>
+                    </tr>
+                  ))}
               </tbody>
             </table>
           </div>
         </Card>
-      ))}
+      )}
 
       {creating && <CreateInvoiceDialog onClose={() => setCreating(false)} />}
       {selectedId && (

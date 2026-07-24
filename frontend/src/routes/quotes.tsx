@@ -35,6 +35,7 @@ import { Label } from "@/components/ui/label";
 import { Separator } from "@/components/ui/separator";
 import { Skeleton } from "@/components/ui/skeleton";
 import { staggerContainer, staggerItem } from "@/components/motion-primitives";
+import { MonthPagerBar, useMonthPager } from "@/components/month-pager";
 import {
   Select,
   SelectContent,
@@ -161,6 +162,8 @@ function QuotesPage() {
   const taxIdValidation = validateTaxIdNumber(taxIdPrefix, taxIdNumber);
 
   const { data: quotes, isLoading, isError } = useMyQuotes(!!user);
+  const pager = useMonthPager(quotes, (q) => q.createdAt);
+  const visibleQuotes = pager.filtered;
 
   useEffect(() => {
     if (startNew) setView("new");
@@ -355,13 +358,32 @@ function QuotesPage() {
         )}
 
         {quotes && quotes.length > 0 && (
+          <div className="mt-8">
+            <MonthPagerBar
+              label={pager.label}
+              showAll={pager.showAll}
+              onPrev={pager.goPrev}
+              onNext={pager.goNext}
+              onToggleAll={() => pager.setShowAll((v) => !v)}
+              canGoNext={pager.canGoNext}
+            />
+          </div>
+        )}
+
+        {quotes && quotes.length > 0 && visibleQuotes?.length === 0 && (
+          <Card className="mt-4 p-10 text-center text-muted-foreground">
+            No tienes cotizaciones en este período.
+          </Card>
+        )}
+
+        {visibleQuotes && visibleQuotes.length > 0 && (
           <motion.div
-            className="mt-8 space-y-3"
+            className="mt-4 space-y-3"
             variants={staggerContainer}
             initial="hidden"
             animate="show"
           >
-            {quotes.map((q) => (
+            {visibleQuotes.map((q) => (
               <motion.div key={q.id} variants={staggerItem}>
                 <QuoteListCard quote={q} onOpen={() => handleOpen(q)} onDeleted={invalidateMine} />
               </motion.div>

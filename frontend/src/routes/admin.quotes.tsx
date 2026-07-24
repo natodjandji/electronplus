@@ -4,6 +4,7 @@ import { useState } from "react";
 import { Check, Loader2, Printer, Tag, X } from "lucide-react";
 import { AdminShell } from "@/components/admin-shell";
 import { CardListSkeleton } from "@/components/table-skeleton";
+import { MonthPagerBar, useMonthPager } from "@/components/month-pager";
 import { ElectronLogo } from "@/components/electron-logo";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -106,11 +107,13 @@ function AdminQuotesPage() {
   const filtered = (quotes ?? []).filter(
     (q) => statusFilter === "all" || q.status === statusFilter,
   );
+  const pager = useMonthPager(filtered, (q) => q.createdAt);
+  const visibleQuotes = pager.filtered ?? [];
 
   return (
     <AdminShell title="Solicitudes de cotización">
       <div className="print:hidden">
-        <div className="mb-4 flex flex-wrap items-end gap-3">
+        <div className="mb-4 flex flex-wrap items-end justify-between gap-3">
           <div className="grid gap-1.5">
             <Label className="text-xs font-medium text-brand-navy">Estado</Label>
             <Select value={statusFilter} onValueChange={setStatusFilter}>
@@ -127,9 +130,25 @@ function AdminQuotesPage() {
               </SelectContent>
             </Select>
           </div>
+          {filtered.length > 0 && (
+            <MonthPagerBar
+              label={pager.label}
+              showAll={pager.showAll}
+              onPrev={pager.goPrev}
+              onNext={pager.goNext}
+              onToggleAll={() => pager.setShowAll((v) => !v)}
+              canGoNext={pager.canGoNext}
+            />
+          )}
         </div>
 
         {isLoading && <CardListSkeleton />}
+
+        {!isLoading && filtered.length > 0 && visibleQuotes.length === 0 && (
+          <Card className="p-10 text-center text-muted-foreground">
+            No hay cotizaciones en este período.
+          </Card>
+        )}
 
         {!isLoading && filtered.length === 0 && (
           <Card className="p-10 text-center text-muted-foreground">
@@ -137,9 +156,9 @@ function AdminQuotesPage() {
           </Card>
         )}
 
-        {filtered.length > 0 && (
+        {visibleQuotes.length > 0 && (
           <div className="space-y-3">
-            {filtered.map((q) => (
+            {visibleQuotes.map((q) => (
               <Card
                 key={q.id}
                 onClick={() => setSelectedId(q.id)}

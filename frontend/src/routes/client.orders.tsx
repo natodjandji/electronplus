@@ -13,6 +13,7 @@ import {
 } from "lucide-react";
 import { PublicShell } from "@/components/public-shell";
 import { staggerContainer, staggerItem } from "@/components/motion-primitives";
+import { MonthPagerBar, useMonthPager } from "@/components/month-pager";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
@@ -122,6 +123,8 @@ function ClientOrdersPage() {
   const { data: orders, isLoading, isError } = useMyOrders();
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const selectedOrder = orders?.find((o) => o.id === selectedId) ?? null;
+  const pager = useMonthPager(orders, (o) => o.createdAt);
+  const visibleOrders = pager.filtered;
 
   return (
     <PublicShell>
@@ -175,13 +178,32 @@ function ClientOrdersPage() {
         )}
 
         {orders && orders.length > 0 && (
+          <div className="mt-8">
+            <MonthPagerBar
+              label={pager.label}
+              showAll={pager.showAll}
+              onPrev={pager.goPrev}
+              onNext={pager.goNext}
+              onToggleAll={() => pager.setShowAll((v) => !v)}
+              canGoNext={pager.canGoNext}
+            />
+          </div>
+        )}
+
+        {orders && orders.length > 0 && visibleOrders?.length === 0 && (
+          <Card className="mt-4 p-10 text-center text-muted-foreground">
+            No tienes pedidos en este período.
+          </Card>
+        )}
+
+        {visibleOrders && visibleOrders.length > 0 && (
           <motion.div
-            className="mt-8 space-y-3"
+            className="mt-4 space-y-3"
             variants={staggerContainer}
             initial="hidden"
             animate="show"
           >
-            {orders.map((order) => {
+            {visibleOrders.map((order) => {
               const itemCount = order.items.reduce((s, i) => s + i.qty, 0);
               return (
                 <motion.div key={order.id} variants={staggerItem}>

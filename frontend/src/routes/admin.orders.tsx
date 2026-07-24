@@ -4,6 +4,7 @@ import { useState } from "react";
 import { AlertCircle, Ban, Check, ChevronRight, FileText, Loader2, X } from "lucide-react";
 import { AdminShell } from "@/components/admin-shell";
 import { CardListSkeleton } from "@/components/table-skeleton";
+import { MonthPagerBar, useMonthPager } from "@/components/month-pager";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
@@ -129,10 +130,12 @@ function AdminOrdersPage() {
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const { data: allOrders, isLoading } = useOrders();
   const orders = allOrders?.filter((o) => statusFilter === "all" || o.status === statusFilter);
+  const pager = useMonthPager(orders, (o) => o.createdAt);
+  const visibleOrders = pager.filtered;
 
   return (
     <AdminShell title="Pedidos">
-      <div className="flex flex-wrap items-end gap-3">
+      <div className="flex flex-wrap items-end justify-between gap-3">
         <div className="grid gap-1.5">
           <Label className="text-xs font-medium text-brand-navy">Estado</Label>
           <Select value={statusFilter} onValueChange={setStatusFilter}>
@@ -149,9 +152,25 @@ function AdminOrdersPage() {
             </SelectContent>
           </Select>
         </div>
+        {orders && orders.length > 0 && (
+          <MonthPagerBar
+            label={pager.label}
+            showAll={pager.showAll}
+            onPrev={pager.goPrev}
+            onNext={pager.goNext}
+            onToggleAll={() => pager.setShowAll((v) => !v)}
+            canGoNext={pager.canGoNext}
+          />
+        )}
       </div>
 
       {isLoading && <CardListSkeleton />}
+
+      {!isLoading && (orders?.length ?? 0) > 0 && (visibleOrders?.length ?? 0) === 0 && (
+        <Card className="mt-6 p-10 text-center text-muted-foreground">
+          No hay pedidos en este período.
+        </Card>
+      )}
 
       {!isLoading && (orders?.length ?? 0) === 0 && (
         <Card className="mt-6 p-10 text-center text-muted-foreground">
@@ -159,9 +178,9 @@ function AdminOrdersPage() {
         </Card>
       )}
 
-      {orders && orders.length > 0 && (
+      {visibleOrders && visibleOrders.length > 0 && (
         <div className="mt-6 space-y-2">
-          {orders.map((o) => {
+          {visibleOrders.map((o) => {
             const itemCount = o.items.reduce((s, i) => s + i.qty, 0);
             return (
               <Card
