@@ -48,7 +48,10 @@ export class SecondStoreService {
     }
   }
 
-  create(dto: CreateSecondStoreProductDto): Promise<SecondStoreProduct> {
+  async create(dto: CreateSecondStoreProductDto): Promise<SecondStoreProduct> {
+    if (dto.linkedProductId) {
+      await this.productsService.findById(dto.linkedProductId); // throws if the product doesn't exist
+    }
     return this.repo.create(dto);
   }
 

@@ -26,7 +26,6 @@ import { Route as AdminOrdersRouteImport } from './routes/admin.orders'
 import { Route as AdminPurchaseOrdersRouteImport } from './routes/admin.purchase-orders'
 import { Route as AdminPurchasesRouteImport } from './routes/admin.purchases'
 import { Route as AdminQuotesRouteImport } from './routes/admin.quotes'
-import { Route as AdminSecondStoreRouteImport } from './routes/admin.second-store'
 import { Route as AdminSettingsRouteImport } from './routes/admin.settings'
 import { Route as AdminStockRouteImport } from './routes/admin.stock'
 import { Route as AdminSuppliersRouteImport } from './routes/admin.suppliers'
@@ -119,11 +118,6 @@ const AdminQuotesRoute = AdminQuotesRouteImport.update({
   path: '/quotes',
   getParentRoute: () => AdminRoute,
 } as any)
-const AdminSecondStoreRoute = AdminSecondStoreRouteImport.update({
-  id: '/second-store',
-  path: '/second-store',
-  getParentRoute: () => AdminRoute,
-} as any)
 const AdminSettingsRoute = AdminSettingsRouteImport.update({
   id: '/settings',
   path: '/settings',
@@ -172,7 +166,6 @@ export interface FileRoutesByFullPath {
   '/admin/purchase-orders': typeof AdminPurchaseOrdersRoute
   '/admin/purchases': typeof AdminPurchasesRoute
   '/admin/quotes': typeof AdminQuotesRoute
-  '/admin/second-store': typeof AdminSecondStoreRoute
   '/admin/settings': typeof AdminSettingsRoute
   '/admin/stock': typeof AdminStockRoute
   '/admin/suppliers': typeof AdminSuppliersRoute
@@ -197,7 +190,6 @@ export interface FileRoutesByTo {
   '/admin/purchase-orders': typeof AdminPurchaseOrdersRoute
   '/admin/purchases': typeof AdminPurchasesRoute
   '/admin/quotes': typeof AdminQuotesRoute
-  '/admin/second-store': typeof AdminSecondStoreRoute
   '/admin/settings': typeof AdminSettingsRoute
   '/admin/stock': typeof AdminStockRoute
   '/admin/suppliers': typeof AdminSuppliersRoute
@@ -224,7 +216,6 @@ export interface FileRoutesById {
   '/admin/purchase-orders': typeof AdminPurchaseOrdersRoute
   '/admin/purchases': typeof AdminPurchasesRoute
   '/admin/quotes': typeof AdminQuotesRoute
-  '/admin/second-store': typeof AdminSecondStoreRoute
   '/admin/settings': typeof AdminSettingsRoute
   '/admin/stock': typeof AdminStockRoute
   '/admin/suppliers': typeof AdminSuppliersRoute
@@ -252,7 +243,6 @@ export interface FileRouteTypes {
     | '/admin/purchase-orders'
     | '/admin/purchases'
     | '/admin/quotes'
-    | '/admin/second-store'
     | '/admin/settings'
     | '/admin/stock'
     | '/admin/suppliers'
@@ -277,7 +267,6 @@ export interface FileRouteTypes {
     | '/admin/purchase-orders'
     | '/admin/purchases'
     | '/admin/quotes'
-    | '/admin/second-store'
     | '/admin/settings'
     | '/admin/stock'
     | '/admin/suppliers'
@@ -303,7 +292,6 @@ export interface FileRouteTypes {
     | '/admin/purchase-orders'
     | '/admin/purchases'
     | '/admin/quotes'
-    | '/admin/second-store'
     | '/admin/settings'
     | '/admin/stock'
     | '/admin/suppliers'
@@ -448,13 +436,6 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AdminQuotesRouteImport
       parentRoute: typeof AdminRoute
     }
-    '/admin/second-store': {
-      id: '/admin/second-store'
-      path: '/second-store'
-      fullPath: '/admin/second-store'
-      preLoaderRoute: typeof AdminSecondStoreRouteImport
-      parentRoute: typeof AdminRoute
-    }
     '/admin/settings': {
       id: '/admin/settings'
       path: '/settings'
@@ -507,7 +488,6 @@ interface AdminRouteChildren {
   AdminPurchaseOrdersRoute: typeof AdminPurchaseOrdersRoute
   AdminPurchasesRoute: typeof AdminPurchasesRoute
   AdminQuotesRoute: typeof AdminQuotesRoute
-  AdminSecondStoreRoute: typeof AdminSecondStoreRoute
   AdminSettingsRoute: typeof AdminSettingsRoute
   AdminStockRoute: typeof AdminStockRoute
   AdminSuppliersRoute: typeof AdminSuppliersRoute
@@ -522,7 +502,6 @@ const AdminRouteChildren: AdminRouteChildren = {
   AdminPurchaseOrdersRoute: AdminPurchaseOrdersRoute,
   AdminPurchasesRoute: AdminPurchasesRoute,
   AdminQuotesRoute: AdminQuotesRoute,
-  AdminSecondStoreRoute: AdminSecondStoreRoute,
   AdminSettingsRoute: AdminSettingsRoute,
   AdminStockRoute: AdminStockRoute,
   AdminSuppliersRoute: AdminSuppliersRoute,

@@ -6,7 +6,7 @@ type IconMode = "idle" | "smile" | "wave";
 
 const SMILE_FRAME_COUNT = 23;
 const WAVE_FRAME_COUNT = 46;
-const FRAME_INTERVAL_MS = 45;
+const FRAME_INTERVAL_MS = 1000 / 18;
 
 const SMILE_FRAMES = Array.from(
   { length: SMILE_FRAME_COUNT },

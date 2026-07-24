@@ -1,7 +1,16 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState, type ChangeEvent } from "react";
-import { AlertTriangle, ImageIcon, Loader2, PackageX, Plus, Search } from "lucide-react";
+import {
+  AlertTriangle,
+  ImageIcon,
+  Link2,
+  Loader2,
+  PackageX,
+  Plus,
+  Search,
+  Unlink,
+} from "lucide-react";
 import { AdminShell } from "@/components/admin-shell";
 import { ProductImage } from "@/components/product-image";
 import { Card } from "@/components/ui/card";
@@ -63,6 +72,15 @@ interface AdminProduct {
   active: boolean;
 }
 
+interface SecondStoreProduct {
+  id: string;
+  name: string;
+  code?: string;
+  stock: number;
+  linkedProductId?: string;
+  linkedProduct: { id: string; sku: string; name: string; stock: number } | null;
+}
+
 function reportError(error: unknown) {
   toast.error(error instanceof ApiError ? error.message : "Ocurrió un error inesperado");
 }
@@ -84,14 +102,25 @@ function useAdminProducts(search: string) {
   });
 }
 
+function useSecondStoreProducts() {
+  return useQuery({
+    queryKey: ["admin", "second-store-products"],
+    queryFn: () => apiFetch<SecondStoreProduct[]>("/second-store-products"),
+  });
+}
+
 function InventoryPage() {
   const [search, setSearch] = useState("");
   const [creating, setCreating] = useState(false);
   const [editing, setEditing] = useState<AdminProduct | null>(null);
+  const [linkingProduct, setLinkingProduct] = useState<AdminProduct | null>(null);
   const { data: products, isLoading } = useAdminProducts(search);
   const { data: suppliers } = useSuppliers();
+  const { data: secondStoreProducts } = useSecondStoreProducts();
 
   const supplierName = (id?: string) => suppliers?.find((s) => s.id === id)?.name;
+  const secondStoreLink = (productId: string) =>
+    secondStoreProducts?.find((s) => s.linkedProduct?.id === productId) ?? null;
 
   return (
     <AdminShell title="Inventario">
@@ -125,6 +154,7 @@ function InventoryPage() {
                 <th className="px-4 py-2">Proveedor</th>
                 <th className="px-4 py-2 text-right">Stock</th>
                 <th className="px-4 py-2 text-right">Stock seguro</th>
+                <th className="px-4 py-2 text-right">Tienda secundaria</th>
                 <th className="px-4 py-2 text-right">Detal</th>
                 <th className="px-4 py-2 text-right">Mayor</th>
                 <th className="px-4 py-2">Estado</th>
@@ -133,20 +163,21 @@ function InventoryPage() {
             <tbody>
               {isLoading && (
                 <tr>
-                  <td colSpan={7} className="py-8 text-center text-muted-foreground">
+                  <td colSpan={8} className="py-8 text-center text-muted-foreground">
                     Cargando…
                   </td>
                 </tr>
               )}
               {!isLoading && (products?.length ?? 0) === 0 && (
                 <tr>
-                  <td colSpan={7} className="py-8 text-center text-muted-foreground">
+                  <td colSpan={8} className="py-8 text-center text-muted-foreground">
                     No hay productos con este filtro.
                   </td>
                 </tr>
               )}
               {products?.map((p) => {
                 const low = (p.minStockThreshold ?? 0) > 0 && p.stock <= p.minStockThreshold!;
+                const link = secondStoreLink(p.id);
                 return (
                   <tr
                     key={p.id}
@@ -178,6 +209,33 @@ function InventoryPage() {
                     <td className="px-4 py-3 text-right text-muted-foreground">
                       {p.minStockThreshold ?? "—"}
                     </td>
+                    <td className="px-4 py-3 text-right">
+                      <div className="flex items-center justify-end gap-1.5">
+                        {link ? (
+                          <div className="text-right">
+                            <div className="font-medium text-brand-navy">{link.stock}</div>
+                            <div className="text-[10px] text-muted-foreground">
+                              total {p.stock + link.stock}
+                            </div>
+                          </div>
+                        ) : (
+                          <span className="text-muted-foreground">—</span>
+                        )}
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="icon"
+                          className="h-7 w-7 shrink-0"
+                          title={link ? "Gestionar vínculo" : "Vincular con tienda secundaria"}
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setLinkingProduct(p);
+                          }}
+                        >
+                          <Link2 className="h-3.5 w-3.5" />
+                        </Button>
+                      </div>
+                    </td>
                     <td className="px-4 py-3 text-right">{formatMoney(p.retailPrice)}</td>
                     <td className="px-4 py-3 text-right">{formatMoney(p.wholesalePrice)}</td>
                     <td className="px-4 py-3">
@@ -207,7 +265,237 @@ function InventoryPage() {
 
       {creating && <ProductFormDialog onClose={() => setCreating(false)} />}
       {editing && <ProductFormDialog product={editing} onClose={() => setEditing(null)} />}
+      {linkingProduct && (
+        <SecondStoreLinkDialog
+          product={linkingProduct}
+          link={secondStoreLink(linkingProduct.id)}
+          onClose={() => setLinkingProduct(null)}
+        />
+      )}
     </AdminShell>
+  );
+}
+
+function SecondStoreLinkDialog({
+  product,
+  link,
+  onClose,
+}: {
+  product: AdminProduct;
+  link: SecondStoreProduct | null;
+  onClose: () => void;
+}) {
+  const queryClient = useQueryClient();
+  const [search, setSearch] = useState("");
+  const [creatingNew, setCreatingNew] = useState(false);
+  const [newName, setNewName] = useState("");
+  const [newCode, setNewCode] = useState("");
+  const [newStock, setNewStock] = useState(0);
+  const [stockEdit, setStockEdit] = useState(link?.stock ?? 0);
+  const { data: allSecondStore } = useSecondStoreProducts();
+
+  const invalidate = () => {
+    queryClient.invalidateQueries({ queryKey: ["admin", "second-store-products"] });
+  };
+
+  const unlinked = (allSecondStore ?? [])
+    .filter((s) => !s.linkedProduct)
+    .filter((s) => !search || s.name.toLowerCase().includes(search.toLowerCase()));
+
+  const linkExisting = useMutation({
+    mutationFn: (id: string) =>
+      apiFetch(`/second-store-products/${id}/link`, {
+        method: "POST",
+        body: { productId: product.id },
+      }),
+    onSuccess: () => {
+      invalidate();
+      toast.success("Producto vinculado");
+      onClose();
+    },
+    onError: reportError,
+  });
+
+  const createAndLink = useMutation({
+    mutationFn: () =>
+      apiFetch("/second-store-products", {
+        method: "POST",
+        body: {
+          name: newName,
+          code: newCode || undefined,
+          stock: newStock,
+          linkedProductId: product.id,
+        },
+      }),
+    onSuccess: () => {
+      invalidate();
+      toast.success("Producto de tienda secundaria creado y vinculado");
+      onClose();
+    },
+    onError: reportError,
+  });
+
+  const saveStock = useMutation({
+    mutationFn: () =>
+      apiFetch(`/second-store-products/${link!.id}`, {
+        method: "PATCH",
+        body: { stock: stockEdit },
+      }),
+    onSuccess: () => {
+      invalidate();
+      toast.success("Stock actualizado");
+    },
+    onError: reportError,
+  });
+
+  const unlink = useMutation({
+    mutationFn: () => apiFetch(`/second-store-products/${link!.id}/unlink`, { method: "POST" }),
+    onSuccess: () => {
+      invalidate();
+      toast.success("Vínculo eliminado");
+      onClose();
+    },
+    onError: reportError,
+  });
+
+  return (
+    <Dialog open onOpenChange={(open) => !open && onClose()}>
+      <DialogContent className="max-w-md">
+        <DialogHeader>
+          <DialogTitle>Tienda secundaria · {product.name}</DialogTitle>
+        </DialogHeader>
+
+        {link ? (
+          <div className="grid gap-3">
+            <div className="rounded-md border border-border bg-brand-surface p-3 text-sm">
+              <div className="font-semibold text-brand-navy">{link.name}</div>
+              {link.code && <div className="text-xs text-muted-foreground">{link.code}</div>}
+            </div>
+            <div className="grid gap-1.5">
+              <Label className="text-xs font-medium text-brand-navy">
+                Stock en tienda secundaria
+              </Label>
+              <div className="flex gap-2">
+                <Input
+                  type="number"
+                  min={0}
+                  value={stockEdit}
+                  onChange={(e) => setStockEdit(Math.max(0, Number(e.target.value)))}
+                  className="flex-1"
+                />
+                <Button
+                  type="button"
+                  variant="outline"
+                  disabled={stockEdit === link.stock || saveStock.isPending}
+                  onClick={() => saveStock.mutate()}
+                >
+                  Guardar
+                </Button>
+              </div>
+              <p className="text-xs text-muted-foreground">
+                Stock combinado: {product.stock} (principal) + {link.stock} (secundaria) ={" "}
+                <b>{product.stock + link.stock}</b>
+              </p>
+            </div>
+            <Button
+              type="button"
+              variant="outline"
+              className="gap-2 text-destructive hover:text-destructive"
+              disabled={unlink.isPending}
+              onClick={() => unlink.mutate()}
+            >
+              <Unlink className="h-3.5 w-3.5" /> Desvincular
+            </Button>
+          </div>
+        ) : (
+          <div className="grid gap-3">
+            <div className="relative">
+              <Search className="pointer-events-none absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
+              <Input
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                placeholder="Buscar producto de tienda secundaria…"
+                className="pl-8"
+              />
+            </div>
+            <div className="max-h-56 space-y-1 overflow-y-auto">
+              {unlinked.length === 0 && !creatingNew && (
+                <div className="py-4 text-center text-sm text-muted-foreground">
+                  No hay productos sin vincular con ese nombre.
+                </div>
+              )}
+              {unlinked.map((s) => (
+                <button
+                  key={s.id}
+                  type="button"
+                  onClick={() => linkExisting.mutate(s.id)}
+                  disabled={linkExisting.isPending}
+                  className="flex w-full items-center justify-between rounded-md border border-border p-2 text-left text-sm hover:bg-brand-surface disabled:opacity-50"
+                >
+                  <div>
+                    <div className="font-medium text-brand-navy">{s.name}</div>
+                    {s.code && <div className="text-xs text-muted-foreground">{s.code}</div>}
+                  </div>
+                  <div className="text-xs text-muted-foreground">Stock: {s.stock}</div>
+                </button>
+              ))}
+            </div>
+
+            {!creatingNew ? (
+              <Button
+                type="button"
+                variant="outline"
+                className="gap-2"
+                onClick={() => {
+                  setCreatingNew(true);
+                  setNewName(product.name);
+                }}
+              >
+                <Plus className="h-4 w-4" /> Crear producto de tienda secundaria
+              </Button>
+            ) : (
+              <div className="grid gap-2 rounded-md border border-border p-3">
+                <div className="grid gap-1.5">
+                  <Label className="text-xs font-medium text-brand-navy">
+                    Nombre (como está en la otra tienda)
+                  </Label>
+                  <Input value={newName} onChange={(e) => setNewName(e.target.value)} />
+                </div>
+                <div className="grid grid-cols-2 gap-2">
+                  <div className="grid gap-1.5">
+                    <Label className="text-xs font-medium text-brand-navy">Código (opcional)</Label>
+                    <Input value={newCode} onChange={(e) => setNewCode(e.target.value)} />
+                  </div>
+                  <div className="grid gap-1.5">
+                    <Label className="text-xs font-medium text-brand-navy">Stock</Label>
+                    <Input
+                      type="number"
+                      min={0}
+                      value={newStock}
+                      onChange={(e) => setNewStock(Math.max(0, Number(e.target.value)))}
+                    />
+                  </div>
+                </div>
+                <Button
+                  type="button"
+                  className="bg-brand-blue text-white hover:bg-brand-blue/90"
+                  disabled={!newName || createAndLink.isPending}
+                  onClick={() => createAndLink.mutate()}
+                >
+                  Crear y vincular
+                </Button>
+              </div>
+            )}
+          </div>
+        )}
+
+        <DialogFooter>
+          <Button variant="outline" onClick={onClose}>
+            Cerrar
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
   );
 }
 

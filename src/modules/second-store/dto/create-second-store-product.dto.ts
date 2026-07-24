@@ -20,4 +20,8 @@ export class CreateSecondStoreProductDto {
   @IsOptional()
   @IsString()
   notes?: string;
+
+  @IsOptional()
+  @IsString()
+  linkedProductId?: string;
 }
