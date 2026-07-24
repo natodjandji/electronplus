@@ -192,96 +192,98 @@ function PurchaseOrdersPage() {
 
   return (
     <AdminShell title="Órdenes de compra">
-      <div className="flex flex-wrap items-end justify-between gap-3">
-        <div className="flex flex-wrap items-end gap-3">
-          <div className="grid gap-1.5">
-            <Label className="text-xs font-medium text-brand-navy">Estado</Label>
-            <Select value={statusFilter} onValueChange={setStatusFilter}>
-              <SelectTrigger className="w-48">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">Todos</SelectItem>
-                {(Object.keys(STATUS_LABEL) as PurchaseOrderStatus[]).map((s) => (
-                  <SelectItem key={s} value={s}>
-                    {STATUS_LABEL[s]}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+      <div className="print:hidden">
+        <div className="flex flex-wrap items-end justify-between gap-3">
+          <div className="flex flex-wrap items-end gap-3">
+            <div className="grid gap-1.5">
+              <Label className="text-xs font-medium text-brand-navy">Estado</Label>
+              <Select value={statusFilter} onValueChange={setStatusFilter}>
+                <SelectTrigger className="w-48">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">Todos</SelectItem>
+                  {(Object.keys(STATUS_LABEL) as PurchaseOrderStatus[]).map((s) => (
+                    <SelectItem key={s} value={s}>
+                      {STATUS_LABEL[s]}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="grid gap-1.5">
+              <Label className="text-xs font-medium text-brand-navy">Proveedor (ID)</Label>
+              <Input
+                placeholder="Filtrar por supplierId…"
+                value={supplierFilter}
+                onChange={(e) => setSupplierFilter(e.target.value)}
+                className="w-56"
+              />
+            </div>
           </div>
-          <div className="grid gap-1.5">
-            <Label className="text-xs font-medium text-brand-navy">Proveedor (ID)</Label>
-            <Input
-              placeholder="Filtrar por supplierId…"
-              value={supplierFilter}
-              onChange={(e) => setSupplierFilter(e.target.value)}
-              className="w-56"
-            />
-          </div>
+          <Button
+            className="gap-2 bg-brand-blue text-white hover:bg-brand-blue/90"
+            onClick={() => setCreating(true)}
+          >
+            <Plus className="h-4 w-4" /> Nueva orden
+          </Button>
         </div>
-        <Button
-          className="gap-2 bg-brand-blue text-white hover:bg-brand-blue/90"
-          onClick={() => setCreating(true)}
-        >
-          <Plus className="h-4 w-4" /> Nueva orden
-        </Button>
-      </div>
 
-      {isLoading && (
-        <div className="mt-6 flex items-center justify-center gap-2 py-16 text-sm text-muted-foreground">
-          <Loader2 className="h-4 w-4 animate-spin" />
-          Cargando…
-        </div>
-      )}
-
-      {!isLoading && (orders?.length ?? 0) === 0 && (
-        <Card className="mt-6 p-10 text-center text-muted-foreground">
-          No hay órdenes de compra con estos filtros.
-        </Card>
-      )}
-
-      {groupByMonth(orders ?? []).map((group) => (
-        <Card key={group.key} className="mt-6 overflow-hidden">
-          <div className="border-b border-border p-4">
-            <h3 className="text-base font-semibold capitalize text-brand-navy">{group.label}</h3>
+        {isLoading && (
+          <div className="mt-6 flex items-center justify-center gap-2 py-16 text-sm text-muted-foreground">
+            <Loader2 className="h-4 w-4 animate-spin" />
+            Cargando…
           </div>
-          <div className="overflow-x-auto">
-            <table className="w-full text-sm">
-              <thead className="bg-brand-surface">
-                <tr className="text-left text-xs uppercase tracking-wider text-muted-foreground">
-                  <th className="px-4 py-2">Proveedor</th>
-                  <th className="px-4 py-2 text-right">Total</th>
-                  <th className="px-4 py-2 text-right">Pagado</th>
-                  <th className="px-4 py-2">Estado</th>
-                  <th className="px-4 py-2">Creada</th>
-                </tr>
-              </thead>
-              <tbody>
-                {group.items.map((o) => (
-                  <tr
-                    key={o.id}
-                    className="cursor-pointer border-t border-border hover:bg-brand-surface"
-                    onClick={() => setSelectedId(o.id)}
-                  >
-                    <td className="px-4 py-3 font-semibold text-brand-navy">{o.supplierName}</td>
-                    <td className="px-4 py-3 text-right">{formatMoney(o.totals.totalAmount)}</td>
-                    <td className="px-4 py-3 text-right text-muted-foreground">
-                      {formatMoney(o.amountPaid)}
-                    </td>
-                    <td className="px-4 py-3">
-                      <Badge className={STATUS_BADGE[o.status]}>{STATUS_LABEL[o.status]}</Badge>
-                    </td>
-                    <td className="px-4 py-3 text-muted-foreground">
-                      {new Date(o.createdAt).toLocaleDateString("es-VE")}
-                    </td>
+        )}
+
+        {!isLoading && (orders?.length ?? 0) === 0 && (
+          <Card className="mt-6 p-10 text-center text-muted-foreground">
+            No hay órdenes de compra con estos filtros.
+          </Card>
+        )}
+
+        {groupByMonth(orders ?? []).map((group) => (
+          <Card key={group.key} className="mt-6 overflow-hidden">
+            <div className="border-b border-border p-4">
+              <h3 className="text-base font-semibold capitalize text-brand-navy">{group.label}</h3>
+            </div>
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead className="bg-brand-surface">
+                  <tr className="text-left text-xs uppercase tracking-wider text-muted-foreground">
+                    <th className="px-4 py-2">Proveedor</th>
+                    <th className="px-4 py-2 text-right">Total</th>
+                    <th className="px-4 py-2 text-right">Pagado</th>
+                    <th className="px-4 py-2">Estado</th>
+                    <th className="px-4 py-2">Creada</th>
                   </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        </Card>
-      ))}
+                </thead>
+                <tbody>
+                  {group.items.map((o) => (
+                    <tr
+                      key={o.id}
+                      className="cursor-pointer border-t border-border hover:bg-brand-surface"
+                      onClick={() => setSelectedId(o.id)}
+                    >
+                      <td className="px-4 py-3 font-semibold text-brand-navy">{o.supplierName}</td>
+                      <td className="px-4 py-3 text-right">{formatMoney(o.totals.totalAmount)}</td>
+                      <td className="px-4 py-3 text-right text-muted-foreground">
+                        {formatMoney(o.amountPaid)}
+                      </td>
+                      <td className="px-4 py-3">
+                        <Badge className={STATUS_BADGE[o.status]}>{STATUS_LABEL[o.status]}</Badge>
+                      </td>
+                      <td className="px-4 py-3 text-muted-foreground">
+                        {new Date(o.createdAt).toLocaleDateString("es-VE")}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </Card>
+        ))}
+      </div>
 
       {creating && <CreateOrderDialog onClose={() => setCreating(false)} />}
       {selectedId && <OrderDetailDialog orderId={selectedId} onClose={() => setSelectedId(null)} />}

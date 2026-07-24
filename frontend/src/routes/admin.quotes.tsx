@@ -107,71 +107,73 @@ function AdminQuotesPage() {
 
   return (
     <AdminShell title="Solicitudes de cotización">
-      <div className="mb-4 flex flex-wrap items-end gap-3">
-        <div className="grid gap-1.5">
-          <Label className="text-xs font-medium text-brand-navy">Estado</Label>
-          <Select value={statusFilter} onValueChange={setStatusFilter}>
-            <SelectTrigger className="w-48">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">Todos</SelectItem>
-              {(Object.keys(STATUS_LABEL) as QuoteStatus[]).map((s) => (
-                <SelectItem key={s} value={s}>
-                  {STATUS_LABEL[s]}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
+      <div className="print:hidden">
+        <div className="mb-4 flex flex-wrap items-end gap-3">
+          <div className="grid gap-1.5">
+            <Label className="text-xs font-medium text-brand-navy">Estado</Label>
+            <Select value={statusFilter} onValueChange={setStatusFilter}>
+              <SelectTrigger className="w-48">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">Todos</SelectItem>
+                {(Object.keys(STATUS_LABEL) as QuoteStatus[]).map((s) => (
+                  <SelectItem key={s} value={s}>
+                    {STATUS_LABEL[s]}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
         </div>
+
+        {isLoading && (
+          <div className="flex items-center justify-center gap-2 py-16 text-sm text-muted-foreground">
+            <Loader2 className="h-4 w-4 animate-spin" />
+            Cargando solicitudes…
+          </div>
+        )}
+
+        {!isLoading && filtered.length === 0 && (
+          <Card className="p-10 text-center text-muted-foreground">
+            No hay cotizaciones con este estado.
+          </Card>
+        )}
+
+        {filtered.length > 0 && (
+          <div className="space-y-3">
+            {filtered.map((q) => (
+              <Card
+                key={q.id}
+                onClick={() => setSelectedId(q.id)}
+                className="flex cursor-pointer flex-wrap items-center justify-between gap-4 p-4 transition-colors hover:border-brand-blue/40"
+              >
+                <div>
+                  <div className="font-semibold text-brand-navy">
+                    {q.customerName || "Sin nombre"}
+                  </div>
+                  <div className="text-xs text-muted-foreground">
+                    {new Date(q.createdAt).toLocaleDateString("es-VE", {
+                      day: "2-digit",
+                      month: "short",
+                      year: "numeric",
+                    })}
+                    {" · "}
+                    {q.items.length} producto(s)
+                  </div>
+                </div>
+                <div className="flex items-center gap-3">
+                  <div className="text-right">
+                    <div className="text-xs text-muted-foreground">Total</div>
+                    <div className="font-bold text-brand-navy">{formatMoney(computeTotal(q))}</div>
+                  </div>
+                  <Badge className={STATUS_BADGE[q.status]}>{STATUS_LABEL[q.status]}</Badge>
+                </div>
+              </Card>
+            ))}
+          </div>
+        )}
       </div>
-
-      {isLoading && (
-        <div className="flex items-center justify-center gap-2 py-16 text-sm text-muted-foreground">
-          <Loader2 className="h-4 w-4 animate-spin" />
-          Cargando solicitudes…
-        </div>
-      )}
-
-      {!isLoading && filtered.length === 0 && (
-        <Card className="p-10 text-center text-muted-foreground">
-          No hay cotizaciones con este estado.
-        </Card>
-      )}
-
-      {filtered.length > 0 && (
-        <div className="space-y-3">
-          {filtered.map((q) => (
-            <Card
-              key={q.id}
-              onClick={() => setSelectedId(q.id)}
-              className="flex cursor-pointer flex-wrap items-center justify-between gap-4 p-4 transition-colors hover:border-brand-blue/40"
-            >
-              <div>
-                <div className="font-semibold text-brand-navy">
-                  {q.customerName || "Sin nombre"}
-                </div>
-                <div className="text-xs text-muted-foreground">
-                  {new Date(q.createdAt).toLocaleDateString("es-VE", {
-                    day: "2-digit",
-                    month: "short",
-                    year: "numeric",
-                  })}
-                  {" · "}
-                  {q.items.length} producto(s)
-                </div>
-              </div>
-              <div className="flex items-center gap-3">
-                <div className="text-right">
-                  <div className="text-xs text-muted-foreground">Total</div>
-                  <div className="font-bold text-brand-navy">{formatMoney(computeTotal(q))}</div>
-                </div>
-                <Badge className={STATUS_BADGE[q.status]}>{STATUS_LABEL[q.status]}</Badge>
-              </div>
-            </Card>
-          ))}
-        </div>
-      )}
 
       {selectedId && <QuoteDetailDialog id={selectedId} onClose={() => setSelectedId(null)} />}
     </AdminShell>
