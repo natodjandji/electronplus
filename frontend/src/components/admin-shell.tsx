@@ -77,7 +77,7 @@ export function AdminShell({ title, children }: { title: string; children: React
   const { role } = useElectronStore();
 
   return (
-    <div className="flex min-h-screen bg-brand-surface">
+    <div className="flex min-h-screen bg-brand-surface print:contents">
       <aside className="hidden w-64 shrink-0 flex-col bg-brand-navy text-white lg:flex print:hidden">
         <div className="border-b border-white/10 p-4">
           <ElectronLogo layout="full" tone="white" className="h-8" />
@@ -128,7 +128,7 @@ export function AdminShell({ title, children }: { title: string; children: React
         </div>
       </aside>
 
-      <div className="flex min-w-0 flex-1 flex-col">
+      <div className="flex min-w-0 flex-1 flex-col print:contents">
         <header className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-4 border-b border-border bg-white px-4 py-4 sm:px-6 print:hidden">
           <div className="min-w-0">
             <div className="text-[10px] font-semibold uppercase tracking-widest text-muted-foreground">
@@ -142,7 +142,7 @@ export function AdminShell({ title, children }: { title: string; children: React
             </span>
           </div>
         </header>
-        <div className="flex-1 p-4 sm:p-6">
+        <div className="flex-1 p-4 sm:p-6 print:contents">
           <PageTransition>{children}</PageTransition>
         </div>
       </div>

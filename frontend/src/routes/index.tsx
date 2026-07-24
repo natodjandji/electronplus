@@ -121,9 +121,6 @@ function Home() {
 
           <div className="relative">
             <div className="absolute -inset-6 rounded-3xl bg-brand-blue/30 blur-3xl" />
-            <div className="pointer-events-none absolute -top-8 left-1/2 -translate-x-1/2 text-[10px] font-semibold uppercase tracking-widest text-brand-yellow/80">
-              Lo más vendido
-            </div>
             <AnimatePresence mode="wait">
               <motion.div
                 key={heroIndex}

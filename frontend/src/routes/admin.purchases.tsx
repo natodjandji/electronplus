@@ -25,6 +25,13 @@ import {
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { Separator } from "@/components/ui/separator";
 import { Textarea } from "@/components/ui/textarea";
 import { SupplierPicker } from "@/components/supplier-picker";
@@ -87,6 +94,15 @@ const DUE_BADGE: Record<DueStatus, string> = {
   due_soon: "bg-brand-yellow text-brand-navy",
   current: "bg-brand-blue/10 text-brand-blue",
 };
+
+const PAYMENT_METHOD_OPTIONS = [
+  { value: "transferencia", label: "Transferencia bancaria" },
+  { value: "pago_movil", label: "Pago móvil" },
+  { value: "efectivo", label: "Efectivo" },
+  { value: "zelle", label: "Zelle" },
+  { value: "cheque", label: "Cheque" },
+  { value: "otro", label: "Otro" },
+];
 
 function reportError(error: unknown) {
   toast.error(error instanceof ApiError ? error.message : "Ocurrió un error inesperado");
@@ -757,11 +773,18 @@ function InvoiceDetailDialog({ invoiceId, onClose }: { invoiceId: string; onClos
             </div>
             <div className="grid gap-1.5">
               <Label className="text-xs font-medium text-brand-navy">Método</Label>
-              <Input
-                value={payMethod}
-                onChange={(e) => setPayMethod(e.target.value)}
-                placeholder="transferencia, efectivo…"
-              />
+              <Select value={payMethod} onValueChange={setPayMethod}>
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {PAYMENT_METHOD_OPTIONS.map((opt) => (
+                    <SelectItem key={opt.value} value={opt.value}>
+                      {opt.label}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
             </div>
             <div className="grid gap-1.5">
               <Label className="text-xs font-medium text-brand-navy">Referencia</Label>

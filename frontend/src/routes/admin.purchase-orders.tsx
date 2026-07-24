@@ -11,8 +11,10 @@ import {
   Loader2,
   AlertCircle,
   Pencil,
+  Printer,
 } from "lucide-react";
 import { AdminShell } from "@/components/admin-shell";
+import { ElectronLogo } from "@/components/electron-logo";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
@@ -34,9 +36,10 @@ import {
 } from "@/components/ui/select";
 import { Separator } from "@/components/ui/separator";
 import { Textarea } from "@/components/ui/textarea";
-import { SupplierPicker } from "@/components/supplier-picker";
+import { SupplierPicker, useSuppliers } from "@/components/supplier-picker";
 import { apiFetch, ApiError } from "@/lib/api-client";
 import { formatMoney } from "@/lib/electron-store";
+import { CONTACT_INFO } from "@/lib/contact-info";
 import { toast } from "sonner";
 
 export const Route = createFileRoute("/admin/purchase-orders")({
@@ -599,6 +602,7 @@ function OrderDetailDialog({ orderId, onClose }: { orderId: string; onClose: () 
     queryKey: ["admin", "purchase-orders", orderId, "payments"],
     queryFn: () => apiFetch<PurchaseOrderPayment[]>(`/purchase-orders/${orderId}/payments`),
   });
+  const { data: suppliers } = useSuppliers();
 
   const invalidate = () => {
     queryClient.invalidateQueries({ queryKey: ["admin", "purchase-orders"] });
@@ -704,6 +708,8 @@ function OrderDetailDialog({ orderId, onClose }: { orderId: string; onClose: () 
 
   const canEditTerms = order.status !== "paid" && order.status !== "cancelled";
   const remaining = order.totals.totalAmount - order.amountPaid;
+  const supplier = suppliers?.find((s) => s.id === order.supplierId);
+  const poNumber = order.id.slice(0, 8).toUpperCase();
 
   const startEditing = () => {
     setEditSupplierId(order.supplierId);
@@ -723,266 +729,393 @@ function OrderDetailDialog({ orderId, onClose }: { orderId: string; onClose: () 
   };
 
   return (
-    <Dialog open onOpenChange={(open) => !open && onClose()}>
-      <DialogContent className="max-h-[85vh] max-w-2xl overflow-y-auto">
-        <DialogHeader>
-          <DialogTitle className="flex items-center gap-2">
-            {order.supplierName}
-            <Badge className={STATUS_BADGE[order.status]}>{STATUS_LABEL[order.status]}</Badge>
-          </DialogTitle>
-        </DialogHeader>
-
-        <div className="flex items-center justify-between">
-          <div className="text-xs font-semibold uppercase tracking-widest text-muted-foreground">
-            Productos
-          </div>
-          {order.status === "draft" && !editingItems && (
-            <Button size="sm" variant="outline" className="gap-2" onClick={startEditing}>
-              <Pencil className="h-3.5 w-3.5" /> Editar
-            </Button>
-          )}
-        </div>
-
-        {!editingItems && (
-          <div className="space-y-2 text-sm">
-            {order.items.map((item) => (
-              <div
-                key={item.productId}
-                className="flex items-center justify-between border-b border-border py-2 last:border-0"
+    <>
+      <Dialog open onOpenChange={(open) => !open && onClose()}>
+        <DialogContent className="max-h-[85vh] max-w-2xl overflow-y-auto print:hidden">
+          <DialogHeader>
+            <div className="flex items-center justify-between gap-3 pr-6">
+              <DialogTitle className="flex items-center gap-2">
+                {order.supplierName}
+                <Badge className={STATUS_BADGE[order.status]}>{STATUS_LABEL[order.status]}</Badge>
+              </DialogTitle>
+              <Button
+                variant="outline"
+                size="sm"
+                className="gap-1.5"
+                onClick={() => window.print()}
               >
-                <div>
-                  <div className="font-medium text-brand-navy">{item.name}</div>
-                  <div className="text-xs text-muted-foreground">
-                    {item.sku} · {item.quantityOrdered} × {formatMoney(item.unitCost)}
-                    {item.discountPerItem > 0 ? ` · -${item.discountPerItem}%` : ""}
-                  </div>
-                </div>
-                <div className="font-semibold text-brand-navy">{formatMoney(item.subtotal)}</div>
-              </div>
-            ))}
-          </div>
-        )}
+                <Printer className="h-3.5 w-3.5" /> Imprimir / PDF
+              </Button>
+            </div>
+          </DialogHeader>
 
-        {editingItems && (
-          <div className="space-y-3">
+          <div className="flex items-center justify-between">
+            <div className="text-xs font-semibold uppercase tracking-widest text-muted-foreground">
+              Productos
+            </div>
+            {order.status === "draft" && !editingItems && (
+              <Button size="sm" variant="outline" className="gap-2" onClick={startEditing}>
+                <Pencil className="h-3.5 w-3.5" /> Editar
+              </Button>
+            )}
+          </div>
+
+          {!editingItems && (
+            <div className="space-y-2 text-sm">
+              {order.items.map((item) => (
+                <div
+                  key={item.productId}
+                  className="flex items-center justify-between border-b border-border py-2 last:border-0"
+                >
+                  <div>
+                    <div className="font-medium text-brand-navy">{item.name}</div>
+                    <div className="text-xs text-muted-foreground">
+                      {item.sku} · {item.quantityOrdered} × {formatMoney(item.unitCost)}
+                      {item.discountPerItem > 0 ? ` · -${item.discountPerItem}%` : ""}
+                    </div>
+                  </div>
+                  <div className="font-semibold text-brand-navy">{formatMoney(item.subtotal)}</div>
+                </div>
+              ))}
+            </div>
+          )}
+
+          {editingItems && (
+            <div className="space-y-3">
+              <div className="grid gap-1.5">
+                <Label className="text-xs font-medium text-brand-navy">Proveedor</Label>
+                <SupplierPicker
+                  value={editSupplierId}
+                  onChange={(id, name) => {
+                    setEditSupplierId(id);
+                    setEditSupplierName(name);
+                    setEditLines([]);
+                  }}
+                />
+              </div>
+              <LineItemsEditor products={editProducts} lines={editLines} setLines={setEditLines} />
+              <div className="flex items-center justify-end gap-2">
+                <Label className="text-xs text-muted-foreground">Descuento global %</Label>
+                <Input
+                  type="number"
+                  min={0}
+                  max={100}
+                  value={editGlobalDiscount}
+                  onChange={(e) =>
+                    setEditGlobalDiscount(Math.min(100, Math.max(0, Number(e.target.value))))
+                  }
+                  className="h-8 w-20 text-right"
+                />
+              </div>
+              <div className="flex justify-between text-base font-bold text-brand-navy">
+                <span>Total (nuevo)</span>
+                <span>{formatMoney(computeDraftTotal(editLines, editGlobalDiscount))}</span>
+              </div>
+              <div className="flex justify-end gap-2">
+                <Button variant="outline" size="sm" onClick={() => setEditingItems(false)}>
+                  Cancelar
+                </Button>
+                <Button
+                  size="sm"
+                  className="bg-brand-blue text-white hover:bg-brand-blue/90"
+                  disabled={editLines.length === 0 || !editSupplierName || saveItems.isPending}
+                  onClick={() => saveItems.mutate()}
+                >
+                  Guardar cambios
+                </Button>
+              </div>
+            </div>
+          )}
+
+          {!editingItems && (
+            <div className="space-y-1 text-sm">
+              <div className="flex justify-between text-muted-foreground">
+                <span>Subtotal</span>
+                <span>{formatMoney(order.totals.subtotal)}</span>
+              </div>
+              <div className="flex justify-between text-muted-foreground">
+                <span>Descuento total</span>
+                <span>-{formatMoney(order.totals.totalDiscount)}</span>
+              </div>
+              <div className="flex justify-between text-base font-bold text-brand-navy">
+                <span>Total</span>
+                <span>{formatMoney(order.totals.totalAmount)}</span>
+              </div>
+              <div className="flex justify-between text-muted-foreground">
+                <span>Pagado</span>
+                <span>{formatMoney(order.amountPaid)}</span>
+              </div>
+              {order.status !== "paid" && order.status !== "cancelled" && (
+                <div className="flex justify-between font-medium text-brand-navy">
+                  <span>Saldo pendiente</span>
+                  <span>{formatMoney(Math.max(0, remaining))}</span>
+                </div>
+              )}
+            </div>
+          )}
+
+          <Separator />
+
+          <div className="grid gap-3">
             <div className="grid gap-1.5">
-              <Label className="text-xs font-medium text-brand-navy">Proveedor</Label>
-              <SupplierPicker
-                value={editSupplierId}
-                onChange={(id, name) => {
-                  setEditSupplierId(id);
-                  setEditSupplierName(name);
-                  setEditLines([]);
-                }}
-              />
-            </div>
-            <LineItemsEditor products={editProducts} lines={editLines} setLines={setEditLines} />
-            <div className="flex items-center justify-end gap-2">
-              <Label className="text-xs text-muted-foreground">Descuento global %</Label>
+              <Label className="text-xs font-medium text-brand-navy">Condiciones de pago</Label>
               <Input
-                type="number"
-                min={0}
-                max={100}
-                value={editGlobalDiscount}
-                onChange={(e) =>
-                  setEditGlobalDiscount(Math.min(100, Math.max(0, Number(e.target.value))))
-                }
-                className="h-8 w-20 text-right"
+                disabled={!canEditTerms}
+                defaultValue={order.paymentTerms ?? ""}
+                onChange={(e) => setTerms(e.target.value)}
+                placeholder="Ej. 30 días"
               />
             </div>
-            <div className="flex justify-between text-base font-bold text-brand-navy">
-              <span>Total (nuevo)</span>
-              <span>{formatMoney(computeDraftTotal(editLines, editGlobalDiscount))}</span>
+            <div className="grid gap-1.5">
+              <Label className="text-xs font-medium text-brand-navy">Notas</Label>
+              <Textarea
+                disabled={!canEditTerms}
+                defaultValue={order.notes ?? ""}
+                onChange={(e) => setNotes(e.target.value)}
+              />
             </div>
-            <div className="flex justify-end gap-2">
-              <Button variant="outline" size="sm" onClick={() => setEditingItems(false)}>
+            {canEditTerms && (terms !== null || notes !== null) && (
+              <Button
+                size="sm"
+                variant="outline"
+                className="justify-self-start"
+                onClick={() => saveTerms.mutate()}
+                disabled={saveTerms.isPending}
+              >
+                Guardar condiciones
+              </Button>
+            )}
+          </div>
+
+          {payments && payments.length > 0 && (
+            <>
+              <Separator />
+              <div>
+                <div className="text-xs font-semibold uppercase tracking-widest text-muted-foreground">
+                  Historial de pagos
+                </div>
+                <div className="mt-2 space-y-2 text-sm">
+                  {payments.map((p) => (
+                    <div
+                      key={p.id}
+                      className="flex items-center justify-between border-b border-border py-1.5 last:border-0"
+                    >
+                      <div className="flex items-center gap-2 text-muted-foreground">
+                        <Clock className="h-3.5 w-3.5" />
+                        {new Date(p.paidAt).toLocaleDateString("es-VE")} · {p.method}
+                        {p.reference ? ` · ${p.reference}` : ""}
+                      </div>
+                      <div className="font-semibold text-brand-navy">{formatMoney(p.amount)}</div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </>
+          )}
+
+          {!editingItems && (
+            <DialogFooter className="gap-2 sm:justify-between">
+              <div className="flex gap-2">
+                {order.status !== "paid" && order.status !== "cancelled" && (
+                  <Button
+                    variant="outline"
+                    className="gap-2 text-destructive"
+                    onClick={() => cancel.mutate()}
+                    disabled={cancel.isPending}
+                  >
+                    <Ban className="h-4 w-4" /> Cancelar
+                  </Button>
+                )}
+              </div>
+              <div className="flex gap-2">
+                {order.status === "draft" && (
+                  <Button
+                    className="gap-2 bg-brand-blue text-white hover:bg-brand-blue/90"
+                    onClick={() => issue.mutate()}
+                    disabled={issue.isPending}
+                  >
+                    <Send className="h-4 w-4" /> Emitir
+                  </Button>
+                )}
+                {(order.status === "issued" || order.status === "partially_paid") && (
+                  <Button
+                    className="gap-2 bg-brand-yellow text-brand-navy hover:bg-brand-yellow/90"
+                    onClick={() => {
+                      setPayAmount(Math.max(0, remaining));
+                      setPayOpen(true);
+                    }}
+                  >
+                    <DollarSign className="h-4 w-4" /> Registrar pago
+                  </Button>
+                )}
+              </div>
+            </DialogFooter>
+          )}
+        </DialogContent>
+
+        <Dialog open={payOpen} onOpenChange={setPayOpen}>
+          <DialogContent className="max-w-sm">
+            <DialogHeader>
+              <DialogTitle>Registrar pago</DialogTitle>
+            </DialogHeader>
+            <div className="grid gap-3">
+              <div className="grid gap-1.5">
+                <Label className="text-xs font-medium text-brand-navy">Monto</Label>
+                <Input
+                  type="number"
+                  min={0.01}
+                  step="0.01"
+                  value={payAmount}
+                  onChange={(e) => setPayAmount(Number(e.target.value))}
+                />
+              </div>
+              <div className="grid gap-1.5">
+                <Label className="text-xs font-medium text-brand-navy">Método</Label>
+                <Input
+                  value={payMethod}
+                  onChange={(e) => setPayMethod(e.target.value)}
+                  placeholder="transferencia, efectivo…"
+                />
+              </div>
+              <div className="grid gap-1.5">
+                <Label className="text-xs font-medium text-brand-navy">Referencia</Label>
+                <Input
+                  value={payReference}
+                  onChange={(e) => setPayReference(e.target.value)}
+                  placeholder="Opcional"
+                />
+              </div>
+            </div>
+            <DialogFooter>
+              <Button variant="outline" onClick={() => setPayOpen(false)}>
                 Cancelar
               </Button>
               <Button
-                size="sm"
                 className="bg-brand-blue text-white hover:bg-brand-blue/90"
-                disabled={editLines.length === 0 || !editSupplierName || saveItems.isPending}
-                onClick={() => saveItems.mutate()}
+                disabled={payAmount <= 0 || pay.isPending}
+                onClick={() => pay.mutate()}
               >
-                Guardar cambios
+                Confirmar pago
               </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+      </Dialog>
+
+      <div className="hidden print:block">
+        <div className="mx-auto max-w-2xl p-6">
+          <div className="flex items-center justify-between gap-4 border-b border-border pb-4">
+            <ElectronLogo layout="full" tone="color" className="h-8" />
+            <div className="text-right text-xs text-muted-foreground">
+              <div className="font-semibold text-brand-navy">Orden de compra #{poNumber}</div>
+              <div>
+                {new Date(order.createdAt).toLocaleDateString("es-VE", {
+                  day: "2-digit",
+                  month: "short",
+                  year: "numeric",
+                })}
+              </div>
+              <div>{STATUS_LABEL[order.status]}</div>
             </div>
           </div>
-        )}
 
-        {!editingItems && (
-          <div className="space-y-1 text-sm">
-            <div className="flex justify-between text-muted-foreground">
+          <div className="mt-4 grid grid-cols-2 gap-6 text-sm">
+            <div>
+              <div className="text-xs font-semibold uppercase tracking-widest text-muted-foreground">
+                De
+              </div>
+              <div className="mt-1 font-semibold text-brand-navy">Electron Plus, C.A.</div>
+              <div className="text-muted-foreground">{CONTACT_INFO.phone}</div>
+              <div className="text-muted-foreground">{CONTACT_INFO.email}</div>
+            </div>
+            <div>
+              <div className="text-xs font-semibold uppercase tracking-widest text-muted-foreground">
+                Proveedor
+              </div>
+              <div className="mt-1 font-semibold text-brand-navy">{order.supplierName}</div>
+              {supplier?.taxId && (
+                <div className="text-muted-foreground">RIF: {supplier.taxId}</div>
+              )}
+              {supplier?.contactPhone && (
+                <div className="text-muted-foreground">{supplier.contactPhone}</div>
+              )}
+              {supplier?.contactEmail && (
+                <div className="text-muted-foreground">{supplier.contactEmail}</div>
+              )}
+            </div>
+          </div>
+
+          <table className="mt-6 w-full text-sm">
+            <thead>
+              <tr className="border-b border-border text-left text-xs uppercase tracking-wider text-muted-foreground">
+                <th className="py-2">Producto</th>
+                <th className="py-2 text-right">Cant.</th>
+                <th className="py-2 text-right">Costo unit.</th>
+                <th className="py-2 text-right">Desc.</th>
+                <th className="py-2 text-right">Subtotal</th>
+              </tr>
+            </thead>
+            <tbody>
+              {order.items.map((item) => (
+                <tr key={item.productId} className="border-b border-border">
+                  <td className="py-3">
+                    <div className="font-semibold text-brand-navy">{item.name}</div>
+                    <div className="text-xs text-muted-foreground">{item.sku}</div>
+                  </td>
+                  <td className="py-3 text-right">{item.quantityOrdered}</td>
+                  <td className="py-3 text-right">{formatMoney(item.unitCost)}</td>
+                  <td className="py-3 text-right text-muted-foreground">
+                    {item.discountPerItem > 0 ? `-${item.discountPerItem}%` : "—"}
+                  </td>
+                  <td className="py-3 text-right font-semibold text-brand-navy">
+                    {formatMoney(item.subtotal)}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+
+          <div className="mt-6 flex flex-col items-end gap-1 text-sm">
+            <div className="flex w-56 justify-between text-muted-foreground">
               <span>Subtotal</span>
               <span>{formatMoney(order.totals.subtotal)}</span>
             </div>
-            <div className="flex justify-between text-muted-foreground">
-              <span>Descuento total</span>
-              <span>-{formatMoney(order.totals.totalDiscount)}</span>
-            </div>
-            <div className="flex justify-between text-base font-bold text-brand-navy">
+            {order.totals.totalDiscount > 0 && (
+              <div className="flex w-56 justify-between text-muted-foreground">
+                <span>Descuento</span>
+                <span>-{formatMoney(order.totals.totalDiscount)}</span>
+              </div>
+            )}
+            <div className="flex w-56 justify-between text-lg font-bold text-brand-navy">
               <span>Total</span>
               <span>{formatMoney(order.totals.totalAmount)}</span>
             </div>
-            <div className="flex justify-between text-muted-foreground">
-              <span>Pagado</span>
-              <span>{formatMoney(order.amountPaid)}</span>
-            </div>
-            {order.status !== "paid" && order.status !== "cancelled" && (
-              <div className="flex justify-between font-medium text-brand-navy">
-                <span>Saldo pendiente</span>
-                <span>{formatMoney(Math.max(0, remaining))}</span>
+            {order.amountPaid > 0 && (
+              <div className="flex w-56 justify-between text-muted-foreground">
+                <span>Pagado</span>
+                <span>{formatMoney(order.amountPaid)}</span>
               </div>
             )}
           </div>
-        )}
 
-        <Separator />
-
-        <div className="grid gap-3">
-          <div className="grid gap-1.5">
-            <Label className="text-xs font-medium text-brand-navy">Condiciones de pago</Label>
-            <Input
-              disabled={!canEditTerms}
-              defaultValue={order.paymentTerms ?? ""}
-              onChange={(e) => setTerms(e.target.value)}
-              placeholder="Ej. 30 días"
-            />
-          </div>
-          <div className="grid gap-1.5">
-            <Label className="text-xs font-medium text-brand-navy">Notas</Label>
-            <Textarea
-              disabled={!canEditTerms}
-              defaultValue={order.notes ?? ""}
-              onChange={(e) => setNotes(e.target.value)}
-            />
-          </div>
-          {canEditTerms && (terms !== null || notes !== null) && (
-            <Button
-              size="sm"
-              variant="outline"
-              className="justify-self-start"
-              onClick={() => saveTerms.mutate()}
-              disabled={saveTerms.isPending}
-            >
-              Guardar condiciones
-            </Button>
+          {(order.paymentTerms || order.notes) && (
+            <div className="mt-6 space-y-2 border-t border-border pt-4 text-sm">
+              {order.paymentTerms && (
+                <div>
+                  <span className="font-semibold text-brand-navy">Condiciones de pago: </span>
+                  <span className="text-muted-foreground">{order.paymentTerms}</span>
+                </div>
+              )}
+              {order.notes && (
+                <div>
+                  <span className="font-semibold text-brand-navy">Notas: </span>
+                  <span className="text-muted-foreground">{order.notes}</span>
+                </div>
+              )}
+            </div>
           )}
         </div>
-
-        {payments && payments.length > 0 && (
-          <>
-            <Separator />
-            <div>
-              <div className="text-xs font-semibold uppercase tracking-widest text-muted-foreground">
-                Historial de pagos
-              </div>
-              <div className="mt-2 space-y-2 text-sm">
-                {payments.map((p) => (
-                  <div
-                    key={p.id}
-                    className="flex items-center justify-between border-b border-border py-1.5 last:border-0"
-                  >
-                    <div className="flex items-center gap-2 text-muted-foreground">
-                      <Clock className="h-3.5 w-3.5" />
-                      {new Date(p.paidAt).toLocaleDateString("es-VE")} · {p.method}
-                      {p.reference ? ` · ${p.reference}` : ""}
-                    </div>
-                    <div className="font-semibold text-brand-navy">{formatMoney(p.amount)}</div>
-                  </div>
-                ))}
-              </div>
-            </div>
-          </>
-        )}
-
-        {!editingItems && (
-          <DialogFooter className="gap-2 sm:justify-between">
-            <div className="flex gap-2">
-              {order.status !== "paid" && order.status !== "cancelled" && (
-                <Button
-                  variant="outline"
-                  className="gap-2 text-destructive"
-                  onClick={() => cancel.mutate()}
-                  disabled={cancel.isPending}
-                >
-                  <Ban className="h-4 w-4" /> Cancelar
-                </Button>
-              )}
-            </div>
-            <div className="flex gap-2">
-              {order.status === "draft" && (
-                <Button
-                  className="gap-2 bg-brand-blue text-white hover:bg-brand-blue/90"
-                  onClick={() => issue.mutate()}
-                  disabled={issue.isPending}
-                >
-                  <Send className="h-4 w-4" /> Emitir
-                </Button>
-              )}
-              {(order.status === "issued" || order.status === "partially_paid") && (
-                <Button
-                  className="gap-2 bg-brand-yellow text-brand-navy hover:bg-brand-yellow/90"
-                  onClick={() => {
-                    setPayAmount(Math.max(0, remaining));
-                    setPayOpen(true);
-                  }}
-                >
-                  <DollarSign className="h-4 w-4" /> Registrar pago
-                </Button>
-              )}
-            </div>
-          </DialogFooter>
-        )}
-      </DialogContent>
-
-      <Dialog open={payOpen} onOpenChange={setPayOpen}>
-        <DialogContent className="max-w-sm">
-          <DialogHeader>
-            <DialogTitle>Registrar pago</DialogTitle>
-          </DialogHeader>
-          <div className="grid gap-3">
-            <div className="grid gap-1.5">
-              <Label className="text-xs font-medium text-brand-navy">Monto</Label>
-              <Input
-                type="number"
-                min={0.01}
-                step="0.01"
-                value={payAmount}
-                onChange={(e) => setPayAmount(Number(e.target.value))}
-              />
-            </div>
-            <div className="grid gap-1.5">
-              <Label className="text-xs font-medium text-brand-navy">Método</Label>
-              <Input
-                value={payMethod}
-                onChange={(e) => setPayMethod(e.target.value)}
-                placeholder="transferencia, efectivo…"
-              />
-            </div>
-            <div className="grid gap-1.5">
-              <Label className="text-xs font-medium text-brand-navy">Referencia</Label>
-              <Input
-                value={payReference}
-                onChange={(e) => setPayReference(e.target.value)}
-                placeholder="Opcional"
-              />
-            </div>
-          </div>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setPayOpen(false)}>
-              Cancelar
-            </Button>
-            <Button
-              className="bg-brand-blue text-white hover:bg-brand-blue/90"
-              disabled={payAmount <= 0 || pay.isPending}
-              onClick={() => pay.mutate()}
-            >
-              Confirmar pago
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
-    </Dialog>
+      </div>
+    </>
   );
 }
