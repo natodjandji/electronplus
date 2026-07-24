@@ -5,6 +5,7 @@ import { AnimatePresence, motion, useReducedMotion } from "motion/react";
 import { ArrowRight, Zap, Truck, ShieldCheck, Tag, Search, ShoppingCart } from "lucide-react";
 import { PublicShell } from "@/components/public-shell";
 import { CircuitBackground } from "@/components/circuit-traces";
+import { EASE_OUT_QUINT } from "@/components/motion-primitives";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -16,8 +17,6 @@ import type { Product } from "@/lib/mock-data";
 
 const HERO_GROUP_SIZE = 4;
 const HERO_ROTATE_MS = 5000;
-/** ease-out-quint — confident, decisive settle, no bounce. */
-const EASE_OUT_QUINT = [0.22, 1, 0.36, 1] as const;
 
 /** Cycles through `items` in fixed-size groups every `intervalMs` — used to rotate the
  * hero showcase through best-sellers instead of freezing on the first four. */

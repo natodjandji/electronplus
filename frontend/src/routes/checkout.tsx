@@ -1,6 +1,7 @@
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
+import { AnimatePresence, motion, useReducedMotion } from "motion/react";
 import {
   Check,
   CreditCard,
@@ -12,6 +13,7 @@ import {
   X,
 } from "lucide-react";
 import { PublicShell } from "@/components/public-shell";
+import { EASE_OUT_QUINT } from "@/components/motion-primitives";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -111,6 +113,12 @@ function CheckoutPage() {
   const navigate = useNavigate();
 
   const [step, setStep] = useState(1);
+  const [direction, setDirection] = useState(1);
+  const goToStep = (next: number) => {
+    setDirection(next > step ? 1 : -1);
+    setStep(next);
+  };
+  const reduceMotion = useReducedMotion();
 
   const [fullName, setFullName] = useState("");
   const [taxIdPrefix, setTaxIdPrefix] = useState<TaxIdPrefix>("V");
@@ -349,305 +357,324 @@ function CheckoutPage() {
         </div>
 
         <div className="mt-8 grid gap-6 lg:grid-cols-[minmax(0,1fr)_320px]">
-          <Card className="p-6">
-            {step === 1 && (
-              <div className="space-y-4">
-                <h2 className="text-lg font-semibold text-brand-navy">Información de envío</h2>
-                <div className="grid gap-4 sm:grid-cols-2">
-                  <div className="grid gap-1.5">
-                    <Label className="text-xs font-medium text-brand-navy">Nombre completo</Label>
-                    <Input
-                      placeholder="María Pérez"
-                      value={fullName}
-                      onChange={(e) => setFullName(e.target.value)}
-                    />
-                  </div>
-                  <TaxIdField
-                    label="Cédula / RIF"
-                    prefix={taxIdPrefix}
-                    onPrefixChange={setTaxIdPrefix}
-                    number={taxIdNumber}
-                    onNumberChange={setTaxIdNumber}
-                  />
-                  <PhoneField
-                    prefix={phonePrefix}
-                    onPrefixChange={setPhonePrefix}
-                    number={phoneNumber}
-                    onNumberChange={setPhoneNumber}
-                  />
-                  <div className="grid gap-1.5">
-                    <Label className="text-xs font-medium text-brand-navy">Correo</Label>
-                    <Input value={email} disabled className="bg-brand-surface" />
-                  </div>
-                  <div className="grid gap-1.5">
-                    <Label className="text-xs font-medium text-brand-navy">Estado</Label>
-                    <Select
-                      value={state}
-                      onValueChange={(v) => {
-                        setState(v);
-                        setCity("");
-                      }}
-                    >
-                      <SelectTrigger>
-                        <SelectValue placeholder="Selecciona un estado" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {VENEZUELA_STATE_NAMES.map((s) => (
-                          <SelectItem key={s} value={s}>
-                            {s}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  </div>
-                  <div className="grid gap-1.5">
-                    <Label className="text-xs font-medium text-brand-navy">Ciudad</Label>
-                    <Select value={city} onValueChange={setCity} disabled={!state}>
-                      <SelectTrigger>
-                        <SelectValue
-                          placeholder={state ? "Selecciona una ciudad" : "Elige un estado primero"}
+          <Card className="overflow-hidden p-6">
+            <AnimatePresence mode="wait" initial={false} custom={direction}>
+              <motion.div
+                key={step}
+                custom={direction}
+                initial={reduceMotion ? { opacity: 0 } : { opacity: 0, x: direction * 24 }}
+                animate={{ opacity: 1, x: 0 }}
+                exit={reduceMotion ? { opacity: 0 } : { opacity: 0, x: direction * -24 }}
+                transition={{ duration: reduceMotion ? 0.15 : 0.25, ease: EASE_OUT_QUINT }}
+              >
+                {step === 1 && (
+                  <div className="space-y-4">
+                    <h2 className="text-lg font-semibold text-brand-navy">Información de envío</h2>
+                    <div className="grid gap-4 sm:grid-cols-2">
+                      <div className="grid gap-1.5">
+                        <Label className="text-xs font-medium text-brand-navy">
+                          Nombre completo
+                        </Label>
+                        <Input
+                          placeholder="María Pérez"
+                          value={fullName}
+                          onChange={(e) => setFullName(e.target.value)}
                         />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {citiesForState(state).map((c) => (
-                          <SelectItem key={c} value={c}>
-                            {c}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  </div>
-                  <div className="sm:col-span-2">
-                    <div className="grid gap-1.5">
-                      <Label className="text-xs font-medium text-brand-navy">Dirección</Label>
-                      <Input
-                        placeholder="Av. Principal, edif..."
-                        value={address}
-                        onChange={(e) => setAddress(e.target.value)}
+                      </div>
+                      <TaxIdField
+                        label="Cédula / RIF"
+                        prefix={taxIdPrefix}
+                        onPrefixChange={setTaxIdPrefix}
+                        number={taxIdNumber}
+                        onNumberChange={setTaxIdNumber}
                       />
+                      <PhoneField
+                        prefix={phonePrefix}
+                        onPrefixChange={setPhonePrefix}
+                        number={phoneNumber}
+                        onNumberChange={setPhoneNumber}
+                      />
+                      <div className="grid gap-1.5">
+                        <Label className="text-xs font-medium text-brand-navy">Correo</Label>
+                        <Input value={email} disabled className="bg-brand-surface" />
+                      </div>
+                      <div className="grid gap-1.5">
+                        <Label className="text-xs font-medium text-brand-navy">Estado</Label>
+                        <Select
+                          value={state}
+                          onValueChange={(v) => {
+                            setState(v);
+                            setCity("");
+                          }}
+                        >
+                          <SelectTrigger>
+                            <SelectValue placeholder="Selecciona un estado" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {VENEZUELA_STATE_NAMES.map((s) => (
+                              <SelectItem key={s} value={s}>
+                                {s}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      </div>
+                      <div className="grid gap-1.5">
+                        <Label className="text-xs font-medium text-brand-navy">Ciudad</Label>
+                        <Select value={city} onValueChange={setCity} disabled={!state}>
+                          <SelectTrigger>
+                            <SelectValue
+                              placeholder={
+                                state ? "Selecciona una ciudad" : "Elige un estado primero"
+                              }
+                            />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {citiesForState(state).map((c) => (
+                              <SelectItem key={c} value={c}>
+                                {c}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      </div>
+                      <div className="sm:col-span-2">
+                        <div className="grid gap-1.5">
+                          <Label className="text-xs font-medium text-brand-navy">Dirección</Label>
+                          <Input
+                            placeholder="Av. Principal, edif..."
+                            value={address}
+                            onChange={(e) => setAddress(e.target.value)}
+                          />
+                        </div>
+                      </div>
                     </div>
-                  </div>
-                </div>
-                {state && city && (
-                  <div className="rounded-md border border-border bg-brand-surface px-3 py-2 text-sm text-brand-navy">
-                    Costo de envío a {city}, {state}:{" "}
-                    <span className="font-semibold">
-                      {shippingQuote ? formatMoney(shippingCost) : "calculando…"}
-                    </span>
-                    {shippingQuote && !shippingQuote.matched && (
-                      <span className="ml-1 text-xs text-muted-foreground">
-                        (sin tarifa configurada, te contactaremos para confirmarlo)
-                      </span>
-                    )}
-                  </div>
-                )}
-              </div>
-            )}
-            {step === 2 && (
-              <div className="space-y-4">
-                <h2 className="text-lg font-semibold text-brand-navy">Método de pago</h2>
-                {enabledMethods.length === 0 ? (
-                  <div className="flex items-center justify-center gap-2 py-6 text-sm text-muted-foreground">
-                    <Loader2 className="h-4 w-4 animate-spin" />
-                    Cargando métodos de pago…
-                  </div>
-                ) : (
-                  <RadioGroup value={method} onValueChange={setMethod} className="grid gap-3">
-                    {enabledMethods.map((m) => (
-                      <label
-                        key={m.id}
-                        className={`flex cursor-pointer items-center gap-3 rounded-md border p-3 transition ${
-                          method === m.id ? "border-brand-blue bg-brand-blue/5" : "border-border"
-                        }`}
-                      >
-                        <RadioGroupItem value={m.id} />
-                        <span className="font-medium text-brand-navy">{m.label}</span>
-                      </label>
-                    ))}
-                  </RadioGroup>
-                )}
-
-                {info && (
-                  <div className="rounded-md border border-border bg-brand-surface p-4 text-sm">
-                    <div className="font-semibold text-brand-navy">{info.label}</div>
-                    <ul className="mt-1 space-y-0.5 text-muted-foreground">
-                      {info.details.map((line) => (
-                        <li key={line}>{line}</li>
-                      ))}
-                    </ul>
-                    {(info.needsReference || info.needsProof) && (
-                      <div className="mt-3 flex items-baseline gap-2 border-t border-border pt-3">
-                        <span className="text-xs text-muted-foreground">Monto a pagar:</span>
-                        <span className="font-bold text-brand-navy">{formatMoney(total)}</span>
-                        {bcv && (
-                          <span className="text-xs font-semibold text-brand-blue">
-                            ≈ {formatBs(total, bcv.rate)}
+                    {state && city && (
+                      <div className="rounded-md border border-border bg-brand-surface px-3 py-2 text-sm text-brand-navy">
+                        Costo de envío a {city}, {state}:{" "}
+                        <span className="font-semibold">
+                          {shippingQuote ? formatMoney(shippingCost) : "calculando…"}
+                        </span>
+                        {shippingQuote && !shippingQuote.matched && (
+                          <span className="ml-1 text-xs text-muted-foreground">
+                            (sin tarifa configurada, te contactaremos para confirmarlo)
                           </span>
                         )}
                       </div>
                     )}
                   </div>
                 )}
-
-                {info?.needsReference && (
-                  <div className="grid gap-1.5">
-                    <Label className="text-xs font-medium text-brand-navy">
-                      Número de referencia / confirmación
-                    </Label>
-                    <Input
-                      placeholder="0000000000"
-                      value={paymentReference}
-                      onChange={(e) => setPaymentReference(e.target.value)}
-                    />
-                  </div>
-                )}
-
-                {info?.needsProof && (
-                  <div className="grid gap-1.5">
-                    <Label className="text-xs font-medium text-brand-navy">
-                      Comprobante de pago (opcional)
-                    </Label>
-                    {proofFileName ? (
-                      <div className="flex items-center justify-between gap-2 rounded-md border border-border p-2.5 text-sm">
-                        <span className="flex items-center gap-2 truncate text-brand-navy">
-                          <FileText className="h-4 w-4 shrink-0 text-brand-blue" />
-                          <span className="truncate">{proofFileName}</span>
-                        </span>
-                        <button
-                          type="button"
-                          onClick={() => {
-                            setProofBase64(undefined);
-                            setProofFileName(undefined);
-                          }}
-                          className="text-muted-foreground hover:text-destructive"
-                          aria-label="Quitar comprobante"
-                        >
-                          <X className="h-4 w-4" />
-                        </button>
+                {step === 2 && (
+                  <div className="space-y-4">
+                    <h2 className="text-lg font-semibold text-brand-navy">Método de pago</h2>
+                    {enabledMethods.length === 0 ? (
+                      <div className="flex items-center justify-center gap-2 py-6 text-sm text-muted-foreground">
+                        <Loader2 className="h-4 w-4 animate-spin" />
+                        Cargando métodos de pago…
                       </div>
                     ) : (
-                      <label className="flex cursor-pointer items-center justify-center gap-2 rounded-md border border-dashed border-border p-4 text-sm text-muted-foreground transition hover:border-brand-blue/40 hover:text-brand-blue">
-                        {proofBusy ? (
-                          <Loader2 className="h-4 w-4 animate-spin" />
-                        ) : (
-                          <Upload className="h-4 w-4" />
+                      <RadioGroup value={method} onValueChange={setMethod} className="grid gap-3">
+                        {enabledMethods.map((m) => (
+                          <label
+                            key={m.id}
+                            className={`flex cursor-pointer items-center gap-3 rounded-md border p-3 transition ${
+                              method === m.id
+                                ? "border-brand-blue bg-brand-blue/5"
+                                : "border-border"
+                            }`}
+                          >
+                            <RadioGroupItem value={m.id} />
+                            <span className="font-medium text-brand-navy">{m.label}</span>
+                          </label>
+                        ))}
+                      </RadioGroup>
+                    )}
+
+                    {info && (
+                      <div className="rounded-md border border-border bg-brand-surface p-4 text-sm">
+                        <div className="font-semibold text-brand-navy">{info.label}</div>
+                        <ul className="mt-1 space-y-0.5 text-muted-foreground">
+                          {info.details.map((line) => (
+                            <li key={line}>{line}</li>
+                          ))}
+                        </ul>
+                        {(info.needsReference || info.needsProof) && (
+                          <div className="mt-3 flex items-baseline gap-2 border-t border-border pt-3">
+                            <span className="text-xs text-muted-foreground">Monto a pagar:</span>
+                            <span className="font-bold text-brand-navy">{formatMoney(total)}</span>
+                            {bcv && (
+                              <span className="text-xs font-semibold text-brand-blue">
+                                ≈ {formatBs(total, bcv.rate)}
+                              </span>
+                            )}
+                          </div>
                         )}
-                        Subir captura del pago
-                        <input
-                          type="file"
-                          accept="image/png,image/jpeg,image/webp"
-                          className="hidden"
-                          onChange={(e) => {
-                            const file = e.target.files?.[0];
-                            if (file) void handleProofFile(file);
-                          }}
+                      </div>
+                    )}
+
+                    {info?.needsReference && (
+                      <div className="grid gap-1.5">
+                        <Label className="text-xs font-medium text-brand-navy">
+                          Número de referencia / confirmación
+                        </Label>
+                        <Input
+                          placeholder="0000000000"
+                          value={paymentReference}
+                          onChange={(e) => setPaymentReference(e.target.value)}
                         />
-                      </label>
+                      </div>
+                    )}
+
+                    {info?.needsProof && (
+                      <div className="grid gap-1.5">
+                        <Label className="text-xs font-medium text-brand-navy">
+                          Comprobante de pago (opcional)
+                        </Label>
+                        {proofFileName ? (
+                          <div className="flex items-center justify-between gap-2 rounded-md border border-border p-2.5 text-sm">
+                            <span className="flex items-center gap-2 truncate text-brand-navy">
+                              <FileText className="h-4 w-4 shrink-0 text-brand-blue" />
+                              <span className="truncate">{proofFileName}</span>
+                            </span>
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setProofBase64(undefined);
+                                setProofFileName(undefined);
+                              }}
+                              className="text-muted-foreground hover:text-destructive"
+                              aria-label="Quitar comprobante"
+                            >
+                              <X className="h-4 w-4" />
+                            </button>
+                          </div>
+                        ) : (
+                          <label className="flex cursor-pointer items-center justify-center gap-2 rounded-md border border-dashed border-border p-4 text-sm text-muted-foreground transition hover:border-brand-blue/40 hover:text-brand-blue">
+                            {proofBusy ? (
+                              <Loader2 className="h-4 w-4 animate-spin" />
+                            ) : (
+                              <Upload className="h-4 w-4" />
+                            )}
+                            Subir captura del pago
+                            <input
+                              type="file"
+                              accept="image/png,image/jpeg,image/webp"
+                              className="hidden"
+                              onChange={(e) => {
+                                const file = e.target.files?.[0];
+                                if (file) void handleProofFile(file);
+                              }}
+                            />
+                          </label>
+                        )}
+                      </div>
                     )}
                   </div>
                 )}
-              </div>
-            )}
-            {step === 3 && (
-              <div className="space-y-4">
-                <h2 className="text-lg font-semibold text-brand-navy">Confirma tu pedido</h2>
-                <p className="text-sm text-muted-foreground">
-                  Revisa que todo esté correcto antes de enviar. Recibirás una confirmación por
-                  correo.
-                </p>
+                {step === 3 && (
+                  <div className="space-y-4">
+                    <h2 className="text-lg font-semibold text-brand-navy">Confirma tu pedido</h2>
+                    <p className="text-sm text-muted-foreground">
+                      Revisa que todo esté correcto antes de enviar. Recibirás una confirmación por
+                      correo.
+                    </p>
 
-                <div className="rounded-md border border-border p-4 text-sm">
-                  <div className="text-xs font-semibold uppercase tracking-widest text-muted-foreground">
-                    Envío
-                  </div>
-                  <div className="mt-1.5 grid gap-1 text-brand-navy sm:grid-cols-2">
-                    <div>{fullName}</div>
-                    <div>{formatTaxId(taxIdPrefix, taxIdNumber) ?? "—"}</div>
-                    <div>{formatPhone(phonePrefix, phoneNumber)}</div>
-                    <div>{email}</div>
-                    <div>
-                      {city}, {state}
-                    </div>
-                    <div className="sm:col-span-2">{address}</div>
-                  </div>
-                </div>
-
-                <div className="rounded-md border border-border p-4 text-sm">
-                  <div className="text-xs font-semibold uppercase tracking-widest text-muted-foreground">
-                    Pago
-                  </div>
-                  <div className="mt-1.5 text-brand-navy">{info?.label}</div>
-                  {paymentReference && (
-                    <div className="text-muted-foreground">Referencia: {paymentReference}</div>
-                  )}
-                  {proofFileName && (
-                    <div className="mt-1 flex items-center gap-1.5 text-muted-foreground">
-                      <FileText className="h-3.5 w-3.5" /> Comprobante adjunto: {proofFileName}
-                    </div>
-                  )}
-                </div>
-
-                <div className="rounded-md border border-border p-4 text-sm">
-                  <div className="text-xs font-semibold uppercase tracking-widest text-muted-foreground">
-                    Productos
-                  </div>
-                  <div className="mt-2 space-y-2">
-                    {cart.map(({ product, qty }) => (
-                      <div key={product.id} className="flex items-center justify-between gap-3">
-                        <div className="min-w-0">
-                          <div className="truncate font-medium text-brand-navy">{product.name}</div>
-                          <div className="text-xs text-muted-foreground">
-                            {product.sku} · {formatMoney(product.retailPrice)} × {qty}
-                          </div>
-                        </div>
-                        <div className="shrink-0 font-semibold text-brand-navy">
-                          {formatMoney(product.retailPrice * qty)}
-                        </div>
+                    <div className="rounded-md border border-border p-4 text-sm">
+                      <div className="text-xs font-semibold uppercase tracking-widest text-muted-foreground">
+                        Envío
                       </div>
-                    ))}
-                  </div>
-                  <Separator className="my-3" />
-                  <div className="space-y-1.5">
-                    <div className="flex justify-between text-muted-foreground">
-                      <span>Subtotal</span>
-                      <span>{formatMoney(cartTotal)}</span>
-                    </div>
-                    {discount && (
-                      <div className="flex justify-between text-muted-foreground">
-                        <span>Descuento ({discount.code})</span>
-                        <span>-{formatMoney(discountAmount)}</span>
+                      <div className="mt-1.5 grid gap-1 text-brand-navy sm:grid-cols-2">
+                        <div>{fullName}</div>
+                        <div>{formatTaxId(taxIdPrefix, taxIdNumber) ?? "—"}</div>
+                        <div>{formatPhone(phonePrefix, phoneNumber)}</div>
+                        <div>{email}</div>
+                        <div>
+                          {city}, {state}
+                        </div>
+                        <div className="sm:col-span-2">{address}</div>
                       </div>
-                    )}
-                    <div className="flex justify-between text-muted-foreground">
-                      <span>IVA (16%)</span>
-                      <span>{formatMoney(taxAmount)}</span>
                     </div>
-                    <div className="flex justify-between text-muted-foreground">
-                      <span>Envío</span>
-                      <span>{formatMoney(shippingCost)}</span>
-                    </div>
-                  </div>
-                  <Separator className="my-3" />
-                  <div className="flex items-baseline justify-between">
-                    <span className="font-bold text-brand-navy">Total</span>
-                    <span className="flex items-baseline gap-2">
-                      <span className="font-bold text-brand-navy">{formatMoney(total)}</span>
-                      {bcv && (
-                        <span className="text-xs font-semibold text-brand-blue">
-                          ≈ {formatBs(total, bcv.rate)}
-                        </span>
+
+                    <div className="rounded-md border border-border p-4 text-sm">
+                      <div className="text-xs font-semibold uppercase tracking-widest text-muted-foreground">
+                        Pago
+                      </div>
+                      <div className="mt-1.5 text-brand-navy">{info?.label}</div>
+                      {paymentReference && (
+                        <div className="text-muted-foreground">Referencia: {paymentReference}</div>
                       )}
-                    </span>
+                      {proofFileName && (
+                        <div className="mt-1 flex items-center gap-1.5 text-muted-foreground">
+                          <FileText className="h-3.5 w-3.5" /> Comprobante adjunto: {proofFileName}
+                        </div>
+                      )}
+                    </div>
+
+                    <div className="rounded-md border border-border p-4 text-sm">
+                      <div className="text-xs font-semibold uppercase tracking-widest text-muted-foreground">
+                        Productos
+                      </div>
+                      <div className="mt-2 space-y-2">
+                        {cart.map(({ product, qty }) => (
+                          <div key={product.id} className="flex items-center justify-between gap-3">
+                            <div className="min-w-0">
+                              <div className="truncate font-medium text-brand-navy">
+                                {product.name}
+                              </div>
+                              <div className="text-xs text-muted-foreground">
+                                {product.sku} · {formatMoney(product.retailPrice)} × {qty}
+                              </div>
+                            </div>
+                            <div className="shrink-0 font-semibold text-brand-navy">
+                              {formatMoney(product.retailPrice * qty)}
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                      <Separator className="my-3" />
+                      <div className="space-y-1.5">
+                        <div className="flex justify-between text-muted-foreground">
+                          <span>Subtotal</span>
+                          <span>{formatMoney(cartTotal)}</span>
+                        </div>
+                        {discount && (
+                          <div className="flex justify-between text-muted-foreground">
+                            <span>Descuento ({discount.code})</span>
+                            <span>-{formatMoney(discountAmount)}</span>
+                          </div>
+                        )}
+                        <div className="flex justify-between text-muted-foreground">
+                          <span>IVA (16%)</span>
+                          <span>{formatMoney(taxAmount)}</span>
+                        </div>
+                        <div className="flex justify-between text-muted-foreground">
+                          <span>Envío</span>
+                          <span>{formatMoney(shippingCost)}</span>
+                        </div>
+                      </div>
+                      <Separator className="my-3" />
+                      <div className="flex items-baseline justify-between">
+                        <span className="font-bold text-brand-navy">Total</span>
+                        <span className="flex items-baseline gap-2">
+                          <span className="font-bold text-brand-navy">{formatMoney(total)}</span>
+                          {bcv && (
+                            <span className="text-xs font-semibold text-brand-blue">
+                              ≈ {formatBs(total, bcv.rate)}
+                            </span>
+                          )}
+                        </span>
+                      </div>
+                    </div>
                   </div>
-                </div>
-              </div>
-            )}
+                )}
+              </motion.div>
+            </AnimatePresence>
 
             <Separator className="my-6" />
             <div className="flex items-center justify-between">
               <Button
                 variant="ghost"
-                onClick={() => setStep((s) => Math.max(1, s - 1))}
+                onClick={() => goToStep(Math.max(1, step - 1))}
                 disabled={step === 1}
               >
                 Atrás
@@ -656,7 +683,7 @@ function CheckoutPage() {
                 <Button
                   className="bg-brand-blue text-white hover:bg-brand-blue/90"
                   disabled={(step === 1 && !canContinueStep1) || (step === 2 && !canContinueStep2)}
-                  onClick={() => setStep((s) => s + 1)}
+                  onClick={() => goToStep(step + 1)}
                 >
                   Continuar
                 </Button>

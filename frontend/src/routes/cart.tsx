@@ -1,8 +1,10 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useState } from "react";
 import { useMutation } from "@tanstack/react-query";
+import { AnimatePresence, motion } from "motion/react";
 import { Trash2, ShoppingBag, Tag, Loader2, X } from "lucide-react";
 import { PublicShell } from "@/components/public-shell";
+import { staggerContainer, staggerItem } from "@/components/motion-primitives";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -104,61 +106,72 @@ function CartPage() {
           </Card>
         ) : (
           <div className="mt-8 grid gap-6 lg:grid-cols-[minmax(0,1fr)_360px]">
-            <div className="space-y-3">
-              {cart.map(({ product, qty }) => {
-                const unit = priceFor(product);
-                return (
-                  <Card
-                    key={product.id}
-                    className="relative flex flex-col gap-4 p-4 sm:flex-row sm:items-center sm:gap-6"
-                  >
-                    <button
-                      onClick={() => removeFromCart(product.id)}
-                      className="absolute right-3 top-3 text-muted-foreground transition-colors hover:text-destructive"
-                      aria-label="Eliminar"
+            <motion.div
+              className="space-y-3"
+              variants={staggerContainer}
+              initial="hidden"
+              animate="show"
+            >
+              <AnimatePresence mode="popLayout">
+                {cart.map(({ product, qty }) => {
+                  const unit = priceFor(product);
+                  return (
+                    <motion.div
+                      key={product.id}
+                      layout
+                      variants={staggerItem}
+                      exit={{ opacity: 0, x: -24, transition: { duration: 0.2 } }}
                     >
-                      <Trash2 className="h-4 w-4" />
-                    </button>
+                      <Card className="relative flex flex-col gap-4 p-4 sm:flex-row sm:items-center sm:gap-6">
+                        <button
+                          onClick={() => removeFromCart(product.id)}
+                          className="absolute right-3 top-3 text-muted-foreground transition-colors hover:text-destructive"
+                          aria-label="Eliminar"
+                        >
+                          <Trash2 className="h-4 w-4" />
+                        </button>
 
-                    <div className="flex gap-4 pr-6 sm:flex-1 sm:pr-0">
-                      <ProductImage
-                        src={product.image}
-                        alt={product.name}
-                        className="h-20 w-20 shrink-0 rounded-md sm:h-24 sm:w-24"
-                      />
-                      <div className="min-w-0 flex-1">
-                        <div className="text-[10px] font-semibold uppercase tracking-widest text-muted-foreground">
-                          {product.sku}
+                        <div className="flex gap-4 pr-6 sm:flex-1 sm:pr-0">
+                          <ProductImage
+                            src={product.image}
+                            alt={product.name}
+                            className="h-20 w-20 shrink-0 rounded-md sm:h-24 sm:w-24"
+                          />
+                          <div className="min-w-0 flex-1">
+                            <div className="text-[10px] font-semibold uppercase tracking-widest text-muted-foreground">
+                              {product.sku}
+                            </div>
+                            <h3 className="truncate text-sm font-semibold text-brand-navy">
+                              {product.name}
+                            </h3>
+                            <div className="mt-1.5">
+                              <PriceTag product={product} size="sm" />
+                            </div>
+                          </div>
                         </div>
-                        <h3 className="truncate text-sm font-semibold text-brand-navy">
-                          {product.name}
-                        </h3>
-                        <div className="mt-1.5">
-                          <PriceTag product={product} size="sm" />
-                        </div>
-                      </div>
-                    </div>
 
-                    <div className="flex items-center justify-between gap-4 sm:flex-col sm:items-end sm:justify-center sm:gap-2 sm:border-l sm:border-border sm:pl-6">
-                      <QuantityStepper
-                        qty={qty}
-                        onChange={(next) => updateQty(product.id, next)}
-                        max={product.stock}
-                      />
-                      <div className="text-base font-bold tabular-nums text-brand-navy sm:text-right">
-                        {formatMoney(unit * qty)}
-                      </div>
-                    </div>
-                  </Card>
-                );
-              })}
+                        <div className="flex items-center justify-between gap-4 sm:flex-col sm:items-end sm:justify-center sm:gap-2 sm:border-l sm:border-border sm:pl-6">
+                          <QuantityStepper
+                            qty={qty}
+                            onChange={(next) => updateQty(product.id, next)}
+                            max={product.stock}
+                          />
+                          <div className="text-base font-bold tabular-nums text-brand-navy sm:text-right">
+                            {formatMoney(unit * qty)}
+                          </div>
+                        </div>
+                      </Card>
+                    </motion.div>
+                  );
+                })}
+              </AnimatePresence>
               <button
                 onClick={clearCart}
                 className="text-sm text-muted-foreground hover:text-destructive"
               >
                 Vaciar carrito
               </button>
-            </div>
+            </motion.div>
 
             <Card className="h-fit p-6">
               <h2 className="text-lg font-semibold text-brand-navy">Resumen</h2>
@@ -167,39 +180,57 @@ function CartPage() {
                 <Label className="text-xs font-medium text-brand-navy">
                   ¿Tienes un código de descuento?
                 </Label>
-                {discount ? (
-                  <div className="flex items-center justify-between gap-2 rounded-md border border-brand-blue/30 bg-brand-blue/5 px-2.5 py-2 text-sm">
-                    <span className="font-mono font-semibold text-brand-navy">{discount.code}</span>
-                    <button
-                      onClick={clearDiscount}
-                      className="text-muted-foreground hover:text-destructive"
-                      aria-label="Quitar código"
+                <AnimatePresence mode="wait" initial={false}>
+                  {discount ? (
+                    <motion.div
+                      key="applied"
+                      initial={{ opacity: 0, y: -6 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      exit={{ opacity: 0, y: -6 }}
+                      transition={{ duration: 0.2 }}
+                      className="flex items-center justify-between gap-2 rounded-md border border-brand-blue/30 bg-brand-blue/5 px-2.5 py-2 text-sm"
                     >
-                      <X className="h-4 w-4" />
-                    </button>
-                  </div>
-                ) : (
-                  <div className="flex gap-2">
-                    <Input
-                      value={codeInput}
-                      onChange={(e) => setCodeInput(e.target.value.toUpperCase())}
-                      placeholder="CÓDIGO"
-                      className="font-mono"
-                    />
-                    <Button
-                      variant="outline"
-                      className="shrink-0"
-                      disabled={!codeInput.trim() || applyCode.isPending}
-                      onClick={() => applyCode.mutate()}
+                      <span className="font-mono font-semibold text-brand-navy">
+                        {discount.code}
+                      </span>
+                      <button
+                        onClick={clearDiscount}
+                        className="text-muted-foreground hover:text-destructive"
+                        aria-label="Quitar código"
+                      >
+                        <X className="h-4 w-4" />
+                      </button>
+                    </motion.div>
+                  ) : (
+                    <motion.div
+                      key="input"
+                      initial={{ opacity: 0, y: -6 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      exit={{ opacity: 0, y: -6 }}
+                      transition={{ duration: 0.2 }}
+                      className="flex gap-2"
                     >
-                      {applyCode.isPending ? (
-                        <Loader2 className="h-4 w-4 animate-spin" />
-                      ) : (
-                        "Aplicar"
-                      )}
-                    </Button>
-                  </div>
-                )}
+                      <Input
+                        value={codeInput}
+                        onChange={(e) => setCodeInput(e.target.value.toUpperCase())}
+                        placeholder="CÓDIGO"
+                        className="font-mono"
+                      />
+                      <Button
+                        variant="outline"
+                        className="shrink-0"
+                        disabled={!codeInput.trim() || applyCode.isPending}
+                        onClick={() => applyCode.mutate()}
+                      >
+                        {applyCode.isPending ? (
+                          <Loader2 className="h-4 w-4 animate-spin" />
+                        ) : (
+                          "Aplicar"
+                        )}
+                      </Button>
+                    </motion.div>
+                  )}
+                </AnimatePresence>
               </div>
 
               <div className="mt-4 space-y-2 text-sm">

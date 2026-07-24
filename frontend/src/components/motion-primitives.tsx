@@ -3,6 +3,10 @@ import type { ReactNode } from "react";
 
 const spring = { type: "spring", stiffness: 300, damping: 30 } as const;
 
+/** ease-out-quint — confident, decisive settle, no bounce. Shared across the
+ * app's hand-rolled (non-spring) motion so timing feels like one system. */
+export const EASE_OUT_QUINT = [0.22, 1, 0.36, 1] as const;
+
 export const staggerContainer: Variants = {
   hidden: {},
   show: { transition: { staggerChildren: 0.06 } },
