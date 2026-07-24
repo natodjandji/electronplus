@@ -291,6 +291,11 @@ function QuoteDetailDialog({ id, onClose }: { id: string; onClose: () => void })
           {canDecide ? (
             <>
               <Separator />
+              <p className="text-xs text-muted-foreground">
+                Acuerda con el cliente cómo va a pagar y las condiciones antes de aprobar. El
+                descuento que definas aquí es el precio final — el cliente lo verá reflejado al
+                pasar la cotización aprobada a pago.
+              </p>
               <div className="grid gap-1.5">
                 <Label className="text-xs font-medium text-brand-navy">
                   Descuento especial % (opcional, al aprobar)

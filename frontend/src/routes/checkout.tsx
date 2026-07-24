@@ -1,6 +1,6 @@
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { AnimatePresence, motion, useReducedMotion } from "motion/react";
 import {
   Check,
@@ -50,6 +50,9 @@ import { VENEZUELA_STATE_NAMES, citiesForState } from "@/lib/venezuela-locations
 import { toast } from "sonner";
 
 export const Route = createFileRoute("/checkout")({
+  validateSearch: (search: Record<string, unknown>): { quoteId?: string } => ({
+    quoteId: typeof search.quoteId === "string" ? search.quoteId : undefined,
+  }),
   head: () => ({
     meta: [
       { title: "Checkout · Electron Plus" },
@@ -96,8 +99,32 @@ interface ShippingQuote {
   matched: boolean;
 }
 
+interface QuoteItemForCheckout {
+  id: string;
+  sku: string;
+  name: string;
+  qty: number;
+  unitPrice: number;
+  discountPct: number;
+}
+
+interface QuoteForCheckout {
+  id: string;
+  status: "draft" | "sent" | "approved" | "rejected";
+  globalDiscountPct: number;
+  convertedOrderId?: string;
+  items: QuoteItemForCheckout[];
+}
+
+function round2(n: number): number {
+  return Math.round(n * 100) / 100;
+}
+
 function CheckoutPage() {
+  const { quoteId } = Route.useSearch();
+  const isQuoteCheckout = Boolean(quoteId);
   const { user, loading: authLoading } = useAuth();
+  const queryClient = useQueryClient();
   const {
     cart,
     cartCount,
@@ -111,6 +138,27 @@ function CheckoutPage() {
   } = useElectronStore();
   const { data: bcv } = useBcvRate();
   const navigate = useNavigate();
+
+  const { data: quote, isLoading: quoteLoading } = useQuery({
+    queryKey: ["quotes", quoteId],
+    queryFn: () => apiFetch<QuoteForCheckout>(`/quotes/${quoteId}`),
+    enabled: isQuoteCheckout,
+  });
+
+  const quoteItemsPriced = (quote?.items ?? []).map((item) => ({
+    ...item,
+    effectiveUnitPrice: round2(
+      item.unitPrice * (1 - item.discountPct / 100) * (1 - (quote?.globalDiscountPct ?? 0) / 100),
+    ),
+  }));
+  const quoteSubtotal = round2(
+    quoteItemsPriced.reduce((s, i) => s + i.effectiveUnitPrice * i.qty, 0),
+  );
+  const effectiveTaxableBase = isQuoteCheckout ? quoteSubtotal : taxableBase;
+  const effectiveTaxAmount = isQuoteCheckout ? round2(quoteSubtotal * 0.16) : taxAmount;
+  const effectiveItemCount = isQuoteCheckout
+    ? quoteItemsPriced.reduce((s, i) => s + i.qty, 0)
+    : cartCount;
 
   const [step, setStep] = useState(1);
   const [direction, setDirection] = useState(1);
@@ -167,7 +215,7 @@ function CheckoutPage() {
     enabled: !!state && !!city,
   });
   const shippingCost = state && city ? (shippingQuote?.amount ?? 0) : 0;
-  const total = taxableBase + taxAmount + shippingCost;
+  const total = effectiveTaxableBase + effectiveTaxAmount + shippingCost;
 
   // First purchase: prefill just the name. Once an address has been saved
   // from a previous order, prefill everything from it (still all editable).
@@ -237,17 +285,33 @@ function CheckoutPage() {
       state,
     };
     try {
-      await apiFetch("/orders", {
-        method: "POST",
-        body: {
-          items: cart.map((i) => ({ productId: i.product.id, qty: i.qty })),
-          paymentMethod: info.backendMethod,
-          shipping,
-          paymentReference: paymentReference.trim() || undefined,
-          paymentProofBase64: proofBase64,
-          discountCode: discount?.code,
-        },
-      });
+      if (isQuoteCheckout && quoteId) {
+        await apiFetch(`/orders/from-quote/${quoteId}`, {
+          method: "POST",
+          body: {
+            paymentMethod: info.backendMethod,
+            shipping,
+            paymentReference: paymentReference.trim() || undefined,
+            paymentProofBase64: proofBase64,
+          },
+        });
+        queryClient.invalidateQueries({ queryKey: ["quotes", quoteId] });
+        queryClient.invalidateQueries({ queryKey: ["quotes", "mine"] });
+      } else {
+        await apiFetch("/orders", {
+          method: "POST",
+          body: {
+            items: cart.map((i) => ({ productId: i.product.id, qty: i.qty })),
+            paymentMethod: info.backendMethod,
+            shipping,
+            paymentReference: paymentReference.trim() || undefined,
+            paymentProofBase64: proofBase64,
+            discountCode: discount?.code,
+          },
+        });
+        clearCart();
+        clearDiscount();
+      }
 
       // Best-effort — save this shipping info for next time. Doesn't block
       // order success if it fails.
@@ -263,8 +327,6 @@ function CheckoutPage() {
         },
       }).catch(() => {});
 
-      clearCart();
-      clearDiscount();
       toast.success("¡Pedido confirmado! Te contactaremos pronto.");
       navigate({ to: "/client/orders" });
     } catch (error) {
@@ -293,7 +355,45 @@ function CheckoutPage() {
     );
   }
 
-  if (cart.length === 0) {
+  if (isQuoteCheckout) {
+    if (quoteLoading) {
+      return (
+        <PublicShell>
+          <div className="flex items-center justify-center gap-2 py-24 text-sm text-muted-foreground">
+            <Loader2 className="h-4 w-4 animate-spin" />
+            Cargando cotización…
+          </div>
+        </PublicShell>
+      );
+    }
+    if (
+      !quote ||
+      quote.status !== "approved" ||
+      quote.convertedOrderId ||
+      quote.items.length === 0
+    ) {
+      return (
+        <PublicShell>
+          <section className="mx-auto max-w-xl px-4 py-16 text-center sm:px-6">
+            <ClipboardCheck className="mx-auto h-8 w-8 text-muted-foreground" />
+            <h1 className="mt-3 text-2xl font-bold text-brand-navy">
+              Esta cotización no está lista para pagar
+            </h1>
+            <p className="mt-1 text-sm text-muted-foreground">
+              {quote?.convertedOrderId
+                ? "Ya generaste un pedido a partir de esta cotización."
+                : "Solo puedes continuar al pago con una cotización aprobada."}
+            </p>
+            <Link to="/quotes">
+              <Button className="mt-6 bg-brand-blue text-white hover:bg-brand-blue/90">
+                Ver mis cotizaciones
+              </Button>
+            </Link>
+          </section>
+        </PublicShell>
+      );
+    }
+  } else if (cart.length === 0) {
     return (
       <PublicShell>
         <section className="mx-auto max-w-xl px-4 py-16 text-center sm:px-6">
@@ -615,29 +715,53 @@ function CheckoutPage() {
                         Productos
                       </div>
                       <div className="mt-2 space-y-2">
-                        {cart.map(({ product, qty }) => (
-                          <div key={product.id} className="flex items-center justify-between gap-3">
-                            <div className="min-w-0">
-                              <div className="truncate font-medium text-brand-navy">
-                                {product.name}
+                        {isQuoteCheckout
+                          ? quoteItemsPriced.map((item) => (
+                              <div
+                                key={item.id}
+                                className="flex items-center justify-between gap-3"
+                              >
+                                <div className="min-w-0">
+                                  <div className="truncate font-medium text-brand-navy">
+                                    {item.name}
+                                  </div>
+                                  <div className="text-xs text-muted-foreground">
+                                    {item.sku} · {formatMoney(item.effectiveUnitPrice)} × {item.qty}
+                                  </div>
+                                </div>
+                                <div className="shrink-0 font-semibold text-brand-navy">
+                                  {formatMoney(item.effectiveUnitPrice * item.qty)}
+                                </div>
                               </div>
-                              <div className="text-xs text-muted-foreground">
-                                {product.sku} · {formatMoney(product.retailPrice)} × {qty}
+                            ))
+                          : cart.map(({ product, qty }) => (
+                              <div
+                                key={product.id}
+                                className="flex items-center justify-between gap-3"
+                              >
+                                <div className="min-w-0">
+                                  <div className="truncate font-medium text-brand-navy">
+                                    {product.name}
+                                  </div>
+                                  <div className="text-xs text-muted-foreground">
+                                    {product.sku} · {formatMoney(product.retailPrice)} × {qty}
+                                  </div>
+                                </div>
+                                <div className="shrink-0 font-semibold text-brand-navy">
+                                  {formatMoney(product.retailPrice * qty)}
+                                </div>
                               </div>
-                            </div>
-                            <div className="shrink-0 font-semibold text-brand-navy">
-                              {formatMoney(product.retailPrice * qty)}
-                            </div>
-                          </div>
-                        ))}
+                            ))}
                       </div>
                       <Separator className="my-3" />
                       <div className="space-y-1.5">
                         <div className="flex justify-between text-muted-foreground">
                           <span>Subtotal</span>
-                          <span>{formatMoney(cartTotal)}</span>
+                          <span>
+                            {formatMoney(isQuoteCheckout ? effectiveTaxableBase : cartTotal)}
+                          </span>
                         </div>
-                        {discount && (
+                        {!isQuoteCheckout && discount && (
                           <div className="flex justify-between text-muted-foreground">
                             <span>Descuento ({discount.code})</span>
                             <span>-{formatMoney(discountAmount)}</span>
@@ -645,7 +769,7 @@ function CheckoutPage() {
                         )}
                         <div className="flex justify-between text-muted-foreground">
                           <span>IVA (16%)</span>
-                          <span>{formatMoney(taxAmount)}</span>
+                          <span>{formatMoney(effectiveTaxAmount)}</span>
                         </div>
                         <div className="flex justify-between text-muted-foreground">
                           <span>Envío</span>
@@ -705,13 +829,15 @@ function CheckoutPage() {
             <div className="mt-3 space-y-2 text-sm">
               <div className="flex justify-between text-muted-foreground">
                 <span>Artículos</span>
-                <span>{cartCount}</span>
+                <span>{effectiveItemCount}</span>
               </div>
               <div className="flex justify-between">
                 <span className="text-brand-navy">Subtotal</span>
-                <span className="text-brand-navy">{formatMoney(cartTotal)}</span>
+                <span className="text-brand-navy">
+                  {formatMoney(isQuoteCheckout ? effectiveTaxableBase : cartTotal)}
+                </span>
               </div>
-              {discount && (
+              {!isQuoteCheckout && discount && (
                 <div className="flex justify-between">
                   <span className="text-brand-navy">Descuento ({discount.code})</span>
                   <span className="text-brand-navy">-{formatMoney(discountAmount)}</span>
@@ -719,7 +845,7 @@ function CheckoutPage() {
               )}
               <div className="flex justify-between">
                 <span className="text-brand-navy">IVA (16%)</span>
-                <span className="text-brand-navy">{formatMoney(taxAmount)}</span>
+                <span className="text-brand-navy">{formatMoney(effectiveTaxAmount)}</span>
               </div>
               <div className="flex justify-between">
                 <span className="text-brand-navy">Envío</span>

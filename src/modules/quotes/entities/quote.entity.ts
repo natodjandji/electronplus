@@ -29,4 +29,7 @@ export interface Quote extends FirestoreDoc {
   globalDiscountPct: number;
   rejectionReason?: string;
   items: QuoteItem[];
+  /** Set once the customer checks an approved quote out into a real order —
+   * blocks converting the same quote twice. */
+  convertedOrderId?: string;
 }

@@ -10,6 +10,7 @@ import {
   Plus,
   Printer,
   Send,
+  ShoppingCart,
   Tag,
   Trash2,
 } from "lucide-react";
@@ -89,6 +90,7 @@ interface Quote {
   rejectionReason?: string;
   items: QuoteLine[];
   createdAt: string;
+  convertedOrderId?: string;
 }
 
 interface CatalogProduct {
@@ -462,6 +464,11 @@ function QuoteBuilder({ id, onBack }: { id: string; onBack: () => void }) {
 
   const addedProductIds = new Set((quote?.items ?? []).map((i) => i.productId));
   const availableProducts = (products ?? []).filter((p) => !addedProductIds.has(p.id));
+  const stockByProductId = new Map((products ?? []).map((p) => [p.id, p.stock]));
+  const shortItems = (quote?.items ?? []).filter((item) => {
+    const stock = stockByProductId.get(item.productId);
+    return stock !== undefined && item.qty > stock;
+  });
 
   const invalidate = () => {
     queryClient.invalidateQueries({ queryKey: ["quotes", id] });
@@ -591,16 +598,34 @@ function QuoteBuilder({ id, onBack }: { id: string; onBack: () => void }) {
               </p>
             )}
             {quote.status === "approved" && (
-              <p className="text-brand-navy">
-                Cotización aprobada
-                {quote.globalDiscountPct > 0 && (
-                  <>
-                    {" "}
-                    con un descuento especial del <b>{quote.globalDiscountPct}%</b>
-                  </>
+              <div className="flex flex-wrap items-center justify-between gap-3">
+                <p className="text-brand-navy">
+                  Cotización aprobada
+                  {quote.globalDiscountPct > 0 && (
+                    <>
+                      {" "}
+                      con un descuento especial del <b>{quote.globalDiscountPct}%</b>
+                    </>
+                  )}
+                  {quote.convertedOrderId
+                    ? ". Ya generaste un pedido a partir de esta cotización."
+                    : ". Cuando estés listo, continúa al pago con el precio y descuento acordados."}
+                </p>
+                {quote.convertedOrderId ? (
+                  <Link to="/client/orders" className="print:hidden">
+                    <Button variant="outline" className="shrink-0 gap-2">
+                      Ver mi pedido
+                    </Button>
+                  </Link>
+                ) : (
+                  <Link to="/checkout" search={{ quoteId: quote.id }} className="print:hidden">
+                    <Button className="shrink-0 gap-2 bg-brand-blue text-white hover:bg-brand-blue/90">
+                      <ShoppingCart className="h-4 w-4" />
+                      Continuar al pago
+                    </Button>
+                  </Link>
                 )}
-                .
-              </p>
+              </div>
             )}
             {quote.status === "rejected" && (
               <p className="text-brand-navy">
@@ -642,7 +667,8 @@ function QuoteBuilder({ id, onBack }: { id: string; onBack: () => void }) {
                     <SelectContent>
                       {availableProducts.map((p) => (
                         <SelectItem key={p.id} value={p.id}>
-                          {p.name} — {p.sku} · {formatMoney(p.retailPrice)}
+                          {p.name} — {p.sku} · {formatMoney(p.retailPrice)} ·{" "}
+                          {p.stock > 0 ? `${p.stock} disponibles` : "sin stock"}
                         </SelectItem>
                       ))}
                     </SelectContent>
@@ -661,6 +687,17 @@ function QuoteBuilder({ id, onBack }: { id: string; onBack: () => void }) {
                   <Plus className="h-4 w-4" /> Agregar
                 </Button>
               </div>
+              {shortItems.length > 0 && (
+                <div className="mt-3 flex items-start gap-2 rounded-md border border-brand-yellow/40 bg-brand-yellow/10 p-3 text-sm text-brand-navy print:hidden">
+                  <AlertCircle className="mt-0.5 h-4 w-4 shrink-0 text-brand-yellow" />
+                  <p>
+                    Algunos productos tienen menos stock disponible que la cantidad solicitada.
+                    Puedes enviar la solicitud igual — verificaremos la disponibilidad completa
+                    antes de confirmar tu pedido y te contactaremos si hace falta ajustar
+                    cantidades.
+                  </p>
+                </div>
+              )}
               <Separator className="my-6" />
             </>
           )}
@@ -692,11 +729,19 @@ function QuoteBuilder({ id, onBack }: { id: string; onBack: () => void }) {
                 )}
                 {quote.items.map((item) => {
                   const lineTotal = item.unitPrice * item.qty * (1 - item.discountPct / 100);
+                  const stock = stockByProductId.get(item.productId);
+                  const short = stock !== undefined && item.qty > stock;
                   return (
                     <tr key={item.id} className="border-b border-border">
                       <td className="py-3">
                         <div className="font-semibold text-brand-navy">{item.name}</div>
                         <div className="text-xs text-muted-foreground">{item.sku}</div>
+                        {short && (
+                          <div className="mt-0.5 flex items-center gap-1 text-xs text-brand-navy/70 print:hidden">
+                            <AlertCircle className="h-3 w-3 shrink-0 text-brand-yellow" />
+                            Solo quedan {stock} en stock — verificaremos el resto.
+                          </div>
+                        )}
                       </td>
                       <td className="py-3 text-right">{formatMoney(item.unitPrice)}</td>
                       <td className="py-3 text-right text-muted-foreground">

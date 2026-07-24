@@ -53,6 +53,10 @@ export interface Order extends FirestoreDoc {
 
   items: OrderItem[];
 
+  /** Set when this order was checked out from an approved quote — its item
+   * prices came from the quote's negotiated discount, not standard pricing. */
+  quoteId?: string;
+
   erpExportedAt?: Date;
   erpExportError?: string;
 }

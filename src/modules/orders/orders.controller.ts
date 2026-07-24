@@ -6,6 +6,7 @@ import { Role } from '../../common/enums/role.enum';
 import { FirebaseAuthGuard } from '../../common/guards/firebase-auth.guard';
 import { RolesGuard } from '../../common/guards/roles.guard';
 import { AuthenticatedUser } from '../../common/interfaces/authenticated-user.interface';
+import { CreateOrderFromQuoteDto } from './dto/create-order-from-quote.dto';
 import { CreateOrderDto } from './dto/create-order.dto';
 import { RetryPaymentDto } from './dto/retry-payment.dto';
 import { toOrderDto } from './mappers/order.mapper';
@@ -21,6 +22,16 @@ export class OrdersController {
   @Post()
   async create(@CurrentUser() user: AuthenticatedUser, @Body() dto: CreateOrderDto) {
     const order = await this.ordersService.create(user, dto);
+    return toOrderDto(order, user.role);
+  }
+
+  @Post('from-quote/:quoteId')
+  async createFromQuote(
+    @Param('quoteId') quoteId: string,
+    @CurrentUser() user: AuthenticatedUser,
+    @Body() dto: CreateOrderFromQuoteDto,
+  ) {
+    const order = await this.ordersService.createFromQuote(quoteId, user, dto);
     return toOrderDto(order, user.role);
   }
 

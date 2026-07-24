@@ -7,5 +7,6 @@ import { QuotesService } from './quotes.service';
   imports: [ProductsModule],
   controllers: [QuotesController],
   providers: [QuotesService],
+  exports: [QuotesService],
 })
 export class QuotesModule {}
