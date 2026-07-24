@@ -10,6 +10,7 @@ import { AddQuoteLineDto } from './dto/add-quote-line.dto';
 import { CreateQuoteDto } from './dto/create-quote.dto';
 import { RejectQuoteDto } from './dto/reject-quote.dto';
 import { SetGlobalDiscountDto } from './dto/set-global-discount.dto';
+import { SetPaymentMethodDto } from './dto/set-payment-method.dto';
 import { UpdateQuoteLineDto } from './dto/update-quote-line.dto';
 import { computeQuoteTotals } from './quote-totals';
 import { QuotesService } from './quotes.service';
@@ -81,6 +82,15 @@ export class QuotesController {
     @Body() dto: SetGlobalDiscountDto,
   ) {
     return this.quotesService.setGlobalDiscount(id, user, dto.globalDiscountPct);
+  }
+
+  @Patch(':id/payment-method')
+  setPaymentMethod(
+    @Param('id') id: string,
+    @CurrentUser() user: AuthenticatedUser,
+    @Body() dto: SetPaymentMethodDto,
+  ) {
+    return this.quotesService.setPaymentMethod(id, user, dto.expectedPaymentMethod);
   }
 
   @Post(':id/wholesale')

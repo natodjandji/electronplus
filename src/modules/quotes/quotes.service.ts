@@ -6,6 +6,7 @@ import { Collections } from '../../firebase/firestore-collections';
 import { FirestoreRepository } from '../../firebase/firestore.repository';
 import { Role } from '../../common/enums/role.enum';
 import { AuthenticatedUser } from '../../common/interfaces/authenticated-user.interface';
+import { PaymentMethod } from '../payments/entities/payment.entity';
 import { PricingService } from '../products/pricing.service';
 import { ProductsService } from '../products/products.service';
 import { AddQuoteLineDto } from './dto/add-quote-line.dto';
@@ -30,6 +31,7 @@ export class QuotesService {
       userId: user.id,
       customerName: dto.customerName,
       customerTaxId: dto.customerTaxId,
+      expectedPaymentMethod: dto.expectedPaymentMethod,
       status: QuoteStatus.DRAFT,
       globalDiscountPct: 0,
       items: [],
@@ -92,6 +94,17 @@ export class QuotesService {
   async removeLine(id: string, lineId: string, user: AuthenticatedUser): Promise<Quote> {
     const quote = await this.assertEditable(id, user);
     return this.repo.update(id, { items: quote.items.filter((i) => i.id !== lineId) });
+  }
+
+  /** Draft only — lets the customer state (or change) how they expect to pay
+   * before sending, so the admin can weigh that against the price/discount to offer. */
+  async setPaymentMethod(
+    id: string,
+    user: AuthenticatedUser,
+    expectedPaymentMethod: PaymentMethod,
+  ): Promise<Quote> {
+    await this.assertEditable(id, user);
+    return this.repo.update(id, { expectedPaymentMethod });
   }
 
   /** Drafts only — once sent, a quote is a real request under review and can't be deleted. */

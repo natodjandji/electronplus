@@ -71,6 +71,17 @@ export const Route = createFileRoute("/quotes")({
 
 type QuoteStatus = "draft" | "sent" | "approved" | "rejected";
 
+type PaymentMethod = "bank_transfer" | "pago_movil" | "cash" | "zelle" | "paypal" | "credit_b2b";
+
+const PAYMENT_METHOD_LABEL: Record<PaymentMethod, string> = {
+  bank_transfer: "Transferencia bancaria",
+  pago_movil: "Pago móvil",
+  cash: "Efectivo",
+  zelle: "Zelle",
+  paypal: "PayPal",
+  credit_b2b: "Crédito B2B",
+};
+
 interface QuoteLine {
   id: string;
   productId: string;
@@ -89,6 +100,7 @@ interface Quote {
   status: QuoteStatus;
   globalDiscountPct: number;
   rejectionReason?: string;
+  expectedPaymentMethod?: PaymentMethod;
   items: QuoteLine[];
   createdAt: string;
   convertedOrderId?: string;
@@ -534,6 +546,18 @@ function QuoteBuilder({ id, onBack }: { id: string; onBack: () => void }) {
     }
   };
 
+  const updatePaymentMethod = async (method: PaymentMethod) => {
+    try {
+      await apiFetch(`/quotes/${id}/payment-method`, {
+        method: "PATCH",
+        body: { expectedPaymentMethod: method },
+      });
+      invalidate();
+    } catch (error) {
+      reportError(error);
+    }
+  };
+
   const handleSend = async () => {
     setBusy(true);
     try {
@@ -583,6 +607,11 @@ function QuoteBuilder({ id, onBack }: { id: string; onBack: () => void }) {
             </h1>
             {quote.customerTaxId && (
               <div className="text-xs text-muted-foreground">RIF/Cédula: {quote.customerTaxId}</div>
+            )}
+            {!isDraft && quote.expectedPaymentMethod && (
+              <div className="text-xs text-muted-foreground">
+                Método de pago: {PAYMENT_METHOD_LABEL[quote.expectedPaymentMethod]}
+              </div>
             )}
           </div>
           <div className="flex items-center gap-2">
@@ -675,7 +704,31 @@ function QuoteBuilder({ id, onBack }: { id: string; onBack: () => void }) {
 
           {isDraft && (
             <>
-              <div className="mt-6 flex flex-wrap items-end gap-3 print:hidden">
+              <div className="mt-6 grid gap-1.5 print:hidden sm:max-w-xs">
+                <Label className="text-xs font-medium text-brand-navy">
+                  Método de pago que planeas usar
+                </Label>
+                <Select
+                  value={quote.expectedPaymentMethod ?? ""}
+                  onValueChange={(v) => updatePaymentMethod(v as PaymentMethod)}
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Seleccionar método…" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {(Object.keys(PAYMENT_METHOD_LABEL) as PaymentMethod[]).map((m) => (
+                      <SelectItem key={m} value={m}>
+                        {PAYMENT_METHOD_LABEL[m]}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                <p className="text-xs text-muted-foreground">
+                  Nos ayuda a decidir mejor el precio y descuento a ofrecerte.
+                </p>
+              </div>
+
+              <div className="mt-4 flex flex-wrap items-end gap-3 print:hidden">
                 <div className="grid flex-1 gap-1.5 min-w-64">
                   <Label className="text-xs font-medium text-brand-navy">Agregar producto</Label>
                   <Select

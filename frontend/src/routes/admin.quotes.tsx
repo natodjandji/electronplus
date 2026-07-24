@@ -39,6 +39,17 @@ export const Route = createFileRoute("/admin/quotes")({
 
 type QuoteStatus = "draft" | "sent" | "approved" | "rejected";
 
+type PaymentMethod = "bank_transfer" | "pago_movil" | "cash" | "zelle" | "paypal" | "credit_b2b";
+
+const PAYMENT_METHOD_LABEL: Record<PaymentMethod, string> = {
+  bank_transfer: "Transferencia bancaria",
+  pago_movil: "Pago móvil",
+  cash: "Efectivo",
+  zelle: "Zelle",
+  paypal: "PayPal",
+  credit_b2b: "Crédito B2B",
+};
+
 interface QuoteLine {
   id: string;
   productId: string;
@@ -58,6 +69,7 @@ interface Quote {
   status: QuoteStatus;
   globalDiscountPct: number;
   rejectionReason?: string;
+  expectedPaymentMethod?: PaymentMethod;
   items: QuoteLine[];
   createdAt: string;
 }
@@ -280,6 +292,15 @@ function QuoteDetailDialog({ id, onClose }: { id: string; onClose: () => void })
           {quote.customerTaxId && (
             <div className="text-xs text-muted-foreground">RIF/Cédula: {quote.customerTaxId}</div>
           )}
+
+          <div className="flex items-center gap-1.5 text-xs text-brand-navy">
+            <span className="text-muted-foreground">Método de pago que planea usar:</span>
+            <span className="font-semibold">
+              {quote.expectedPaymentMethod
+                ? PAYMENT_METHOD_LABEL[quote.expectedPaymentMethod]
+                : "No indicado"}
+            </span>
+          </div>
 
           <div className="max-h-56 overflow-y-auto rounded-md border border-border">
             <table className="w-full text-sm">

@@ -1,4 +1,5 @@
 import { FirestoreDoc } from '../../../firebase/firestore.repository';
+import { PaymentMethod } from '../../payments/entities/payment.entity';
 
 export enum QuoteStatus {
   DRAFT = 'draft',
@@ -25,6 +26,8 @@ export interface Quote extends FirestoreDoc {
   customerName: string;
   customerTaxId?: string;
   status: QuoteStatus;
+  /** How the customer expects to pay — informs the admin's pricing/discount decision. */
+  expectedPaymentMethod?: PaymentMethod;
   /** Set by an admin when approving (or at any point before a final decision) — the "special discount". */
   globalDiscountPct: number;
   rejectionReason?: string;

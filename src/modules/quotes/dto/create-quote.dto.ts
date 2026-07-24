@@ -1,4 +1,5 @@
-import { IsOptional, IsString } from 'class-validator';
+import { IsEnum, IsOptional, IsString } from 'class-validator';
+import { PaymentMethod } from '../../payments/entities/payment.entity';
 
 export class CreateQuoteDto {
   @IsString()
@@ -7,4 +8,8 @@ export class CreateQuoteDto {
   @IsOptional()
   @IsString()
   customerTaxId?: string;
+
+  @IsOptional()
+  @IsEnum(PaymentMethod)
+  expectedPaymentMethod?: PaymentMethod;
 }
