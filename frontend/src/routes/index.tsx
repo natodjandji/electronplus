@@ -1,12 +1,13 @@
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useEffect, useState, type KeyboardEvent } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { AnimatePresence, motion } from "motion/react";
+import { AnimatePresence, motion, useReducedMotion } from "motion/react";
 import { ArrowRight, Zap, Truck, ShieldCheck, Tag, Search, ShoppingCart } from "lucide-react";
 import { PublicShell } from "@/components/public-shell";
 import { CircuitBackground } from "@/components/circuit-traces";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
+import { Skeleton } from "@/components/ui/skeleton";
 import { PriceTag } from "@/components/price-tag";
 import { ProductImage } from "@/components/product-image";
 import { apiFetch } from "@/lib/api-client";
@@ -15,6 +16,8 @@ import type { Product } from "@/lib/mock-data";
 
 const HERO_GROUP_SIZE = 4;
 const HERO_ROTATE_MS = 5000;
+/** ease-out-quint — confident, decisive settle, no bounce. */
+const EASE_OUT_QUINT = [0.22, 1, 0.36, 1] as const;
 
 /** Cycles through `items` in fixed-size groups every `intervalMs` — used to rotate the
  * hero showcase through best-sellers instead of freezing on the first four. */
@@ -57,16 +60,13 @@ export const Route = createFileRoute("/")({
 });
 
 function Home() {
-  const { data: bestSellers = [] } = useQuery({
+  const { data: bestSellers = [], isLoading: bestSellersLoading } = useQuery({
     queryKey: ["home", "best-sellers"],
     queryFn: () => apiFetch<ApiProduct[]>("/products/best-sellers?limit=8"),
     select: (data) => data.map(toProduct),
   });
-  const { group: heroProducts, index: heroIndex } = useRotatingGroups(
-    bestSellers,
-    HERO_GROUP_SIZE,
-    HERO_ROTATE_MS,
-  );
+  const { group: heroProducts } = useRotatingGroups(bestSellers, HERO_GROUP_SIZE, HERO_ROTATE_MS);
+  const reduceMotion = useReducedMotion();
   return (
     <PublicShell>
       {/* Hero */}
@@ -121,34 +121,61 @@ function Home() {
 
           <div className="relative">
             <div className="absolute -inset-6 rounded-3xl bg-brand-blue/30 blur-3xl" />
-            <AnimatePresence mode="wait">
-              <motion.div
-                key={heroIndex}
-                initial={{ opacity: 0 }}
-                animate={{ opacity: 1 }}
-                exit={{ opacity: 0 }}
-                transition={{ duration: 0.5 }}
-                className="relative grid grid-cols-2 gap-3"
-              >
-                {heroProducts.map((p, i) => (
-                  <Link
-                    key={p.id}
-                    to="/product/qr/$id"
-                    params={{ id: p.id }}
-                    className={`block rounded-2xl border border-white/10 bg-white/5 p-3 backdrop-blur-sm transition-colors hover:border-brand-yellow/40 ${
-                      i % 2 === 1 ? "translate-y-6" : ""
-                    }`}
+            {bestSellersLoading ? (
+              <div className="relative grid grid-cols-2 gap-3">
+                {[0, 1, 2, 3].map((i) => (
+                  <div
+                    key={i}
+                    className={`rounded-2xl border border-white/10 bg-white/5 p-3 ${i % 2 === 1 ? "translate-y-6" : ""}`}
                   >
-                    <div className="aspect-square overflow-hidden rounded-xl bg-white">
-                      <ProductImage src={p.image} alt={p.name} className="h-full w-full" />
-                    </div>
-                    <div className="mt-2 text-xs font-medium text-white/90 line-clamp-1">
-                      {p.name}
-                    </div>
-                  </Link>
+                    <Skeleton className="aspect-square rounded-xl bg-white/10" />
+                    <Skeleton className="mt-2 h-3 w-4/5 bg-white/10" />
+                  </div>
                 ))}
-              </motion.div>
-            </AnimatePresence>
+              </div>
+            ) : (
+              <div className="relative grid grid-cols-2 gap-3">
+                <AnimatePresence mode="popLayout">
+                  {heroProducts.map((p, i) => {
+                    const restY = i % 2 === 1 ? 24 : 0;
+                    return (
+                      <motion.div
+                        key={p.id}
+                        initial={
+                          reduceMotion
+                            ? { opacity: 0 }
+                            : { opacity: 0, y: restY + 28, scale: 0.92, filter: "blur(6px)" }
+                        }
+                        animate={{ opacity: 1, y: restY, scale: 1, filter: "blur(0px)" }}
+                        exit={
+                          reduceMotion
+                            ? { opacity: 0 }
+                            : { opacity: 0, scale: 0.94, filter: "blur(4px)" }
+                        }
+                        transition={{
+                          duration: reduceMotion ? 0.2 : 0.55,
+                          delay: reduceMotion ? 0 : i * 0.08,
+                          ease: EASE_OUT_QUINT,
+                        }}
+                      >
+                        <Link
+                          to="/product/qr/$id"
+                          params={{ id: p.id }}
+                          className="block rounded-2xl border border-white/10 bg-white/5 p-3 backdrop-blur-sm transition-colors hover:border-brand-yellow/40"
+                        >
+                          <div className="aspect-square overflow-hidden rounded-xl bg-white">
+                            <ProductImage src={p.image} alt={p.name} className="h-full w-full" />
+                          </div>
+                          <div className="mt-2 text-xs font-medium text-white/90 line-clamp-1">
+                            {p.name}
+                          </div>
+                        </Link>
+                      </motion.div>
+                    );
+                  })}
+                </AnimatePresence>
+              </div>
+            )}
           </div>
         </div>
       </section>
@@ -203,12 +230,26 @@ function Home() {
           </Link>
         </div>
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-          {bestSellers.slice(0, 4).map((p) => (
-            <FeaturedProductCard key={p.id} product={p} />
-          ))}
+          {bestSellersLoading
+            ? [0, 1, 2, 3].map((i) => <FeaturedProductSkeleton key={i} />)
+            : bestSellers.slice(0, 4).map((p) => <FeaturedProductCard key={p.id} product={p} />)}
         </div>
       </section>
     </PublicShell>
+  );
+}
+
+function FeaturedProductSkeleton() {
+  return (
+    <Card className="overflow-hidden border-border p-0 shadow-sm">
+      <Skeleton className="aspect-square rounded-none" />
+      <div className="p-4">
+        <Skeleton className="h-2.5 w-16" />
+        <Skeleton className="mt-2 h-4 w-full" />
+        <Skeleton className="mt-1 h-4 w-2/3" />
+        <Skeleton className="mt-3 h-5 w-20" />
+      </div>
+    </Card>
   );
 }
 

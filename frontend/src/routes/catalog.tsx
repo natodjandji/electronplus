@@ -2,22 +2,14 @@ import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useEffect, useMemo, useState, type KeyboardEvent, type MouseEvent } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { AnimatePresence, motion } from "motion/react";
-import {
-  ChevronLeft,
-  ChevronRight,
-  Filter,
-  LayoutGrid,
-  List,
-  Loader2,
-  Search,
-  Tags,
-} from "lucide-react";
+import { ChevronLeft, ChevronRight, Filter, LayoutGrid, List, Search, Tags } from "lucide-react";
 import { PublicShell } from "@/components/public-shell";
 import { CircuitBackground } from "@/components/circuit-traces";
 import { staggerContainer, staggerItem } from "@/components/motion-primitives";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
+import { Skeleton } from "@/components/ui/skeleton";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Slider } from "@/components/ui/slider";
 import { Badge } from "@/components/ui/badge";
@@ -253,9 +245,10 @@ function CatalogPage() {
         </div>
 
         {isLoading ? (
-          <div className="flex items-center justify-center gap-2 py-16 text-sm text-muted-foreground">
-            <Loader2 className="h-4 w-4 animate-spin" />
-            Cargando productos…
+          <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5">
+            {Array.from({ length: PAGE_SIZE }, (_, i) => (
+              <CatalogCardSkeleton key={i} />
+            ))}
           </div>
         ) : isError ? (
           <Card className="p-10 text-center">
@@ -345,6 +338,23 @@ function useGoToProduct(id: string) {
 
 function stopPropagation(e: MouseEvent) {
   e.stopPropagation();
+}
+
+function CatalogCardSkeleton() {
+  return (
+    <Card className="flex h-full flex-col overflow-hidden border-border p-0 shadow-sm">
+      <Skeleton className="aspect-square rounded-none" />
+      <div className="flex flex-1 flex-col gap-2 p-3">
+        <Skeleton className="h-2 w-1/3" />
+        <Skeleton className="h-3 w-full" />
+        <Skeleton className="h-3 w-2/3" />
+        <div className="mt-auto pt-3">
+          <Skeleton className="h-4 w-16" />
+          <Skeleton className="mt-2 h-8 w-full rounded-md" />
+        </div>
+      </div>
+    </Card>
+  );
 }
 
 function ProductCard({
