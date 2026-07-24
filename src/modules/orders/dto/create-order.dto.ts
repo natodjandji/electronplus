@@ -11,6 +11,7 @@ import {
   Min,
   ValidateNested,
 } from 'class-validator';
+import { FulfillmentMethod } from '../entities/order.entity';
 import { PaymentMethod } from '../../payments/entities/payment.entity';
 
 export class OrderItemInputDto {
@@ -33,14 +34,18 @@ export class ShippingInfoDto {
   @IsString()
   taxId?: string;
 
+  /** Required for delivery orders — omitted for pickup. */
+  @IsOptional()
   @IsString()
-  address: string;
+  address?: string;
 
+  @IsOptional()
   @IsString()
-  city: string;
+  city?: string;
 
+  @IsOptional()
   @IsString()
-  state: string;
+  state?: string;
 }
 
 export class CreateOrderDto {
@@ -52,6 +57,10 @@ export class CreateOrderDto {
 
   @IsEnum(PaymentMethod)
   paymentMethod: PaymentMethod;
+
+  @IsOptional()
+  @IsEnum(FulfillmentMethod)
+  fulfillmentMethod?: FulfillmentMethod;
 
   @ValidateNested()
   @Type(() => ShippingInfoDto)

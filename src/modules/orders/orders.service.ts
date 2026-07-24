@@ -23,9 +23,9 @@ import { QuoteStatus } from '../quotes/entities/quote.entity';
 import { QuotesService } from '../quotes/quotes.service';
 import { ShippingRatesService } from '../shipping-rates/shipping-rates.service';
 import { CreateOrderFromQuoteDto } from './dto/create-order-from-quote.dto';
-import { CreateOrderDto } from './dto/create-order.dto';
+import { CreateOrderDto, ShippingInfoDto } from './dto/create-order.dto';
 import { RetryPaymentDto } from './dto/retry-payment.dto';
-import { ORDER_FULFILLMENT_PIPELINE, Order, OrderItem, OrderStatus } from './entities/order.entity';
+import { fulfillmentPipeline, FulfillmentMethod, Order, OrderItem, OrderStatus } from './entities/order.entity';
 
 export const ORDER_PAID_EVENT = 'order.paid';
 /** Venezuela's standard IVA rate — applied to (subtotal - discount). */
@@ -54,6 +54,20 @@ export class OrdersService {
     private readonly events: EventEmitter2,
   ) {
     this.repo = new FirestoreRepository<Order>(firestore, Collections.ORDERS);
+  }
+
+  /** Pickup orders skip delivery entirely; delivery orders need a real
+   * address so the shipping-rates lookup has somewhere to quote. */
+  private async resolveShippingCost(
+    fulfillmentMethod: FulfillmentMethod,
+    shipping: ShippingInfoDto,
+  ): Promise<number> {
+    if (fulfillmentMethod === FulfillmentMethod.PICKUP) return 0;
+    if (!shipping.address || !shipping.city || !shipping.state) {
+      throw new BadRequestException('address, city and state are required for delivery orders');
+    }
+    const { amount } = await this.shippingRatesService.quote(shipping.state, shipping.city);
+    return amount;
   }
 
   async create(user: AuthenticatedUser, dto: CreateOrderDto): Promise<Order> {
@@ -110,7 +124,8 @@ export class OrdersService {
 
       const taxableBase = subtotal - discountAmount;
       const taxAmount = round2(taxableBase * TAX_RATE);
-      const { amount: shippingCost } = await this.shippingRatesService.quote(dto.shipping.state, dto.shipping.city);
+      const fulfillmentMethod = dto.fulfillmentMethod ?? FulfillmentMethod.DELIVERY;
+      const shippingCost = await this.resolveShippingCost(fulfillmentMethod, dto.shipping);
       const totalAmount = round2(taxableBase + taxAmount + shippingCost);
 
       const orderRef = this.repo.collection().doc();
@@ -119,6 +134,7 @@ export class OrdersService {
         userId: user.id,
         status: OrderStatus.PENDING_PAYMENT_VERIFICATION,
         paymentMethod: dto.paymentMethod,
+        fulfillmentMethod,
         subtotal,
         taxAmount,
         shippingCost,
@@ -231,7 +247,8 @@ export class OrdersService {
       });
 
       const taxAmount = round2(subtotal * TAX_RATE);
-      const { amount: shippingCost } = await this.shippingRatesService.quote(dto.shipping.state, dto.shipping.city);
+      const fulfillmentMethod = dto.fulfillmentMethod ?? FulfillmentMethod.DELIVERY;
+      const shippingCost = await this.resolveShippingCost(fulfillmentMethod, dto.shipping);
       const totalAmount = round2(subtotal + taxAmount + shippingCost);
 
       const orderRef = this.repo.collection().doc();
@@ -240,6 +257,7 @@ export class OrdersService {
         userId: user.id,
         status: OrderStatus.PENDING_PAYMENT_VERIFICATION,
         paymentMethod: dto.paymentMethod,
+        fulfillmentMethod,
         subtotal,
         taxAmount,
         shippingCost,
@@ -366,14 +384,15 @@ export class OrdersService {
    * (paid -> preparing -> shipped -> fulfilled). */
   async advanceStatus(orderId: string): Promise<Order> {
     const order = await this.findById(orderId);
-    const idx = ORDER_FULFILLMENT_PIPELINE.indexOf(order.status);
+    const pipeline = fulfillmentPipeline(order.fulfillmentMethod ?? FulfillmentMethod.DELIVERY);
+    const idx = pipeline.indexOf(order.status);
     if (idx === -1) {
       throw new BadRequestException('This order is not in an advanceable state');
     }
-    if (idx === ORDER_FULFILLMENT_PIPELINE.length - 1) {
+    if (idx === pipeline.length - 1) {
       throw new BadRequestException('This order has already reached its final stage');
     }
-    return this.repo.update(orderId, { status: ORDER_FULFILLMENT_PIPELINE[idx + 1] });
+    return this.repo.update(orderId, { status: pipeline[idx + 1] });
   }
 
   /** Cancels an order that hasn't been delivered yet and releases its reserved stock.

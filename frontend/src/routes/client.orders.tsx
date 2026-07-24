@@ -61,13 +61,14 @@ interface Order {
   id: string;
   status: OrderStatus;
   paymentMethod: PaymentMethod;
+  fulfillmentMethod?: "delivery" | "pickup";
   totalAmount: number;
   shippingFullName: string;
   shippingPhone: string;
   shippingTaxId?: string;
-  shippingAddress: string;
-  shippingCity: string;
-  shippingState: string;
+  shippingAddress?: string;
+  shippingCity?: string;
+  shippingState?: string;
   items: OrderItem[];
   createdAt: string;
 }
@@ -267,7 +268,7 @@ function OrderDetailDialog({ order, onClose }: { order: Order; onClose: () => vo
           </div>
         </DialogHeader>
 
-        <OrderStepper status={order.status} />
+        <OrderStepper status={order.status} fulfillmentMethod={order.fulfillmentMethod} />
 
         <div className="text-xs text-muted-foreground">
           Emitido el {formatDate(order.createdAt)} · {PAYMENT_METHOD_LABEL[order.paymentMethod]}
@@ -324,7 +325,7 @@ function OrderDetailDialog({ order, onClose }: { order: Order; onClose: () => vo
 
         <div>
           <div className="mb-2 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-            Datos de envío
+            {order.fulfillmentMethod === "pickup" ? "Retiro en tienda" : "Datos de envío"}
           </div>
           <div className="grid gap-1 text-sm text-brand-navy">
             <div>{order.shippingFullName}</div>
@@ -332,10 +333,18 @@ function OrderDetailDialog({ order, onClose }: { order: Order; onClose: () => vo
             {order.shippingTaxId && (
               <div className="text-muted-foreground">{order.shippingTaxId}</div>
             )}
-            <div>{order.shippingAddress}</div>
-            <div>
-              {order.shippingCity}, {order.shippingState}
-            </div>
+            {order.fulfillmentMethod === "pickup" ? (
+              <p className="text-muted-foreground">
+                Retira tu pedido en tienda cuando esté marcado como "Listo para retirar".
+              </p>
+            ) : (
+              <>
+                <div>{order.shippingAddress}</div>
+                <div>
+                  {order.shippingCity}, {order.shippingState}
+                </div>
+              </>
+            )}
           </div>
         </div>
 

@@ -6,6 +6,7 @@ import {
   Check,
   CreditCard,
   Truck,
+  Store,
   ClipboardCheck,
   Upload,
   Loader2,
@@ -168,6 +169,7 @@ function CheckoutPage() {
   };
   const reduceMotion = useReducedMotion();
 
+  const [fulfillmentMethod, setFulfillmentMethod] = useState<"delivery" | "pickup">("delivery");
   const [fullName, setFullName] = useState("");
   const [taxIdPrefix, setTaxIdPrefix] = useState<TaxIdPrefix>("V");
   const [taxIdNumber, setTaxIdNumber] = useState("");
@@ -177,6 +179,7 @@ function CheckoutPage() {
   const [state, setState] = useState("");
   const [city, setCity] = useState("");
   const [prefilled, setPrefilled] = useState(false);
+  const isPickup = fulfillmentMethod === "pickup";
 
   const [method, setMethod] = useState("");
   const [paymentReference, setPaymentReference] = useState("");
@@ -212,9 +215,9 @@ function CheckoutPage() {
       apiFetch<ShippingQuote>(
         `/shipping-rates/quote?state=${encodeURIComponent(state)}&city=${encodeURIComponent(city)}`,
       ),
-    enabled: !!state && !!city,
+    enabled: !isPickup && !!state && !!city,
   });
-  const shippingCost = state && city ? (shippingQuote?.amount ?? 0) : 0;
+  const shippingCost = !isPickup && state && city ? (shippingQuote?.amount ?? 0) : 0;
   const total = effectiveTaxableBase + effectiveTaxAmount + shippingCost;
 
   // First purchase: prefill just the name. Once an address has been saved
@@ -249,9 +252,7 @@ function CheckoutPage() {
     taxIdValidation.valid &&
     phoneNumber.trim() &&
     phoneValidation.valid &&
-    address.trim() &&
-    state &&
-    city,
+    (isPickup || (address.trim() && state && city)),
   );
   const canContinueStep2 =
     Boolean(info) && (!info!.needsReference || paymentReference.trim().length > 0);
@@ -280,9 +281,7 @@ function CheckoutPage() {
       fullName: fullName.trim(),
       phone: formatPhone(phonePrefix, phoneNumber)!,
       taxId: formatTaxId(taxIdPrefix, taxIdNumber),
-      address: address.trim(),
-      city,
-      state,
+      ...(isPickup ? {} : { address: address.trim(), city, state }),
     };
     try {
       if (isQuoteCheckout && quoteId) {
@@ -290,6 +289,7 @@ function CheckoutPage() {
           method: "POST",
           body: {
             paymentMethod: info.backendMethod,
+            fulfillmentMethod,
             shipping,
             paymentReference: paymentReference.trim() || undefined,
             paymentProofBase64: proofBase64,
@@ -303,6 +303,7 @@ function CheckoutPage() {
           body: {
             items: cart.map((i) => ({ productId: i.product.id, qty: i.qty })),
             paymentMethod: info.backendMethod,
+            fulfillmentMethod,
             shipping,
             paymentReference: paymentReference.trim() || undefined,
             paymentProofBase64: proofBase64,
@@ -315,17 +316,19 @@ function CheckoutPage() {
 
       // Best-effort — save this shipping info for next time. Doesn't block
       // order success if it fails.
-      apiFetch("/users/me", {
-        method: "PATCH",
-        body: {
-          displayName: shipping.fullName,
-          phone: shipping.phone,
-          taxId: shipping.taxId,
-          address: shipping.address,
-          city: shipping.city,
-          state: shipping.state,
-        },
-      }).catch(() => {});
+      if (!isPickup) {
+        apiFetch("/users/me", {
+          method: "PATCH",
+          body: {
+            displayName: shipping.fullName,
+            phone: shipping.phone,
+            taxId: shipping.taxId,
+            address: address.trim(),
+            city,
+            state,
+          },
+        }).catch(() => {});
+      }
 
       toast.success("¡Pedido confirmado! Te contactaremos pronto.");
       navigate({ to: "/client/orders" });
@@ -470,6 +473,36 @@ function CheckoutPage() {
                 {step === 1 && (
                   <div className="space-y-4">
                     <h2 className="text-lg font-semibold text-brand-navy">Información de envío</h2>
+
+                    <RadioGroup
+                      value={fulfillmentMethod}
+                      onValueChange={(v) => setFulfillmentMethod(v as "delivery" | "pickup")}
+                      className="grid gap-3 sm:grid-cols-2"
+                    >
+                      <label
+                        className={`flex cursor-pointer items-center gap-3 rounded-md border p-3 transition ${
+                          fulfillmentMethod === "delivery"
+                            ? "border-brand-blue bg-brand-blue/5"
+                            : "border-border"
+                        }`}
+                      >
+                        <RadioGroupItem value="delivery" />
+                        <Truck className="h-4 w-4 shrink-0 text-brand-blue" />
+                        <span className="font-medium text-brand-navy">Envío a domicilio</span>
+                      </label>
+                      <label
+                        className={`flex cursor-pointer items-center gap-3 rounded-md border p-3 transition ${
+                          fulfillmentMethod === "pickup"
+                            ? "border-brand-blue bg-brand-blue/5"
+                            : "border-border"
+                        }`}
+                      >
+                        <RadioGroupItem value="pickup" />
+                        <Store className="h-4 w-4 shrink-0 text-brand-blue" />
+                        <span className="font-medium text-brand-navy">Retiro en tienda</span>
+                      </label>
+                    </RadioGroup>
+
                     <div className="grid gap-4 sm:grid-cols-2">
                       <div className="grid gap-1.5">
                         <Label className="text-xs font-medium text-brand-navy">
@@ -498,69 +531,86 @@ function CheckoutPage() {
                         <Label className="text-xs font-medium text-brand-navy">Correo</Label>
                         <Input value={email} disabled className="bg-brand-surface" />
                       </div>
-                      <div className="grid gap-1.5">
-                        <Label className="text-xs font-medium text-brand-navy">Estado</Label>
-                        <Select
-                          value={state}
-                          onValueChange={(v) => {
-                            setState(v);
-                            setCity("");
-                          }}
-                        >
-                          <SelectTrigger>
-                            <SelectValue placeholder="Selecciona un estado" />
-                          </SelectTrigger>
-                          <SelectContent>
-                            {VENEZUELA_STATE_NAMES.map((s) => (
-                              <SelectItem key={s} value={s}>
-                                {s}
-                              </SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
-                      </div>
-                      <div className="grid gap-1.5">
-                        <Label className="text-xs font-medium text-brand-navy">Ciudad</Label>
-                        <Select value={city} onValueChange={setCity} disabled={!state}>
-                          <SelectTrigger>
-                            <SelectValue
-                              placeholder={
-                                state ? "Selecciona una ciudad" : "Elige un estado primero"
-                              }
-                            />
-                          </SelectTrigger>
-                          <SelectContent>
-                            {citiesForState(state).map((c) => (
-                              <SelectItem key={c} value={c}>
-                                {c}
-                              </SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
-                      </div>
-                      <div className="sm:col-span-2">
-                        <div className="grid gap-1.5">
-                          <Label className="text-xs font-medium text-brand-navy">Dirección</Label>
-                          <Input
-                            placeholder="Av. Principal, edif..."
-                            value={address}
-                            onChange={(e) => setAddress(e.target.value)}
-                          />
-                        </div>
-                      </div>
+                      {!isPickup && (
+                        <>
+                          <div className="grid gap-1.5">
+                            <Label className="text-xs font-medium text-brand-navy">Estado</Label>
+                            <Select
+                              value={state}
+                              onValueChange={(v) => {
+                                setState(v);
+                                setCity("");
+                              }}
+                            >
+                              <SelectTrigger>
+                                <SelectValue placeholder="Selecciona un estado" />
+                              </SelectTrigger>
+                              <SelectContent>
+                                {VENEZUELA_STATE_NAMES.map((s) => (
+                                  <SelectItem key={s} value={s}>
+                                    {s}
+                                  </SelectItem>
+                                ))}
+                              </SelectContent>
+                            </Select>
+                          </div>
+                          <div className="grid gap-1.5">
+                            <Label className="text-xs font-medium text-brand-navy">Ciudad</Label>
+                            <Select value={city} onValueChange={setCity} disabled={!state}>
+                              <SelectTrigger>
+                                <SelectValue
+                                  placeholder={
+                                    state ? "Selecciona una ciudad" : "Elige un estado primero"
+                                  }
+                                />
+                              </SelectTrigger>
+                              <SelectContent>
+                                {citiesForState(state).map((c) => (
+                                  <SelectItem key={c} value={c}>
+                                    {c}
+                                  </SelectItem>
+                                ))}
+                              </SelectContent>
+                            </Select>
+                          </div>
+                          <div className="sm:col-span-2">
+                            <div className="grid gap-1.5">
+                              <Label className="text-xs font-medium text-brand-navy">
+                                Dirección
+                              </Label>
+                              <Input
+                                placeholder="Av. Principal, edif..."
+                                value={address}
+                                onChange={(e) => setAddress(e.target.value)}
+                              />
+                            </div>
+                          </div>
+                        </>
+                      )}
                     </div>
-                    {state && city && (
-                      <div className="rounded-md border border-border bg-brand-surface px-3 py-2 text-sm text-brand-navy">
-                        Costo de envío a {city}, {state}:{" "}
-                        <span className="font-semibold">
-                          {shippingQuote ? formatMoney(shippingCost) : "calculando…"}
-                        </span>
-                        {shippingQuote && !shippingQuote.matched && (
-                          <span className="ml-1 text-xs text-muted-foreground">
-                            (sin tarifa configurada, te contactaremos para confirmarlo)
-                          </span>
-                        )}
+                    {isPickup ? (
+                      <div className="flex items-start gap-2 rounded-md border border-border bg-brand-surface px-3 py-2 text-sm text-brand-navy">
+                        <Store className="mt-0.5 h-4 w-4 shrink-0 text-brand-blue" />
+                        <p>
+                          Retira tu pedido en nuestra tienda sin costo de envío. Te avisaremos
+                          cuando esté listo para retirar.
+                        </p>
                       </div>
+                    ) : (
+                      state &&
+                      city && (
+                        <div className="rounded-md border border-border bg-brand-surface px-3 py-2 text-sm text-brand-navy">
+                          Costo de envío a {city}, {state}:{" "}
+                          <span className="font-semibold">
+                            {shippingQuote ? formatMoney(shippingCost) : "calculando…"}
+                          </span>
+                          {shippingQuote && !shippingQuote.matched && (
+                            <span className="ml-1 text-xs text-muted-foreground">
+                              (sin tarifa configurada, te contactaremos para confirmarlo)
+                            </span>
+                          )}
+                        </div>
+                      )
                     )}
                   </div>
                 )}
@@ -681,17 +731,21 @@ function CheckoutPage() {
 
                     <div className="rounded-md border border-border p-4 text-sm">
                       <div className="text-xs font-semibold uppercase tracking-widest text-muted-foreground">
-                        Envío
+                        {isPickup ? "Retiro en tienda" : "Envío"}
                       </div>
                       <div className="mt-1.5 grid gap-1 text-brand-navy sm:grid-cols-2">
                         <div>{fullName}</div>
                         <div>{formatTaxId(taxIdPrefix, taxIdNumber) ?? "—"}</div>
                         <div>{formatPhone(phonePrefix, phoneNumber)}</div>
                         <div>{email}</div>
-                        <div>
-                          {city}, {state}
-                        </div>
-                        <div className="sm:col-span-2">{address}</div>
+                        {!isPickup && (
+                          <>
+                            <div>
+                              {city}, {state}
+                            </div>
+                            <div className="sm:col-span-2">{address}</div>
+                          </>
+                        )}
                       </div>
                     </div>
 
@@ -773,7 +827,7 @@ function CheckoutPage() {
                         </div>
                         <div className="flex justify-between text-muted-foreground">
                           <span>Envío</span>
-                          <span>{formatMoney(shippingCost)}</span>
+                          <span>{isPickup ? "Retiro en tienda" : formatMoney(shippingCost)}</span>
                         </div>
                       </div>
                       <Separator className="my-3" />
@@ -850,7 +904,11 @@ function CheckoutPage() {
               <div className="flex justify-between">
                 <span className="text-brand-navy">Envío</span>
                 <span className="text-brand-navy">
-                  {state && city ? formatMoney(shippingCost) : "A calcular"}
+                  {isPickup
+                    ? "Retiro en tienda"
+                    : state && city
+                      ? formatMoney(shippingCost)
+                      : "A calcular"}
                 </span>
               </div>
               <Separator className="my-2" />

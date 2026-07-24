@@ -62,13 +62,14 @@ interface Order {
   id: string;
   status: OrderStatus;
   paymentMethod: PaymentMethod;
+  fulfillmentMethod?: "delivery" | "pickup";
   totalAmount: number;
   shippingFullName: string;
   shippingPhone: string;
   shippingTaxId?: string;
-  shippingAddress: string;
-  shippingCity: string;
-  shippingState: string;
+  shippingAddress?: string;
+  shippingCity?: string;
+  shippingState?: string;
   items: OrderItem[];
   createdAt: string;
 }
@@ -202,6 +203,11 @@ function AdminOrdersPage() {
                     <div className="text-xs text-muted-foreground">Total</div>
                     <div className="font-bold text-brand-navy">{formatMoney(o.totalAmount)}</div>
                   </div>
+                  {o.fulfillmentMethod === "pickup" && (
+                    <Badge className="border-transparent bg-muted text-muted-foreground">
+                      Retiro en tienda
+                    </Badge>
+                  )}
                   <Badge className={ORDER_STATUS_BADGE[o.status]}>
                     {ORDER_STATUS_LABEL[o.status]}
                   </Badge>
@@ -310,7 +316,7 @@ function OrderDetailDialog({ orderId, onClose }: { orderId: string; onClose: () 
     );
   }
 
-  const next = nextOrderStatus(order.status);
+  const next = nextOrderStatus(order.status, order.fulfillmentMethod);
   const canCancel = order.status !== "fulfilled" && order.status !== "cancelled";
 
   return (
@@ -327,7 +333,7 @@ function OrderDetailDialog({ orderId, onClose }: { orderId: string; onClose: () 
           </div>
         </DialogHeader>
 
-        <OrderStepper status={order.status} />
+        <OrderStepper status={order.status} fulfillmentMethod={order.fulfillmentMethod} />
 
         <div className="text-xs text-muted-foreground">
           Emitido el {formatDate(order.createdAt)} · {PAYMENT_METHOD_LABEL[order.paymentMethod]}
@@ -369,7 +375,7 @@ function OrderDetailDialog({ orderId, onClose }: { orderId: string; onClose: () 
 
         <div>
           <div className="mb-2 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-            Datos de envío
+            {order.fulfillmentMethod === "pickup" ? "Retiro en tienda" : "Datos de envío"}
           </div>
           <div className="grid gap-1 text-sm text-brand-navy">
             <div>{order.shippingFullName}</div>
@@ -377,10 +383,14 @@ function OrderDetailDialog({ orderId, onClose }: { orderId: string; onClose: () 
             {order.shippingTaxId && (
               <div className="text-muted-foreground">{order.shippingTaxId}</div>
             )}
-            <div>{order.shippingAddress}</div>
-            <div>
-              {order.shippingCity}, {order.shippingState}
-            </div>
+            {order.fulfillmentMethod !== "pickup" && (
+              <>
+                <div>{order.shippingAddress}</div>
+                <div>
+                  {order.shippingCity}, {order.shippingState}
+                </div>
+              </>
+            )}
           </div>
         </div>
 

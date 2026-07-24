@@ -1,5 +1,6 @@
 import { Type } from 'class-transformer';
 import { IsEnum, IsOptional, IsString, Matches, MaxLength, ValidateNested } from 'class-validator';
+import { FulfillmentMethod } from '../entities/order.entity';
 import { PaymentMethod } from '../../payments/entities/payment.entity';
 import { ShippingInfoDto } from './create-order.dto';
 
@@ -10,6 +11,10 @@ import { ShippingInfoDto } from './create-order.dto';
 export class CreateOrderFromQuoteDto {
   @IsEnum(PaymentMethod)
   paymentMethod: PaymentMethod;
+
+  @IsOptional()
+  @IsEnum(FulfillmentMethod)
+  fulfillmentMethod?: FulfillmentMethod;
 
   @ValidateNested()
   @Type(() => ShippingInfoDto)

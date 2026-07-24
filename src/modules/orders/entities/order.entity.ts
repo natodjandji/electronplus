@@ -6,18 +6,24 @@ export enum OrderStatus {
   PAID = 'paid',
   PREPARING = 'preparing',
   SHIPPED = 'shipped',
+  READY_FOR_PICKUP = 'ready_for_pickup',
   FULFILLED = 'fulfilled',
   CANCELLED = 'cancelled',
 }
 
+export enum FulfillmentMethod {
+  DELIVERY = 'delivery',
+  PICKUP = 'pickup',
+}
+
 /** Linear post-payment fulfillment pipeline — advanceStatus() steps through
- * these in order; pending-verification and cancelled sit outside it. */
-export const ORDER_FULFILLMENT_PIPELINE = [
-  OrderStatus.PAID,
-  OrderStatus.PREPARING,
-  OrderStatus.SHIPPED,
-  OrderStatus.FULFILLED,
-];
+ * these in order; pending-verification and cancelled sit outside it. Pickup
+ * orders skip shipping entirely and get a "ready for pickup" stage instead. */
+export function fulfillmentPipeline(method: FulfillmentMethod): OrderStatus[] {
+  return method === FulfillmentMethod.PICKUP
+    ? [OrderStatus.PAID, OrderStatus.PREPARING, OrderStatus.READY_FOR_PICKUP, OrderStatus.FULFILLED]
+    : [OrderStatus.PAID, OrderStatus.PREPARING, OrderStatus.SHIPPED, OrderStatus.FULFILLED];
+}
 
 export interface OrderItem {
   productId: string;
@@ -35,6 +41,8 @@ export interface Order extends FirestoreDoc {
   userId: string;
   status: OrderStatus;
   paymentMethod: PaymentMethod;
+  /** Absent on orders placed before this field existed — treat as DELIVERY. */
+  fulfillmentMethod?: FulfillmentMethod;
   /** Sum of line totals before tax, shipping and discount. */
   subtotal: number;
   taxAmount: number;
@@ -47,9 +55,10 @@ export interface Order extends FirestoreDoc {
   shippingFullName: string;
   shippingPhone: string;
   shippingTaxId?: string;
-  shippingAddress: string;
-  shippingCity: string;
-  shippingState: string;
+  /** Delivery address — absent for pickup orders. */
+  shippingAddress?: string;
+  shippingCity?: string;
+  shippingState?: string;
 
   items: OrderItem[];
 
