@@ -11,6 +11,7 @@ import {
   Warehouse,
 } from "lucide-react";
 import { AdminShell } from "@/components/admin-shell";
+import { CardListSkeleton } from "@/components/table-skeleton";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -163,12 +164,7 @@ function AdminUsersPage() {
         este panel.
       </p>
 
-      {isLoading && (
-        <div className="flex items-center justify-center gap-2 py-16 text-sm text-muted-foreground">
-          <Loader2 className="h-4 w-4 animate-spin" />
-          Cargando usuarios…
-        </div>
-      )}
+      {isLoading && <CardListSkeleton rows={5} />}
 
       {!isLoading && (
         <div className="space-y-8">

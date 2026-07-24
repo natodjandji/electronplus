@@ -13,7 +13,9 @@ import {
   Plus,
 } from "lucide-react";
 import { AdminShell } from "@/components/admin-shell";
+import { TableRowsSkeleton } from "@/components/table-skeleton";
 import { Card } from "@/components/ui/card";
+import { Skeleton } from "@/components/ui/skeleton";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
@@ -196,12 +198,19 @@ function PurchasesPage() {
         />
       </div>
 
-      {isLoading && (
-        <div className="mt-6 flex items-center justify-center gap-2 py-16 text-sm text-muted-foreground">
-          <Loader2 className="h-4 w-4 animate-spin" />
-          Cargando facturas…
-        </div>
-      )}
+      {isLoading &&
+        [0, 1].map((i) => (
+          <Card key={i} className="mt-6 overflow-hidden">
+            <div className="border-b border-border p-4">
+              <Skeleton className="h-4 w-32" />
+            </div>
+            <table className="w-full text-sm">
+              <tbody>
+                <TableRowsSkeleton columns={6} rows={3} />
+              </tbody>
+            </table>
+          </Card>
+        ))}
 
       {!isLoading && all.length === 0 && (
         <Card className="mt-6 p-10 text-center text-muted-foreground">

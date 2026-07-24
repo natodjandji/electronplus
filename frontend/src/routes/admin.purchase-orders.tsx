@@ -15,9 +15,11 @@ import {
 } from "lucide-react";
 import { AdminShell } from "@/components/admin-shell";
 import { ElectronLogo } from "@/components/electron-logo";
+import { TableRowsSkeleton } from "@/components/table-skeleton";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
+import { Skeleton } from "@/components/ui/skeleton";
 import {
   Dialog,
   DialogContent,
@@ -229,12 +231,19 @@ function PurchaseOrdersPage() {
           </Button>
         </div>
 
-        {isLoading && (
-          <div className="mt-6 flex items-center justify-center gap-2 py-16 text-sm text-muted-foreground">
-            <Loader2 className="h-4 w-4 animate-spin" />
-            Cargando…
-          </div>
-        )}
+        {isLoading &&
+          [0, 1].map((i) => (
+            <Card key={i} className="mt-6 overflow-hidden">
+              <div className="border-b border-border p-4">
+                <Skeleton className="h-4 w-32" />
+              </div>
+              <table className="w-full text-sm">
+                <tbody>
+                  <TableRowsSkeleton columns={5} rows={3} />
+                </tbody>
+              </table>
+            </Card>
+          ))}
 
         {!isLoading && (orders?.length ?? 0) === 0 && (
           <Card className="mt-6 p-10 text-center text-muted-foreground">

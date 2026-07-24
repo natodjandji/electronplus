@@ -3,6 +3,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 import { AlertCircle, Ban, Check, ChevronRight, FileText, Loader2, X } from "lucide-react";
 import { AdminShell } from "@/components/admin-shell";
+import { CardListSkeleton } from "@/components/table-skeleton";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
@@ -150,12 +151,7 @@ function AdminOrdersPage() {
         </div>
       </div>
 
-      {isLoading && (
-        <div className="mt-6 flex items-center justify-center gap-2 py-16 text-sm text-muted-foreground">
-          <Loader2 className="h-4 w-4 animate-spin" />
-          Cargando pedidos…
-        </div>
-      )}
+      {isLoading && <CardListSkeleton />}
 
       {!isLoading && (orders?.length ?? 0) === 0 && (
         <Card className="mt-6 p-10 text-center text-muted-foreground">

@@ -2,6 +2,7 @@ import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { AlertTriangle, Loader2, PackageX, ShoppingCart } from "lucide-react";
 import { AdminShell } from "@/components/admin-shell";
+import { Skeleton } from "@/components/ui/skeleton";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -126,12 +127,18 @@ function StockPage() {
         </Card>
       </div>
 
-      {isLoading && (
-        <div className="mt-6 flex items-center justify-center gap-2 py-16 text-sm text-muted-foreground">
-          <Loader2 className="h-4 w-4 animate-spin" />
-          Cargando inventario…
-        </div>
-      )}
+      {isLoading &&
+        [0, 1].map((i) => (
+          <Card key={i} className="mt-6 p-6">
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              <div className="space-y-2">
+                <Skeleton className="h-4 w-40" />
+                <Skeleton className="h-3 w-56" />
+              </div>
+              <Skeleton className="h-9 w-44 rounded-md" />
+            </div>
+          </Card>
+        ))}
 
       {!isLoading && critical.length === 0 && (
         <Card className="mt-6 p-10 text-center text-muted-foreground">

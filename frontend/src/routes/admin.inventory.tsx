@@ -1,18 +1,10 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState, type ChangeEvent } from "react";
-import {
-  AlertTriangle,
-  ImageIcon,
-  Link2,
-  Loader2,
-  PackageX,
-  Plus,
-  Search,
-  Unlink,
-} from "lucide-react";
+import { AlertTriangle, ImageIcon, Link2, PackageX, Plus, Search, Unlink } from "lucide-react";
 import { AdminShell } from "@/components/admin-shell";
 import { ProductImage } from "@/components/product-image";
+import { TableRowsSkeleton } from "@/components/table-skeleton";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -161,13 +153,7 @@ function InventoryPage() {
               </tr>
             </thead>
             <tbody>
-              {isLoading && (
-                <tr>
-                  <td colSpan={8} className="py-8 text-center text-muted-foreground">
-                    Cargando…
-                  </td>
-                </tr>
-              )}
+              {isLoading && <TableRowsSkeleton columns={8} />}
               {!isLoading && (products?.length ?? 0) === 0 && (
                 <tr>
                   <td colSpan={8} className="py-8 text-center text-muted-foreground">
