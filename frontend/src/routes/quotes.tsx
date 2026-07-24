@@ -71,16 +71,12 @@ export const Route = createFileRoute("/quotes")({
 
 type QuoteStatus = "draft" | "sent" | "approved" | "rejected";
 
-type PaymentMethod = "bank_transfer" | "pago_movil" | "cash" | "zelle" | "paypal" | "credit_b2b";
-
-const PAYMENT_METHOD_LABEL: Record<PaymentMethod, string> = {
-  bank_transfer: "Transferencia bancaria",
-  pago_movil: "Pago móvil",
-  cash: "Efectivo",
-  zelle: "Zelle",
-  paypal: "PayPal",
-  credit_b2b: "Crédito B2B",
-};
+interface PaymentMethodConfig {
+  id: string;
+  backendMethod: string;
+  label: string;
+  enabled: boolean;
+}
 
 interface QuoteLine {
   id: string;
@@ -100,7 +96,7 @@ interface Quote {
   status: QuoteStatus;
   globalDiscountPct: number;
   rejectionReason?: string;
-  expectedPaymentMethod?: PaymentMethod;
+  expectedPaymentMethod?: string;
   items: QuoteLine[];
   createdAt: string;
   convertedOrderId?: string;
@@ -150,6 +146,18 @@ function useMyQuotes(enabled: boolean) {
     queryFn: () => apiFetch<Quote[]>("/quotes/mine"),
     enabled,
   });
+}
+
+function usePaymentMethods() {
+  return useQuery({
+    queryKey: ["payment-methods"],
+    queryFn: () => apiFetch<PaymentMethodConfig[]>("/payment-methods"),
+  });
+}
+
+function paymentMethodLabel(methods: PaymentMethodConfig[] | undefined, backendMethod?: string) {
+  if (!backendMethod) return undefined;
+  return methods?.find((m) => m.backendMethod === backendMethod)?.label ?? backendMethod;
 }
 
 function useProductPicker() {
@@ -495,6 +503,8 @@ function QuoteBuilder({ id, onBack }: { id: string; onBack: () => void }) {
   });
   const { data: products } = useProductPicker();
   const { data: bcv } = useBcvRate();
+  const { data: paymentMethods } = usePaymentMethods();
+  const enabledPaymentMethods = (paymentMethods ?? []).filter((m) => m.enabled);
 
   const addedProductIds = new Set((quote?.items ?? []).map((i) => i.productId));
   const availableProducts = (products ?? []).filter((p) => !addedProductIds.has(p.id));
@@ -546,7 +556,7 @@ function QuoteBuilder({ id, onBack }: { id: string; onBack: () => void }) {
     }
   };
 
-  const updatePaymentMethod = async (method: PaymentMethod) => {
+  const updatePaymentMethod = async (method: string) => {
     try {
       await apiFetch(`/quotes/${id}/payment-method`, {
         method: "PATCH",
@@ -610,7 +620,7 @@ function QuoteBuilder({ id, onBack }: { id: string; onBack: () => void }) {
             )}
             {!isDraft && quote.expectedPaymentMethod && (
               <div className="text-xs text-muted-foreground">
-                Método de pago: {PAYMENT_METHOD_LABEL[quote.expectedPaymentMethod]}
+                Método de pago: {paymentMethodLabel(paymentMethods, quote.expectedPaymentMethod)}
               </div>
             )}
           </div>
@@ -710,15 +720,16 @@ function QuoteBuilder({ id, onBack }: { id: string; onBack: () => void }) {
                 </Label>
                 <Select
                   value={quote.expectedPaymentMethod ?? ""}
-                  onValueChange={(v) => updatePaymentMethod(v as PaymentMethod)}
+                  onValueChange={(v) => updatePaymentMethod(v)}
+                  disabled={enabledPaymentMethods.length === 0}
                 >
                   <SelectTrigger>
                     <SelectValue placeholder="Seleccionar método…" />
                   </SelectTrigger>
                   <SelectContent>
-                    {(Object.keys(PAYMENT_METHOD_LABEL) as PaymentMethod[]).map((m) => (
-                      <SelectItem key={m} value={m}>
-                        {PAYMENT_METHOD_LABEL[m]}
+                    {enabledPaymentMethods.map((m) => (
+                      <SelectItem key={m.id} value={m.backendMethod}>
+                        {m.label}
                       </SelectItem>
                     ))}
                   </SelectContent>

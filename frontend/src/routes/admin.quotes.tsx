@@ -39,16 +39,12 @@ export const Route = createFileRoute("/admin/quotes")({
 
 type QuoteStatus = "draft" | "sent" | "approved" | "rejected";
 
-type PaymentMethod = "bank_transfer" | "pago_movil" | "cash" | "zelle" | "paypal" | "credit_b2b";
-
-const PAYMENT_METHOD_LABEL: Record<PaymentMethod, string> = {
-  bank_transfer: "Transferencia bancaria",
-  pago_movil: "Pago móvil",
-  cash: "Efectivo",
-  zelle: "Zelle",
-  paypal: "PayPal",
-  credit_b2b: "Crédito B2B",
-};
+interface PaymentMethodConfig {
+  id: string;
+  backendMethod: string;
+  label: string;
+  enabled: boolean;
+}
 
 interface QuoteLine {
   id: string;
@@ -69,7 +65,7 @@ interface Quote {
   status: QuoteStatus;
   globalDiscountPct: number;
   rejectionReason?: string;
-  expectedPaymentMethod?: PaymentMethod;
+  expectedPaymentMethod?: string;
   items: QuoteLine[];
   createdAt: string;
 }
@@ -109,6 +105,18 @@ function useAllQuotes() {
     queryKey: ["admin", "quotes"],
     queryFn: () => apiFetch<Quote[]>("/quotes"),
   });
+}
+
+function usePaymentMethods() {
+  return useQuery({
+    queryKey: ["payment-methods"],
+    queryFn: () => apiFetch<PaymentMethodConfig[]>("/payment-methods"),
+  });
+}
+
+function paymentMethodLabel(methods: PaymentMethodConfig[] | undefined, backendMethod?: string) {
+  if (!backendMethod) return undefined;
+  return methods?.find((m) => m.backendMethod === backendMethod)?.label ?? backendMethod;
 }
 
 function AdminQuotesPage() {
@@ -220,6 +228,7 @@ function QuoteDetailDialog({ id, onClose }: { id: string; onClose: () => void })
     queryFn: () => apiFetch<Quote>(`/quotes/${id}`),
   });
   const { data: bcv } = useBcvRate();
+  const { data: paymentMethods } = usePaymentMethods();
 
   const invalidate = () => {
     queryClient.invalidateQueries({ queryKey: ["admin", "quotes"] });
@@ -296,9 +305,7 @@ function QuoteDetailDialog({ id, onClose }: { id: string; onClose: () => void })
           <div className="flex items-center gap-1.5 text-xs text-brand-navy">
             <span className="text-muted-foreground">Método de pago que planea usar:</span>
             <span className="font-semibold">
-              {quote.expectedPaymentMethod
-                ? PAYMENT_METHOD_LABEL[quote.expectedPaymentMethod]
-                : "No indicado"}
+              {paymentMethodLabel(paymentMethods, quote.expectedPaymentMethod) ?? "No indicado"}
             </span>
           </div>
 
