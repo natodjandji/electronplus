@@ -14,6 +14,7 @@ import {
   Truck,
   AlertTriangle,
   Settings,
+  Store,
 } from "lucide-react";
 import { ElectronLogo } from "./electron-logo";
 import { PageTransition } from "./motion-primitives";
@@ -50,6 +51,7 @@ const NAV_GROUPS = [
       { to: "/admin/suppliers", label: "Proveedores", icon: Building2, exact: false },
       { to: "/admin/stock", label: "Alertas de stock", icon: AlertTriangle, exact: false },
       { to: "/admin/labels", label: "Etiquetas QR", icon: QrCode, exact: false },
+      { to: "/admin/second-store", label: "Tienda secundaria", icon: Store, exact: false },
     ],
   },
   {

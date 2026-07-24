@@ -1,0 +1,75 @@
+import { Inject, Injectable } from '@nestjs/common';
+import { FieldValue } from 'firebase-admin/firestore';
+import type { Firestore } from 'firebase-admin/firestore';
+import { FIRESTORE } from '../../firebase/firebase.constants';
+import { Collections } from '../../firebase/firestore-collections';
+import { FirestoreRepository } from '../../firebase/firestore.repository';
+import { ProductsService } from '../products/products.service';
+import { CreateSecondStoreProductDto } from './dto/create-second-store-product.dto';
+import { UpdateSecondStoreProductDto } from './dto/update-second-store-product.dto';
+import { SecondStoreProduct } from './entities/second-store-product.entity';
+
+export interface SecondStoreProductWithLink extends SecondStoreProduct {
+  linkedProduct: { id: string; sku: string; name: string; stock: number } | null;
+}
+
+@Injectable()
+export class SecondStoreService {
+  private readonly repo: FirestoreRepository<SecondStoreProduct>;
+
+  constructor(
+    @Inject(FIRESTORE) firestore: Firestore,
+    private readonly productsService: ProductsService,
+  ) {
+    this.repo = new FirestoreRepository<SecondStoreProduct>(firestore, Collections.SECOND_STORE_PRODUCTS);
+  }
+
+  async findAll(): Promise<SecondStoreProductWithLink[]> {
+    const items = await this.repo.findAll({ orderBy: { field: 'name' } });
+    return Promise.all(items.map((item) => this.withLinkedProduct(item)));
+  }
+
+  async findById(id: string): Promise<SecondStoreProductWithLink> {
+    const item = await this.repo.getOrThrow(id, 'Second store product not found');
+    return this.withLinkedProduct(item);
+  }
+
+  private async withLinkedProduct(item: SecondStoreProduct): Promise<SecondStoreProductWithLink> {
+    if (!item.linkedProductId) return { ...item, linkedProduct: null };
+    try {
+      const product = await this.productsService.findById(item.linkedProductId);
+      return {
+        ...item,
+        linkedProduct: { id: product.id, sku: product.sku, name: product.name, stock: product.stock },
+      };
+    } catch {
+      // Linked product was deleted after linking — surface as unlinked rather than failing the list.
+      return { ...item, linkedProduct: null };
+    }
+  }
+
+  create(dto: CreateSecondStoreProductDto): Promise<SecondStoreProduct> {
+    return this.repo.create(dto);
+  }
+
+  async update(id: string, dto: UpdateSecondStoreProductDto): Promise<SecondStoreProduct> {
+    await this.repo.getOrThrow(id, 'Second store product not found');
+    return this.repo.update(id, dto);
+  }
+
+  async delete(id: string): Promise<void> {
+    await this.repo.getOrThrow(id, 'Second store product not found');
+    await this.repo.delete(id);
+  }
+
+  async link(id: string, productId: string): Promise<SecondStoreProduct> {
+    await this.repo.getOrThrow(id, 'Second store product not found');
+    await this.productsService.findById(productId); // throws if the product doesn't exist
+    return this.repo.update(id, { linkedProductId: productId });
+  }
+
+  async unlink(id: string): Promise<SecondStoreProduct> {
+    await this.repo.getOrThrow(id, 'Second store product not found');
+    return this.repo.update(id, { linkedProductId: FieldValue.delete() as never });
+  }
+}

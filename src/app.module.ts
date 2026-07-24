@@ -24,6 +24,7 @@ import { ExchangeRateModule } from './modules/exchange-rate/exchange-rate.module
 import { PaymentMethodsModule } from './modules/payment-methods/payment-methods.module';
 import { ShippingRatesModule } from './modules/shipping-rates/shipping-rates.module';
 import { DiscountCodesModule } from './modules/discount-codes/discount-codes.module';
+import { SecondStoreModule } from './modules/second-store/second-store.module';
 
 @Module({
   imports: [
@@ -55,6 +56,7 @@ import { DiscountCodesModule } from './modules/discount-codes/discount-codes.mod
     PaymentMethodsModule,
     ShippingRatesModule,
     DiscountCodesModule,
+    SecondStoreModule,
   ],
 })
 export class AppModule {}
