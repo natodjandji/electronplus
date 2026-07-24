@@ -106,6 +106,29 @@ export class QuotesService {
     return this.repo.update(id, { globalDiscountPct });
   }
 
+  /** Admin-only — sets each line's discount so its effective price matches that
+   * product's wholesale price exactly (retail:wholesale ratio varies per product,
+   * so a single flat % can't reproduce this). Clears globalDiscountPct so it
+   * doesn't stack a second discount on top of wholesale. */
+  async applyWholesalePricing(id: string, user: AuthenticatedUser): Promise<Quote> {
+    const quote = await this.assertNotFinalized(id, user);
+    const items = quote.items.map((item) => ({
+      ...item,
+      discountPct:
+        item.unitPrice > 0
+          ? Math.round(Math.max(0, (1 - item.wholesalePrice / item.unitPrice) * 10000)) / 100
+          : 0,
+    }));
+    return this.repo.update(id, { items, globalDiscountPct: 0 });
+  }
+
+  /** Admin-only — reverts applyWholesalePricing back to full retail pricing. */
+  async resetToRetailPricing(id: string, user: AuthenticatedUser): Promise<Quote> {
+    const quote = await this.assertNotFinalized(id, user);
+    const items = quote.items.map((item) => ({ ...item, discountPct: 0 }));
+    return this.repo.update(id, { items, globalDiscountPct: 0 });
+  }
+
   /** draft -> sent: the customer submits their quote request for admin review. */
   async send(id: string, user: AuthenticatedUser): Promise<Quote> {
     await this.assertEditable(id, user);

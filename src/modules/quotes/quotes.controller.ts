@@ -83,6 +83,18 @@ export class QuotesController {
     return this.quotesService.setGlobalDiscount(id, user, dto.globalDiscountPct);
   }
 
+  @Post(':id/wholesale')
+  @Roles(Role.ADMIN)
+  applyWholesalePricing(@Param('id') id: string, @CurrentUser() user: AuthenticatedUser) {
+    return this.quotesService.applyWholesalePricing(id, user);
+  }
+
+  @Post(':id/wholesale/reset')
+  @Roles(Role.ADMIN)
+  resetToRetailPricing(@Param('id') id: string, @CurrentUser() user: AuthenticatedUser) {
+    return this.quotesService.resetToRetailPricing(id, user);
+  }
+
   @Post(':id/send')
   send(@Param('id') id: string, @CurrentUser() user: AuthenticatedUser) {
     return this.quotesService.send(id, user);

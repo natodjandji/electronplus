@@ -19,6 +19,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Separator } from "@/components/ui/separator";
+import { Switch } from "@/components/ui/switch";
 import { Textarea } from "@/components/ui/textarea";
 import { apiFetch, ApiError } from "@/lib/api-client";
 import { formatMoney } from "@/lib/electron-store";
@@ -181,6 +182,7 @@ function QuoteDetailDialog({ id, onClose }: { id: string; onClose: () => void })
   const [discountPct, setDiscountPct] = useState(0);
   const [rejectReason, setRejectReason] = useState("");
   const [discountTouched, setDiscountTouched] = useState(false);
+  const [useWholesale, setUseWholesale] = useState(false);
 
   const { data: quote } = useQuery({
     queryKey: ["admin", "quotes", id],
@@ -200,7 +202,11 @@ function QuoteDetailDialog({ id, onClose }: { id: string; onClose: () => void })
 
   const approve = useMutation({
     mutationFn: async () => {
-      if (discountTouched) await setDiscount.mutateAsync(discountPct);
+      if (useWholesale) {
+        await apiFetch(`/quotes/${id}/wholesale`, { method: "POST" });
+      } else if (discountTouched) {
+        await setDiscount.mutateAsync(discountPct);
+      }
       return apiFetch(`/quotes/${id}/approve`, { method: "POST" });
     },
     onSuccess: () => {
@@ -262,7 +268,8 @@ function QuoteDetailDialog({ id, onClose }: { id: string; onClose: () => void })
                 <tr className="border-b border-border bg-brand-surface text-left text-xs uppercase tracking-wider text-muted-foreground">
                   <th className="px-3 py-2">Producto</th>
                   <th className="px-3 py-2 text-right">Cant.</th>
-                  <th className="px-3 py-2 text-right">Precio</th>
+                  <th className="px-3 py-2 text-right">Detal</th>
+                  <th className="px-3 py-2 text-right">Mayor</th>
                   <th className="px-3 py-2 text-right">Total</th>
                 </tr>
               </thead>
@@ -275,6 +282,9 @@ function QuoteDetailDialog({ id, onClose }: { id: string; onClose: () => void })
                     </td>
                     <td className="px-3 py-2 text-right">{item.qty}</td>
                     <td className="px-3 py-2 text-right">{formatMoney(item.unitPrice)}</td>
+                    <td className="px-3 py-2 text-right text-muted-foreground">
+                      {formatMoney(item.wholesalePrice)}
+                    </td>
                     <td className="px-3 py-2 text-right font-semibold text-brand-navy">
                       {formatMoney(item.unitPrice * item.qty * (1 - item.discountPct / 100))}
                     </td>
@@ -284,18 +294,36 @@ function QuoteDetailDialog({ id, onClose }: { id: string; onClose: () => void })
             </table>
           </div>
 
-          <div className="flex justify-end text-lg font-bold text-brand-navy">
-            Total {formatMoney(total)}
+          <div className="flex items-center justify-between gap-3 rounded-md bg-brand-surface p-3 text-sm">
+            <div>
+              <div className="text-xs text-muted-foreground">Total al detal</div>
+              <div className="text-lg font-bold text-brand-navy">{formatMoney(total)}</div>
+            </div>
+            <div className="text-right">
+              <div className="text-xs text-muted-foreground">Total al mayor</div>
+              <div className="text-lg font-bold text-brand-navy">{formatMoney(wholesaleTotal)}</div>
+            </div>
           </div>
 
           {canDecide ? (
             <>
               <Separator />
               <p className="text-xs text-muted-foreground">
-                Acuerda con el cliente cómo va a pagar y las condiciones antes de aprobar. El
-                descuento que definas aquí es el precio final — el cliente lo verá reflejado al
-                pasar la cotización aprobada a pago.
+                Acuerda con el cliente cómo va a pagar y las condiciones antes de aprobar. El precio
+                que definas aquí es el final — el cliente lo verá reflejado al pasar la cotización
+                aprobada a pago.
               </p>
+              <div className="flex items-center justify-between gap-3 rounded-md border border-border p-3">
+                <div>
+                  <Label className="text-sm font-medium text-brand-navy">
+                    Aprobar con precio al mayor
+                  </Label>
+                  <p className="text-xs text-muted-foreground">
+                    Cobra el precio mayorista de cada producto en vez del detal.
+                  </p>
+                </div>
+                <Switch checked={useWholesale} onCheckedChange={setUseWholesale} />
+              </div>
               <div className="grid gap-1.5">
                 <Label className="text-xs font-medium text-brand-navy">
                   Descuento especial % (opcional, al aprobar)
@@ -305,6 +333,7 @@ function QuoteDetailDialog({ id, onClose }: { id: string; onClose: () => void })
                   min={0}
                   max={100}
                   value={discountPct}
+                  disabled={useWholesale}
                   onChange={(e) => {
                     setDiscountTouched(true);
                     setDiscountPct(Math.min(100, Math.max(0, Number(e.target.value))));
