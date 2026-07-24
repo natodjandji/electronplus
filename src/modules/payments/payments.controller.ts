@@ -22,13 +22,13 @@ export class PaymentsController {
   constructor(private readonly paymentsService: PaymentsService) {}
 
   @Get('order/:orderId')
-  findByOrder(@Param('orderId') orderId: string) {
-    return this.paymentsService.findByOrder(orderId);
+  findByOrder(@Param('orderId') orderId: string, @CurrentUser() user: AuthenticatedUser) {
+    return this.paymentsService.findByOrder(orderId, user);
   }
 
   @Post(':id/paypal/capture')
-  capturePaypal(@Param('id') id: string) {
-    return this.paymentsService.capturePaypal(id);
+  capturePaypal(@Param('id') id: string, @CurrentUser() user: AuthenticatedUser) {
+    return this.paymentsService.capturePaypal(id, user);
   }
 
   @Patch(':id/verify')

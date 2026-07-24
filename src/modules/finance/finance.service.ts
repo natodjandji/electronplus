@@ -108,6 +108,7 @@ export class FinanceService {
     return this.payablesRepo.findAll({
       where: status ? [{ field: 'status', op: '==', value: status }] : [],
       orderBy: { field: 'dueDate', direction: 'asc' },
+      limit: 500,
     });
   }
 
@@ -116,9 +117,10 @@ export class FinanceService {
   }
 
   private paymentsRepo(invoiceId: string): FirestoreRepository<SupplierPayment> {
+    const invoiceRef = this.payablesRepo.doc(invoiceId); // throws if invoiceId isn't a valid single-segment id
     return new FirestoreRepository<SupplierPayment>(
       this.firestore,
-      `${Collections.SUPPLIERS_PAYABLES}/${invoiceId}/${Collections.SUPPLIER_PAYMENTS}`,
+      `${invoiceRef.path}/${Collections.SUPPLIER_PAYMENTS}`,
     );
   }
 

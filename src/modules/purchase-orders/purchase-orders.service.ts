@@ -31,9 +31,10 @@ export class PurchaseOrdersService {
   }
 
   private paymentsRepo(orderId: string): FirestoreRepository<PurchaseOrderPayment> {
+    const orderRef = this.repo.doc(orderId); // throws if orderId isn't a valid single-segment id
     return new FirestoreRepository<PurchaseOrderPayment>(
       this.firestore,
-      `${Collections.PURCHASE_ORDERS}/${orderId}/${Collections.PURCHASE_ORDER_PAYMENTS}`,
+      `${orderRef.path}/${Collections.PURCHASE_ORDER_PAYMENTS}`,
     );
   }
 

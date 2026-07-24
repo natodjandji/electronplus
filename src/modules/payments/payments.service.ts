@@ -1,6 +1,8 @@
-import { BadRequestException, Inject, Injectable } from '@nestjs/common';
+import { BadRequestException, ForbiddenException, Inject, Injectable } from '@nestjs/common';
 import { EventEmitter2 } from '@nestjs/event-emitter';
 import type { Firestore } from 'firebase-admin/firestore';
+import { Role } from '../../common/enums/role.enum';
+import { AuthenticatedUser } from '../../common/interfaces/authenticated-user.interface';
 import { FIRESTORE } from '../../firebase/firebase.constants';
 import { Collections } from '../../firebase/firestore-collections';
 import { FirestoreRepository } from '../../firebase/firestore.repository';
@@ -19,11 +21,21 @@ export class PaymentsService {
   private readonly repo: FirestoreRepository<Payment>;
 
   constructor(
-    @Inject(FIRESTORE) firestore: Firestore,
+    @Inject(FIRESTORE) private readonly firestore: Firestore,
     private readonly paypal: PayPalClient,
     private readonly events: EventEmitter2,
   ) {
     this.repo = new FirestoreRepository<Payment>(firestore, Collections.PAYMENTS);
+  }
+
+  /** Mirrors OrdersService's ownership check without depending on OrdersModule
+   * (which already depends on PaymentsModule — importing it back would cycle). */
+  private async assertOrderAccess(orderId: string, user: AuthenticatedUser): Promise<void> {
+    if (user.role === Role.ADMIN) return;
+    const orderSnap = await this.firestore.collection(Collections.ORDERS).doc(orderId).get();
+    if (!orderSnap.exists || orderSnap.data()?.userId !== user.id) {
+      throw new ForbiddenException('This order does not belong to you');
+    }
   }
 
   /** Records a manual-reconciliation or credit-B2B payment intent for an order. */
@@ -71,7 +83,8 @@ export class PaymentsService {
     return saved;
   }
 
-  findByOrder(orderId: string): Promise<Payment[]> {
+  async findByOrder(orderId: string, user: AuthenticatedUser): Promise<Payment[]> {
+    await this.assertOrderAccess(orderId, user);
     return this.repo.findAll({
       where: [{ field: 'orderId', op: '==', value: orderId }],
       orderBy: { field: 'createdAt', direction: 'desc' },
@@ -88,6 +101,9 @@ export class PaymentsService {
     if (!MANUAL_RECONCILIATION_METHODS.includes(payment.method)) {
       throw new BadRequestException('Only manual-reconciliation payments are verified this way');
     }
+    if (payment.status !== PaymentStatus.PENDING) {
+      throw new BadRequestException(`Payment is already ${payment.status}`);
+    }
     const saved = await this.repo.update(id, {
       status: PaymentStatus.VERIFIED,
       verifiedByUserId: adminUserId,
@@ -98,6 +114,10 @@ export class PaymentsService {
   }
 
   async reject(id: string, adminUserId: string, reason: string): Promise<Payment> {
+    const payment = await this.findById(id);
+    if (payment.status !== PaymentStatus.PENDING) {
+      throw new BadRequestException(`Payment is already ${payment.status}`);
+    }
     return this.repo.update(id, {
       status: PaymentStatus.REJECTED,
       verifiedByUserId: adminUserId,
@@ -107,10 +127,14 @@ export class PaymentsService {
   }
 
   /** Called after the buyer approves the PayPal order client-side; captures the funds. */
-  async capturePaypal(id: string): Promise<Payment> {
+  async capturePaypal(id: string, user: AuthenticatedUser): Promise<Payment> {
     const payment = await this.findById(id);
+    await this.assertOrderAccess(payment.orderId, user);
     if (payment.method !== PaymentMethod.PAYPAL || !payment.externalReference) {
       throw new BadRequestException('This payment is not a PayPal payment');
+    }
+    if (payment.status !== PaymentStatus.PENDING) {
+      throw new BadRequestException(`Payment is already ${payment.status}`);
     }
     const result = await this.paypal.captureOrder(payment.externalReference);
     if (result.status !== 'COMPLETED') {

@@ -1,4 +1,4 @@
-import { NotFoundException } from '@nestjs/common';
+import { BadRequestException, NotFoundException } from '@nestjs/common';
 import type { CollectionReference, Firestore, Query, WhereFilterOp } from 'firebase-admin/firestore';
 import { FieldValue } from 'firebase-admin/firestore';
 
@@ -36,6 +36,12 @@ export class FirestoreRepository<T extends FirestoreDoc> {
   }
 
   doc(id: string) {
+    // A "/" in a doc ID makes Firestore treat it as a relative path, which
+    // can resolve outside this collection entirely (e.g. into a
+    // subcollection) — route params must never be trusted with this intact.
+    if (id.includes('/')) {
+      throw new BadRequestException('Invalid id');
+    }
     return this.collection().doc(id);
   }
 

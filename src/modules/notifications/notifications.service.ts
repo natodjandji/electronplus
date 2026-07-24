@@ -1,4 +1,4 @@
-import { Inject, Injectable } from '@nestjs/common';
+import { Inject, Injectable, Logger } from '@nestjs/common';
 import { OnEvent } from '@nestjs/event-emitter';
 import type { Firestore } from 'firebase-admin/firestore';
 import { FIRESTORE } from '../../firebase/firebase.constants';
@@ -18,6 +18,7 @@ const OPS_ROLES = [Role.ADMIN, Role.WAREHOUSE_OPERATOR];
 
 @Injectable()
 export class NotificationsService {
+  private readonly logger = new Logger(NotificationsService.name);
   private readonly repo: FirestoreRepository<Notification>;
 
   constructor(
@@ -53,37 +54,53 @@ export class NotificationsService {
 
   @OnEvent(STOCK_ALERT_RAISED_EVENT)
   async handleStockAlert(payload: StockAlertRaisedEvent): Promise<void> {
-    const isOut = payload.level === StockAlertLevel.OUT;
-    await this.create(
-      isOut ? NotificationType.OUT_OF_STOCK : NotificationType.LOW_STOCK,
-      isOut ? 'Producto agotado' : 'Stock bajo',
-      `${payload.name} (${payload.sku}): ${payload.stock} unidades disponibles`,
-      OPS_ROLES,
-      { ...payload },
-    );
+    try {
+      const isOut = payload.level === StockAlertLevel.OUT;
+      await this.create(
+        isOut ? NotificationType.OUT_OF_STOCK : NotificationType.LOW_STOCK,
+        isOut ? 'Producto agotado' : 'Stock bajo',
+        `${payload.name} (${payload.sku}): ${payload.stock} unidades disponibles`,
+        OPS_ROLES,
+        { ...payload },
+      );
+    } catch (error) {
+      this.logger.error(`Failed to create stock alert notification for ${payload.sku}`, error as Error);
+    }
   }
 
   @OnEvent(INVOICE_DUE_ALERT_EVENT)
   async handleInvoiceDue(payload: InvoiceDueAlertEvent): Promise<void> {
-    const isOverdue = payload.dueStatus === PayableDueStatus.OVERDUE;
-    await this.create(
-      isOverdue ? NotificationType.INVOICE_OVERDUE : NotificationType.INVOICE_DUE_SOON,
-      isOverdue ? 'Factura vencida' : 'Factura por vencer',
-      `${payload.supplierName} · Factura ${payload.invoiceNumber} vence el ${payload.dueDate}`,
-      [Role.ADMIN],
-      { ...payload },
-    );
+    try {
+      const isOverdue = payload.dueStatus === PayableDueStatus.OVERDUE;
+      await this.create(
+        isOverdue ? NotificationType.INVOICE_OVERDUE : NotificationType.INVOICE_DUE_SOON,
+        isOverdue ? 'Factura vencida' : 'Factura por vencer',
+        `${payload.supplierName} · Factura ${payload.invoiceNumber} vence el ${payload.dueDate}`,
+        [Role.ADMIN],
+        { ...payload },
+      );
+    } catch (error) {
+      this.logger.error(`Failed to create invoice due notification for ${payload.invoiceNumber}`, error as Error);
+    }
   }
 
   @OnEvent(ERP_SYNC_ERROR_EVENT)
   async handleErpSyncError(payload: ErpSyncErrorEvent): Promise<void> {
-    await this.create(NotificationType.SYNC_ERROR, 'Error de sincronización con Profit Plus', payload.message, [Role.ADMIN], {
-      ...payload,
-    });
+    try {
+      await this.create(NotificationType.SYNC_ERROR, 'Error de sincronización con Profit Plus', payload.message, [Role.ADMIN], {
+        ...payload,
+      });
+    } catch (error) {
+      this.logger.error('Failed to create ERP sync error notification', error as Error);
+    }
   }
 
   @OnEvent(STOCK_CHANGED_EVENT)
   handleStockChanged(payload: StockChangedEvent): void {
-    this.gateway.broadcastToRoles(OPS_ROLES, 'stock.changed', payload);
+    try {
+      this.gateway.broadcastToRoles(OPS_ROLES, 'stock.changed', payload);
+    } catch (error) {
+      this.logger.error(`Failed to broadcast stock change for ${payload.sku}`, error as Error);
+    }
   }
 }

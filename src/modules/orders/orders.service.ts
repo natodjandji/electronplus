@@ -1,4 +1,11 @@
-import { BadGatewayException, BadRequestException, ForbiddenException, Inject, Injectable } from '@nestjs/common';
+import {
+  BadGatewayException,
+  BadRequestException,
+  ForbiddenException,
+  Inject,
+  Injectable,
+  NotFoundException,
+} from '@nestjs/common';
 import { EventEmitter2 } from '@nestjs/event-emitter';
 import type { Firestore } from 'firebase-admin/firestore';
 import { FieldValue } from 'firebase-admin/firestore';
@@ -165,7 +172,7 @@ export class OrdersService {
     if (order.status !== OrderStatus.PENDING_PAYMENT_VERIFICATION) {
       throw new BadRequestException('This order is not awaiting payment verification');
     }
-    const payments = await this.paymentsService.findByOrder(orderId);
+    const payments = await this.paymentsService.findByOrder(orderId, user);
     if (payments[0]?.status !== PaymentStatus.REJECTED) {
       throw new BadRequestException('Only a rejected payment can be retried');
     }
@@ -196,6 +203,7 @@ export class OrdersService {
     return this.repo.findAll({
       where: [{ field: 'userId', op: '==', value: user.id }],
       orderBy: { field: 'createdAt', direction: 'desc' },
+      limit: 500,
     });
   }
 
@@ -203,6 +211,7 @@ export class OrdersService {
     return this.repo.findAll({
       where: userId ? [{ field: 'userId', op: '==', value: userId }] : [],
       orderBy: { field: 'createdAt', direction: 'desc' },
+      limit: 500,
     });
   }
 
@@ -242,15 +251,33 @@ export class OrdersService {
     return this.repo.update(orderId, { status: ORDER_FULFILLMENT_PIPELINE[idx + 1] });
   }
 
-  /** Cancels an order that hasn't been delivered yet and releases its reserved stock. */
+  /** Cancels an order that hasn't been delivered yet and releases its reserved stock.
+   * Runs as a single transaction so two concurrent cancel requests for the same order
+   * can't both pass the status check and double-credit stock back. */
   async cancel(orderId: string): Promise<Order> {
-    const order = await this.findById(orderId);
-    if (order.status === OrderStatus.FULFILLED || order.status === OrderStatus.CANCELLED) {
-      throw new BadRequestException('This order cannot be cancelled');
-    }
-    for (const item of order.items) {
-      await this.productsService.adjustStock(item.productId, { delta: item.qty });
-    }
-    return this.repo.update(orderId, { status: OrderStatus.CANCELLED });
+    const orderRef = this.repo.doc(orderId);
+    const stockChanges = await this.firestore.runTransaction(async (tx) => {
+      const orderSnap = await tx.get(orderRef);
+      if (!orderSnap.exists) throw new NotFoundException('Order not found');
+      const order = { ...orderSnap.data(), id: orderSnap.id } as Order;
+      if (order.status === OrderStatus.FULFILLED || order.status === OrderStatus.CANCELLED) {
+        throw new BadRequestException('This order cannot be cancelled');
+      }
+
+      // Phase 1 — ALL reads before ANY writes (Firestore transaction rule).
+      const stockContexts = await Promise.all(
+        order.items.map((item) => this.productsService.getStockForUpdate(tx, item.productId)),
+      );
+
+      // Phase 2 — ALL writes.
+      const changes = stockContexts.map((ctx, idx) =>
+        this.productsService.applyStockDelta(tx, ctx, order.items[idx].qty),
+      );
+      tx.update(orderRef, { status: OrderStatus.CANCELLED, updatedAt: FieldValue.serverTimestamp() });
+      return changes;
+    });
+
+    for (const change of stockChanges) this.productsService.emitStockChanged(change);
+    return this.repo.getOrThrow(orderId);
   }
 }

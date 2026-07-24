@@ -108,14 +108,11 @@ export class ProductsService {
 
     const rankedIds = [...unitsSold.entries()]
       .sort(([, a], [, b]) => b - a)
-      .map(([productId]) => productId);
+      .map(([productId]) => productId)
+      .slice(0, limit * 3); // bounded candidate pool — some may turn out inactive
 
-    const ranked: Product[] = [];
-    for (const id of rankedIds) {
-      if (ranked.length >= limit) break;
-      const product = await this.repo.findById(id);
-      if (product?.active) ranked.push(product);
-    }
+    const candidates = await Promise.all(rankedIds.map((id) => this.repo.findById(id)));
+    const ranked = candidates.filter((p): p is Product => Boolean(p?.active)).slice(0, limit);
 
     if (ranked.length < limit) {
       const filler = await this.repo.findAll({
@@ -161,9 +158,10 @@ export class ProductsService {
   }
 
   async stockByWarehouse(productId: string): Promise<StockLevel[]> {
+    const productRef = this.repo.doc(productId); // throws if productId isn't a valid single-segment id
     const levelsRepo = new FirestoreRepository<StockLevel>(
       this.firestore,
-      `${Collections.PRODUCTS}/${productId}/${Collections.STOCK_LEVELS}`,
+      `${productRef.path}/${Collections.STOCK_LEVELS}`,
     );
     return levelsRepo.findAll();
   }

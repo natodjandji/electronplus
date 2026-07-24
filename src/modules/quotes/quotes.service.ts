@@ -40,6 +40,7 @@ export class QuotesService {
     return this.repo.findAll({
       where: [{ field: 'userId', op: '==', value: user.id }],
       orderBy: { field: 'createdAt', direction: 'desc' },
+      limit: 500,
     });
   }
 
@@ -47,6 +48,7 @@ export class QuotesService {
     return this.repo.findAll({
       where: userId ? [{ field: 'userId', op: '==', value: userId }] : [],
       orderBy: { field: 'createdAt', direction: 'desc' },
+      limit: 500,
     });
   }
 
