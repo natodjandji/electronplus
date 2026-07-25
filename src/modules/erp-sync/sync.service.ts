@@ -60,26 +60,46 @@ export class SyncService implements OnModuleInit {
 
     try {
       const items = await this.adapter.fetchInventory();
-      let processed = 0;
 
-      for (const item of items) {
-        const category = await this.categoriesService.findOrCreateByCode(
-          item.categoryCode,
-          item.categoryLabel,
+      // Resolve each distinct category code exactly once — sharing the
+      // in-flight promise across items with the same code avoids both N
+      // sequential reads for a repeated code AND a race where two
+      // concurrent findOrCreateByCode calls for the same new code both
+      // pass the "not found" check and create duplicate category docs.
+      const categoryByCode = new Map<string, ReturnType<CategoriesService['findOrCreateByCode']>>();
+      const resolveCategory = (code: string, label: string) => {
+        const existing = categoryByCode.get(code);
+        if (existing) return existing;
+        const pending = this.categoriesService.findOrCreateByCode(code, label);
+        categoryByCode.set(code, pending);
+        return pending;
+      };
+
+      const results = await Promise.allSettled(
+        items.map(async (item) => {
+          const category = await resolveCategory(item.categoryCode, item.categoryLabel);
+          await this.productsService.upsertFromErp({
+            externalId: item.externalId,
+            sku: item.sku,
+            name: item.name,
+            categoryId: category.id,
+            category: { id: category.id, code: category.code, label: category.label },
+            retailPrice: item.retailPrice,
+            wholesalePrice: item.wholesalePrice,
+            cost: item.cost,
+            stock: item.stock,
+            specs: item.specs,
+          });
+        }),
+      );
+
+      const processed = results.filter((r) => r.status === 'fulfilled').length;
+      const failed = results.filter((r): r is PromiseRejectedResult => r.status === 'rejected');
+      if (failed.length > 0) {
+        this.logger.error(
+          `Inbound sync: ${failed.length}/${items.length} item(s) failed`,
+          failed[0].reason as Error,
         );
-        await this.productsService.upsertFromErp({
-          externalId: item.externalId,
-          sku: item.sku,
-          name: item.name,
-          categoryId: category.id,
-          category: { id: category.id, code: category.code, label: category.label },
-          retailPrice: item.retailPrice,
-          wholesalePrice: item.wholesalePrice,
-          cost: item.cost,
-          stock: item.stock,
-          specs: item.specs,
-        });
-        processed += 1;
       }
 
       log = await this.repo.update(log.id, {

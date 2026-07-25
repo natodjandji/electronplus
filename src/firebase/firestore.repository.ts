@@ -68,6 +68,18 @@ export class FirestoreRepository<T extends FirestoreDoc> {
     return this.fromSnapshot(snap);
   }
 
+  /** Batched equivalent of calling findById for each id — one round trip via
+   * the Admin SDK's getAll() instead of N separate document reads. Missing
+   * ids are silently dropped rather than returned as null, since every
+   * caller so far wants "the docs that exist" (e.g. resolving product line
+   * items), not a positional array. Duplicate ids are only read once. */
+  async findByIds(ids: string[]): Promise<T[]> {
+    const uniqueIds = [...new Set(ids)];
+    if (uniqueIds.length === 0) return [];
+    const snaps = await this.firestore.getAll(...uniqueIds.map((id) => this.doc(id)));
+    return snaps.filter((snap) => snap.exists).map((snap) => this.fromSnapshot(snap));
+  }
+
   async getOrThrow(id: string, notFoundMessage = 'Resource not found'): Promise<T> {
     const found = await this.findById(id);
     if (!found) throw new NotFoundException(notFoundMessage);

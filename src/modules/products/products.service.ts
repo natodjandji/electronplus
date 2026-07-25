@@ -2,7 +2,7 @@ import { ConflictException, Inject, Injectable, NotFoundException } from '@nestj
 import { EventEmitter2 } from '@nestjs/event-emitter';
 import { randomBytes } from 'crypto';
 import type { DocumentReference, Firestore, Transaction } from 'firebase-admin/firestore';
-import { FieldValue } from 'firebase-admin/firestore';
+import { FieldValue, Timestamp } from 'firebase-admin/firestore';
 import { FIRESTORE } from '../../firebase/firebase.constants';
 import { Collections } from '../../firebase/firestore-collections';
 import { FirestoreRepository } from '../../firebase/firestore.repository';
@@ -99,12 +99,23 @@ export class ProductsService {
     return this.repo.getOrThrow(id, 'Product not found');
   }
 
-  /** Best-selling active products by units sold across paid/fulfilled orders — falls back to
-   * filling remaining slots with other active products so a fresh store never looks sparse. */
+  findByIds(ids: string[]): Promise<Product[]> {
+    return this.repo.findByIds(ids);
+  }
+
+  /** Best-selling active products by units sold across paid/fulfilled orders in the last 90
+   * days — falls back to filling remaining slots with other active products so a fresh store
+   * never looks sparse. Bounded to a recent window (rather than the full order history) since
+   * this backs the public, unauthenticated /products/best-sellers endpoint hit on every
+   * storefront visit — an unbounded scan would grow more expensive with every order ever placed. */
   async topSelling(limit = 8): Promise<Product[]> {
+    const since = new Date();
+    since.setDate(since.getDate() - 90);
+
     const ordersSnap = await this.firestore
       .collection(Collections.ORDERS)
       .where('status', 'in', REVENUE_STATUSES)
+      .where('createdAt', '>=', Timestamp.fromDate(since))
       .get();
 
     const unitsSold = new Map<string, number>();
@@ -120,8 +131,12 @@ export class ProductsService {
       .map(([productId]) => productId)
       .slice(0, limit * 3); // bounded candidate pool — some may turn out inactive
 
-    const candidates = await Promise.all(rankedIds.map((id) => this.repo.findById(id)));
-    const ranked = candidates.filter((p): p is Product => Boolean(p?.active)).slice(0, limit);
+    const candidates = await this.repo.findByIds(rankedIds);
+    const byId = new Map(candidates.map((p) => [p.id, p]));
+    const ranked = rankedIds
+      .map((id) => byId.get(id))
+      .filter((p): p is Product => Boolean(p?.active))
+      .slice(0, limit);
 
     if (ranked.length < limit) {
       const filler = await this.repo.findAll({

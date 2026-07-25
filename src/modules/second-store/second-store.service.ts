@@ -29,15 +29,27 @@ export class SecondStoreService {
 
   async findAll(): Promise<SecondStoreProductWithLink[]> {
     const items = await this.repo.findAll({ orderBy: { field: 'name' } });
-    return Promise.all(items.map((item) => this.withLinkedProduct(item)));
+
+    // Batch-resolve every linked product in one round trip instead of one
+    // findById per row (the naive Promise.all(items.map(...)) approach).
+    const linkedIds = items.flatMap((item) => (item.linkedProductId ? [item.linkedProductId] : []));
+    const linkedProducts = await this.productsService.findByIds(linkedIds);
+    const byId = new Map(linkedProducts.map((p) => [p.id, p]));
+
+    return items.map((item) => {
+      const product = item.linkedProductId ? byId.get(item.linkedProductId) : undefined;
+      return {
+        ...item,
+        // Linked product may have been deleted after linking — surface as unlinked rather than failing the list.
+        linkedProduct: product
+          ? { id: product.id, sku: product.sku, name: product.name, stock: product.stock }
+          : null,
+      };
+    });
   }
 
   async findById(id: string): Promise<SecondStoreProductWithLink> {
     const item = await this.repo.getOrThrow(id, 'Second store product not found');
-    return this.withLinkedProduct(item);
-  }
-
-  private async withLinkedProduct(item: SecondStoreProduct): Promise<SecondStoreProductWithLink> {
     if (!item.linkedProductId) return { ...item, linkedProduct: null };
     try {
       const product = await this.productsService.findById(item.linkedProductId);
