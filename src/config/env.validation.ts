@@ -12,6 +12,8 @@ export const envSchema = z.object({
   // GOOGLE_APPLICATION_CREDENTIALS (a key file path) or the ambient
   // metadata server when running on GCP.
   FIREBASE_SERVICE_ACCOUNT_BASE64: z.string().optional(),
+  // Defaults to the project's Firebase Storage default bucket name.
+  FIREBASE_STORAGE_BUCKET: z.string().optional(),
 
   API_PUBLIC_URL: z.string().default('http://localhost:3000/api'),
   // The public storefront's URL — what product QR codes point to.

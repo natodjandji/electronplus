@@ -27,7 +27,7 @@ import {
 import { Switch } from "@/components/ui/switch";
 import { SupplierPicker, useSuppliers } from "@/components/supplier-picker";
 import { apiFetch, ApiError, reportError } from "@/lib/api-client";
-import { compressImageToBase64 } from "@/lib/image-compress";
+import { uploadProductImage } from "@/lib/image-compress";
 import { formatMoney } from "@/lib/electron-store";
 import { toast } from "sonner";
 
@@ -507,9 +507,10 @@ function ProductFormDialog({ product, onClose }: { product?: AdminProduct; onClo
     if (!file) return;
     setImageUploading(true);
     try {
-      setImageUrl(await compressImageToBase64(file));
+      const { url } = await uploadProductImage(file);
+      setImageUrl(url);
     } catch {
-      toast.error("No se pudo procesar la imagen");
+      toast.error("No se pudo subir la imagen");
     } finally {
       setImageUploading(false);
     }

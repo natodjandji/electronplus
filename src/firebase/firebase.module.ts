@@ -1,8 +1,14 @@
 import { Global, Module, Provider } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import * as admin from 'firebase-admin';
+import type { Bucket } from '@google-cloud/storage';
 import { EnvConfig } from '../config/env.validation';
-import { FIREBASE_APP, FIREBASE_AUTH, FIRESTORE } from './firebase.constants';
+import {
+  FIREBASE_APP,
+  FIREBASE_AUTH,
+  FIREBASE_STORAGE_BUCKET,
+  FIRESTORE,
+} from './firebase.constants';
 
 function buildCredential(config: ConfigService<EnvConfig, true>): admin.credential.Credential {
   const base64Key = config.get('FIREBASE_SERVICE_ACCOUNT_BASE64', { infer: true });
@@ -43,9 +49,20 @@ const firebaseAuthProvider: Provider = {
   useFactory: (app: admin.app.App) => app.auth(),
 };
 
+const storageBucketProvider: Provider = {
+  provide: FIREBASE_STORAGE_BUCKET,
+  inject: [FIREBASE_APP, ConfigService],
+  useFactory: (app: admin.app.App, config: ConfigService<EnvConfig, true>): Bucket => {
+    const bucketName =
+      config.get('FIREBASE_STORAGE_BUCKET', { infer: true }) ??
+      `${config.get('FIREBASE_PROJECT_ID', { infer: true })}.firebasestorage.app`;
+    return app.storage().bucket(bucketName);
+  },
+};
+
 @Global()
 @Module({
-  providers: [firebaseAppProvider, firestoreProvider, firebaseAuthProvider],
-  exports: [FIRESTORE, FIREBASE_AUTH],
+  providers: [firebaseAppProvider, firestoreProvider, firebaseAuthProvider, storageBucketProvider],
+  exports: [FIRESTORE, FIREBASE_AUTH, FIREBASE_STORAGE_BUCKET],
 })
 export class FirebaseModule {}

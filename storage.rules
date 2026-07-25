@@ -1,0 +1,22 @@
+rules_version = '2';
+
+service firebase.storage {
+  match /b/{bucket}/o {
+
+    // Product photos — publicly readable (same as today's products.imageUrl
+    // field, which is already public via the API); only the backend (Admin
+    // SDK, which bypasses these rules) ever writes here.
+    match /products/{allPaths=**} {
+      allow read: if true;
+      allow write: if false;
+    }
+
+    // Payment-proof screenshots — sensitive, so no direct client access at
+    // all. The backend reads/writes via the Admin SDK and hands out a
+    // short-lived signed URL to whoever is authorized to see a given proof.
+    match /payment-proofs/{allPaths=**} {
+      allow read: if false;
+      allow write: if false;
+    }
+  }
+}

@@ -19,6 +19,7 @@
     "set-user-role": "ts-node -r tsconfig-paths/register src/database/seeds/set-user-role.ts"
   },
   "dependencies": {
+    "@google-cloud/storage": "^7.21.0",
     "@nestjs/bullmq": "^10.2.0",
     "@nestjs/common": "^10.4.4",
     "@nestjs/config": "^3.3.0",
@@ -37,6 +38,7 @@
     "firebase-admin": "^12.6.0",
     "ioredis": "^5.4.1",
     "qrcode": "^1.5.4",
+    "sharp": "^0.33.5",
     "reflect-metadata": "^0.2.2",
     "rxjs": "^7.8.1",
     "socket.io": "^4.8.0",

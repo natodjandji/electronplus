@@ -27,6 +27,7 @@ import { PaymentMethodsModule } from './modules/payment-methods/payment-methods.
 import { ShippingRatesModule } from './modules/shipping-rates/shipping-rates.module';
 import { DiscountCodesModule } from './modules/discount-codes/discount-codes.module';
 import { SecondStoreModule } from './modules/second-store/second-store.module';
+import { UploadsModule } from './modules/uploads/uploads.module';
 
 @Module({
   imports: [
@@ -63,6 +64,7 @@ import { SecondStoreModule } from './modules/second-store/second-store.module';
     ShippingRatesModule,
     DiscountCodesModule,
     SecondStoreModule,
+    UploadsModule,
   ],
   providers: [{ provide: APP_GUARD, useClass: ThrottlerGuard }],
 })

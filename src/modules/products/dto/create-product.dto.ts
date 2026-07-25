@@ -45,13 +45,19 @@ export class CreateProductDto {
   @Min(0)
   minStockThreshold?: number;
 
-  /** Empty string clears the product's image — only a non-empty value has to look like one. */
+  /** Empty string clears the product's image. Expected to be a Cloud Storage
+   * URL from POST /uploads/product-image — a raw base64 data URI is still
+   * accepted for backward compatibility with any client that hasn't
+   * switched over to the upload endpoint yet. */
   @IsOptional()
   @IsString()
   @MaxLength(1_000_000)
-  @Matches(/^(data:image\/(png|jpe?g|webp);base64,.+)?$/, {
-    message: 'imageUrl must be a base64 image data URI',
-  })
+  @Matches(
+    /^(|data:image\/(png|jpe?g|webp);base64,.+|https:\/\/firebasestorage\.googleapis\.com\/.+)$/,
+    {
+      message: 'imageUrl must be a Cloud Storage URL or a base64 image data URI',
+    },
+  )
   imageUrl?: string;
 
   @IsOptional()
