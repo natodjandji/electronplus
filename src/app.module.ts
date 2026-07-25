@@ -1,8 +1,10 @@
 import { BullModule } from '@nestjs/bullmq';
 import { Module } from '@nestjs/common';
+import { APP_GUARD } from '@nestjs/core';
 import { ConfigModule, ConfigService } from '@nestjs/config';
 import { EventEmitterModule } from '@nestjs/event-emitter';
 import { ScheduleModule } from '@nestjs/schedule';
+import { ThrottlerGuard, ThrottlerModule } from '@nestjs/throttler';
 import { EnvConfig, validateEnv } from './config/env.validation';
 import { parseRedisUrl } from './config/redis.config';
 import { FirebaseModule } from './firebase/firebase.module';
@@ -29,6 +31,10 @@ import { SecondStoreModule } from './modules/second-store/second-store.module';
 @Module({
   imports: [
     ConfigModule.forRoot({ isGlobal: true, validate: validateEnv }),
+    // Global default — 100 requests/min per IP. Individual controllers
+    // (e.g. reports, which run full-collection scans) tighten this further
+    // with their own @Throttle(...) override.
+    ThrottlerModule.forRoot([{ ttl: 60_000, limit: 100 }]),
     FirebaseModule,
     BullModule.forRootAsync({
       inject: [ConfigService],
@@ -58,5 +64,6 @@ import { SecondStoreModule } from './modules/second-store/second-store.module';
     DiscountCodesModule,
     SecondStoreModule,
   ],
+  providers: [{ provide: APP_GUARD, useClass: ThrottlerGuard }],
 })
 export class AppModule {}

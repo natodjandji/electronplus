@@ -97,10 +97,19 @@ export class ReportsService {
       .map(([month, totals]) => ({ month, ...totals }));
   }
 
-  async categoryShare(): Promise<{ name: string; value: number }[]> {
+  /** Bounded by date like its cashFlow/profitability siblings — the controller
+   * always resolves a range (defaulting to the last month), but this method
+   * also defaults to the last 30 days on its own so calling it unbounded is
+   * never possible even from a future caller that forgets to pass one. */
+  async categoryShare(from?: Date, to?: Date): Promise<{ name: string; value: number }[]> {
+    const rangeEnd = to ?? new Date();
+    const rangeStart = from ?? new Date(new Date(rangeEnd).setDate(rangeEnd.getDate() - 30));
+
     const ordersSnap = await this.firestore
       .collection(Collections.ORDERS)
       .where('status', 'in', REVENUE_STATUSES)
+      .where('createdAt', '>=', Timestamp.fromDate(rangeStart))
+      .where('createdAt', '<=', Timestamp.fromDate(rangeEnd))
       .get();
     const totalsByCategory = new Map<string, number>();
 

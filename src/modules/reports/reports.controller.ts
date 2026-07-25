@@ -1,5 +1,6 @@
 import { Controller, Get, Query, UseGuards } from '@nestjs/common';
 import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
+import { Throttle } from '@nestjs/throttler';
 import { Roles } from '../../common/decorators/roles.decorator';
 import { Role } from '../../common/enums/role.enum';
 import { FirebaseAuthGuard } from '../../common/guards/firebase-auth.guard';
@@ -18,6 +19,10 @@ function resolveRange(dto: DateRangeDto): { from: Date; to: Date } {
 @Controller('reports')
 @UseGuards(FirebaseAuthGuard, RolesGuard)
 @Roles(Role.ADMIN)
+// Every route here runs a bounded but still non-trivial Firestore scan —
+// tighter than the app-wide default since a dashboard only needs to hit
+// these a handful of times a minute, not 100.
+@Throttle({ default: { limit: 20, ttl: 60_000 } })
 export class ReportsController {
   constructor(private readonly reportsService: ReportsService) {}
 
@@ -27,8 +32,9 @@ export class ReportsController {
   }
 
   @Get('category-share')
-  categoryShare() {
-    return this.reportsService.categoryShare();
+  categoryShare(@Query() dto: DateRangeDto) {
+    const { from, to } = resolveRange(dto);
+    return this.reportsService.categoryShare(from, to);
   }
 
   @Get('cashflow')
