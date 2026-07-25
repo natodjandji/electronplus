@@ -6,6 +6,7 @@ import { AuthenticatedUser } from '../../common/interfaces/authenticated-user.in
 import { FIRESTORE } from '../../firebase/firebase.constants';
 import { Collections } from '../../firebase/firestore-collections';
 import { FirestoreRepository } from '../../firebase/firestore.repository';
+import { isStoragePath, UploadsService } from '../uploads/uploads.service';
 import {
   MANUAL_RECONCILIATION_METHODS,
   Payment,
@@ -29,8 +30,17 @@ export class PaymentsService {
     @Inject(FIRESTORE) private readonly firestore: Firestore,
     private readonly paypal: PayPalClient,
     private readonly events: EventEmitter2,
+    private readonly uploadsService: UploadsService,
   ) {
     this.repo = new FirestoreRepository<Payment>(firestore, Collections.PAYMENTS);
+  }
+
+  /** Resolves a stored proof value for API responses — a Storage path becomes
+   * a short-lived signed URL; a legacy base64 data URI (from before this
+   * migration) passes through untouched. */
+  private async withSignedProof(payment: Payment): Promise<Payment> {
+    if (!payment.proofUrl || !isStoragePath(payment.proofUrl)) return payment;
+    return { ...payment, proofUrl: await this.uploadsService.getSignedProofUrl(payment.proofUrl) };
   }
 
   /** Mirrors OrdersService's ownership check without depending on OrdersModule
@@ -69,12 +79,16 @@ export class PaymentsService {
       throw new BadRequestException(`Unsupported payment method: ${method}`);
     }
 
+    const proofUrl = proofBase64
+      ? await this.uploadsService.uploadPaymentProof(proofBase64)
+      : undefined;
+
     const saved = await this.repo.create({
       orderId,
       method,
       amount,
       reference,
-      proofUrl: proofBase64,
+      proofUrl,
       // Credit B2B is an internally-extended line of credit — it settles on
       // agreed terms, not via upfront verification, so it's auto-verified.
       status: isCredit ? PaymentStatus.VERIFIED : PaymentStatus.PENDING,
@@ -93,10 +107,11 @@ export class PaymentsService {
 
   async findByOrder(orderId: string, user: AuthenticatedUser): Promise<Payment[]> {
     await this.assertOrderAccess(orderId, user);
-    return this.repo.findAll({
+    const payments = await this.repo.findAll({
       where: [{ field: 'orderId', op: '==', value: orderId }],
       orderBy: { field: 'createdAt', direction: 'desc' },
     });
+    return Promise.all(payments.map((p) => this.withSignedProof(p)));
   }
 
   findById(id: string): Promise<Payment> {

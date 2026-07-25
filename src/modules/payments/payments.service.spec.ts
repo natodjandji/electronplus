@@ -28,6 +28,7 @@ describe('PaymentsService', () => {
       firestore as unknown as ConstructorParameters<typeof PaymentsService>[0],
       paypal as unknown as ConstructorParameters<typeof PaymentsService>[1],
       new EventEmitter2(),
+      {} as unknown as ConstructorParameters<typeof PaymentsService>[3],
     );
   }
 

@@ -48,6 +48,29 @@ export class UploadsService {
     return { url: this.publicUrl(fullPath), thumbnailUrl: this.publicUrl(thumbPath) };
   }
 
+  /** Payment-proof screenshots are sensitive — private path, no public URL.
+   * Returns the storage path to persist (e.g. as Payment.proofUrl); resolve
+   * it to a short-lived signed URL at read time via getSignedProofUrl(). */
+  async uploadPaymentProof(dataUri: string): Promise<string> {
+    const buffer = decodeDataUri(dataUri);
+    const path = `payment-proofs/${randomUUID()}.webp`;
+    const webp = await sharp(buffer)
+      .rotate()
+      .resize(1600, 1600, { fit: 'inside', withoutEnlargement: true })
+      .webp({ quality: 85 })
+      .toBuffer();
+    await this.putObject(path, webp);
+    return path;
+  }
+
+  async getSignedProofUrl(path: string): Promise<string> {
+    const [url] = await this.bucket.file(path).getSignedUrl({
+      action: 'read',
+      expires: Date.now() + 15 * 60 * 1000,
+    });
+    return url;
+  }
+
   private async putObject(path: string, buffer: Buffer): Promise<void> {
     await this.bucket.file(path).save(buffer, {
       contentType: 'image/webp',
@@ -58,6 +81,14 @@ export class UploadsService {
   private publicUrl(path: string): string {
     return `https://firebasestorage.googleapis.com/v0/b/${this.bucket.name}/o/${encodeURIComponent(path)}?alt=media`;
   }
+}
+
+/** True for a bare Storage object path (new-style, e.g. "payment-proofs/xyz.webp")
+ * as opposed to a legacy base64 data URI or an already-resolved URL — lets
+ * read paths stay backward compatible with proof values saved before this
+ * migration, with zero data backfill required. */
+export function isStoragePath(value: string): boolean {
+  return !value.startsWith('data:') && !value.startsWith('http');
 }
 
 function decodeDataUri(dataUri: string): Buffer {

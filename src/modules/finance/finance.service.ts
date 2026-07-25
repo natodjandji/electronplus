@@ -6,6 +6,7 @@ import { FieldValue } from 'firebase-admin/firestore';
 import { FIRESTORE } from '../../firebase/firebase.constants';
 import { Collections } from '../../firebase/firestore-collections';
 import { FirestoreRepository } from '../../firebase/firestore.repository';
+import { isStoragePath, UploadsService } from '../uploads/uploads.service';
 import { CreateInvoiceDto } from './dto/create-invoice.dto';
 import { CreateSupplierDto } from './dto/create-supplier.dto';
 import { UpdateSupplierDto } from './dto/update-supplier.dto';
@@ -40,6 +41,7 @@ export class FinanceService {
   constructor(
     @Inject(FIRESTORE) private readonly firestore: Firestore,
     private readonly events: EventEmitter2,
+    private readonly uploadsService: UploadsService,
   ) {
     this.suppliersRepo = new FirestoreRepository<Supplier>(firestore, Collections.SUPPLIERS);
     this.payablesRepo = new FirestoreRepository<SupplierPayable>(
@@ -136,9 +138,16 @@ export class FinanceService {
     dto: RegisterPaymentDto,
     adminUserId: string,
   ): Promise<SupplierPayable> {
+    // Uploaded ahead of the transaction — Storage I/O doesn't belong inside
+    // a Firestore transaction closure (which Firestore may retry on
+    // contention, re-running any side effect inside it more than once).
+    const proofPath = dto.proofBase64
+      ? await this.uploadsService.uploadPaymentProof(dto.proofBase64)
+      : undefined;
+
     await this.firestore.runTransaction(async (tx) => {
       const invoice = await this.getPayableForUpdate(tx, invoiceId);
-      this.applyPayablePayment(tx, invoiceId, invoice, dto, adminUserId);
+      this.applyPayablePayment(tx, invoiceId, invoice, dto, adminUserId, proofPath);
     });
     return this.findInvoice(invoiceId);
   }
@@ -168,6 +177,7 @@ export class FinanceService {
     invoice: SupplierPayable,
     dto: RegisterPaymentDto,
     adminUserId: string,
+    proofPath?: string,
   ): void {
     const paymentRef = this.paymentsRepo(invoiceId).collection().doc();
     const now = FieldValue.serverTimestamp();
@@ -176,7 +186,7 @@ export class FinanceService {
       paidAt: new Date(),
       method: dto.method,
       reference: dto.reference,
-      proofUrl: dto.proofBase64,
+      proofUrl: proofPath,
       registeredByUserId: adminUserId,
       createdAt: now,
       updatedAt: now,
@@ -198,7 +208,16 @@ export class FinanceService {
   // DESCENDING/COLLECTION query Firestore would otherwise need here.
   async listPayments(invoiceId: string): Promise<SupplierPayment[]> {
     const payments = await this.paymentsRepo(invoiceId).findAll();
-    return payments.sort((a, b) => new Date(b.paidAt).getTime() - new Date(a.paidAt).getTime());
+    const withSignedProofs = await Promise.all(
+      payments.map(async (p) =>
+        p.proofUrl && isStoragePath(p.proofUrl)
+          ? { ...p, proofUrl: await this.uploadsService.getSignedProofUrl(p.proofUrl) }
+          : p,
+      ),
+    );
+    return withSignedProofs.sort(
+      (a, b) => new Date(b.paidAt).getTime() - new Date(a.paidAt).getTime(),
+    );
   }
 
   @Cron(CronExpression.EVERY_DAY_AT_6AM)
