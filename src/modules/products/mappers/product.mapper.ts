@@ -21,6 +21,8 @@ export function toCatalogDto(product: Product, role: Role | undefined, pricing: 
     wholesalePrice: product.wholesalePrice,
     stock: product.stock,
     imageUrl: product.imageUrl,
+    // Falls back to the full image for products uploaded before thumbnails existed.
+    thumbnailUrl: product.thumbnailUrl ?? product.imageUrl,
     active: product.active,
     ...(isAdmin
       ? {

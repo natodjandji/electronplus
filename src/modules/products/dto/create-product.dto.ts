@@ -60,6 +60,16 @@ export class CreateProductDto {
   )
   imageUrl?: string;
 
+  /** The ~400px variant from the same upload — list/cart views should prefer
+   * this over imageUrl. Only ever a Storage URL, never legacy base64. */
+  @IsOptional()
+  @IsString()
+  @MaxLength(1_000)
+  @Matches(/^(|https:\/\/firebasestorage\.googleapis\.com\/.+)$/, {
+    message: 'thumbnailUrl must be a Cloud Storage URL',
+  })
+  thumbnailUrl?: string;
+
   @IsOptional()
   @IsBoolean()
   active?: boolean;

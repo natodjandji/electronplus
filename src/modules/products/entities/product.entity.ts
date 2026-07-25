@@ -21,6 +21,10 @@ export interface Product extends FirestoreDoc {
   minStockThreshold?: number;
 
   imageUrl?: string;
+  /** ~400px variant of imageUrl for list/cart/thumbnail views — only set for
+   * images uploaded via POST /uploads/product-image; falls back to imageUrl
+   * for products with a legacy (pre-Storage-migration) image. */
+  thumbnailUrl?: string;
   active: boolean;
 
   /** Opaque, persisted token — looked up via `where('qrToken', '==', token)`. */

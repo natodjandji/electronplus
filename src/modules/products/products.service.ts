@@ -223,6 +223,7 @@ export class ProductsService {
       stock: 0,
       minStockThreshold: dto.minStockThreshold,
       imageUrl: dto.imageUrl,
+      thumbnailUrl: dto.thumbnailUrl,
       active: dto.active ?? true,
       qrToken: generateQrToken(),
     });
