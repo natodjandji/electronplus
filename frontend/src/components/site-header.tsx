@@ -63,6 +63,15 @@ export function SiteHeader() {
         </nav>
 
         <div className="ml-auto flex items-center gap-1 sm:gap-2">
+          <RoleGate allow={["admin", "warehouse_operator"]}>
+            <Link to="/admin" className="hidden md:inline-flex">
+              <Button variant="ghost" size="sm" className="gap-2">
+                <LayoutDashboard className="h-4 w-4" />
+                Panel
+              </Button>
+            </Link>
+          </RoleGate>
+
           <Link to="/quotes" search={{ new: true }} className="hidden sm:inline-flex">
             <Button
               variant="ghost"
@@ -73,15 +82,6 @@ export function SiteHeader() {
               Cotizar
             </Button>
           </Link>
-
-          <RoleGate allow={["admin", "warehouse_operator"]}>
-            <Link to="/admin" className="hidden md:inline-flex">
-              <Button variant="ghost" size="sm" className="gap-2">
-                <LayoutDashboard className="h-4 w-4" />
-                Panel
-              </Button>
-            </Link>
-          </RoleGate>
 
           <Link to="/cart">
             <Button
