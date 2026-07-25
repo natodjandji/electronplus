@@ -57,6 +57,7 @@ export const Route = createFileRoute("/checkout")({
   head: () => ({
     meta: [
       { title: "Checkout · Electron Plus" },
+      { name: "robots", content: "noindex" },
       {
         name: "description",
         content: "Completa tu compra en tres pasos: envío, pago y confirmación.",

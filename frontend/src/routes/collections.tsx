@@ -6,6 +6,7 @@ import { CircuitBackground } from "@/components/circuit-traces";
 import { Card } from "@/components/ui/card";
 import { apiFetch } from "@/lib/api-client";
 import type { ApiProduct } from "@/lib/product-api";
+import { absoluteUrl } from "@/lib/site-url";
 
 export const Route = createFileRoute("/collections")({
   head: () => ({
@@ -17,7 +18,9 @@ export const Route = createFileRoute("/collections")({
       },
       { property: "og:title", content: "Colecciones · Electron Plus" },
       { property: "og:description", content: "Compra por categoría en Electron Plus." },
+      { property: "og:url", content: absoluteUrl("/collections") },
     ],
+    links: [{ rel: "canonical", href: absoluteUrl("/collections") }],
   }),
   component: CollectionsPage,
 });

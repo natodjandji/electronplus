@@ -431,7 +431,7 @@ function MessageBubble({
               />
               <div className="min-w-0 flex-1">
                 <Link
-                  to="/product/qr/$id"
+                  to="/product/$id"
                   params={{ id: p.id }}
                   className="line-clamp-1 text-xs font-semibold text-brand-navy hover:underline"
                 >

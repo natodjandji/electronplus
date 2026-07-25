@@ -58,6 +58,7 @@ export const Route = createFileRoute("/quotes")({
   head: () => ({
     meta: [
       { title: "Cotizaciones · Electron Plus" },
+      { name: "robots", content: "noindex" },
       {
         name: "description",
         content: "Solicita una cotización personalizada y da seguimiento a su estado.",

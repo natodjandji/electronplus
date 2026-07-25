@@ -23,6 +23,7 @@ import { apiFetch } from "@/lib/api-client";
 import { type ApiProduct, toProduct } from "@/lib/product-api";
 import { useElectronStore } from "@/lib/electron-store";
 import { formatBs, useBcvRate } from "@/lib/use-bcv-rate";
+import { absoluteUrl } from "@/lib/site-url";
 import { toast } from "sonner";
 
 function useCatalogProducts() {
@@ -47,7 +48,9 @@ export const Route = createFileRoute("/catalog")({
       },
       { property: "og:title", content: "Catálogo · Electron Plus" },
       { property: "og:description", content: "Productos eléctricos con precio detal y mayorista." },
+      { property: "og:url", content: absoluteUrl("/catalog") },
     ],
+    links: [{ rel: "canonical", href: absoluteUrl("/catalog") }],
   }),
   component: CatalogPage,
 });
@@ -325,7 +328,7 @@ function CatalogPage() {
 
 function useGoToProduct(id: string) {
   const navigate = useNavigate();
-  const go = () => navigate({ to: "/product/qr/$id", params: { id } });
+  const go = () => navigate({ to: "/product/$id", params: { id } });
   const onClick = () => go();
   const onKeyDown = (e: KeyboardEvent<HTMLDivElement>) => {
     if (e.key === "Enter" || e.key === " ") {

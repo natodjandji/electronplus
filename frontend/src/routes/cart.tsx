@@ -31,6 +31,7 @@ export const Route = createFileRoute("/cart")({
   head: () => ({
     meta: [
       { title: "Carrito · Electron Plus" },
+      { name: "robots", content: "noindex" },
       {
         name: "description",
         content: "Revisa los productos que agregaste antes de finalizar tu compra.",

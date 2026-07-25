@@ -14,6 +14,7 @@ import { ProductImage } from "@/components/product-image";
 import { apiFetch } from "@/lib/api-client";
 import { type ApiProduct, toProduct } from "@/lib/product-api";
 import type { Product } from "@/lib/mock-data";
+import { SITE_URL, absoluteUrl } from "@/lib/site-url";
 
 const HERO_GROUP_SIZE = 4;
 const HERO_ROTATE_MS = 5000;
@@ -53,10 +54,22 @@ export const Route = createFileRoute("/")({
         content:
           "Catálogo con precios detal y mayorista, cotizaciones al instante y despacho nacional.",
       },
+      { property: "og:url", content: SITE_URL },
     ],
+    links: [{ rel: "canonical", href: SITE_URL }],
   }),
   component: Home,
 });
+
+const ORGANIZATION_JSON_LD = {
+  "@context": "https://schema.org",
+  "@type": "Organization",
+  name: "Electron Plus",
+  url: SITE_URL,
+  logo: absoluteUrl("/assets/brand/logo-full-color.svg"),
+  description:
+    "Tienda especializada en iluminación, cables y materiales eléctricos en Venezuela. Precios detal y mayorista, cotizaciones y despacho a nivel nacional.",
+};
 
 function Home() {
   const { data: bestSellers = [], isLoading: bestSellersLoading } = useQuery({
@@ -68,6 +81,10 @@ function Home() {
   const reduceMotion = useReducedMotion();
   return (
     <PublicShell>
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{ __html: JSON.stringify(ORGANIZATION_JSON_LD) }}
+      />
       {/* Hero */}
       <section className="relative overflow-hidden bg-brand-navy text-white">
         <div
@@ -158,7 +175,7 @@ function Home() {
                         }}
                       >
                         <Link
-                          to="/product/qr/$id"
+                          to="/product/$id"
                           params={{ id: p.id }}
                           className="block rounded-2xl border border-white/10 bg-white/5 p-3 backdrop-blur-sm transition-colors hover:border-brand-yellow/40"
                         >
@@ -254,7 +271,7 @@ function FeaturedProductSkeleton() {
 
 function FeaturedProductCard({ product }: { product: Product }) {
   const navigate = useNavigate();
-  const go = () => navigate({ to: "/product/qr/$id", params: { id: product.id } });
+  const go = () => navigate({ to: "/product/$id", params: { id: product.id } });
   const onKeyDown = (e: KeyboardEvent<HTMLDivElement>) => {
     if (e.key === "Enter" || e.key === " ") {
       e.preventDefault();
