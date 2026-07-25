@@ -13,8 +13,14 @@ service cloud.firestore {
       return get(/databases/$(database)/documents/users/$(uid)).data;
     }
 
+    // Prefers the `role` custom claim (set by the backend on sign-in/role
+    // change — see FirebaseAuthGuard) so most rule evaluations skip the
+    // users/{uid} read entirely; falls back to Firestore only for a token
+    // issued before the claim was backfilled.
     function userRole() {
-      return isSignedIn() ? userDoc(request.auth.uid).role : null;
+      return isSignedIn()
+        ? (('role' in request.auth.token) ? request.auth.token.role : userDoc(request.auth.uid).role)
+        : null;
     }
 
     function isAdmin() {

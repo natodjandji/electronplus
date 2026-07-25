@@ -41,7 +41,14 @@ export class UsersService {
     if (dto.role === Role.ADMIN) {
       throw new ForbiddenException('The admin role cannot be granted from the panel');
     }
-    return this.repo.update(uid, dto);
+    const updated = await this.repo.update(uid, dto);
+    if (dto.role) {
+      // Keeps FirebaseAuthGuard's role custom claim in sync — takes effect
+      // on the user's next ID token refresh (immediately if they're forced
+      // to re-authenticate, within ~1h otherwise via Firebase's own refresh).
+      await this.auth.setCustomUserClaims(uid, { role: updated.role });
+    }
+    return updated;
   }
 
   async updateProfile(uid: string, dto: UpdateProfileDto): Promise<User> {
