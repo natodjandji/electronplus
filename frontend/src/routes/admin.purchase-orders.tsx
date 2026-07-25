@@ -17,6 +17,17 @@ import { AdminShell } from "@/components/admin-shell";
 import { ElectronLogo } from "@/components/electron-logo";
 import { TableRowsSkeleton } from "@/components/table-skeleton";
 import { MonthPagerBar, useMonthPager } from "@/components/month-pager";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from "@/components/ui/alert-dialog";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
@@ -628,6 +639,16 @@ function OrderDetailDialog({ orderId, onClose }: { orderId: string; onClose: () 
     onError: reportError,
   });
 
+  const remove = useMutation({
+    mutationFn: () => apiFetch(`/purchase-orders/${orderId}`, { method: "DELETE" }),
+    onSuccess: () => {
+      invalidate();
+      toast.success("Orden eliminada");
+      onClose();
+    },
+    onError: reportError,
+  });
+
   const pay = useMutation({
     mutationFn: () =>
       apiFetch(`/purchase-orders/${orderId}/payments`, {
@@ -918,6 +939,37 @@ function OrderDetailDialog({ orderId, onClose }: { orderId: string; onClose: () 
           {!editingItems && (
             <DialogFooter className="gap-2 sm:justify-between">
               <div className="flex gap-2">
+                {order.status === "draft" && (
+                  <AlertDialog>
+                    <AlertDialogTrigger asChild>
+                      <Button
+                        variant="outline"
+                        className="gap-2 text-destructive"
+                        disabled={remove.isPending}
+                      >
+                        <Trash2 className="h-4 w-4" /> Eliminar
+                      </Button>
+                    </AlertDialogTrigger>
+                    <AlertDialogContent>
+                      <AlertDialogHeader>
+                        <AlertDialogTitle>¿Eliminar esta orden de compra?</AlertDialogTitle>
+                        <AlertDialogDescription>
+                          Esta acción no se puede deshacer. Se eliminará el borrador para{" "}
+                          {order.supplierName}.
+                        </AlertDialogDescription>
+                      </AlertDialogHeader>
+                      <AlertDialogFooter>
+                        <AlertDialogCancel>Cancelar</AlertDialogCancel>
+                        <AlertDialogAction
+                          onClick={() => remove.mutate()}
+                          className="bg-destructive text-white hover:bg-destructive/90"
+                        >
+                          Eliminar
+                        </AlertDialogAction>
+                      </AlertDialogFooter>
+                    </AlertDialogContent>
+                  </AlertDialog>
+                )}
                 {order.status !== "paid" && order.status !== "cancelled" && (
                   <Button
                     variant="outline"

@@ -131,7 +131,7 @@ function PurchasesPage() {
   const overdue = all.filter((f) => f.status === "pending" && f.dueStatus === "overdue");
   const dueSoon = all.filter((f) => f.status === "pending" && f.dueStatus === "due_soon");
   const current = all.filter((f) => f.status === "pending" && f.dueStatus === "current");
-  const pager = useMonthPager(all, (f) => f.dueDate);
+  const pager = useMonthPager(all, (f) => f.dueDate, { allowFuture: true });
   const visibleInvoices = pager.filtered ?? [];
 
   return (

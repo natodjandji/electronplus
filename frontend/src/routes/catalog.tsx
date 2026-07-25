@@ -80,6 +80,11 @@ function CatalogPage() {
     });
   }, [products, q, cats, onlyAvailable, range, priceFor]);
 
+  const availableCategories = useMemo(() => {
+    const withProducts = new Set((products ?? []).map((p) => p.category));
+    return CATEGORIES.filter((c) => withProducts.has(c.id));
+  }, [products]);
+
   useEffect(() => {
     setPage(1);
   }, [q, cats, onlyAvailable, range]);
@@ -162,7 +167,7 @@ function CatalogPage() {
                   )}
                 </div>
                 <div className="space-y-2">
-                  {CATEGORIES.map((c) => (
+                  {availableCategories.map((c) => (
                     <label key={c.id} className="flex items-center gap-2 text-sm text-brand-navy">
                       <Checkbox
                         checked={cats.includes(c.id)}

@@ -119,6 +119,16 @@ export class PurchaseOrdersService {
     });
   }
 
+  /** Drafts only — once issued, the order has a matching accounts-payable
+   * entry and possibly payments against it, so it's cancelled, not deleted. */
+  async remove(id: string): Promise<void> {
+    const order = await this.findById(id);
+    if (order.status !== PurchaseOrderStatus.DRAFT) {
+      throw new ForbiddenException('Only draft purchase orders can be deleted');
+    }
+    await this.repo.delete(id);
+  }
+
   async updatePaymentTerms(id: string, dto: UpdatePaymentTermsDto): Promise<PurchaseOrder> {
     const order = await this.findById(id);
     if (

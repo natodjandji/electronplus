@@ -63,34 +63,36 @@ function CollectionsPage() {
 
       <section className="mx-auto max-w-7xl px-4 py-8 sm:px-6">
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-          {categories.map((c) => {
-            const items = products.filter((p) => p.category.id === c.id);
-            const cover = items[0]?.imageUrl;
-            return (
-              <Link key={c.id} to="/catalog" search={{ category: c.code }} className="block">
-                <Card className="group relative flex h-48 flex-col justify-end overflow-hidden border-border p-5 shadow-sm transition-all duration-300 hover:-translate-y-1 hover:shadow-[0_8px_30px_-8px_rgba(0,86,179,0.25)]">
-                  {cover && (
-                    <img
-                      src={cover}
-                      alt=""
-                      className="absolute inset-0 h-full w-full object-cover opacity-30 transition-transform duration-500 group-hover:scale-105"
-                      loading="lazy"
-                    />
-                  )}
-                  <div className="absolute inset-0 bg-gradient-to-t from-brand-navy/95 via-brand-navy/50 to-brand-navy/10" />
-                  <div className="relative">
-                    <h3 className="flex items-center gap-1.5 text-lg font-semibold text-white">
-                      {c.label}
-                      <ArrowRight className="h-4 w-4 opacity-0 transition-opacity group-hover:opacity-100" />
-                    </h3>
-                    <p className="text-xs text-white/70">
-                      {items.length} producto{items.length === 1 ? "" : "s"}
-                    </p>
-                  </div>
-                </Card>
-              </Link>
-            );
-          })}
+          {categories
+            .map((c) => ({ c, items: products.filter((p) => p.category.id === c.id) }))
+            .filter(({ items }) => items.length > 0)
+            .map(({ c, items }) => {
+              const cover = items[0]?.imageUrl;
+              return (
+                <Link key={c.id} to="/catalog" search={{ category: c.code }} className="block">
+                  <Card className="group relative flex h-48 flex-col justify-end overflow-hidden border-border p-5 shadow-sm transition-all duration-300 hover:-translate-y-1 hover:shadow-[0_8px_30px_-8px_rgba(0,86,179,0.25)]">
+                    {cover && (
+                      <img
+                        src={cover}
+                        alt=""
+                        className="absolute inset-0 h-full w-full object-cover opacity-30 transition-transform duration-500 group-hover:scale-105"
+                        loading="lazy"
+                      />
+                    )}
+                    <div className="absolute inset-0 bg-gradient-to-t from-brand-navy/95 via-brand-navy/50 to-brand-navy/10" />
+                    <div className="relative">
+                      <h3 className="flex items-center gap-1.5 text-lg font-semibold text-white">
+                        {c.label}
+                        <ArrowRight className="h-4 w-4 opacity-0 transition-opacity group-hover:opacity-100" />
+                      </h3>
+                      <p className="text-xs text-white/70">
+                        {items.length} producto{items.length === 1 ? "" : "s"}
+                      </p>
+                    </div>
+                  </Card>
+                </Link>
+              );
+            })}
         </div>
       </section>
     </PublicShell>

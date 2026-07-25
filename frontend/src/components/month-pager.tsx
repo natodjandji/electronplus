@@ -22,8 +22,16 @@ function shiftMonthKey(key: string, delta: number): string {
 }
 
 /** Filters a history list down to one month at a time so old records
- * don't pile up on screen — "Ver todo" opts back into the full list. */
-export function useMonthPager<T>(items: T[] | undefined, getDate: (item: T) => string) {
+ * don't pile up on screen — "Ver todo" opts back into the full list.
+ * `allowFuture` lifts the "can't go past the current month" cap for lists
+ * keyed by a date that's legitimately ahead of today (e.g. invoice due
+ * dates) instead of a creation date (which never is). */
+export function useMonthPager<T>(
+  items: T[] | undefined,
+  getDate: (item: T) => string,
+  options?: { allowFuture?: boolean },
+) {
+  const allowFuture = options?.allowFuture ?? false;
   const currentMonth = monthKey(new Date().toISOString());
   const [cursorKey, setCursorKey] = useState(currentMonth);
   const [showAll, setShowAll] = useState(false);
@@ -47,7 +55,7 @@ export function useMonthPager<T>(items: T[] | undefined, getDate: (item: T) => s
       setShowAll(false);
       setCursorKey((k) => shiftMonthKey(k, 1));
     },
-    canGoNext: cursorKey < currentMonth,
+    canGoNext: allowFuture || cursorKey < currentMonth,
   };
 }
 
