@@ -388,7 +388,7 @@ function ProductCard({
     >
       <div className="relative aspect-square overflow-hidden bg-brand-surface">
         <ProductImage
-          src={product.image}
+          src={product.thumbnail}
           alt={product.name}
           className="h-full w-full transition-transform duration-500 group-hover:scale-[1.04]"
         />
@@ -454,7 +454,7 @@ function ProductListRow({
       <div className="flex min-w-0 items-center gap-4 sm:flex-1">
         <div className="relative h-20 w-20 shrink-0 overflow-hidden rounded-md bg-brand-surface sm:h-24 sm:w-24">
           <ProductImage
-            src={product.image}
+            src={product.thumbnail}
             alt={product.name}
             className="h-full w-full transition-transform duration-500 group-hover:scale-[1.04]"
           />

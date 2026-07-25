@@ -424,7 +424,7 @@ function MessageBubble({
               className="flex items-center gap-2 rounded-xl border border-border bg-white p-2 shadow-sm"
             >
               <ProductImage
-                src={p.image}
+                src={p.thumbnail}
                 alt={p.name}
                 className="h-12 w-12 shrink-0 rounded-lg"
                 iconClassName="h-4 w-4"

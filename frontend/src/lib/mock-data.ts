@@ -8,6 +8,9 @@ export type Product = {
   stock: number;
   warehouse: string;
   image: string;
+  /** Smaller variant of `image` for list/cart/card views — falls back to
+   * `image` itself for products uploaded before thumbnails existed. */
+  thumbnail: string;
   specs: string;
 };
 

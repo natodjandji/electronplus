@@ -180,7 +180,11 @@ function Home() {
                           className="block rounded-2xl border border-white/10 bg-white/5 p-3 backdrop-blur-sm transition-colors hover:border-brand-yellow/40"
                         >
                           <div className="aspect-square overflow-hidden rounded-xl bg-white">
-                            <ProductImage src={p.image} alt={p.name} className="h-full w-full" />
+                            <ProductImage
+                              src={p.thumbnail}
+                              alt={p.name}
+                              className="h-full w-full"
+                            />
                           </div>
                           <div className="mt-2 text-xs font-medium text-white/90 line-clamp-1">
                             {p.name}
@@ -289,7 +293,7 @@ function FeaturedProductCard({ product }: { product: Product }) {
     >
       <div className="aspect-square overflow-hidden bg-brand-surface">
         <ProductImage
-          src={product.image}
+          src={product.thumbnail}
           alt={product.name}
           className="h-full w-full transition-transform duration-500 group-hover:scale-[1.04]"
         />

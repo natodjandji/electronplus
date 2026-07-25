@@ -134,7 +134,7 @@ function CartPage() {
 
                         <div className="flex gap-4 pr-6 sm:flex-1 sm:pr-0">
                           <ProductImage
-                            src={product.image}
+                            src={product.thumbnail}
                             alt={product.name}
                             className="h-20 w-20 shrink-0 rounded-md sm:h-24 sm:w-24"
                           />

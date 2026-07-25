@@ -10,6 +10,7 @@ export interface ApiProduct {
   wholesalePrice: number;
   stock: number;
   imageUrl?: string;
+  thumbnailUrl?: string;
 }
 
 export function toProduct(p: ApiProduct): Product {
@@ -23,6 +24,7 @@ export function toProduct(p: ApiProduct): Product {
     stock: p.stock,
     warehouse: "",
     image: p.imageUrl ?? "",
+    thumbnail: p.thumbnailUrl ?? p.imageUrl ?? "",
     specs: p.specs ?? "",
   };
 }

@@ -61,6 +61,7 @@ interface AdminProduct {
   stock: number;
   minStockThreshold?: number;
   imageUrl?: string;
+  thumbnailUrl?: string;
   active: boolean;
 }
 
@@ -169,7 +170,7 @@ function InventoryPage() {
                     <td className="px-4 py-3">
                       <div className="flex items-center gap-3">
                         <ProductImage
-                          src={p.imageUrl}
+                          src={p.thumbnailUrl ?? p.imageUrl}
                           alt={p.name}
                           className="h-10 w-10 shrink-0 rounded-md border border-border"
                           iconClassName="h-4 w-4"
@@ -496,6 +497,7 @@ function ProductFormDialog({ product, onClose }: { product?: AdminProduct; onClo
   const [cost, setCost] = useState(product?.cost ?? 0);
   const [minStockThreshold, setMinStockThreshold] = useState(product?.minStockThreshold ?? 0);
   const [imageUrl, setImageUrl] = useState(product?.imageUrl ?? "");
+  const [thumbnailUrl, setThumbnailUrl] = useState(product?.thumbnailUrl ?? "");
   const [active, setActive] = useState(product?.active ?? true);
   const [creatingCategory, setCreatingCategory] = useState(false);
   const [stockTarget, setStockTarget] = useState(product?.stock ?? 0);
@@ -507,8 +509,9 @@ function ProductFormDialog({ product, onClose }: { product?: AdminProduct; onClo
     if (!file) return;
     setImageUploading(true);
     try {
-      const { url } = await uploadProductImage(file);
+      const { url, thumbnailUrl: thumb } = await uploadProductImage(file);
       setImageUrl(url);
+      setThumbnailUrl(thumb);
     } catch {
       toast.error("No se pudo subir la imagen");
     } finally {
@@ -529,6 +532,7 @@ function ProductFormDialog({ product, onClose }: { product?: AdminProduct; onClo
         cost: cost || undefined,
         minStockThreshold: minStockThreshold || undefined,
         imageUrl,
+        thumbnailUrl,
         active,
       };
       return isEdit
@@ -704,7 +708,10 @@ function ProductFormDialog({ product, onClose }: { product?: AdminProduct; onClo
                 {imageUrl && (
                   <button
                     type="button"
-                    onClick={() => setImageUrl("")}
+                    onClick={() => {
+                      setImageUrl("");
+                      setThumbnailUrl("");
+                    }}
                     className="text-xs text-muted-foreground hover:text-destructive"
                   >
                     Quitar imagen
