@@ -424,14 +424,17 @@ function CheckoutPage() {
         <h1 className="mt-1 text-3xl font-bold text-brand-navy">Finaliza tu compra</h1>
 
         {/* Stepper */}
-        <div className="mt-8 flex items-center justify-between gap-2">
+        <div className="mt-8 flex items-start gap-1 sm:items-center sm:gap-2">
           {STEPS.map((s, i) => {
             const done = step > s.id;
             const active = step === s.id;
             return (
-              <div key={s.id} className="flex flex-1 items-center gap-3">
+              <div
+                key={s.id}
+                className="flex min-w-0 flex-1 flex-col items-center gap-1.5 sm:flex-row sm:gap-3"
+              >
                 <div
-                  className={`grid h-10 w-10 shrink-0 place-items-center rounded-full border-2 transition ${
+                  className={`mx-auto grid h-9 w-9 shrink-0 place-items-center rounded-full border-2 transition sm:mx-0 sm:h-10 sm:w-10 ${
                     done
                       ? "border-brand-blue bg-brand-blue text-white"
                       : active
@@ -441,19 +444,19 @@ function CheckoutPage() {
                 >
                   {done ? <Check className="h-4 w-4" /> : <s.icon className="h-4 w-4" />}
                 </div>
-                <div className="min-w-0">
+                <div className="min-w-0 max-w-full text-center sm:text-left">
                   <div className="hidden text-[10px] font-semibold uppercase tracking-widest text-muted-foreground sm:block">
                     Paso {s.id}
                   </div>
                   <div
-                    className={`break-words text-xs font-semibold sm:text-sm ${
+                    className={`break-words text-[11px] font-semibold leading-tight sm:text-sm ${
                       active || done ? "text-brand-navy" : "text-muted-foreground"
                     }`}
                   >
                     {s.label}
                   </div>
                 </div>
-                {i < STEPS.length - 1 && <div className="h-px flex-1 bg-border" />}
+                {i < STEPS.length - 1 && <div className="hidden h-px flex-1 bg-border sm:block" />}
               </div>
             );
           })}

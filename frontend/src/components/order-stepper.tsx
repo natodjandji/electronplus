@@ -93,8 +93,8 @@ export function OrderStepper({
         const isLast = idx === PIPELINE.length - 1;
         const Icon = stage.icon;
         return (
-          <div key={stage.status} className={`flex items-center ${isLast ? "" : "flex-1"}`}>
-            <div className="flex flex-col items-center gap-1">
+          <div key={stage.status} className={`flex items-start ${isLast ? "" : "flex-1"}`}>
+            <div className="flex min-w-0 flex-col items-center gap-1 px-0.5">
               <div
                 className={`grid h-8 w-8 shrink-0 place-items-center rounded-full ${
                   done ? "bg-brand-blue text-white" : "bg-muted text-muted-foreground"
@@ -103,7 +103,7 @@ export function OrderStepper({
                 <Icon className="h-4 w-4" />
               </div>
               <span
-                className={`whitespace-nowrap text-[11px] font-medium ${
+                className={`max-w-[4.5rem] break-words text-center text-[10px] font-medium leading-tight sm:max-w-none sm:whitespace-nowrap sm:text-[11px] ${
                   done ? "text-brand-navy" : "text-muted-foreground"
                 }`}
               >
@@ -112,7 +112,7 @@ export function OrderStepper({
             </div>
             {!isLast && (
               <div
-                className={`mx-1 h-0.5 flex-1 ${idx < currentIdx ? "bg-brand-blue" : "bg-muted"}`}
+                className={`mt-4 h-0.5 flex-1 ${idx < currentIdx ? "bg-brand-blue" : "bg-muted"}`}
               />
             )}
           </div>
