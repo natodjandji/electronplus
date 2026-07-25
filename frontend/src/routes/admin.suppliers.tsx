@@ -13,7 +13,7 @@ import { Label } from "@/components/ui/label";
 import { TaxIdField } from "@/components/tax-id-field";
 import { PhoneField } from "@/components/phone-field";
 import { CreateSupplierDialog, useSuppliers } from "@/components/supplier-picker";
-import { apiFetch, ApiError } from "@/lib/api-client";
+import { apiFetch, ApiError, reportError } from "@/lib/api-client";
 import {
   formatTaxId,
   parseTaxId,
@@ -49,10 +49,6 @@ interface AdminProduct {
   name: string;
   stock: number;
   supplierId?: string;
-}
-
-function reportError(error: unknown) {
-  toast.error(error instanceof ApiError ? error.message : "Ocurrió un error inesperado");
 }
 
 function useAdminProducts() {

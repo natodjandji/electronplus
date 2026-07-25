@@ -38,7 +38,7 @@ import {
 import { Separator } from "@/components/ui/separator";
 import { Textarea } from "@/components/ui/textarea";
 import { SupplierPicker } from "@/components/supplier-picker";
-import { apiFetch, ApiError } from "@/lib/api-client";
+import { apiFetch, ApiError, reportError } from "@/lib/api-client";
 import { formatMoney } from "@/lib/electron-store";
 import { compressImageToBase64 } from "@/lib/image-compress";
 import { toast } from "sonner";
@@ -106,10 +106,6 @@ const PAYMENT_METHOD_OPTIONS = [
   { value: "cheque", label: "Cheque" },
   { value: "otro", label: "Otro" },
 ];
-
-function reportError(error: unknown) {
-  toast.error(error instanceof ApiError ? error.message : "Ocurrió un error inesperado");
-}
 
 function useInvoices() {
   return useQuery({

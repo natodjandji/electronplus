@@ -8,7 +8,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
 import { useSuppliers } from "@/components/supplier-picker";
-import { apiFetch, ApiError } from "@/lib/api-client";
+import { apiFetch, ApiError, reportError } from "@/lib/api-client";
 import { toast } from "sonner";
 
 export const Route = createFileRoute("/admin/stock")({
@@ -35,10 +35,6 @@ interface AdminProduct {
   stock: number;
   minStockThreshold?: number;
   imageUrl?: string;
-}
-
-function reportError(error: unknown) {
-  toast.error(error instanceof ApiError ? error.message : "Ocurrió un error inesperado");
 }
 
 function useAdminProducts() {

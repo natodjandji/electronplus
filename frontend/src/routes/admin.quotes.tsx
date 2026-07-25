@@ -22,7 +22,7 @@ import {
 import { Separator } from "@/components/ui/separator";
 import { Switch } from "@/components/ui/switch";
 import { Textarea } from "@/components/ui/textarea";
-import { apiFetch, ApiError } from "@/lib/api-client";
+import { apiFetch, ApiError, reportError } from "@/lib/api-client";
 import { formatMoney } from "@/lib/electron-store";
 import { formatBs, useBcvRate } from "@/lib/use-bcv-rate";
 import { toast } from "sonner";
@@ -94,10 +94,6 @@ function computeTotal(quote: Quote): number {
 
 function computeWholesaleTotal(quote: Quote): number {
   return quote.items.reduce((s, i) => s + i.wholesalePrice * i.qty, 0);
-}
-
-function reportError(error: unknown) {
-  toast.error(error instanceof ApiError ? error.message : "Ocurrió un error inesperado");
 }
 
 function useAllQuotes() {

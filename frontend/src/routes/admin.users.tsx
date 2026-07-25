@@ -18,7 +18,7 @@ import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Separator } from "@/components/ui/separator";
-import { apiFetch, ApiError } from "@/lib/api-client";
+import { apiFetch, ApiError, reportError } from "@/lib/api-client";
 import { formatMoney } from "@/lib/electron-store";
 import type { BackendRole } from "@/lib/auth-context";
 import {
@@ -115,10 +115,6 @@ function formatDate(iso: string) {
     month: "short",
     year: "numeric",
   });
-}
-
-function reportError(error: unknown) {
-  toast.error(error instanceof ApiError ? error.message : "Ocurrió un error inesperado");
 }
 
 function useUsers() {

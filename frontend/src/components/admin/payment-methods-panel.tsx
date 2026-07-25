@@ -22,7 +22,7 @@ import {
 } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
 import { Textarea } from "@/components/ui/textarea";
-import { apiFetch, ApiError } from "@/lib/api-client";
+import { apiFetch, ApiError, reportError } from "@/lib/api-client";
 import { toast } from "sonner";
 
 const BACKEND_METHODS = [
@@ -41,10 +41,6 @@ interface PaymentMethodConfig {
   needsReference: boolean;
   needsProof: boolean;
   enabled: boolean;
-}
-
-function reportError(error: unknown) {
-  toast.error(error instanceof ApiError ? error.message : "Ocurrió un error inesperado");
 }
 
 function usePaymentMethods() {

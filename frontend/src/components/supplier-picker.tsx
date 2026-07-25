@@ -20,7 +20,7 @@ import {
 } from "@/components/ui/select";
 import { TaxIdField } from "@/components/tax-id-field";
 import { PhoneField } from "@/components/phone-field";
-import { apiFetch, ApiError } from "@/lib/api-client";
+import { apiFetch, ApiError, reportError } from "@/lib/api-client";
 import { formatTaxId, validateTaxIdNumber, type TaxIdPrefix } from "@/lib/venezuelan-tax-id";
 import { formatPhone, validatePhoneNumber, type PhonePrefix } from "@/lib/venezuelan-phone";
 import { toast } from "sonner";
@@ -33,10 +33,6 @@ export interface Supplier {
   taxId?: string;
   contactEmail?: string;
   contactPhone?: string;
-}
-
-function reportError(error: unknown) {
-  toast.error(error instanceof ApiError ? error.message : "Ocurrió un error inesperado");
 }
 
 export function useSuppliers() {

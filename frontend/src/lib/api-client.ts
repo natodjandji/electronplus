@@ -1,3 +1,4 @@
+import { toast } from "sonner";
 import { auth } from "./firebase";
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL ?? "http://localhost:3000/api";
@@ -8,6 +9,12 @@ export class ApiError extends Error {
     super(message);
     this.status = status;
   }
+}
+
+/** Standard onError handler for mutations/queries across the app — surfaces
+ * the backend's message when available, a generic one otherwise. */
+export function reportError(error: unknown) {
+  toast.error(error instanceof ApiError ? error.message : "Ocurrió un error inesperado");
 }
 
 export async function apiFetch<T>(

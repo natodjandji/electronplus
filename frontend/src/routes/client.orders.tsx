@@ -29,7 +29,7 @@ import {
   ORDER_STATUS_LABEL,
   type OrderStatus,
 } from "@/components/order-stepper";
-import { apiFetch, ApiError } from "@/lib/api-client";
+import { apiFetch, ApiError, reportError } from "@/lib/api-client";
 import { compressImageToBase64 } from "@/lib/image-compress";
 import { formatMoney } from "@/lib/electron-store";
 import { toast } from "sonner";
@@ -99,10 +99,6 @@ interface PaymentMethodConfig {
   needsReference: boolean;
   needsProof: boolean;
   enabled: boolean;
-}
-
-function reportError(error: unknown) {
-  toast.error(error instanceof ApiError ? error.message : "Ocurrió un error inesperado");
 }
 
 function formatDate(iso: string) {

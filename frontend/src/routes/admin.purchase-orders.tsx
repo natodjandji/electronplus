@@ -51,7 +51,7 @@ import {
 import { Separator } from "@/components/ui/separator";
 import { Textarea } from "@/components/ui/textarea";
 import { SupplierPicker, useSuppliers } from "@/components/supplier-picker";
-import { apiFetch, ApiError } from "@/lib/api-client";
+import { apiFetch, ApiError, reportError } from "@/lib/api-client";
 import { formatMoney } from "@/lib/electron-store";
 import { CONTACT_INFO } from "@/lib/contact-info";
 import { toast } from "sonner";
@@ -142,10 +142,6 @@ function usePurchaseOrders(filters: { status?: string; supplierId?: string }) {
     queryKey: ["admin", "purchase-orders", filters],
     queryFn: () => apiFetch<PurchaseOrder[]>(`/purchase-orders${qs ? `?${qs}` : ""}`),
   });
-}
-
-function reportError(error: unknown) {
-  toast.error(error instanceof ApiError ? error.message : "Ocurrió un error inesperado");
 }
 
 type DraftLine = {
