@@ -442,11 +442,11 @@ function CheckoutPage() {
                   {done ? <Check className="h-4 w-4" /> : <s.icon className="h-4 w-4" />}
                 </div>
                 <div className="min-w-0">
-                  <div className="text-[10px] font-semibold uppercase tracking-widest text-muted-foreground">
+                  <div className="hidden text-[10px] font-semibold uppercase tracking-widest text-muted-foreground sm:block">
                     Paso {s.id}
                   </div>
                   <div
-                    className={`text-sm font-semibold ${
+                    className={`break-words text-xs font-semibold sm:text-sm ${
                       active || done ? "text-brand-navy" : "text-muted-foreground"
                     }`}
                   >

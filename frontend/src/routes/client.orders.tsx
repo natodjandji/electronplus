@@ -289,8 +289,8 @@ function OrderDetailDialog({ order, onClose }: { order: Order; onClose: () => vo
           </div>
         )}
 
-        <div className="max-h-64 overflow-y-auto rounded-md border border-border">
-          <table className="w-full text-sm">
+        <div className="max-h-64 overflow-auto rounded-md border border-border">
+          <table className="w-full min-w-[420px] text-sm">
             <thead>
               <tr className="border-b border-border bg-brand-surface text-left text-xs uppercase tracking-wider text-muted-foreground">
                 <th className="px-3 py-2">Producto</th>

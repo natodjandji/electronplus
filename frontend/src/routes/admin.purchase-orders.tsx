@@ -248,7 +248,7 @@ function PurchaseOrdersPage() {
         {visibleOrders && visibleOrders.length > 0 && (
           <Card className="mt-6 overflow-hidden">
             <div className="overflow-x-auto">
-              <table className="w-full text-sm">
+              <table className="w-full min-w-[600px] text-sm">
                 <thead className="bg-brand-surface">
                   <tr className="text-left text-xs uppercase tracking-wider text-muted-foreground">
                     <th className="px-4 py-2">Proveedor</th>
@@ -352,7 +352,7 @@ function LineItemsEditor({
       </div>
 
       <div className="overflow-x-auto">
-        <table className="w-full text-sm">
+        <table className="w-full min-w-[640px] text-sm">
           <thead>
             <tr className="border-b border-border text-left text-xs uppercase tracking-wider text-muted-foreground">
               <th className="py-2">Producto</th>

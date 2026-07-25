@@ -339,8 +339,8 @@ function OrderDetailDialog({ orderId, onClose }: { orderId: string; onClose: () 
           Emitido el {formatDate(order.createdAt)} · {PAYMENT_METHOD_LABEL[order.paymentMethod]}
         </div>
 
-        <div className="max-h-56 overflow-y-auto rounded-md border border-border">
-          <table className="w-full text-sm">
+        <div className="max-h-56 overflow-auto rounded-md border border-border">
+          <table className="w-full min-w-[420px] text-sm">
             <thead>
               <tr className="border-b border-border bg-brand-surface text-left text-xs uppercase tracking-wider text-muted-foreground">
                 <th className="px-3 py-2">Producto</th>

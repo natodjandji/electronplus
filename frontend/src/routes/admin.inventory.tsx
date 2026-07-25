@@ -139,7 +139,7 @@ function InventoryPage() {
 
       <Card className="mt-6 overflow-hidden">
         <div className="overflow-x-auto">
-          <table className="w-full text-sm">
+          <table className="w-full min-w-[900px] text-sm">
             <thead className="bg-brand-surface">
               <tr className="text-left text-xs uppercase tracking-wider text-muted-foreground">
                 <th className="px-4 py-2">Producto</th>

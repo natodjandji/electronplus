@@ -231,10 +231,10 @@ function QrProductPage() {
                     <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
                   )}
                 </div>
-                <div className="text-xs text-muted-foreground">
+                <div className="min-w-0 text-xs text-muted-foreground">
                   Mismo código QR que se imprime en la etiqueta del producto.
                   <br />
-                  Ruta: <code className="text-brand-navy">/product/qr/{product.id}</code>
+                  Ruta: <code className="break-all text-brand-navy">/product/qr/{product.id}</code>
                 </div>
               </div>
             )}

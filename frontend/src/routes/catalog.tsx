@@ -441,35 +441,37 @@ function ProductListRow({
       tabIndex={0}
       onClick={onClick}
       onKeyDown={onKeyDown}
-      className="group flex cursor-pointer items-center gap-4 overflow-hidden border-border p-3 shadow-sm transition-all duration-300 hover:border-brand-blue/40 hover:shadow-[0_8px_30px_-8px_rgba(0,86,179,0.25)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-blue sm:p-4"
+      className="group flex cursor-pointer flex-col gap-3 overflow-hidden border-border p-3 shadow-sm transition-all duration-300 hover:border-brand-blue/40 hover:shadow-[0_8px_30px_-8px_rgba(0,86,179,0.25)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-blue sm:flex-row sm:items-center sm:gap-4 sm:p-4"
     >
-      <div className="relative h-20 w-20 shrink-0 overflow-hidden rounded-md bg-brand-surface sm:h-24 sm:w-24">
-        <ProductImage
-          src={product.image}
-          alt={product.name}
-          className="h-full w-full transition-transform duration-500 group-hover:scale-[1.04]"
-        />
-        {out && (
-          <Badge className="absolute left-1 top-1 bg-destructive px-1.5 py-0 text-[9px] text-destructive-foreground">
-            Agotado
-          </Badge>
-        )}
-        {low && (
-          <Badge className="absolute left-1 top-1 bg-brand-yellow px-1.5 py-0 text-[9px] text-brand-navy">
-            Últimas
-          </Badge>
-        )}
-      </div>
-
-      <div className="min-w-0 flex-1">
-        <div className="text-[10px] font-semibold uppercase tracking-widest text-muted-foreground">
-          {product.sku}
+      <div className="flex min-w-0 items-center gap-4">
+        <div className="relative h-20 w-20 shrink-0 overflow-hidden rounded-md bg-brand-surface sm:h-24 sm:w-24">
+          <ProductImage
+            src={product.image}
+            alt={product.name}
+            className="h-full w-full transition-transform duration-500 group-hover:scale-[1.04]"
+          />
+          {out && (
+            <Badge className="absolute left-1 top-1 bg-destructive px-1.5 py-0 text-[9px] text-destructive-foreground">
+              Agotado
+            </Badge>
+          )}
+          {low && (
+            <Badge className="absolute left-1 top-1 bg-brand-yellow px-1.5 py-0 text-[9px] text-brand-navy">
+              Últimas
+            </Badge>
+          )}
         </div>
-        <h3 className="line-clamp-1 text-sm font-semibold text-brand-navy">{product.name}</h3>
-        <p className="line-clamp-1 text-xs text-muted-foreground">{product.specs}</p>
+
+        <div className="min-w-0 flex-1">
+          <div className="text-[10px] font-semibold uppercase tracking-widest text-muted-foreground">
+            {product.sku}
+          </div>
+          <h3 className="line-clamp-1 text-sm font-semibold text-brand-navy">{product.name}</h3>
+          <p className="line-clamp-1 text-xs text-muted-foreground">{product.specs}</p>
+        </div>
       </div>
 
-      <div className="flex shrink-0 flex-col items-end gap-2 sm:flex-row sm:items-center sm:gap-4">
+      <div className="flex shrink-0 items-center justify-between gap-2 sm:flex-row sm:items-center sm:gap-4">
         <PriceTag product={product} size="sm" />
         <div onClick={stopPropagation}>
           <QuantityStepper

@@ -610,9 +610,9 @@ function QuoteBuilder({ id, onBack }: { id: string; onBack: () => void }) {
         <div className="text-xs font-semibold uppercase tracking-widest text-brand-blue">
           Cotizaciones
         </div>
-        <div className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-4">
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-center">
           <div className="min-w-0">
-            <h1 className="mt-1 truncate text-3xl font-bold text-brand-navy">
+            <h1 className="mt-1 truncate text-2xl font-bold text-brand-navy sm:text-3xl">
               {quote.customerName}
             </h1>
             {quote.customerTaxId && (
@@ -624,11 +624,11 @@ function QuoteBuilder({ id, onBack }: { id: string; onBack: () => void }) {
               </div>
             )}
           </div>
-          <div className="flex items-center gap-2">
+          <div className="flex flex-wrap items-center gap-2">
             {!isDraft && (
               <Badge className={STATUS_BADGE[quote.status]}>{STATUS_LABEL[quote.status]}</Badge>
             )}
-            <div className="flex items-center gap-2 print:hidden">
+            <div className="flex flex-wrap items-center gap-2 print:hidden">
               <Button variant="outline" onClick={() => window.print()} className="gap-2">
                 <Printer className="h-4 w-4" />
                 Imprimir / PDF
@@ -789,7 +789,7 @@ function QuoteBuilder({ id, onBack }: { id: string; onBack: () => void }) {
           )}
 
           <div className="mt-6 overflow-x-auto">
-            <table className="w-full text-sm">
+            <table className="w-full min-w-[560px] text-sm">
               <thead>
                 <tr className="border-b border-border text-left text-xs uppercase tracking-wider text-muted-foreground">
                   <th className="py-2">Producto</th>
