@@ -1,4 +1,4 @@
-import { createContext, useContext, useMemo, useState, type ReactNode } from "react";
+import { createContext, useContext, useEffect, useMemo, useState, type ReactNode } from "react";
 import type { Product } from "./mock-data";
 import { useAuth, type BackendRole } from "./auth-context";
 
@@ -42,6 +42,32 @@ function round2(n: number): number {
   return Math.round(n * 100) / 100;
 }
 
+const CART_STORAGE_KEY = "electron-plus:cart";
+const DISCOUNT_STORAGE_KEY = "electron-plus:discount";
+
+function readStorage<T>(key: string): T | null {
+  try {
+    const raw = window.localStorage.getItem(key);
+    return raw ? (JSON.parse(raw) as T) : null;
+  } catch {
+    // Corrupted value or storage unavailable (private browsing, quota) —
+    // fall back to an empty cart instead of throwing.
+    return null;
+  }
+}
+
+function writeStorage(key: string, value: unknown) {
+  try {
+    if (value === null || value === undefined) {
+      window.localStorage.removeItem(key);
+    } else {
+      window.localStorage.setItem(key, JSON.stringify(value));
+    }
+  } catch {
+    // Storage full or unavailable — cart still works for the rest of the session.
+  }
+}
+
 const StoreContext = createContext<StoreValue | null>(null);
 
 function roleFromBackend(backendRole: BackendRole | undefined): UserRole {
@@ -62,6 +88,24 @@ export function ElectronStoreProvider({ children }: { children: ReactNode }) {
   const role = roleFromBackend(profile?.role);
   const [cart, setCart] = useState<CartItem[]>([]);
   const [discount, setDiscountState] = useState<DiscountInfo | null>(null);
+  const [hydrated, setHydrated] = useState(false);
+
+  // Loaded client-side only, after mount — reading localStorage during the
+  // initial render would make the client's first paint disagree with the
+  // server-rendered markup and break hydration.
+  useEffect(() => {
+    setCart(readStorage<CartItem[]>(CART_STORAGE_KEY) ?? []);
+    setDiscountState(readStorage<DiscountInfo>(DISCOUNT_STORAGE_KEY));
+    setHydrated(true);
+  }, []);
+
+  useEffect(() => {
+    if (hydrated) writeStorage(CART_STORAGE_KEY, cart);
+  }, [cart, hydrated]);
+
+  useEffect(() => {
+    if (hydrated) writeStorage(DISCOUNT_STORAGE_KEY, discount);
+  }, [discount, hydrated]);
 
   const value = useMemo<StoreValue>(() => {
     const priceFor = (p: Product) => p.retailPrice;
