@@ -30,6 +30,8 @@ import { apiFetch, ApiError, reportError } from "@/lib/api-client";
 import { uploadProductImage } from "@/lib/image-compress";
 import { formatMoney } from "@/lib/electron-store";
 import { toast } from "sonner";
+import { slugify, stripDiacritics } from "@/lib/text";
+import { useCategories, type Category } from "@/lib/categories";
 
 export const Route = createFileRoute("/admin/inventory")({
   head: () => ({
@@ -40,12 +42,6 @@ export const Route = createFileRoute("/admin/inventory")({
   }),
   component: InventoryPage,
 });
-
-interface Category {
-  id: string;
-  code: string;
-  label: string;
-}
 
 interface AdminProduct {
   id: string;
@@ -72,13 +68,6 @@ interface SecondStoreProduct {
   stock: number;
   linkedProductId?: string;
   linkedProduct: { id: string; sku: string; name: string; stock: number } | null;
-}
-
-function useCategories() {
-  return useQuery({
-    queryKey: ["categories"],
-    queryFn: () => apiFetch<Category[]>("/categories"),
-  });
 }
 
 function useAdminProducts(search: string) {
@@ -756,22 +745,6 @@ function ProductFormDialog({ product, onClose }: { product?: AdminProduct; onClo
 }
 
 /** Strips combining diacritical marks (U+0300–U+036F) left behind by NFD normalization. */
-function stripDiacritics(value: string): string {
-  return Array.from(value)
-    .filter((ch) => {
-      const code = ch.codePointAt(0)!;
-      return code < 0x0300 || code > 0x036f;
-    })
-    .join("");
-}
-
-function slugify(label: string): string {
-  return stripDiacritics(label.normalize("NFD"))
-    .toLowerCase()
-    .trim()
-    .replace(/[^a-z0-9]+/g, "-")
-    .replace(/^-+|-+$/g, "");
-}
 
 function CreateCategoryDialog({
   onClose,

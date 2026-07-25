@@ -1,4 +1,4 @@
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 import { CreditCard, Loader2, Pencil, Plus, Trash2 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
@@ -24,6 +24,8 @@ import { Switch } from "@/components/ui/switch";
 import { Textarea } from "@/components/ui/textarea";
 import { apiFetch, ApiError, reportError } from "@/lib/api-client";
 import { toast } from "sonner";
+import { slugify, stripDiacritics } from "@/lib/text";
+import { usePaymentMethods, type PaymentMethodConfig } from "@/lib/payment-methods";
 
 const BACKEND_METHODS = [
   { value: "bank_transfer", label: "Transferencia bancaria" },
@@ -32,41 +34,6 @@ const BACKEND_METHODS = [
   { value: "zelle", label: "Zelle" },
   { value: "credit_b2b", label: "Crédito B2B" },
 ] as const;
-
-interface PaymentMethodConfig {
-  id: string;
-  backendMethod: string;
-  label: string;
-  details: string[];
-  needsReference: boolean;
-  needsProof: boolean;
-  enabled: boolean;
-}
-
-function usePaymentMethods() {
-  return useQuery({
-    queryKey: ["payment-methods"],
-    queryFn: () => apiFetch<PaymentMethodConfig[]>("/payment-methods"),
-  });
-}
-
-/** Strips combining diacritical marks (U+0300–U+036F) left behind by NFD normalization. */
-function stripDiacritics(value: string): string {
-  return Array.from(value)
-    .filter((ch) => {
-      const code = ch.codePointAt(0)!;
-      return code < 0x0300 || code > 0x036f;
-    })
-    .join("");
-}
-
-function slugify(label: string): string {
-  return stripDiacritics(label.normalize("NFD"))
-    .toLowerCase()
-    .trim()
-    .replace(/[^a-z0-9]+/g, "-")
-    .replace(/^-+|-+$/g, "");
-}
 
 export function PaymentMethodsPanel() {
   const { data: methods, isLoading } = usePaymentMethods();

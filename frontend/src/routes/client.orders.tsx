@@ -33,6 +33,7 @@ import { apiFetch, ApiError, reportError } from "@/lib/api-client";
 import { compressImageToBase64 } from "@/lib/image-compress";
 import { formatMoney } from "@/lib/electron-store";
 import { toast } from "sonner";
+import { formatDate } from "@/lib/format";
 
 export const Route = createFileRoute("/client/orders")({
   head: () => ({
@@ -99,14 +100,6 @@ interface PaymentMethodConfig {
   needsReference: boolean;
   needsProof: boolean;
   enabled: boolean;
-}
-
-function formatDate(iso: string) {
-  return new Date(iso).toLocaleDateString("es-VE", {
-    day: "2-digit",
-    month: "short",
-    year: "numeric",
-  });
 }
 
 function useMyOrders() {

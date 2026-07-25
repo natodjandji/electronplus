@@ -46,6 +46,12 @@ import {
 import { apiFetch, ApiError, reportError } from "@/lib/api-client";
 import { useAuth } from "@/lib/auth-context";
 import { formatMoney } from "@/lib/electron-store";
+import {
+  paymentMethodLabel,
+  usePaymentMethods,
+  type PaymentMethodConfig,
+} from "@/lib/payment-methods";
+import { computeTotal, computeWholesaleTotal } from "@/lib/quote-totals";
 import { formatBs, useBcvRate } from "@/lib/use-bcv-rate";
 import { formatTaxId, validateTaxIdNumber, type TaxIdPrefix } from "@/lib/venezuelan-tax-id";
 import { TaxIdField } from "@/components/tax-id-field";
@@ -71,13 +77,6 @@ export const Route = createFileRoute("/quotes")({
 });
 
 type QuoteStatus = "draft" | "sent" | "approved" | "rejected";
-
-interface PaymentMethodConfig {
-  id: string;
-  backendMethod: string;
-  label: string;
-  enabled: boolean;
-}
 
 interface QuoteLine {
   id: string;
@@ -125,36 +124,12 @@ const STATUS_BADGE: Record<QuoteStatus, string> = {
   rejected: "border-transparent bg-destructive/10 text-destructive",
 };
 
-function computeTotal(quote: Quote): number {
-  const subtotal = quote.items.reduce(
-    (s, i) => s + i.unitPrice * i.qty * (1 - i.discountPct / 100),
-    0,
-  );
-  return subtotal * (1 - quote.globalDiscountPct / 100);
-}
-
-function computeWholesaleTotal(quote: Quote): number {
-  return quote.items.reduce((s, i) => s + i.wholesalePrice * i.qty, 0);
-}
-
 function useMyQuotes(enabled: boolean) {
   return useQuery({
     queryKey: ["quotes", "mine"],
     queryFn: () => apiFetch<Quote[]>("/quotes/mine"),
     enabled,
   });
-}
-
-function usePaymentMethods() {
-  return useQuery({
-    queryKey: ["payment-methods"],
-    queryFn: () => apiFetch<PaymentMethodConfig[]>("/payment-methods"),
-  });
-}
-
-function paymentMethodLabel(methods: PaymentMethodConfig[] | undefined, backendMethod?: string) {
-  if (!backendMethod) return undefined;
-  return methods?.find((m) => m.backendMethod === backendMethod)?.label ?? backendMethod;
 }
 
 function useProductPicker() {

@@ -35,6 +35,7 @@ import {
 import { apiFetch, ApiError, reportError } from "@/lib/api-client";
 import { formatMoney } from "@/lib/electron-store";
 import { toast } from "sonner";
+import { formatDate } from "@/lib/format";
 
 export const Route = createFileRoute("/admin/orders")({
   head: () => ({
@@ -106,14 +107,6 @@ const PAYMENT_METHOD_LABEL: Record<PaymentMethod, string> = {
   paypal: "PayPal",
   credit_b2b: "Crédito B2B",
 };
-
-function formatDate(iso: string) {
-  return new Date(iso).toLocaleDateString("es-VE", {
-    day: "2-digit",
-    month: "short",
-    year: "numeric",
-  });
-}
 
 function useOrders() {
   return useQuery({

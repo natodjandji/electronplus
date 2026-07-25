@@ -27,6 +27,7 @@ import {
   type OrderStatus,
 } from "@/components/order-stepper";
 import { toast } from "sonner";
+import { formatDate } from "@/lib/format";
 
 export const Route = createFileRoute("/admin/users")({
   head: () => ({
@@ -107,14 +108,6 @@ function totalSpent(orders: OrderSummary[]): number {
   return orders
     .filter((o) => SPENT_STATUSES.includes(o.status))
     .reduce((s, o) => s + o.totalAmount, 0);
-}
-
-function formatDate(iso: string) {
-  return new Date(iso).toLocaleDateString("es-VE", {
-    day: "2-digit",
-    month: "short",
-    year: "numeric",
-  });
 }
 
 function useUsers() {

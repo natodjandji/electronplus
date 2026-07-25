@@ -5,6 +5,7 @@ import { PublicShell } from "@/components/public-shell";
 import { CircuitBackground } from "@/components/circuit-traces";
 import { Card } from "@/components/ui/card";
 import { apiFetch } from "@/lib/api-client";
+import { useCategories } from "@/lib/categories";
 import type { ApiProduct } from "@/lib/product-api";
 import { absoluteUrl } from "@/lib/site-url";
 
@@ -24,19 +25,6 @@ export const Route = createFileRoute("/collections")({
   }),
   component: CollectionsPage,
 });
-
-interface Category {
-  id: string;
-  code: string;
-  label: string;
-}
-
-function useCategories() {
-  return useQuery({
-    queryKey: ["categories"],
-    queryFn: () => apiFetch<Category[]>("/categories"),
-  });
-}
 
 function CollectionsPage() {
   const { data: categories = [] } = useCategories();
