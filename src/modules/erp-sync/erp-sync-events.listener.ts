@@ -9,7 +9,9 @@ import { ERP_EXPORT_QUEUE, ErpExportJobData } from './erp-export.processor';
 export class ErpSyncEventsListener {
   private readonly logger = new Logger(ErpSyncEventsListener.name);
 
-  constructor(@InjectQueue(ERP_EXPORT_QUEUE) private readonly exportQueue: Queue<ErpExportJobData>) {}
+  constructor(
+    @InjectQueue(ERP_EXPORT_QUEUE) private readonly exportQueue: Queue<ErpExportJobData>,
+  ) {}
 
   @OnEvent(ORDER_PAID_EVENT)
   async handleOrderPaid(payload: OrderPaidEvent) {

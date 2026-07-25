@@ -25,7 +25,13 @@ import { ShippingRatesService } from '../shipping-rates/shipping-rates.service';
 import { CreateOrderFromQuoteDto } from './dto/create-order-from-quote.dto';
 import { CreateOrderDto, ShippingInfoDto } from './dto/create-order.dto';
 import { RetryPaymentDto } from './dto/retry-payment.dto';
-import { fulfillmentPipeline, FulfillmentMethod, Order, OrderItem, OrderStatus } from './entities/order.entity';
+import {
+  fulfillmentPipeline,
+  FulfillmentMethod,
+  Order,
+  OrderItem,
+  OrderStatus,
+} from './entities/order.entity';
 
 export const ORDER_PAID_EVENT = 'order.paid';
 /** Venezuela's standard IVA rate — applied to (subtotal - discount). */
@@ -73,7 +79,9 @@ export class OrdersService {
   async create(user: AuthenticatedUser, dto: CreateOrderDto): Promise<Order> {
     const productIds = dto.items.map((i) => i.productId);
     if (new Set(productIds).size !== productIds.length) {
-      throw new BadRequestException('Duplicate product in order items — merge quantities into a single line instead');
+      throw new BadRequestException(
+        'Duplicate product in order items — merge quantities into a single line instead',
+      );
     }
 
     const { orderId, stockChanges } = await this.firestore.runTransaction(async (tx) => {
@@ -117,7 +125,8 @@ export class OrdersService {
       let discountAmount = 0;
       if (dto.discountCode) {
         const result = await this.discountCodesService.validate(dto.discountCode, subtotal);
-        if (!result.valid) throw new BadRequestException(result.message ?? 'Código de descuento inválido');
+        if (!result.valid)
+          throw new BadRequestException(result.message ?? 'Código de descuento inválido');
         discountCode = result.code;
         discountAmount = result.discountAmount;
       }
@@ -307,7 +316,11 @@ export class OrdersService {
   }
 
   /** After a rejection, lets the buyer switch payment method and/or resubmit a reference/proof. */
-  async retryPayment(orderId: string, user: AuthenticatedUser, dto: RetryPaymentDto): Promise<Order> {
+  async retryPayment(
+    orderId: string,
+    user: AuthenticatedUser,
+    dto: RetryPaymentDto,
+  ): Promise<Order> {
     const order = await this.findById(orderId, user);
     if (order.status !== OrderStatus.PENDING_PAYMENT_VERIFICATION) {
       throw new BadRequestException('This order is not awaiting payment verification');
@@ -376,7 +389,10 @@ export class OrdersService {
     if (error) {
       await this.repo.update(orderId, { erpExportError: error });
     } else {
-      await this.repo.update(orderId, { erpExportedAt: new Date(), erpExportError: FieldValue.delete() as never });
+      await this.repo.update(orderId, {
+        erpExportedAt: new Date(),
+        erpExportError: FieldValue.delete() as never,
+      });
     }
   }
 
@@ -417,7 +433,10 @@ export class OrdersService {
       const changes = stockContexts.map((ctx, idx) =>
         this.productsService.applyStockDelta(tx, ctx, order.items[idx].qty),
       );
-      tx.update(orderRef, { status: OrderStatus.CANCELLED, updatedAt: FieldValue.serverTimestamp() });
+      tx.update(orderRef, {
+        status: OrderStatus.CANCELLED,
+        updatedAt: FieldValue.serverTimestamp(),
+      });
       return changes;
     });
 

@@ -1,5 +1,9 @@
 import { Injectable } from '@nestjs/common';
-import { ErpInventoryItem, ErpSaleExport, ProfitPlusAdapter } from './profit-plus-adapter.interface';
+import {
+  ErpInventoryItem,
+  ErpSaleExport,
+  ProfitPlusAdapter,
+} from './profit-plus-adapter.interface';
 
 /**
  * Stub for a direct-DB integration (Firebird/SQL Server) with Profit Plus.
@@ -10,11 +14,15 @@ import { ErpInventoryItem, ErpSaleExport, ProfitPlusAdapter } from './profit-plu
 @Injectable()
 export class DbProfitPlusAdapter implements ProfitPlusAdapter {
   fetchInventory(): Promise<ErpInventoryItem[]> {
-    throw new Error('DbProfitPlusAdapter is not implemented yet — configure Profit Plus DB access first.');
+    throw new Error(
+      'DbProfitPlusAdapter is not implemented yet — configure Profit Plus DB access first.',
+    );
   }
 
   reportSale(_sale: ErpSaleExport): Promise<void> {
-    throw new Error('DbProfitPlusAdapter is not implemented yet — configure Profit Plus DB access first.');
+    throw new Error(
+      'DbProfitPlusAdapter is not implemented yet — configure Profit Plus DB access first.',
+    );
   }
 
   async healthCheck(): Promise<boolean> {

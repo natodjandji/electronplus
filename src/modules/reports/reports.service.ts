@@ -8,7 +8,12 @@ import { FirestoreRepository } from '../../firebase/firestore.repository';
 import { OrderStatus } from '../orders/entities/order.entity';
 import { SalesDailySummary } from './entities/sales-daily-summary.entity';
 
-const REVENUE_STATUSES = [OrderStatus.PAID, OrderStatus.PREPARING, OrderStatus.SHIPPED, OrderStatus.FULFILLED];
+const REVENUE_STATUSES = [
+  OrderStatus.PAID,
+  OrderStatus.PREPARING,
+  OrderStatus.SHIPPED,
+  OrderStatus.FULFILLED,
+];
 
 function toIsoDate(date: Date): string {
   return date.toISOString().slice(0, 10);
@@ -20,7 +25,10 @@ export class ReportsService {
   private readonly summariesRepo: FirestoreRepository<SalesDailySummary>;
 
   constructor(@Inject(FIRESTORE) private readonly firestore: Firestore) {
-    this.summariesRepo = new FirestoreRepository<SalesDailySummary>(firestore, Collections.SALES_DAILY_SUMMARIES);
+    this.summariesRepo = new FirestoreRepository<SalesDailySummary>(
+      firestore,
+      Collections.SALES_DAILY_SUMMARIES,
+    );
   }
 
   /** Nightly rollup of the previous day's sales (paid orders) and purchases (supplier payments). */
@@ -44,25 +52,35 @@ export class ReportsService {
       .where('createdAt', '>=', Timestamp.fromDate(dayStart))
       .where('createdAt', '<', Timestamp.fromDate(dayEnd))
       .get();
-    const salesTotal = ordersSnap.docs.reduce((sum, d) => sum + (d.data().totalAmount as number), 0);
+    const salesTotal = ordersSnap.docs.reduce(
+      (sum, d) => sum + (d.data().totalAmount as number),
+      0,
+    );
 
     const paymentsSnap = await this.firestore
       .collectionGroup(Collections.SUPPLIER_PAYMENTS)
       .where('paidAt', '>=', Timestamp.fromDate(dayStart))
       .where('paidAt', '<', Timestamp.fromDate(dayEnd))
       .get();
-    const purchasesTotal = paymentsSnap.docs.reduce((sum, d) => sum + (d.data().amount as number), 0);
+    const purchasesTotal = paymentsSnap.docs.reduce(
+      (sum, d) => sum + (d.data().amount as number),
+      0,
+    );
 
     const existing = await this.summariesRepo.findById(isoDate);
     const patch = { date: isoDate, salesTotal, purchasesTotal, ordersCount: ordersSnap.size };
-    return existing ? this.summariesRepo.update(isoDate, patch) : this.summariesRepo.create(patch, isoDate);
+    return existing
+      ? this.summariesRepo.update(isoDate, patch)
+      : this.summariesRepo.create(patch, isoDate);
   }
 
   /** Monthly ventas/compras series for the dashboard chart; rolls up today live since it has no summary row yet. */
   async salesSeries(months = 7): Promise<{ month: string; ventas: number; compras: number }[]> {
     await this.rollupDay(new Date());
 
-    const summaries = await this.summariesRepo.findAll({ orderBy: { field: 'date', direction: 'asc' } });
+    const summaries = await this.summariesRepo.findAll({
+      orderBy: { field: 'date', direction: 'asc' },
+    });
     const byMonth = new Map<string, { ventas: number; compras: number }>();
 
     for (const s of summaries) {
@@ -80,13 +98,19 @@ export class ReportsService {
   }
 
   async categoryShare(): Promise<{ name: string; value: number }[]> {
-    const ordersSnap = await this.firestore.collection(Collections.ORDERS).where('status', 'in', REVENUE_STATUSES).get();
+    const ordersSnap = await this.firestore
+      .collection(Collections.ORDERS)
+      .where('status', 'in', REVENUE_STATUSES)
+      .get();
     const totalsByCategory = new Map<string, number>();
 
     for (const doc of ordersSnap.docs) {
       const items = (doc.data().items ?? []) as { categoryLabel: string; lineTotal: number }[];
       for (const item of items) {
-        totalsByCategory.set(item.categoryLabel, (totalsByCategory.get(item.categoryLabel) ?? 0) + item.lineTotal);
+        totalsByCategory.set(
+          item.categoryLabel,
+          (totalsByCategory.get(item.categoryLabel) ?? 0) + item.lineTotal,
+        );
       }
     }
 
@@ -121,7 +145,16 @@ export class ReportsService {
   async profitability(
     from: Date,
     to: Date,
-  ): Promise<{ productId: string; sku: string; name: string; unitsSold: number; revenue: number; margin: number }[]> {
+  ): Promise<
+    {
+      productId: string;
+      sku: string;
+      name: string;
+      unitsSold: number;
+      revenue: number;
+      margin: number;
+    }[]
+  > {
     const ordersSnap = await this.firestore
       .collection(Collections.ORDERS)
       .where('status', 'in', REVENUE_STATUSES)
@@ -129,7 +162,10 @@ export class ReportsService {
       .where('createdAt', '<=', Timestamp.fromDate(to))
       .get();
 
-    const byProduct = new Map<string, { sku: string; name: string; unitsSold: number; revenue: number; margin: number }>();
+    const byProduct = new Map<
+      string,
+      { sku: string; name: string; unitsSold: number; revenue: number; margin: number }
+    >();
     for (const doc of ordersSnap.docs) {
       const items = (doc.data().items ?? []) as {
         productId: string;

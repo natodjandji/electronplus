@@ -80,7 +80,12 @@ export class QuotesService {
     return this.repo.update(id, { items: [...quote.items, item] });
   }
 
-  async updateLine(id: string, lineId: string, user: AuthenticatedUser, dto: UpdateQuoteLineDto): Promise<Quote> {
+  async updateLine(
+    id: string,
+    lineId: string,
+    user: AuthenticatedUser,
+    dto: UpdateQuoteLineDto,
+  ): Promise<Quote> {
     const quote = await this.assertEditable(id, user);
     const items = quote.items.map((item) =>
       item.id === lineId
@@ -114,7 +119,11 @@ export class QuotesService {
   }
 
   /** Admin-only (enforced by @Roles on the controller) — grants the "special discount" while reviewing a request. */
-  async setGlobalDiscount(id: string, user: AuthenticatedUser, globalDiscountPct: number): Promise<Quote> {
+  async setGlobalDiscount(
+    id: string,
+    user: AuthenticatedUser,
+    globalDiscountPct: number,
+  ): Promise<Quote> {
     await this.assertNotFinalized(id, user);
     return this.repo.update(id, { globalDiscountPct });
   }

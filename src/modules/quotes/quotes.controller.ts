@@ -1,4 +1,15 @@
-import { Body, Controller, Delete, Get, HttpCode, Param, Patch, Post, Query, UseGuards } from '@nestjs/common';
+import {
+  Body,
+  Controller,
+  Delete,
+  Get,
+  HttpCode,
+  Param,
+  Patch,
+  Post,
+  Query,
+  UseGuards,
+} from '@nestjs/common';
 import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
 import { Roles } from '../../common/decorators/roles.decorator';
@@ -51,7 +62,11 @@ export class QuotesController {
   }
 
   @Post(':id/lines')
-  addLine(@Param('id') id: string, @CurrentUser() user: AuthenticatedUser, @Body() dto: AddQuoteLineDto) {
+  addLine(
+    @Param('id') id: string,
+    @CurrentUser() user: AuthenticatedUser,
+    @Body() dto: AddQuoteLineDto,
+  ) {
     return this.quotesService.addLine(id, user, dto);
   }
 
@@ -118,7 +133,11 @@ export class QuotesController {
 
   @Post(':id/reject')
   @Roles(Role.ADMIN)
-  reject(@Param('id') id: string, @CurrentUser() user: AuthenticatedUser, @Body() dto: RejectQuoteDto) {
+  reject(
+    @Param('id') id: string,
+    @CurrentUser() user: AuthenticatedUser,
+    @Body() dto: RejectQuoteDto,
+  ) {
     return this.quotesService.reject(id, user, dto.reason);
   }
 }

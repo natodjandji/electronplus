@@ -1,4 +1,9 @@
-import { ConnectorConfig, DataConnect, OperationOptions, ExecuteOperationResponse } from 'firebase-admin/data-connect';
+import {
+  ConnectorConfig,
+  DataConnect,
+  OperationOptions,
+  ExecuteOperationResponse,
+} from 'firebase-admin/data-connect';
 
 export const connectorConfig: ConnectorConfig;
 
@@ -6,7 +11,6 @@ export type TimestampString = string;
 export type UUIDString = string;
 export type Int64String = string;
 export type DateString = string;
-
 
 export interface AddToCartData {
   cartItem_insert: CartItem_Key;
@@ -48,13 +52,13 @@ export interface CreateUserVariables {
 
 export interface GetMyCartData {
   cart?: {
-    cartItems_on_cart: ({
+    cartItems_on_cart: {
       quantity: number;
       product: {
         name: string;
         price: number;
       };
-    })[];
+    }[];
   };
 }
 
@@ -79,22 +83,47 @@ export interface User_Key {
 }
 
 /** Generated Node Admin SDK operation action function for the 'CreateUser' Mutation. Allow users to execute without passing in DataConnect. */
-export function createUser(dc: DataConnect, vars: CreateUserVariables, options?: OperationOptions): Promise<ExecuteOperationResponse<CreateUserData>>;
+export function createUser(
+  dc: DataConnect,
+  vars: CreateUserVariables,
+  options?: OperationOptions,
+): Promise<ExecuteOperationResponse<CreateUserData>>;
 /** Generated Node Admin SDK operation action function for the 'CreateUser' Mutation. Allow users to pass in custom DataConnect instances. */
-export function createUser(vars: CreateUserVariables, options?: OperationOptions): Promise<ExecuteOperationResponse<CreateUserData>>;
+export function createUser(
+  vars: CreateUserVariables,
+  options?: OperationOptions,
+): Promise<ExecuteOperationResponse<CreateUserData>>;
 
 /** Generated Node Admin SDK operation action function for the 'CreateProduct' Mutation. Allow users to execute without passing in DataConnect. */
-export function createProduct(dc: DataConnect, vars: CreateProductVariables, options?: OperationOptions): Promise<ExecuteOperationResponse<CreateProductData>>;
+export function createProduct(
+  dc: DataConnect,
+  vars: CreateProductVariables,
+  options?: OperationOptions,
+): Promise<ExecuteOperationResponse<CreateProductData>>;
 /** Generated Node Admin SDK operation action function for the 'CreateProduct' Mutation. Allow users to pass in custom DataConnect instances. */
-export function createProduct(vars: CreateProductVariables, options?: OperationOptions): Promise<ExecuteOperationResponse<CreateProductData>>;
+export function createProduct(
+  vars: CreateProductVariables,
+  options?: OperationOptions,
+): Promise<ExecuteOperationResponse<CreateProductData>>;
 
 /** Generated Node Admin SDK operation action function for the 'AddToCart' Mutation. Allow users to execute without passing in DataConnect. */
-export function addToCart(dc: DataConnect, vars: AddToCartVariables, options?: OperationOptions): Promise<ExecuteOperationResponse<AddToCartData>>;
+export function addToCart(
+  dc: DataConnect,
+  vars: AddToCartVariables,
+  options?: OperationOptions,
+): Promise<ExecuteOperationResponse<AddToCartData>>;
 /** Generated Node Admin SDK operation action function for the 'AddToCart' Mutation. Allow users to pass in custom DataConnect instances. */
-export function addToCart(vars: AddToCartVariables, options?: OperationOptions): Promise<ExecuteOperationResponse<AddToCartData>>;
+export function addToCart(
+  vars: AddToCartVariables,
+  options?: OperationOptions,
+): Promise<ExecuteOperationResponse<AddToCartData>>;
 
 /** Generated Node Admin SDK operation action function for the 'GetMyCart' Query. Allow users to execute without passing in DataConnect. */
-export function getMyCart(dc: DataConnect, options?: OperationOptions): Promise<ExecuteOperationResponse<GetMyCartData>>;
+export function getMyCart(
+  dc: DataConnect,
+  options?: OperationOptions,
+): Promise<ExecuteOperationResponse<GetMyCartData>>;
 /** Generated Node Admin SDK operation action function for the 'GetMyCart' Query. Allow users to pass in custom DataConnect instances. */
-export function getMyCart(options?: OperationOptions): Promise<ExecuteOperationResponse<GetMyCartData>>;
-
+export function getMyCart(
+  options?: OperationOptions,
+): Promise<ExecuteOperationResponse<GetMyCartData>>;

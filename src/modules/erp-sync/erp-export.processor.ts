@@ -66,7 +66,11 @@ export class ErpExportProcessor extends WorkerHost {
       this.logger.error(`ERP export failed for order ${orderId}`, error as Error);
       await this.ordersService.markErpExported(orderId, message);
 
-      await this.repo.update(log.id, { status: SyncStatus.ERROR, error: message, finishedAt: new Date() });
+      await this.repo.update(log.id, {
+        status: SyncStatus.ERROR,
+        error: message,
+        finishedAt: new Date(),
+      });
       this.events.emit(ERP_SYNC_ERROR_EVENT, {
         direction: SyncDirection.OUTBOUND,
         message,

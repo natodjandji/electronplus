@@ -38,7 +38,9 @@ async function bootstrap() {
 
   const swaggerConfig = new DocumentBuilder()
     .setTitle('Electron Plus API')
-    .setDescription('Backend for Electron Plus — catalog, pricing, quotes, orders, payments, Profit Plus ERP sync, finance, reports and QR.')
+    .setDescription(
+      'Backend for Electron Plus — catalog, pricing, quotes, orders, payments, Profit Plus ERP sync, finance, reports and QR.',
+    )
     .setVersion('0.1.0')
     .addBearerAuth()
     .build();

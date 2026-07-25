@@ -6,7 +6,12 @@ import { AuthenticatedUser } from '../../common/interfaces/authenticated-user.in
 import { FIRESTORE } from '../../firebase/firebase.constants';
 import { Collections } from '../../firebase/firestore-collections';
 import { FirestoreRepository } from '../../firebase/firestore.repository';
-import { MANUAL_RECONCILIATION_METHODS, Payment, PaymentMethod, PaymentStatus } from './entities/payment.entity';
+import {
+  MANUAL_RECONCILIATION_METHODS,
+  Payment,
+  PaymentMethod,
+  PaymentStatus,
+} from './entities/payment.entity';
 import { PayPalClient } from './paypal.client';
 
 export const PAYMENT_VERIFIED_EVENT = 'payment.verified';
@@ -77,7 +82,10 @@ export class PaymentsService {
     });
 
     if (isCredit) {
-      this.events.emit(PAYMENT_VERIFIED_EVENT, { orderId, paymentId: saved.id } satisfies PaymentVerifiedEvent);
+      this.events.emit(PAYMENT_VERIFIED_EVENT, {
+        orderId,
+        paymentId: saved.id,
+      } satisfies PaymentVerifiedEvent);
     }
 
     return saved;
@@ -109,7 +117,10 @@ export class PaymentsService {
       verifiedByUserId: adminUserId,
       verifiedAt: new Date(),
     });
-    this.events.emit(PAYMENT_VERIFIED_EVENT, { orderId: saved.orderId, paymentId: saved.id } satisfies PaymentVerifiedEvent);
+    this.events.emit(PAYMENT_VERIFIED_EVENT, {
+      orderId: saved.orderId,
+      paymentId: saved.id,
+    } satisfies PaymentVerifiedEvent);
     return saved;
   }
 
@@ -140,8 +151,14 @@ export class PaymentsService {
     if (result.status !== 'COMPLETED') {
       throw new BadRequestException(`PayPal order not completed (status: ${result.status})`);
     }
-    const saved = await this.repo.update(id, { status: PaymentStatus.VERIFIED, verifiedAt: new Date() });
-    this.events.emit(PAYMENT_VERIFIED_EVENT, { orderId: saved.orderId, paymentId: saved.id } satisfies PaymentVerifiedEvent);
+    const saved = await this.repo.update(id, {
+      status: PaymentStatus.VERIFIED,
+      verifiedAt: new Date(),
+    });
+    this.events.emit(PAYMENT_VERIFIED_EVENT, {
+      orderId: saved.orderId,
+      paymentId: saved.id,
+    } satisfies PaymentVerifiedEvent);
     return saved;
   }
 }

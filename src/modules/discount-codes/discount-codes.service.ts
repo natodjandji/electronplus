@@ -33,7 +33,10 @@ export class DiscountCodesService {
     const id = dto.code.trim().toUpperCase();
     const existing = await this.repo.findById(id);
     if (existing) throw new BadRequestException(`Discount code "${id}" already exists`);
-    return this.repo.create({ code: id, type: dto.type, value: dto.value, enabled: dto.enabled ?? true }, id);
+    return this.repo.create(
+      { code: id, type: dto.type, value: dto.value, enabled: dto.enabled ?? true },
+      id,
+    );
   }
 
   async update(id: string, dto: UpdateDiscountCodeDto): Promise<DiscountCode> {

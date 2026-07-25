@@ -39,7 +39,11 @@ export class PaymentsController {
 
   @Patch(':id/reject')
   @Roles(Role.ADMIN)
-  reject(@Param('id') id: string, @CurrentUser() user: AuthenticatedUser, @Body() dto: RejectPaymentDto) {
+  reject(
+    @Param('id') id: string,
+    @CurrentUser() user: AuthenticatedUser,
+    @Body() dto: RejectPaymentDto,
+  ) {
     return this.paymentsService.reject(id, user.id, dto.reason);
   }
 }

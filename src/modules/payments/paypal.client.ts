@@ -29,7 +29,9 @@ export class PayPalClient {
     const clientId = this.config.get('PAYPAL_CLIENT_ID', { infer: true });
     const secret = this.config.get('PAYPAL_CLIENT_SECRET', { infer: true });
     if (!clientId || !secret) {
-      throw new ServiceUnavailableException('PayPal is not configured (missing PAYPAL_CLIENT_ID/SECRET)');
+      throw new ServiceUnavailableException(
+        'PayPal is not configured (missing PAYPAL_CLIENT_ID/SECRET)',
+      );
     }
     return { clientId, secret };
   }
@@ -50,10 +52,15 @@ export class PayPalClient {
       body: 'grant_type=client_credentials',
     });
     if (!res.ok) {
-      throw new ServiceUnavailableException(`PayPal auth failed: ${res.status} ${await res.text()}`);
+      throw new ServiceUnavailableException(
+        `PayPal auth failed: ${res.status} ${await res.text()}`,
+      );
     }
     const data = (await res.json()) as PayPalAccessToken;
-    this.cachedToken = { token: data.access_token, expiresAt: Date.now() + (data.expires_in - 60) * 1000 };
+    this.cachedToken = {
+      token: data.access_token,
+      expiresAt: Date.now() + (data.expires_in - 60) * 1000,
+    };
     return data.access_token;
   }
 
@@ -68,7 +75,9 @@ export class PayPalClient {
       }),
     });
     if (!res.ok) {
-      throw new ServiceUnavailableException(`PayPal create order failed: ${res.status} ${await res.text()}`);
+      throw new ServiceUnavailableException(
+        `PayPal create order failed: ${res.status} ${await res.text()}`,
+      );
     }
     return res.json() as Promise<PayPalOrder>;
   }
@@ -81,7 +90,9 @@ export class PayPalClient {
     });
     const raw = await res.json();
     if (!res.ok) {
-      throw new ServiceUnavailableException(`PayPal capture failed: ${res.status} ${JSON.stringify(raw)}`);
+      throw new ServiceUnavailableException(
+        `PayPal capture failed: ${res.status} ${JSON.stringify(raw)}`,
+      );
     }
     return { status: (raw as { status: string }).status, raw };
   }

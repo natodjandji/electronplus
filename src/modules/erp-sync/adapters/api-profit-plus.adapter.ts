@@ -1,5 +1,9 @@
 import { Injectable } from '@nestjs/common';
-import { ErpInventoryItem, ErpSaleExport, ProfitPlusAdapter } from './profit-plus-adapter.interface';
+import {
+  ErpInventoryItem,
+  ErpSaleExport,
+  ProfitPlusAdapter,
+} from './profit-plus-adapter.interface';
 
 /**
  * Stub for a REST/SOAP middleware in front of Profit Plus. Point it at
@@ -10,11 +14,15 @@ import { ErpInventoryItem, ErpSaleExport, ProfitPlusAdapter } from './profit-plu
 @Injectable()
 export class ApiProfitPlusAdapter implements ProfitPlusAdapter {
   fetchInventory(): Promise<ErpInventoryItem[]> {
-    throw new Error('ApiProfitPlusAdapter is not implemented yet — configure the Profit Plus API endpoint first.');
+    throw new Error(
+      'ApiProfitPlusAdapter is not implemented yet — configure the Profit Plus API endpoint first.',
+    );
   }
 
   reportSale(_sale: ErpSaleExport): Promise<void> {
-    throw new Error('ApiProfitPlusAdapter is not implemented yet — configure the Profit Plus API endpoint first.');
+    throw new Error(
+      'ApiProfitPlusAdapter is not implemented yet — configure the Profit Plus API endpoint first.',
+    );
   }
 
   async healthCheck(): Promise<boolean> {

@@ -18,7 +18,12 @@ import { Product } from './entities/product.entity';
 import { StockLevel } from './entities/stock-level.entity';
 import { Warehouse } from './entities/warehouse.entity';
 
-const REVENUE_STATUSES = [OrderStatus.PAID, OrderStatus.PREPARING, OrderStatus.SHIPPED, OrderStatus.FULFILLED];
+const REVENUE_STATUSES = [
+  OrderStatus.PAID,
+  OrderStatus.PREPARING,
+  OrderStatus.SHIPPED,
+  OrderStatus.FULFILLED,
+];
 
 export const STOCK_CHANGED_EVENT = 'stock.changed';
 
@@ -77,9 +82,13 @@ export class ProductsService {
       return new PaginatedResult(page, filtered.length, query.page ?? 1, limit);
     }
 
-    const where: { field: string; op: '=='; value: unknown }[] = [{ field: 'active', op: '==', value: true }];
+    const where: { field: string; op: '=='; value: unknown }[] = [
+      { field: 'active', op: '==', value: true },
+    ];
     if (query.category) {
-      const category = await this.categoriesRepo.findOne([{ field: 'code', op: '==', value: query.category }]);
+      const category = await this.categoriesRepo.findOne([
+        { field: 'code', op: '==', value: query.category },
+      ]);
       where.push({ field: 'categoryId', op: '==', value: category?.id ?? '__none__' });
     }
     const data = await this.repo.findAll({ where, orderBy: { field: 'name' }, limit });
@@ -145,7 +154,9 @@ export class ProductsService {
       );
     }
     if (query.lowStockOnly === 'true') {
-      products = products.filter((p) => (p.minStockThreshold ?? 0) > 0 && p.stock <= p.minStockThreshold!);
+      products = products.filter(
+        (p) => (p.minStockThreshold ?? 0) > 0 && p.stock <= p.minStockThreshold!,
+      );
     }
 
     return products;
@@ -233,15 +244,23 @@ export class ProductsService {
   // same as getForUpdate/reserveStock below — call getStockForUpdate for
   // every item first, then applyStockDelta for every item.
 
-  async getStockForUpdate(tx: Transaction, id: string, warehouseId?: string): Promise<StockUpdateContext> {
+  async getStockForUpdate(
+    tx: Transaction,
+    id: string,
+    warehouseId?: string,
+  ): Promise<StockUpdateContext> {
     const productRef = this.repo.doc(id);
-    const levelRef = warehouseId ? productRef.collection(Collections.STOCK_LEVELS).doc(warehouseId) : undefined;
+    const levelRef = warehouseId
+      ? productRef.collection(Collections.STOCK_LEVELS).doc(warehouseId)
+      : undefined;
 
     const productSnap = await tx.get(productRef);
     if (!productSnap.exists) throw new NotFoundException('Product not found');
     const levelSnap = levelRef ? await tx.get(levelRef) : undefined;
     const warehouseSnap =
-      levelRef && !levelSnap?.exists ? await tx.get(this.warehousesRepo.doc(warehouseId!)) : undefined;
+      levelRef && !levelSnap?.exists
+        ? await tx.get(this.warehousesRepo.doc(warehouseId!))
+        : undefined;
 
     const data = productSnap.data()!;
     return {
@@ -318,7 +337,9 @@ export class ProductsService {
   reserveStock(tx: Transaction, ref: DocumentReference, product: Product, qty: number): number {
     const nextStock = product.stock - qty;
     if (nextStock < 0) {
-      throw new ConflictException(`Insufficient stock for ${product.sku}: ${product.stock} available, ${qty} requested`);
+      throw new ConflictException(
+        `Insufficient stock for ${product.sku}: ${product.stock} available, ${qty} requested`,
+      );
     }
     tx.update(ref, { stock: nextStock, updatedAt: FieldValue.serverTimestamp() });
     return nextStock;

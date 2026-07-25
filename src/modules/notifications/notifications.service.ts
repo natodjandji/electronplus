@@ -47,7 +47,14 @@ export class NotificationsService {
     targetRoles: Role[],
     payload?: Record<string, unknown>,
   ): Promise<Notification> {
-    const notification = await this.repo.create({ type, title, message, targetRoles, payload, read: false });
+    const notification = await this.repo.create({
+      type,
+      title,
+      message,
+      targetRoles,
+      payload,
+      read: false,
+    });
     this.gateway.broadcastToRoles(targetRoles, 'notification.created', notification);
     return notification;
   }
@@ -64,7 +71,10 @@ export class NotificationsService {
         { ...payload },
       );
     } catch (error) {
-      this.logger.error(`Failed to create stock alert notification for ${payload.sku}`, error as Error);
+      this.logger.error(
+        `Failed to create stock alert notification for ${payload.sku}`,
+        error as Error,
+      );
     }
   }
 
@@ -80,16 +90,25 @@ export class NotificationsService {
         { ...payload },
       );
     } catch (error) {
-      this.logger.error(`Failed to create invoice due notification for ${payload.invoiceNumber}`, error as Error);
+      this.logger.error(
+        `Failed to create invoice due notification for ${payload.invoiceNumber}`,
+        error as Error,
+      );
     }
   }
 
   @OnEvent(ERP_SYNC_ERROR_EVENT)
   async handleErpSyncError(payload: ErpSyncErrorEvent): Promise<void> {
     try {
-      await this.create(NotificationType.SYNC_ERROR, 'Error de sincronización con Profit Plus', payload.message, [Role.ADMIN], {
-        ...payload,
-      });
+      await this.create(
+        NotificationType.SYNC_ERROR,
+        'Error de sincronización con Profit Plus',
+        payload.message,
+        [Role.ADMIN],
+        {
+          ...payload,
+        },
+      );
     } catch (error) {
       this.logger.error('Failed to create ERP sync error notification', error as Error);
     }

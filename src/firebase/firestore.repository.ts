@@ -1,5 +1,10 @@
 import { BadRequestException, NotFoundException } from '@nestjs/common';
-import type { CollectionReference, Firestore, Query, WhereFilterOp } from 'firebase-admin/firestore';
+import type {
+  CollectionReference,
+  Firestore,
+  Query,
+  WhereFilterOp,
+} from 'firebase-admin/firestore';
 import { FieldValue } from 'firebase-admin/firestore';
 
 export interface FirestoreDoc {

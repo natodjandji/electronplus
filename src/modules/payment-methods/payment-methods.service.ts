@@ -56,7 +56,10 @@ export class PaymentMethodsService {
   private readonly repo: FirestoreRepository<PaymentMethodConfig>;
 
   constructor(@Inject(FIRESTORE) firestore: Firestore) {
-    this.repo = new FirestoreRepository<PaymentMethodConfig>(firestore, Collections.PAYMENT_METHODS);
+    this.repo = new FirestoreRepository<PaymentMethodConfig>(
+      firestore,
+      Collections.PAYMENT_METHODS,
+    );
   }
 
   private async ensureSeeded(): Promise<void> {
@@ -74,14 +77,16 @@ export class PaymentMethodsService {
     return all.sort((a, b) => {
       const ai = DISPLAY_ORDER.indexOf(a.id);
       const bi = DISPLAY_ORDER.indexOf(b.id);
-      if (ai !== -1 || bi !== -1) return (ai === -1 ? DISPLAY_ORDER.length : ai) - (bi === -1 ? DISPLAY_ORDER.length : bi);
+      if (ai !== -1 || bi !== -1)
+        return (ai === -1 ? DISPLAY_ORDER.length : ai) - (bi === -1 ? DISPLAY_ORDER.length : bi);
       return a.createdAt.getTime() - b.createdAt.getTime();
     });
   }
 
   async create(dto: CreatePaymentMethodDto): Promise<PaymentMethodConfig> {
     const existing = await this.repo.findById(dto.id);
-    if (existing) throw new BadRequestException(`A payment method with id "${dto.id}" already exists`);
+    if (existing)
+      throw new BadRequestException(`A payment method with id "${dto.id}" already exists`);
     const { id, ...data } = dto;
     return this.repo.create({ ...data, enabled: dto.enabled ?? true }, id);
   }

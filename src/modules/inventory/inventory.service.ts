@@ -6,7 +6,11 @@ import { EnvConfig } from '../../config/env.validation';
 import { FIRESTORE } from '../../firebase/firebase.constants';
 import { Collections } from '../../firebase/firestore-collections';
 import { FirestoreRepository } from '../../firebase/firestore.repository';
-import { ProductsService, STOCK_CHANGED_EVENT, StockChangedEvent } from '../products/products.service';
+import {
+  ProductsService,
+  STOCK_CHANGED_EVENT,
+  StockChangedEvent,
+} from '../products/products.service';
 import { StockAlert, StockAlertLevel } from './entities/stock-alert.entity';
 
 export const STOCK_ALERT_RAISED_EVENT = 'stock.alert.raised';
@@ -36,7 +40,9 @@ export class InventoryService {
   @OnEvent(STOCK_CHANGED_EVENT)
   async handleStockChanged(payload: StockChangedEvent): Promise<void> {
     const threshold =
-      payload.minStockThreshold ?? this.config.get('LOW_STOCK_DEFAULT_THRESHOLD', { infer: true }) ?? 10;
+      payload.minStockThreshold ??
+      this.config.get('LOW_STOCK_DEFAULT_THRESHOLD', { infer: true }) ??
+      10;
     const existingActive = await this.repo.findOne([
       { field: 'productId', op: '==', value: payload.productId },
       { field: 'active', op: '==', value: true },
@@ -68,7 +74,9 @@ export class InventoryService {
       active: true,
     });
 
-    this.logger.warn(`Stock alert [${level}] for ${payload.sku}: ${payload.stock} units (threshold ${threshold})`);
+    this.logger.warn(
+      `Stock alert [${level}] for ${payload.sku}: ${payload.stock} units (threshold ${threshold})`,
+    );
     this.events.emit(STOCK_ALERT_RAISED_EVENT, {
       productId: alert.productId,
       sku: alert.sku,

@@ -21,7 +21,10 @@ export class SecondStoreService {
     @Inject(FIRESTORE) firestore: Firestore,
     private readonly productsService: ProductsService,
   ) {
-    this.repo = new FirestoreRepository<SecondStoreProduct>(firestore, Collections.SECOND_STORE_PRODUCTS);
+    this.repo = new FirestoreRepository<SecondStoreProduct>(
+      firestore,
+      Collections.SECOND_STORE_PRODUCTS,
+    );
   }
 
   async findAll(): Promise<SecondStoreProductWithLink[]> {
@@ -40,7 +43,12 @@ export class SecondStoreService {
       const product = await this.productsService.findById(item.linkedProductId);
       return {
         ...item,
-        linkedProduct: { id: product.id, sku: product.sku, name: product.name, stock: product.stock },
+        linkedProduct: {
+          id: product.id,
+          sku: product.sku,
+          name: product.name,
+          stock: product.stock,
+        },
       };
     } catch {
       // Linked product was deleted after linking — surface as unlinked rather than failing the list.

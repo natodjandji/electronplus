@@ -21,7 +21,10 @@ export function buildItems(
   });
 }
 
-export function computeTotals(items: PurchaseOrderItem[], globalDiscountPct: number): PurchaseOrderTotals {
+export function computeTotals(
+  items: PurchaseOrderItem[],
+  globalDiscountPct: number,
+): PurchaseOrderTotals {
   const gross = items.reduce((sum, i) => sum + i.unitCost * i.quantityOrdered, 0);
   const afterLineDiscounts = items.reduce((sum, i) => sum + i.subtotal, 0);
   const totalAmount = afterLineDiscounts * (1 - globalDiscountPct / 100);

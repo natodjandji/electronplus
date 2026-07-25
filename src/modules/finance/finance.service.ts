@@ -12,7 +12,11 @@ import { UpdateSupplierDto } from './dto/update-supplier.dto';
 import { RegisterPaymentDto } from './dto/register-payment.dto';
 import { UpdateInvoiceDto } from './dto/update-invoice.dto';
 import { UpdatePaymentTermsDto } from './dto/update-payment-terms.dto';
-import { PayableDueStatus, SupplierPayable, SupplierPayableStatus } from './entities/supplier-payable.entity';
+import {
+  PayableDueStatus,
+  SupplierPayable,
+  SupplierPayableStatus,
+} from './entities/supplier-payable.entity';
 import { SupplierPayment } from './entities/supplier-payment.entity';
 import { Supplier } from './entities/supplier.entity';
 
@@ -38,7 +42,10 @@ export class FinanceService {
     private readonly events: EventEmitter2,
   ) {
     this.suppliersRepo = new FirestoreRepository<Supplier>(firestore, Collections.SUPPLIERS);
-    this.payablesRepo = new FirestoreRepository<SupplierPayable>(firestore, Collections.SUPPLIERS_PAYABLES);
+    this.payablesRepo = new FirestoreRepository<SupplierPayable>(
+      firestore,
+      Collections.SUPPLIERS_PAYABLES,
+    );
   }
 
   createSupplier(dto: CreateSupplierDto): Promise<Supplier> {
@@ -124,7 +131,11 @@ export class FinanceService {
     );
   }
 
-  async registerPayment(invoiceId: string, dto: RegisterPaymentDto, adminUserId: string): Promise<SupplierPayable> {
+  async registerPayment(
+    invoiceId: string,
+    dto: RegisterPaymentDto,
+    adminUserId: string,
+  ): Promise<SupplierPayable> {
     await this.firestore.runTransaction(async (tx) => {
       const invoice = await this.getPayableForUpdate(tx, invoiceId);
       this.applyPayablePayment(tx, invoiceId, invoice, dto, adminUserId);
@@ -202,7 +213,10 @@ export class FinanceService {
 
       await this.payablesRepo.update(invoice.id, { dueStatus: nextDueStatus });
 
-      if (nextDueStatus === PayableDueStatus.DUE_SOON || nextDueStatus === PayableDueStatus.OVERDUE) {
+      if (
+        nextDueStatus === PayableDueStatus.DUE_SOON ||
+        nextDueStatus === PayableDueStatus.OVERDUE
+      ) {
         this.events.emit(INVOICE_DUE_ALERT_EVENT, {
           invoiceId: invoice.id,
           invoiceNumber: invoice.invoiceNumber,

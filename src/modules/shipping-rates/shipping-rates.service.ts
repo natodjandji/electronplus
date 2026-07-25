@@ -51,7 +51,9 @@ export class ShippingRatesService {
     const id = rateId(dto.state, dto.city);
     const existing = await this.repo.findById(id);
     if (existing) {
-      throw new BadRequestException(`A shipping rate for ${dto.state} / ${dto.city} already exists`);
+      throw new BadRequestException(
+        `A shipping rate for ${dto.state} / ${dto.city} already exists`,
+      );
     }
     return this.repo.create(dto, id);
   }

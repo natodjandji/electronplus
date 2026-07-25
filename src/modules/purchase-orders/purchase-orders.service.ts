@@ -1,4 +1,10 @@
-import { BadRequestException, ForbiddenException, Inject, Injectable, NotFoundException } from '@nestjs/common';
+import {
+  BadRequestException,
+  ForbiddenException,
+  Inject,
+  Injectable,
+  NotFoundException,
+} from '@nestjs/common';
 import type { Firestore } from 'firebase-admin/firestore';
 import { FieldValue } from 'firebase-admin/firestore';
 import { FIRESTORE } from '../../firebase/firebase.constants';
@@ -72,7 +78,10 @@ export class PurchaseOrdersService {
     if (query.from) where.push({ field: 'createdAt', op: '>=', value: new Date(query.from) });
     if (query.to) where.push({ field: 'createdAt', op: '<=', value: new Date(query.to) });
 
-    const orders = await this.repo.findAll({ where, orderBy: { field: 'createdAt', direction: 'desc' } });
+    const orders = await this.repo.findAll({
+      where,
+      orderBy: { field: 'createdAt', direction: 'desc' },
+    });
     return query.supplierId ? orders.filter((o) => o.supplierId === query.supplierId) : orders;
   }
 
@@ -112,8 +121,13 @@ export class PurchaseOrdersService {
 
   async updatePaymentTerms(id: string, dto: UpdatePaymentTermsDto): Promise<PurchaseOrder> {
     const order = await this.findById(id);
-    if (order.status === PurchaseOrderStatus.PAID || order.status === PurchaseOrderStatus.CANCELLED) {
-      throw new ForbiddenException('Payment terms can only be changed before the order is settled or cancelled');
+    if (
+      order.status === PurchaseOrderStatus.PAID ||
+      order.status === PurchaseOrderStatus.CANCELLED
+    ) {
+      throw new ForbiddenException(
+        'Payment terms can only be changed before the order is settled or cancelled',
+      );
     }
     return this.repo.update(id, { paymentTerms: dto.paymentTerms, notes: dto.notes });
   }
@@ -154,7 +168,11 @@ export class PurchaseOrdersService {
    * can never leave the order "paid" without the payable/stock following,
    * or vice versa.
    */
-  async registerPayment(id: string, dto: RegisterPurchaseOrderPaymentDto, user: AuthenticatedUser): Promise<PurchaseOrder> {
+  async registerPayment(
+    id: string,
+    dto: RegisterPurchaseOrderPaymentDto,
+    user: AuthenticatedUser,
+  ): Promise<PurchaseOrder> {
     const stockChanges: StockChangedEvent[] = [];
 
     await this.firestore.runTransaction(async (tx) => {
@@ -171,9 +189,14 @@ export class PurchaseOrdersService {
       } as PurchaseOrder;
 
       if (order.status === PurchaseOrderStatus.DRAFT) {
-        throw new BadRequestException('Issue the purchase order before registering payments against it');
+        throw new BadRequestException(
+          'Issue the purchase order before registering payments against it',
+        );
       }
-      if (order.status === PurchaseOrderStatus.PAID || order.status === PurchaseOrderStatus.CANCELLED) {
+      if (
+        order.status === PurchaseOrderStatus.PAID ||
+        order.status === PurchaseOrderStatus.CANCELLED
+      ) {
         throw new BadRequestException('This purchase order is already settled or cancelled');
       }
 
@@ -186,7 +209,9 @@ export class PurchaseOrdersService {
 
       const stockContexts = fullyPaid
         ? await Promise.all(
-            order.items.map((item) => this.productsService.getStockForUpdate(tx, item.productId, order.warehouseId)),
+            order.items.map((item) =>
+              this.productsService.getStockForUpdate(tx, item.productId, order.warehouseId),
+            ),
           )
         : [];
 
@@ -217,7 +242,9 @@ export class PurchaseOrdersService {
 
       if (fullyPaid) {
         order.items.forEach((item, idx) => {
-          stockChanges.push(this.productsService.applyStockDelta(tx, stockContexts[idx], item.quantityOrdered));
+          stockChanges.push(
+            this.productsService.applyStockDelta(tx, stockContexts[idx], item.quantityOrdered),
+          );
         });
       }
     });

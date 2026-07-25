@@ -70,7 +70,10 @@ export class ProductsController {
 
   @Get('products/best-sellers')
   @UseGuards(OptionalFirebaseAuthGuard)
-  async bestSellers(@Query('limit') limit: string | undefined, @CurrentUser() user?: AuthenticatedUser) {
+  async bestSellers(
+    @Query('limit') limit: string | undefined,
+    @CurrentUser() user?: AuthenticatedUser,
+  ) {
     const products = await this.productsService.topSelling(limit ? Number(limit) : undefined);
     return products.map((p) => toCatalogDto(p, user?.role, this.pricingService));
   }

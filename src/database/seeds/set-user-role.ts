@@ -26,7 +26,9 @@ async function run() {
     const updated = await usersService.update(user.id, { role: role as Role });
     logger.log(`Updated ${email} (uid ${updated.id}) → role=${updated.role}`);
   } catch (error) {
-    logger.error(`Could not update ${email}. Have they signed in at least once? ${(error as Error).message}`);
+    logger.error(
+      `Could not update ${email}. Have they signed in at least once? ${(error as Error).message}`,
+    );
     process.exit(1);
   }
 

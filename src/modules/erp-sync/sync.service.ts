@@ -43,21 +43,30 @@ export class SyncService implements OnModuleInit {
   onModuleInit(): void {
     const cronExpression = this.config.get('PROFIT_PLUS_SYNC_CRON', { infer: true });
     const job = new CronJob(cronExpression, () => {
-      this.runInboundSync().catch((error) => this.logger.error('Scheduled inbound sync failed', error as Error));
+      this.runInboundSync().catch((error) =>
+        this.logger.error('Scheduled inbound sync failed', error as Error),
+      );
     });
     this.schedulerRegistry.addCronJob(INBOUND_CRON_JOB_NAME, job);
     job.start();
   }
 
   async runInboundSync(): Promise<SyncLog> {
-    let log = await this.repo.create({ direction: SyncDirection.INBOUND, status: SyncStatus.RUNNING, startedAt: new Date() });
+    let log = await this.repo.create({
+      direction: SyncDirection.INBOUND,
+      status: SyncStatus.RUNNING,
+      startedAt: new Date(),
+    });
 
     try {
       const items = await this.adapter.fetchInventory();
       let processed = 0;
 
       for (const item of items) {
-        const category = await this.categoriesService.findOrCreateByCode(item.categoryCode, item.categoryLabel);
+        const category = await this.categoriesService.findOrCreateByCode(
+          item.categoryCode,
+          item.categoryLabel,
+        );
         await this.productsService.upsertFromErp({
           externalId: item.externalId,
           sku: item.sku,
@@ -73,11 +82,19 @@ export class SyncService implements OnModuleInit {
         processed += 1;
       }
 
-      log = await this.repo.update(log.id, { status: SyncStatus.SUCCESS, itemsProcessed: processed, finishedAt: new Date() });
+      log = await this.repo.update(log.id, {
+        status: SyncStatus.SUCCESS,
+        itemsProcessed: processed,
+        finishedAt: new Date(),
+      });
       return log;
     } catch (error) {
       const message = (error as Error).message;
-      await this.repo.update(log.id, { status: SyncStatus.ERROR, error: message, finishedAt: new Date() });
+      await this.repo.update(log.id, {
+        status: SyncStatus.ERROR,
+        error: message,
+        finishedAt: new Date(),
+      });
       this.events.emit(ERP_SYNC_ERROR_EVENT, {
         direction: SyncDirection.INBOUND,
         message,

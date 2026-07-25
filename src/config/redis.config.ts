@@ -1,4 +1,9 @@
-export function parseRedisUrl(url: string): { host: string; port: number; password?: string; username?: string } {
+export function parseRedisUrl(url: string): {
+  host: string;
+  port: number;
+  password?: string;
+  username?: string;
+} {
   const parsed = new URL(url);
   return {
     host: parsed.hostname,
