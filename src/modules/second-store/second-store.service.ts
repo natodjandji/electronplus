@@ -13,6 +13,23 @@ export interface SecondStoreProductWithLink extends SecondStoreProduct {
   linkedProduct: { id: string; sku: string; name: string; stock: number } | null;
 }
 
+/**
+ * Readiness note for the second Profit Plus integration (secondary store):
+ * `stock` here is manually entered today (via update() below) because
+ * there's no live feed yet. Once one exists, wire it in the same shape as
+ * the primary store's sync (see erp-sync/sync.service.ts's
+ * runInboundSync() + ProductsService.upsertFromErp()) — a scheduled job
+ * that, for each item the second system reports, looks up the matching
+ * SecondStoreProduct by its external SKU/code and calls repo.update(id,
+ * { stock }). No frontend change is needed for this: admin.inventory.tsx
+ * already just renders whatever `stock` value is on the record, whether a
+ * human or a sync job set it last. The one open design decision — not
+ * something to guess at — is whether manual editing should stay available
+ * once a live feed exists (for one-off corrections) or get disabled in
+ * favor of the feed being the sole source of truth, matching how the
+ * primary store already works.
+ */
+
 @Injectable()
 export class SecondStoreService {
   private readonly repo: FirestoreRepository<SecondStoreProduct>;
