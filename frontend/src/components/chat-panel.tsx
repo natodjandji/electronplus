@@ -7,6 +7,7 @@ import { toast } from "sonner";
 import { type Product } from "@/lib/mock-data";
 import { apiFetch } from "@/lib/api-client";
 import { type ApiProduct, toProduct } from "@/lib/product-api";
+import { useCategories } from "@/lib/categories";
 import { useElectronStore, formatMoney } from "@/lib/electron-store";
 import { CONTACT_INFO } from "@/lib/contact-info";
 import { cn } from "@/lib/utils";
@@ -23,12 +24,6 @@ type ChatMessage = {
   links?: ExternalLink[];
   products?: Product[];
 };
-
-interface ChatCategory {
-  id: string;
-  code: string;
-  label: string;
-}
 
 const MAIN_MENU: QuickReply[] = [
   { label: "🔎 Buscar productos", send: "buscar productos" },
@@ -238,16 +233,19 @@ export function ChatPanel({ open, onClose }: { open: boolean; onClose: () => voi
   const listRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
 
+  // Mounted unconditionally in PublicShell (open just toggles visibility),
+  // so gate the fetch on `open` — most visitors never open the assistant,
+  // and shouldn't cost a products+categories fetch on every page load just
+  // because it's sitting there. Shared queryKey with catalog.tsx /
+  // collections.tsx / quotes.tsx — if the page already loaded the list
+  // before the widget opens, this reuses that cache instead of refetching.
   const { data: productsResp } = useQuery({
-    queryKey: ["chat-widget", "products"],
+    queryKey: ["products", "list"],
     queryFn: () => apiFetch<{ data: ApiProduct[] }>("/products?limit=100"),
     staleTime: 5 * 60 * 1000,
+    enabled: open,
   });
-  const { data: categories } = useQuery({
-    queryKey: ["chat-widget", "categories"],
-    queryFn: () => apiFetch<ChatCategory[]>("/categories"),
-    staleTime: 5 * 60 * 1000,
-  });
+  const { data: categories } = useCategories({ enabled: open });
   const products = useMemo(() => productsResp?.data.map(toProduct) ?? [], [productsResp]);
   const categoryLabel = useMemo(
     () => Object.fromEntries((categories ?? []).map((c) => [c.code, c.label])),

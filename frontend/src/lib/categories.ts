@@ -7,9 +7,10 @@ export interface Category {
   label: string;
 }
 
-export function useCategories() {
+export function useCategories(options?: { enabled?: boolean }) {
   return useQuery({
     queryKey: ["categories"],
     queryFn: () => apiFetch<Category[]>("/categories"),
+    enabled: options?.enabled,
   });
 }

@@ -28,8 +28,9 @@ export const Route = createFileRoute("/collections")({
 
 function CollectionsPage() {
   const { data: categories = [] } = useCategories();
+  // Shared queryKey with catalog.tsx / quotes.tsx / chat-panel.tsx.
   const { data: products = [] } = useQuery({
-    queryKey: ["collections", "products"],
+    queryKey: ["products", "list"],
     queryFn: () => apiFetch<{ data: ApiProduct[] }>("/products?limit=100"),
     select: (res) => res.data,
   });

@@ -51,9 +51,11 @@ interface AdminProduct {
   supplierId?: string;
 }
 
+// Shared queryKey with admin.index.tsx / admin.stock.tsx / the default (no
+// search) state of admin.inventory.tsx and admin.labels.tsx.
 function useAdminProducts() {
   return useQuery({
-    queryKey: ["admin", "products"],
+    queryKey: ["admin", "products", ""],
     queryFn: () => apiFetch<AdminProduct[]>("/products/admin"),
   });
 }

@@ -88,12 +88,16 @@ function AdminDashboard() {
     queryKey: ["reports", "profitability"],
     queryFn: () => apiFetch<ProfitabilityRow[]>("/reports/profitability"),
   });
+  // Shared queryKey with admin.orders.tsx — same GET /orders.
   const { data: orders = [] } = useQuery({
-    queryKey: ["admin", "orders", "dashboard"],
+    queryKey: ["admin", "orders"],
     queryFn: () => apiFetch<AdminOrderSummary[]>("/orders"),
   });
+  // Shared queryKey with admin.stock.tsx / admin.suppliers.tsx / the default
+  // (no search) state of admin.inventory.tsx and admin.labels.tsx — all hit
+  // the same unfiltered GET /products/admin.
   const { data: products = [] } = useQuery({
-    queryKey: ["admin", "products", "dashboard"],
+    queryKey: ["admin", "products", ""],
     queryFn: () => apiFetch<AdminProductSummary[]>("/products/admin"),
   });
 

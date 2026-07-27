@@ -26,9 +26,12 @@ import { formatBs, useBcvRate } from "@/lib/use-bcv-rate";
 import { absoluteUrl } from "@/lib/site-url";
 import { toast } from "sonner";
 
+// Shared queryKey with collections.tsx / quotes.tsx / chat-panel.tsx — all
+// hit the same GET /products?limit=100, so they read one cached response
+// (each with its own `select`) instead of one fetch per page.
 function useCatalogProducts() {
   return useQuery({
-    queryKey: ["catalog", "products"],
+    queryKey: ["products", "list"],
     queryFn: () => apiFetch<{ data: ApiProduct[] }>("/products?limit=100"),
     select: (res) => res.data.map(toProduct),
   });

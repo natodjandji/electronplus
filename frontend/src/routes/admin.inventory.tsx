@@ -70,6 +70,8 @@ interface SecondStoreProduct {
   linkedProduct: { id: string; sku: string; name: string; stock: number } | null;
 }
 
+// search="" shares its queryKey/cache with admin.index.tsx, admin.stock.tsx,
+// and admin.suppliers.tsx's unfiltered GET /products/admin.
 function useAdminProducts(search: string) {
   return useQuery({
     queryKey: ["admin", "products", search],

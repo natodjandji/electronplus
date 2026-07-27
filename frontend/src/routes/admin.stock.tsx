@@ -37,9 +37,11 @@ interface AdminProduct {
   imageUrl?: string;
 }
 
+// Shared queryKey with admin.index.tsx / admin.suppliers.tsx / the default
+// (no search) state of admin.inventory.tsx and admin.labels.tsx.
 function useAdminProducts() {
   return useQuery({
-    queryKey: ["admin", "products"],
+    queryKey: ["admin", "products", ""],
     queryFn: () => apiFetch<AdminProduct[]>("/products/admin"),
   });
 }

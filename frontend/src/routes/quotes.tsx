@@ -132,9 +132,10 @@ function useMyQuotes(enabled: boolean) {
   });
 }
 
+// Shared queryKey with catalog.tsx / collections.tsx / chat-panel.tsx.
 function useProductPicker() {
   return useQuery({
-    queryKey: ["quotes", "products-picker"],
+    queryKey: ["products", "list"],
     queryFn: () => apiFetch<{ data: CatalogProduct[] }>("/products?limit=100"),
     select: (res) => res.data,
   });
