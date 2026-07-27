@@ -37,11 +37,32 @@ function NotFoundComponent() {
   );
 }
 
+// Every deploy renames every JS chunk (content-hashed filenames). A tab
+// left open across a deploy that then navigates to a route it hasn't
+// loaded yet tries to fetch that route's *old* chunk filename, which no
+// longer exists on the server — this is what a dynamic import failure
+// looks like, not an actual app bug. One automatic reload fetches the
+// current shell (with correct chunk references) and resolves it; the
+// sessionStorage guard stops a genuinely broken chunk from reload-looping.
+const STALE_CHUNK_RELOAD_KEY = "ep-stale-chunk-reload";
+function isStaleChunkError(error: Error): boolean {
+  return /dynamically imported module|Importing a module script failed|Failed to fetch dynamically imported module/i.test(
+    error.message,
+  );
+}
+
 function ErrorComponent({ error, reset }: { error: Error; reset: () => void }) {
   console.error(error);
   const router = useRouter();
   useEffect(() => {
     reportLovableError(error, { boundary: "tanstack_root_error_component" });
+  }, [error]);
+
+  useEffect(() => {
+    if (!isStaleChunkError(error)) return;
+    if (sessionStorage.getItem(STALE_CHUNK_RELOAD_KEY)) return;
+    sessionStorage.setItem(STALE_CHUNK_RELOAD_KEY, "1");
+    window.location.reload();
   }, [error]);
 
   return (
@@ -130,6 +151,14 @@ function RootShell({ children }: { children: ReactNode }) {
 
 function RootComponent() {
   const { queryClient } = Route.useRouteContext();
+
+  // A successful render means the app is on a working bundle — clear the
+  // stale-chunk reload guard so a *later* deploy (same tab, still open)
+  // can also trigger one recovery reload instead of being permanently
+  // blocked by a flag set earlier in this tab's session.
+  useEffect(() => {
+    sessionStorage.removeItem(STALE_CHUNK_RELOAD_KEY);
+  }, []);
 
   return (
     <QueryClientProvider client={queryClient}>
