@@ -17,8 +17,8 @@ import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { PriceTag } from "@/components/price-tag";
+import { CasheaBanner } from "@/components/cashea-banner";
 import { ProductImage } from "@/components/product-image";
-import { BuyNowPaypalButton } from "@/components/buy-now-paypal-button";
 import { apiFetch } from "@/lib/api-client";
 import { type ApiProduct, toProduct } from "@/lib/product-api";
 import { useElectronStore } from "@/lib/electron-store";
@@ -171,6 +171,7 @@ function ProductPage() {
                   Tasa BCV del día: {formatBs(1, bcv.rate)} por USD
                 </p>
               )}
+              <CasheaBanner />
             </div>
 
             <div className="mt-5 flex flex-wrap items-center gap-3">
@@ -201,7 +202,6 @@ function ProductPage() {
                 <ShoppingCart className="h-4 w-4" />
                 {out ? "No disponible" : "Agregar al carrito"}
               </Button>
-              {!out && <BuyNowPaypalButton product={product} />}
             </div>
 
             <Card className="mt-6 p-5">
