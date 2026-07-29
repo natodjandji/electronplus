@@ -15,10 +15,7 @@ export const Route = createFileRoute("/login")({
     redirect: typeof search.redirect === "string" ? search.redirect : undefined,
   }),
   head: () => ({
-    meta: [
-      { title: "Iniciar sesión · Electron Plus" },
-      { name: "robots", content: "noindex" },
-    ],
+    meta: [{ title: "Iniciar sesión · Electron Plus" }, { name: "robots", content: "noindex" }],
   }),
   component: LoginPage,
 });
@@ -163,7 +160,11 @@ function LoginPage() {
           className="w-full gap-2 bg-brand-blue text-white hover:bg-brand-blue/90"
           disabled={submitting || googleSubmitting}
         >
-          {submitting ? <Loader2 className="h-4 w-4 animate-spin" /> : <LogIn className="h-4 w-4" />}
+          {submitting ? (
+            <Loader2 className="h-4 w-4 animate-spin" />
+          ) : (
+            <LogIn className="h-4 w-4" />
+          )}
           Iniciar sesión
         </Button>
       </form>

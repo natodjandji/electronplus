@@ -116,11 +116,11 @@ export function BuyNowPaypalButton({ product }: { product: Product }) {
   const phoneValidation = validatePhoneNumber(phoneNumber);
   const canSubmit = Boolean(
     fullName.trim() &&
-      taxIdNumber.trim() &&
-      taxIdValidation.valid &&
-      phoneNumber.trim() &&
-      phoneValidation.valid &&
-      (isPickup || (address.trim() && state && city)),
+    taxIdNumber.trim() &&
+    taxIdValidation.valid &&
+    phoneNumber.trim() &&
+    phoneValidation.valid &&
+    (isPickup || (address.trim() && state && city)),
   );
 
   const resetAndClose = () => {

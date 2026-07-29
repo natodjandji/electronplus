@@ -15,6 +15,7 @@ import { apiFetch } from "@/lib/api-client";
 import { type ApiProduct, toProduct } from "@/lib/product-api";
 import type { Product } from "@/lib/mock-data";
 import { SITE_URL, absoluteUrl } from "@/lib/site-url";
+import { safeJsonLd } from "@/lib/text";
 
 const HERO_GROUP_SIZE = 4;
 const HERO_ROTATE_MS = 5000;
@@ -83,7 +84,7 @@ function Home() {
     <PublicShell>
       <script
         type="application/ld+json"
-        dangerouslySetInnerHTML={{ __html: JSON.stringify(ORGANIZATION_JSON_LD) }}
+        dangerouslySetInnerHTML={{ __html: safeJsonLd(ORGANIZATION_JSON_LD) }}
       />
       {/* Hero */}
       <section className="relative overflow-hidden bg-brand-navy text-white">

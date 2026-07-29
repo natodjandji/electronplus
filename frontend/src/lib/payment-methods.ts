@@ -5,13 +5,7 @@ import { apiFetch } from "./api-client";
  * mirrored here since there's no shared package between backend and
  * frontend in this repo. */
 export type PaymentMethod =
-  | "bank_transfer"
-  | "pago_movil"
-  | "cash"
-  | "zelle"
-  | "paypal"
-  | "credit_b2b"
-  | "other";
+  "bank_transfer" | "pago_movil" | "cash" | "zelle" | "paypal" | "credit_b2b" | "other";
 
 /** Generic fallback covers every payment channel an admin adds through the
  * payment-methods panel (all tagged "other" server-side) — the panel's own

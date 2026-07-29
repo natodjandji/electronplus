@@ -24,6 +24,7 @@ import { type ApiProduct, toProduct } from "@/lib/product-api";
 import { useElectronStore } from "@/lib/electron-store";
 import { formatBs, useBcvRate } from "@/lib/use-bcv-rate";
 import { absoluteUrl } from "@/lib/site-url";
+import { safeJsonLd } from "@/lib/text";
 
 export const Route = createFileRoute("/product/$id")({
   loader: async ({ params }) => {
@@ -127,7 +128,7 @@ function ProductPage() {
     <PublicShell>
       <script
         type="application/ld+json"
-        dangerouslySetInnerHTML={{ __html: JSON.stringify(productJsonLd) }}
+        dangerouslySetInnerHTML={{ __html: safeJsonLd(productJsonLd) }}
       />
       <section className="mx-auto max-w-6xl px-4 py-8 sm:px-6">
         <Link

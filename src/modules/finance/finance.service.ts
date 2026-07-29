@@ -263,7 +263,9 @@ export class FinanceService {
           );
         }
       }
-      this.logger.log(`Recomputed due status for ${updated}/${openInvoices.length} open supplier invoice(s)`);
+      this.logger.log(
+        `Recomputed due status for ${updated}/${openInvoices.length} open supplier invoice(s)`,
+      );
     } catch (error) {
       this.logger.error('recomputeDueStatuses cron run failed', error as Error);
     }

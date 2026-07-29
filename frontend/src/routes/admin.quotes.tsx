@@ -408,9 +408,7 @@ function QuoteDetailDialog({ id, onClose }: { id: string; onClose: () => void })
             <ElectronLogo layout="full" tone="color" className="h-8" />
             <div className="text-right text-xs text-muted-foreground">
               <div className="font-semibold text-brand-navy">Solicitud de cotización</div>
-              <div>
-                {formatDate(quote.createdAt)}
-              </div>
+              <div>{formatDate(quote.createdAt)}</div>
             </div>
           </div>
 

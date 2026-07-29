@@ -1064,9 +1064,7 @@ function OrderDetailDialog({ orderId, onClose }: { orderId: string; onClose: () 
             <ElectronLogo layout="full" tone="color" className="h-8" />
             <div className="text-right text-xs text-muted-foreground">
               <div className="font-semibold text-brand-navy">Orden de compra #{poNumber}</div>
-              <div>
-                {formatDate(order.createdAt)}
-              </div>
+              <div>{formatDate(order.createdAt)}</div>
               <div>{STATUS_LABEL[order.status]}</div>
             </div>
           </div>

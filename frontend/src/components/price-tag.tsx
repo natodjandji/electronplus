@@ -52,7 +52,9 @@ export function PriceTag({
   return (
     <div>
       <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
-        <span className={`font-extrabold tabular-nums leading-none text-brand-navy ${RETAIL_TEXT[size]}`}>
+        <span
+          className={`font-extrabold tabular-nums leading-none text-brand-navy ${RETAIL_TEXT[size]}`}
+        >
           {formatMoney(product.retailPrice)}
         </span>
         {bcv && (
@@ -66,10 +68,14 @@ export function PriceTag({
 
       <div className={`flex items-center ${WHOLESALE_BOX[size]}`}>
         <Tag className="h-3.5 w-3.5 shrink-0 text-brand-yellow" />
-        <span className={`font-bold leading-none tabular-nums text-brand-navy ${WHOLESALE_AMOUNT[size]}`}>
+        <span
+          className={`font-bold leading-none tabular-nums text-brand-navy ${WHOLESALE_AMOUNT[size]}`}
+        >
           {formatMoney(product.wholesalePrice)}
         </span>
-        <span className={`font-medium text-brand-navy/70 ${WHOLESALE_LABEL[size]}`}>Precio al mayor</span>
+        <span className={`font-medium text-brand-navy/70 ${WHOLESALE_LABEL[size]}`}>
+          Precio al mayor
+        </span>
       </div>
     </div>
   );

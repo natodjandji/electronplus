@@ -84,9 +84,7 @@ export class PaymentMethodsService {
   private async ensureSeeded(): Promise<void> {
     const anyExisting = await this.repo.findAll({ limit: 1 });
     if (anyExisting.length > 0) return;
-    await Promise.all(
-      Object.entries(DEFAULTS).map(([id, data]) => this.repo.create(data, id)),
-    );
+    await Promise.all(Object.entries(DEFAULTS).map(([id, data]) => this.repo.create(data, id)));
   }
 
   async list(): Promise<PaymentMethodConfig[]> {

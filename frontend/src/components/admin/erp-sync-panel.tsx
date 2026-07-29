@@ -121,7 +121,11 @@ export function ErpSyncPanel() {
                 Conexión con Profit Plus
               </div>
               <div className="text-sm font-semibold text-brand-navy">
-                {statusLoading ? "Verificando…" : status?.adapterHealthy ? "Activa" : "Sin conexión"}
+                {statusLoading
+                  ? "Verificando…"
+                  : status?.adapterHealthy
+                    ? "Activa"
+                    : "Sin conexión"}
               </div>
             </div>
           </div>

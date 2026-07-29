@@ -26,8 +26,23 @@ const NODES: [number, number][] = [
 function Pulse({ path, dur, begin }: { path: string; dur: number; begin: number }) {
   return (
     <circle r="3" fill="#ffb703" className="circuit-pulse">
-      <animateMotion dur={`${dur}s`} begin={`${begin}s`} repeatCount="indefinite" path={path} keyPoints="0;1" keyTimes="0;1" calcMode="linear" />
-      <animate attributeName="opacity" values="0;1;1;0" keyTimes="0;0.1;0.9;1" dur={`${dur}s`} begin={`${begin}s`} repeatCount="indefinite" />
+      <animateMotion
+        dur={`${dur}s`}
+        begin={`${begin}s`}
+        repeatCount="indefinite"
+        path={path}
+        keyPoints="0;1"
+        keyTimes="0;1"
+        calcMode="linear"
+      />
+      <animate
+        attributeName="opacity"
+        values="0;1;1;0"
+        keyTimes="0;0.1;0.9;1"
+        dur={`${dur}s`}
+        begin={`${begin}s`}
+        repeatCount="indefinite"
+      />
     </circle>
   );
 }
@@ -44,7 +59,16 @@ export function CircuitBackground({ className = "" }: { className?: string }) {
         <path key={d} d={d} fill="none" stroke="#0056b3" strokeOpacity="0.14" strokeWidth="1.5" />
       ))}
       {NODES.map(([cx, cy]) => (
-        <circle key={`${cx}-${cy}`} cx={cx} cy={cy} r="3" fill="none" stroke="#0056b3" strokeOpacity="0.25" strokeWidth="1.5" />
+        <circle
+          key={`${cx}-${cy}`}
+          cx={cx}
+          cy={cy}
+          r="3"
+          fill="none"
+          stroke="#0056b3"
+          strokeOpacity="0.25"
+          strokeWidth="1.5"
+        />
       ))}
       <Pulse path={TRACES[0]} dur={9} begin={0} />
       <Pulse path={TRACES[1]} dur={11} begin={3.5} />

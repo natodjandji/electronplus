@@ -10,11 +10,7 @@ import { auth } from "@/lib/firebase";
 import { formatDate } from "@/lib/format";
 
 type NotificationType =
-  | "low_stock"
-  | "out_of_stock"
-  | "invoice_due_soon"
-  | "invoice_overdue"
-  | "sync_error";
+  "low_stock" | "out_of_stock" | "invoice_due_soon" | "invoice_overdue" | "sync_error";
 
 interface AppNotification {
   id: string;
@@ -140,9 +136,7 @@ export function NotificationBell() {
         </div>
         <div className="max-h-96 overflow-y-auto">
           {(!notifications || notifications.length === 0) && (
-            <div className="p-4 text-center text-sm text-muted-foreground">
-              Sin notificaciones
-            </div>
+            <div className="p-4 text-center text-sm text-muted-foreground">Sin notificaciones</div>
           )}
           {notifications?.map((n) => (
             <div
