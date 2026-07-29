@@ -5,7 +5,7 @@ import type { DocumentReference, Firestore, Transaction } from 'firebase-admin/f
 import { FieldValue, Timestamp } from 'firebase-admin/firestore';
 import { FIRESTORE } from '../../firebase/firebase.constants';
 import { Collections } from '../../firebase/firestore-collections';
-import { FirestoreRepository } from '../../firebase/firestore.repository';
+import { FirestoreRepository, WhereClause } from '../../firebase/firestore.repository';
 import { PaginatedResult } from '../../common/dto/pagination.dto';
 import { OrderStatus } from '../orders/entities/order.entity';
 import { AdjustStockDto } from './dto/adjust-stock.dto';
@@ -52,11 +52,17 @@ function generateQrToken(): string {
   return randomBytes(24).toString('base64url');
 }
 
+// topSelling() backs the public homepage and re-scans up to 90 days of
+// orders on every call — cached briefly per `limit` so the busiest
+// unauthenticated route on the site doesn't rescan on every visit.
+const TOP_SELLING_CACHE_TTL_MS = 15 * 60 * 1000;
+
 @Injectable()
 export class ProductsService {
   private readonly repo: FirestoreRepository<Product>;
   private readonly categoriesRepo: FirestoreRepository<Category>;
   private readonly warehousesRepo: FirestoreRepository<Warehouse>;
+  private readonly topSellingCache = new Map<number, { data: Product[]; cachedAt: number }>();
 
   constructor(
     @Inject(FIRESTORE) private readonly firestore: Firestore,
@@ -119,6 +125,11 @@ export class ProductsService {
    * this backs the public, unauthenticated /products/best-sellers endpoint hit on every
    * storefront visit — an unbounded scan would grow more expensive with every order ever placed. */
   async topSelling(limit = 8): Promise<Product[]> {
+    const cached = this.topSellingCache.get(limit);
+    if (cached && Date.now() - cached.cachedAt < TOP_SELLING_CACHE_TTL_MS) {
+      return cached.data;
+    }
+
     const since = new Date();
     since.setDate(since.getDate() - 90);
 
@@ -161,6 +172,7 @@ export class ProductsService {
       }
     }
 
+    this.topSellingCache.set(limit, { data: ranked, cachedAt: Date.now() });
     return ranked;
   }
 
@@ -168,10 +180,17 @@ export class ProductsService {
    * products and cost/supplier fields. Filtered in Node, same tradeoff as
    * the public search above: fine at this catalog's scale. */
   async adminFindAll(query: AdminQueryProductsDto): Promise<Product[]> {
-    let products = await this.repo.findAll({ orderBy: { field: 'name' } });
+    // supplierId/categoryId are simple equality filters — pushed down to
+    // Firestore's `where` instead of fetching the whole collection and
+    // filtering in Node, same result with far fewer documents read whenever
+    // either is set. search/lowStockOnly stay Node-side (substring match /
+    // computed threshold, not expressible as a Firestore equality filter).
+    const where: WhereClause[] = [];
+    if (query.supplierId) where.push({ field: 'supplierId', op: '==', value: query.supplierId });
+    if (query.categoryId) where.push({ field: 'categoryId', op: '==', value: query.categoryId });
 
-    if (query.supplierId) products = products.filter((p) => p.supplierId === query.supplierId);
-    if (query.categoryId) products = products.filter((p) => p.categoryId === query.categoryId);
+    let products = await this.repo.findAll({ where, orderBy: { field: 'name' } });
+
     if (query.search) {
       const needle = query.search.toLowerCase();
       products = products.filter(
@@ -302,6 +321,85 @@ export class ProductsService {
     };
   }
 
+  /** Batched equivalent of calling getStockForUpdate per item — one
+   * tx.getAll() instead of N sequential tx.get() round trips. Only for
+   * callers that never pass a warehouseId (Orders' compensate/cancel). */
+  async getStockForUpdateMany(
+    tx: Transaction,
+    productIds: string[],
+  ): Promise<Map<string, StockUpdateContext>> {
+    const refs = productIds.map((id) => this.repo.doc(id));
+    const snaps = refs.length > 0 ? await tx.getAll(...refs) : [];
+    const result = new Map<string, StockUpdateContext>();
+    snaps.forEach((snap, idx) => {
+      if (!snap.exists) throw new NotFoundException('Product not found');
+      const data = snap.data()!;
+      result.set(productIds[idx], {
+        productId: productIds[idx],
+        productRef: refs[idx],
+        levelRef: undefined,
+        currentStock: data.stock as number,
+        currentLevelQty: 0,
+        levelExists: false,
+        warehouseInfo: undefined,
+        sku: data.sku as string,
+        name: data.name as string,
+        minStockThreshold: data.minStockThreshold as number | undefined,
+      });
+    });
+    return result;
+  }
+
+  /** Batched equivalent for callers where every item shares the same
+   * warehouse (PurchaseOrdersService's stock-in on settlement — one PO, one
+   * warehouseId, N line items). One tx.getAll() for the product docs, one
+   * for the per-product stock-level docs, and at most a single extra read
+   * for the warehouse doc — the old per-item getStockForUpdate() call
+   * re-fetched that same warehouse doc again for every item whose level
+   * didn't exist yet, instead of once for the whole batch. */
+  async getStockForUpdateManyForWarehouse(
+    tx: Transaction,
+    productIds: string[],
+    warehouseId: string,
+  ): Promise<Map<string, StockUpdateContext>> {
+    const productRefs = productIds.map((id) => this.repo.doc(id));
+    const levelRefs = productRefs.map((ref) =>
+      ref.collection(Collections.STOCK_LEVELS).doc(warehouseId),
+    );
+
+    const productSnaps = productRefs.length > 0 ? await tx.getAll(...productRefs) : [];
+    const levelSnaps = levelRefs.length > 0 ? await tx.getAll(...levelRefs) : [];
+
+    const needsWarehouseDoc = levelSnaps.some((snap) => !snap.exists);
+    const warehouseSnap = needsWarehouseDoc
+      ? await tx.get(this.warehousesRepo.doc(warehouseId))
+      : undefined;
+    const warehouseInfo = warehouseSnap?.exists
+      ? { id: warehouseId, code: warehouseSnap.data()!.code, name: warehouseSnap.data()!.name }
+      : undefined;
+
+    const result = new Map<string, StockUpdateContext>();
+    productIds.forEach((id, idx) => {
+      const productSnap = productSnaps[idx];
+      if (!productSnap.exists) throw new NotFoundException('Product not found');
+      const data = productSnap.data()!;
+      const levelSnap = levelSnaps[idx];
+      result.set(id, {
+        productId: id,
+        productRef: productRefs[idx],
+        levelRef: levelRefs[idx],
+        currentStock: data.stock as number,
+        currentLevelQty: levelSnap.exists ? (levelSnap.data()!.quantity as number) : 0,
+        levelExists: levelSnap.exists,
+        warehouseInfo: !levelSnap.exists ? warehouseInfo : undefined,
+        sku: data.sku as string,
+        name: data.name as string,
+        minStockThreshold: data.minStockThreshold as number | undefined,
+      });
+    });
+    return result;
+  }
+
   applyStockDelta(tx: Transaction, ctx: StockUpdateContext, delta: number): StockChangedEvent {
     const nextStock = Math.max(0, ctx.currentStock + delta);
     tx.update(ctx.productRef, { stock: nextStock, updatedAt: FieldValue.serverTimestamp() });
@@ -336,6 +434,32 @@ export class ProductsService {
   // requires ALL reads before ANY writes in a transaction, so the caller
   // must call getForUpdate() for every item first, then writeStockUpdate()
   // for every item — never interleaved.
+
+  /** Batched equivalent of calling getForUpdate per item — one tx.getAll()
+   * instead of N sequential tx.get() round trips (Orders' create /
+   * createFromQuote, both reserving stock for every line in one go). */
+  async getForUpdateMany(
+    tx: Transaction,
+    productIds: string[],
+  ): Promise<Map<string, { ref: DocumentReference; product: Product }>> {
+    const refs = productIds.map((id) => this.repo.doc(id));
+    const snaps = refs.length > 0 ? await tx.getAll(...refs) : [];
+    const result = new Map<string, { ref: DocumentReference; product: Product }>();
+    snaps.forEach((snap, idx) => {
+      if (!snap.exists) throw new NotFoundException('Product not found');
+      const data = snap.data()!;
+      result.set(productIds[idx], {
+        ref: refs[idx],
+        product: {
+          ...data,
+          id: snap.id,
+          createdAt: data.createdAt?.toDate?.() ?? data.createdAt,
+          updatedAt: data.updatedAt?.toDate?.() ?? data.updatedAt,
+        } as Product,
+      });
+    });
+    return result;
+  }
 
   async getForUpdate(
     tx: Transaction,
@@ -372,22 +496,57 @@ export class ProductsService {
   }
 
   /** Inbound ERP sync: create or update a product from a Profit Plus inventory record. */
-  async upsertFromErp(item: {
-    externalId: string;
-    sku: string;
-    name: string;
-    categoryId: string;
-    category: { id: string; code: string; label: string };
-    retailPrice: number;
-    wholesalePrice: number;
-    cost?: number;
-    stock: number;
-    specs?: string;
-  }): Promise<Product> {
-    const existing =
-      (await this.repo.findOne([{ field: 'erpExternalId', op: '==', value: item.externalId }])) ??
-      (await this.repo.findOne([{ field: 'sku', op: '==', value: item.sku }]));
+  /** One read for the whole sync run instead of 1-2 findOne() queries per
+   * ERP item — every item is matched in memory against these maps. */
+  async findAllForErpMatching(): Promise<{
+    byErpExternalId: Map<string, Product>;
+    bySku: Map<string, Product>;
+  }> {
+    const all = await this.repo.findAll();
+    const byErpExternalId = new Map<string, Product>();
+    const bySku = new Map<string, Product>();
+    for (const product of all) {
+      if (product.erpExternalId) byErpExternalId.set(product.erpExternalId, product);
+      bySku.set(product.sku, product);
+    }
+    return { byErpExternalId, bySku };
+  }
 
+  /** The fields ERP sync can change — compared against `existing` so a run
+   * where nothing actually changed writes nothing (dirty checking), instead
+   * of rewriting every product on every 15-minute cron tick regardless. */
+  private erpFieldsChanged(existing: Product, patch: Partial<Product>): boolean {
+    return (
+      existing.erpExternalId !== patch.erpExternalId ||
+      existing.sku !== patch.sku ||
+      existing.name !== patch.name ||
+      existing.categoryId !== patch.categoryId ||
+      existing.retailPrice !== patch.retailPrice ||
+      existing.wholesalePrice !== patch.wholesalePrice ||
+      existing.cost !== patch.cost ||
+      existing.stock !== patch.stock ||
+      existing.specs !== patch.specs
+    );
+  }
+
+  /** `existing` must come from findAllForErpMatching() — resolved once per
+   * sync run, not queried per item — so this call does zero Firestore reads
+   * and, when nothing changed since the last sync, zero writes. */
+  async upsertFromErp(
+    item: {
+      externalId: string;
+      sku: string;
+      name: string;
+      categoryId: string;
+      category: { id: string; code: string; label: string };
+      retailPrice: number;
+      wholesalePrice: number;
+      cost?: number;
+      stock: number;
+      specs?: string;
+    },
+    existing: Product | undefined,
+  ): Promise<{ product: Product; wrote: boolean }> {
     const stockChanged = !existing || existing.stock !== item.stock;
 
     const patch: Partial<Product> = {
@@ -401,12 +560,20 @@ export class ProductsService {
       cost: item.cost,
       stock: item.stock,
       specs: item.specs ?? existing?.specs,
-      erpSyncedAt: new Date(),
     };
 
+    if (existing && !this.erpFieldsChanged(existing, patch)) {
+      return { product: existing, wrote: false };
+    }
+
     const saved = existing
-      ? await this.repo.update(existing.id, patch)
-      : await this.repo.create({ ...patch, active: true, qrToken: generateQrToken() });
+      ? await this.repo.update(existing.id, { ...patch, erpSyncedAt: new Date() })
+      : await this.repo.create({
+          ...patch,
+          erpSyncedAt: new Date(),
+          active: true,
+          qrToken: generateQrToken(),
+        });
 
     if (stockChanged) {
       this.emitStockChanged({
@@ -418,6 +585,6 @@ export class ProductsService {
       });
     }
 
-    return saved;
+    return { product: saved, wrote: true };
   }
 }

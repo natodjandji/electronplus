@@ -9,6 +9,7 @@ import { FIRESTORE } from '../../firebase/firebase.constants';
 import { Collections } from '../../firebase/firestore-collections';
 import { FirestoreRepository } from '../../firebase/firestore.repository';
 import { CategoriesService } from '../products/categories.service';
+import { Product } from '../products/entities/product.entity';
 import { ProductsService } from '../products/products.service';
 import { PROFIT_PLUS_ADAPTER, ProfitPlusAdapter } from './adapters/profit-plus-adapter.interface';
 import { SyncDirection, SyncLog, SyncStatus } from './entities/sync-log.entity';
@@ -61,6 +62,10 @@ export class SyncService implements OnModuleInit {
     try {
       const items = await this.adapter.fetchInventory();
 
+      // One read for the whole run — every item below is matched against
+      // these in-memory maps instead of querying Firestore per item.
+      const { byErpExternalId, bySku } = await this.productsService.findAllForErpMatching();
+
       // Resolve each distinct category code exactly once — sharing the
       // in-flight promise across items with the same code avoids both N
       // sequential reads for a repeated code AND a race where two
@@ -78,22 +83,31 @@ export class SyncService implements OnModuleInit {
       const results = await Promise.allSettled(
         items.map(async (item) => {
           const category = await resolveCategory(item.categoryCode, item.categoryLabel);
-          await this.productsService.upsertFromErp({
-            externalId: item.externalId,
-            sku: item.sku,
-            name: item.name,
-            categoryId: category.id,
-            category: { id: category.id, code: category.code, label: category.label },
-            retailPrice: item.retailPrice,
-            wholesalePrice: item.wholesalePrice,
-            cost: item.cost,
-            stock: item.stock,
-            specs: item.specs,
-          });
+          const existing = byErpExternalId.get(item.externalId) ?? bySku.get(item.sku);
+          return this.productsService.upsertFromErp(
+            {
+              externalId: item.externalId,
+              sku: item.sku,
+              name: item.name,
+              categoryId: category.id,
+              category: { id: category.id, code: category.code, label: category.label },
+              retailPrice: item.retailPrice,
+              wholesalePrice: item.wholesalePrice,
+              cost: item.cost,
+              stock: item.stock,
+              specs: item.specs,
+            },
+            existing,
+          );
         }),
       );
 
-      const processed = results.filter((r) => r.status === 'fulfilled').length;
+      const fulfilled = results.filter(
+        (r): r is PromiseFulfilledResult<{ product: Product; wrote: boolean }> =>
+          r.status === 'fulfilled',
+      );
+      const processed = fulfilled.length;
+      const written = fulfilled.filter((r) => r.value.wrote).length;
       const failed = results.filter((r): r is PromiseRejectedResult => r.status === 'rejected');
       if (failed.length > 0) {
         this.logger.error(
@@ -101,6 +115,9 @@ export class SyncService implements OnModuleInit {
           failed[0].reason as Error,
         );
       }
+      this.logger.log(
+        `Inbound sync: ${processed}/${items.length} matched, ${written} written, ${processed - written} unchanged (skipped)`,
+      );
 
       log = await this.repo.update(log.id, {
         status: SyncStatus.SUCCESS,

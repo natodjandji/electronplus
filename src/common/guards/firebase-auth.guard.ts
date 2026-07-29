@@ -5,6 +5,7 @@ import {
   Injectable,
   UnauthorizedException,
 } from '@nestjs/common';
+import { EventEmitter2 } from '@nestjs/event-emitter';
 import type { Auth } from 'firebase-admin/auth';
 import type { Firestore } from 'firebase-admin/firestore';
 import { FieldValue } from 'firebase-admin/firestore';
@@ -16,6 +17,14 @@ function extractBearerToken(authHeader?: string): string | undefined {
   if (!authHeader) return undefined;
   const [scheme, token] = authHeader.split(' ');
   return scheme === 'Bearer' ? token : undefined;
+}
+
+export const USER_CREATED_EVENT = 'user.created';
+
+export interface UserCreatedEvent {
+  uid: string;
+  email: string;
+  displayName?: string;
 }
 
 /**
@@ -32,6 +41,7 @@ export class FirebaseAuthGuard implements CanActivate {
   constructor(
     @Inject(FIREBASE_AUTH) private readonly auth: Auth,
     @Inject(FIRESTORE) private readonly firestore: Firestore,
+    private readonly events: EventEmitter2,
   ) {}
 
   async canActivate(context: ExecutionContext): Promise<boolean> {
@@ -86,6 +96,13 @@ export class FirebaseAuthGuard implements CanActivate {
         createdAt: now,
         updatedAt: now,
       });
+      if (decoded.email) {
+        this.events.emit(USER_CREATED_EVENT, {
+          uid: decoded.uid,
+          email: decoded.email,
+          displayName: decoded.name,
+        } satisfies UserCreatedEvent);
+      }
     } else {
       role = snap.data()!.role as Role;
     }

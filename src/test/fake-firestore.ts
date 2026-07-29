@@ -153,6 +153,10 @@ class FakeTransaction {
     return ref.get();
   }
 
+  async getAll(...refs: FakeDocRef[]) {
+    return Promise.all(refs.map((ref) => ref.get()));
+  }
+
   update(ref: FakeDocRef, data: DocData) {
     const existing = this.store.get(ref.path) ?? {};
     this.store.set(ref.path, { ...existing, ...data });

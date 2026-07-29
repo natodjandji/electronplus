@@ -1,6 +1,6 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { motion } from "motion/react";
 import {
   AlertCircle,
@@ -505,16 +505,28 @@ function QuoteBuilder({ id, onBack }: { id: string; onBack: () => void }) {
     }
   };
 
-  const updateQty = async (lineId: string, qty: number) => {
-    try {
-      await apiFetch(`/quotes/${id}/lines/${lineId}`, {
-        method: "PATCH",
-        body: { qty: Math.max(1, qty) },
-      });
-      invalidate();
-    } catch (error) {
-      reportError(error);
-    }
+  // Typing a quantity fired a PATCH (a full Firestore transaction on the
+  // quote doc) plus two query invalidations on every keystroke. Debounced
+  // per line so only the value the user settles on is written.
+  const qtyDebounceTimers = useRef(new Map<string, ReturnType<typeof setTimeout>>());
+  const updateQty = (lineId: string, qty: number) => {
+    const pending = qtyDebounceTimers.current.get(lineId);
+    if (pending) clearTimeout(pending);
+    qtyDebounceTimers.current.set(
+      lineId,
+      setTimeout(async () => {
+        qtyDebounceTimers.current.delete(lineId);
+        try {
+          await apiFetch(`/quotes/${id}/lines/${lineId}`, {
+            method: "PATCH",
+            body: { qty: Math.max(1, qty) },
+          });
+          invalidate();
+        } catch (error) {
+          reportError(error);
+        }
+      }, 500),
+    );
   };
 
   const removeLine = async (lineId: string) => {

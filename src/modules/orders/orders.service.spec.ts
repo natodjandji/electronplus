@@ -38,15 +38,22 @@ describe('OrdersService.cancel', () => {
 
   function fakeProductsService() {
     return {
-      getStockForUpdate: jest.fn().mockResolvedValue({
-        productId: 'p1',
-        productRef: { id: 'p1' },
-        currentStock: 10,
-        currentLevelQty: 0,
-        levelExists: false,
-        sku: 'SKU-1',
-        name: 'Product 1',
-      }),
+      getStockForUpdateMany: jest.fn().mockResolvedValue(
+        new Map([
+          [
+            'p1',
+            {
+              productId: 'p1',
+              productRef: { id: 'p1' },
+              currentStock: 10,
+              currentLevelQty: 0,
+              levelExists: false,
+              sku: 'SKU-1',
+              name: 'Product 1',
+            },
+          ],
+        ]),
+      ),
       applyStockDelta: jest.fn().mockReturnValue({
         productId: 'p1',
         sku: 'SKU-1',

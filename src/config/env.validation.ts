@@ -31,6 +31,16 @@ export const envSchema = z.object({
   PAYPAL_ENV: z.enum(['sandbox', 'live']).default('sandbox'),
 
   CORS_ORIGIN: z.string().default('*'),
+
+  // Transactional email (welcome, order confirmation, fulfillment updates).
+  // Optional — EmailService logs instead of sending when unset, same
+  // graceful-degradation as the other optional integrations above.
+  RESEND_API_KEY: z.string().optional(),
+  RESEND_FROM_EMAIL: z.string().default('onboarding@resend.dev'),
+  // The "From" address doesn't need a real inbox behind it — replies go
+  // here instead, so a customer hitting "reply" lands in an inbox someone
+  // actually reads without needing to stand up mail hosting on the domain.
+  RESEND_REPLY_TO: z.string().default('electronplusve@gmail.com'),
 });
 
 export type EnvConfig = z.infer<typeof envSchema>;

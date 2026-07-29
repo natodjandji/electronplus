@@ -34,6 +34,15 @@ import {
 } from './entities/order.entity';
 
 export const ORDER_PAID_EVENT = 'order.paid';
+/** Fires once an order survives payment initiation (see create()/
+ * createFromQuote()) — not at the top of the transaction, so a payment
+ * failure that triggers compensate() never emails a customer about an
+ * order that got rolled back. */
+export const ORDER_CREATED_EVENT = 'order.created';
+/** Fires on every fulfillment-pipeline transition (markPaid, advanceStatus)
+ * so email/notifications can react without those methods knowing about
+ * either concern. */
+export const ORDER_STATUS_CHANGED_EVENT = 'order.status_changed';
 /** Venezuela's standard IVA rate — applied to (subtotal - discount). */
 const TAX_RATE = 0.16;
 
@@ -43,6 +52,15 @@ function round2(n: number): number {
 
 export interface OrderPaidEvent {
   orderId: string;
+}
+
+export interface OrderCreatedEvent {
+  orderId: string;
+}
+
+export interface OrderStatusChangedEvent {
+  orderId: string;
+  status: OrderStatus;
 }
 
 @Injectable()
@@ -86,10 +104,13 @@ export class OrdersService {
 
     const { orderId, stockChanges } = await this.firestore.runTransaction(async (tx) => {
       // Phase 1 — ALL reads (Firestore requires every read in a transaction
-      // to happen before any write).
-      const reads = await Promise.all(
-        dto.items.map((line) => this.productsService.getForUpdate(tx, line.productId)),
+      // to happen before any write). One getAll() round trip for every line
+      // instead of N sequential tx.get() calls.
+      const productsById = await this.productsService.getForUpdateMany(
+        tx,
+        dto.items.map((line) => line.productId),
       );
+      const reads = dto.items.map((line) => productsById.get(line.productId)!);
 
       // Phase 2 — ALL writes.
       let subtotal = 0;
@@ -186,6 +207,8 @@ export class OrdersService {
       );
     }
 
+    this.events.emit(ORDER_CREATED_EVENT, { orderId: order.id } satisfies OrderCreatedEvent);
+
     // Credit-B2B is auto-verified synchronously by PaymentsService — reflect
     // that on the order immediately instead of relying on the fire-and-forget
     // event listener to have run before we respond.
@@ -219,9 +242,13 @@ export class OrdersService {
 
     const { orderId, stockChanges } = await this.firestore.runTransaction(async (tx) => {
       // Phase 1 — ALL reads before ANY writes (Firestore transaction rule).
-      const reads = await Promise.all(
-        quote.items.map((line) => this.productsService.getForUpdate(tx, line.productId)),
+      // One getAll() round trip for every line instead of N sequential
+      // tx.get() calls.
+      const productsById = await this.productsService.getForUpdateMany(
+        tx,
+        quote.items.map((line) => line.productId),
       );
+      const reads = quote.items.map((line) => productsById.get(line.productId)!);
 
       // Phase 2 — ALL writes.
       let subtotal = 0;
@@ -309,6 +336,8 @@ export class OrdersService {
       );
     }
 
+    this.events.emit(ORDER_CREATED_EVENT, { orderId: order.id } satisfies OrderCreatedEvent);
+
     if (payment.status === PaymentStatus.VERIFIED) {
       return this.markPaid(order.id);
     }
@@ -356,9 +385,13 @@ export class OrdersService {
     const orderRef = this.repo.doc(order.id);
     const stockChanges = await this.firestore.runTransaction(async (tx) => {
       // Phase 1 — ALL reads before ANY writes (Firestore transaction rule).
-      const stockContexts = await Promise.all(
-        order.items.map((item) => this.productsService.getStockForUpdate(tx, item.productId)),
+      // One getAll() round trip for every item instead of N sequential
+      // tx.get() calls.
+      const stockContextsById = await this.productsService.getStockForUpdateMany(
+        tx,
+        order.items.map((item) => item.productId),
       );
+      const stockContexts = order.items.map((item) => stockContextsById.get(item.productId)!);
 
       // Phase 2 — ALL writes.
       const changes = stockContexts.map((ctx, idx) =>
@@ -400,6 +433,10 @@ export class OrdersService {
   async markPaid(orderId: string): Promise<Order> {
     const order = await this.repo.update(orderId, { status: OrderStatus.PAID });
     this.events.emit(ORDER_PAID_EVENT, { orderId: order.id } satisfies OrderPaidEvent);
+    this.events.emit(ORDER_STATUS_CHANGED_EVENT, {
+      orderId: order.id,
+      status: order.status,
+    } satisfies OrderStatusChangedEvent);
     return order;
   }
 
@@ -426,7 +463,12 @@ export class OrdersService {
     if (idx === pipeline.length - 1) {
       throw new BadRequestException('This order has already reached its final stage');
     }
-    return this.repo.update(orderId, { status: pipeline[idx + 1] });
+    const updated = await this.repo.update(orderId, { status: pipeline[idx + 1] });
+    this.events.emit(ORDER_STATUS_CHANGED_EVENT, {
+      orderId: updated.id,
+      status: updated.status,
+    } satisfies OrderStatusChangedEvent);
+    return updated;
   }
 
   /** Cancels an order that hasn't been delivered yet and releases its reserved stock.
@@ -443,9 +485,13 @@ export class OrdersService {
       }
 
       // Phase 1 — ALL reads before ANY writes (Firestore transaction rule).
-      const stockContexts = await Promise.all(
-        order.items.map((item) => this.productsService.getStockForUpdate(tx, item.productId)),
+      // One getAll() round trip for every item instead of N sequential
+      // tx.get() calls.
+      const stockContextsById = await this.productsService.getStockForUpdateMany(
+        tx,
+        order.items.map((item) => item.productId),
       );
+      const stockContexts = order.items.map((item) => stockContextsById.get(item.productId)!);
 
       // Phase 2 — ALL writes.
       const changes = stockContexts.map((ctx, idx) =>
@@ -459,6 +505,11 @@ export class OrdersService {
     });
 
     for (const change of stockChanges) this.productsService.emitStockChanged(change);
-    return this.repo.getOrThrow(orderId);
+    const order = await this.repo.getOrThrow(orderId);
+    this.events.emit(ORDER_STATUS_CHANGED_EVENT, {
+      orderId: order.id,
+      status: order.status,
+    } satisfies OrderStatusChangedEvent);
+    return order;
   }
 }

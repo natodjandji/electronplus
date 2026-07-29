@@ -28,6 +28,7 @@ import { DiscountCodesModule } from './modules/discount-codes/discount-codes.mod
 import { SecondStoreModule } from './modules/second-store/second-store.module';
 import { UploadsModule } from './modules/uploads/uploads.module';
 import { ClientErrorsModule } from './modules/client-errors/client-errors.module';
+import { EmailModule } from './modules/email/email.module';
 
 @Module({
   imports: [
@@ -79,6 +80,7 @@ import { ClientErrorsModule } from './modules/client-errors/client-errors.module
     SecondStoreModule,
     UploadsModule,
     ClientErrorsModule,
+    EmailModule,
   ],
   providers: [{ provide: APP_GUARD, useClass: ThrottlerGuard }],
 })

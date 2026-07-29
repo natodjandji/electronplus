@@ -12,7 +12,11 @@ import { Collections } from '../../firebase/firestore-collections';
 import { FirestoreRepository, WhereClause } from '../../firebase/firestore.repository';
 import { AuthenticatedUser } from '../../common/interfaces/authenticated-user.interface';
 import { FinanceService } from '../finance/finance.service';
-import { ProductsService, StockChangedEvent } from '../products/products.service';
+import {
+  ProductsService,
+  StockChangedEvent,
+  StockUpdateContext,
+} from '../products/products.service';
 import { CreatePurchaseOrderDto } from './dto/create-purchase-order.dto';
 import { QueryPurchaseOrdersDto } from './dto/query-purchase-orders.dto';
 import { RegisterPurchaseOrderPaymentDto } from './dto/register-purchase-order-payment.dto';
@@ -44,15 +48,26 @@ export class PurchaseOrdersService {
     );
   }
 
+  /** One getAll() round trip for every product on the order instead of one
+   * findById() per line item. findByIds() silently drops ids it can't find,
+   * so unlike the old per-item findById() this checks for that itself —
+   * otherwise a bad productId would degrade to a garbage line item instead
+   * of failing the request. */
+  private async loadProductsByIds(
+    ids: string[],
+  ): Promise<Map<string, { sku: string; name: string }>> {
+    const uniqueIds = [...new Set(ids)];
+    const products = await this.productsService.findByIds(uniqueIds);
+    const map = new Map(products.map((p) => [p.id, { sku: p.sku, name: p.name }]));
+    const missing = uniqueIds.filter((id) => !map.has(id));
+    if (missing.length > 0) {
+      throw new BadRequestException(`Unknown product id(s): ${missing.join(', ')}`);
+    }
+    return map;
+  }
+
   async create(dto: CreatePurchaseOrderDto, user: AuthenticatedUser): Promise<PurchaseOrder> {
-    const products = new Map(
-      await Promise.all(
-        dto.items.map(async (i) => {
-          const product = await this.productsService.findById(i.productId);
-          return [i.productId, { sku: product.sku, name: product.name }] as const;
-        }),
-      ),
-    );
+    const products = await this.loadProductsByIds(dto.items.map((i) => i.productId));
 
     const items = buildItems(dto.items, products);
     const totals = computeTotals(items, dto.globalDiscount ?? 0);
@@ -99,14 +114,7 @@ export class PurchaseOrdersService {
       throw new ForbiddenException('Only draft purchase orders can have their items edited');
     }
 
-    const products = new Map(
-      await Promise.all(
-        dto.items.map(async (i) => {
-          const product = await this.productsService.findById(i.productId);
-          return [i.productId, { sku: product.sku, name: product.name }] as const;
-        }),
-      ),
-    );
+    const products = await this.loadProductsByIds(dto.items.map((i) => i.productId));
     const items = buildItems(dto.items, products);
     const totals = computeTotals(items, dto.globalDiscount ?? order.globalDiscount);
 
@@ -222,13 +230,18 @@ export class PurchaseOrdersService {
         ? await this.financeService.getPayableForUpdate(tx, order.linkedPayableId)
         : undefined;
 
-      const stockContexts = fullyPaid
-        ? await Promise.all(
-            order.items.map((item) =>
-              this.productsService.getStockForUpdate(tx, item.productId, order.warehouseId),
-            ),
-          )
-        : [];
+      // One batch (product docs + stock-level docs, plus at most one shared
+      // warehouse-doc read) instead of up to 3 round trips per line item.
+      const productIds = order.items.map((item) => item.productId);
+      const stockContextsById = !fullyPaid
+        ? new Map<string, StockUpdateContext>()
+        : order.warehouseId
+          ? await this.productsService.getStockForUpdateManyForWarehouse(
+              tx,
+              productIds,
+              order.warehouseId,
+            )
+          : await this.productsService.getStockForUpdateMany(tx, productIds);
 
       // ---- writes ----
       const paidAt = new Date();
@@ -256,10 +269,9 @@ export class PurchaseOrdersService {
       });
 
       if (fullyPaid) {
-        order.items.forEach((item, idx) => {
-          stockChanges.push(
-            this.productsService.applyStockDelta(tx, stockContexts[idx], item.quantityOrdered),
-          );
+        order.items.forEach((item) => {
+          const ctx = stockContextsById.get(item.productId)!;
+          stockChanges.push(this.productsService.applyStockDelta(tx, ctx, item.quantityOrdered));
         });
       }
     });
