@@ -24,6 +24,7 @@ import { Switch } from "@/components/ui/switch";
 import { Textarea } from "@/components/ui/textarea";
 import { apiFetch, ApiError, reportError } from "@/lib/api-client";
 import { formatMoney } from "@/lib/electron-store";
+import { formatDate } from "@/lib/format";
 import {
   paymentMethodLabel,
   usePaymentMethods,
@@ -160,11 +161,7 @@ function AdminQuotesPage() {
                     {q.customerName || "Sin nombre"}
                   </div>
                   <div className="text-xs text-muted-foreground">
-                    {new Date(q.createdAt).toLocaleDateString("es-VE", {
-                      day: "2-digit",
-                      month: "short",
-                      year: "numeric",
-                    })}
+                    {formatDate(q.createdAt)}
                     {" · "}
                     {q.items.length} producto(s)
                   </div>
@@ -412,11 +409,7 @@ function QuoteDetailDialog({ id, onClose }: { id: string; onClose: () => void })
             <div className="text-right text-xs text-muted-foreground">
               <div className="font-semibold text-brand-navy">Solicitud de cotización</div>
               <div>
-                {new Date(quote.createdAt).toLocaleDateString("es-VE", {
-                  day: "2-digit",
-                  month: "short",
-                  year: "numeric",
-                })}
+                {formatDate(quote.createdAt)}
               </div>
             </div>
           </div>

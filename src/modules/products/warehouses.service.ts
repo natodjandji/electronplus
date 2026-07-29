@@ -17,10 +17,6 @@ export class WarehousesService {
     return this.repo.findAll({ orderBy: { field: 'name' } });
   }
 
-  findById(id: string): Promise<Warehouse> {
-    return this.repo.getOrThrow(id, 'Warehouse not found');
-  }
-
   create(code: string, name: string): Promise<Warehouse> {
     return this.repo.create({ code, name });
   }

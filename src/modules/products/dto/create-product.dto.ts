@@ -11,13 +11,16 @@ import {
 
 export class CreateProductDto {
   @IsString()
+  @MaxLength(100)
   sku: string;
 
   @IsString()
+  @MaxLength(200)
   name: string;
 
   @IsOptional()
   @IsString()
+  @MaxLength(2_000)
   specs?: string;
 
   @IsString()

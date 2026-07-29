@@ -48,7 +48,11 @@ import {
   type PhonePrefix,
 } from "@/lib/venezuelan-phone";
 import { VENEZUELA_STATE_NAMES, citiesForState } from "@/lib/venezuela-locations";
+import { usePaymentMethods } from "@/lib/payment-methods";
+import { PayPalButton } from "@/components/paypal-button";
 import { toast } from "sonner";
+
+const PAYPAL_CLIENT_ID = import.meta.env.VITE_PAYPAL_CLIENT_ID as string | undefined;
 
 export const Route = createFileRoute("/checkout")({
   validateSearch: (search: Record<string, unknown>): { quoteId?: string } => ({
@@ -84,16 +88,6 @@ interface MyProfile {
   address?: string;
   city?: string;
   state?: string;
-}
-
-interface PaymentMethodConfig {
-  id: string;
-  backendMethod: string;
-  label: string;
-  details: string[];
-  needsReference: boolean;
-  needsProof: boolean;
-  enabled: boolean;
 }
 
 interface ShippingQuote {
@@ -189,6 +183,15 @@ function CheckoutPage() {
   const [proofBusy, setProofBusy] = useState(false);
 
   const [submitting, setSubmitting] = useState(false);
+  // Set once the order + a PENDING PayPal payment exist server-side —
+  // switches step 3's button for a PayPal one from "Confirmar pedido" to
+  // the actual PayPal buttons, since capturing needs the customer to
+  // approve on PayPal's side before the order can be marked paid.
+  const [paypalPending, setPaypalPending] = useState<{
+    orderId: string;
+    paymentId: string;
+    paypalOrderId: string;
+  } | null>(null);
 
   const { data: myProfile } = useQuery({
     queryKey: ["users", "me", "checkout"],
@@ -196,12 +199,14 @@ function CheckoutPage() {
     enabled: !!user,
   });
 
-  const { data: paymentMethods } = useQuery({
-    queryKey: ["payment-methods"],
-    queryFn: () => apiFetch<PaymentMethodConfig[]>("/payment-methods"),
-    enabled: !!user,
-  });
-  const enabledMethods = paymentMethods?.filter((m) => m.enabled) ?? [];
+  const { data: paymentMethods } = usePaymentMethods({ enabled: !!user });
+  // PayPal needs the SDK client id wired in on this build to actually
+  // render a working button — if that's not configured yet, hide it from
+  // checkout rather than let a customer pick a payment method with no way
+  // to complete it.
+  const enabledMethods = (paymentMethods ?? []).filter(
+    (m) => m.enabled && (m.backendMethod !== "paypal" || PAYPAL_CLIENT_ID),
+  );
 
   useEffect(() => {
     if (!method && paymentMethods) {
@@ -275,18 +280,41 @@ function CheckoutPage() {
     }
   };
 
+  const buildShipping = () => ({
+    fullName: fullName.trim(),
+    phone: formatPhone(phonePrefix, phoneNumber)!,
+    taxId: formatTaxId(taxIdPrefix, taxIdNumber),
+    ...(isPickup ? {} : { address: address.trim(), city, state }),
+  });
+
+  /** Common tail for every successful payment, PayPal included — saves the
+   * shipping info for next time and sends the customer to their order. */
+  const finishCheckout = (shipping: ReturnType<typeof buildShipping>) => {
+    if (!isPickup) {
+      apiFetch("/users/me", {
+        method: "PATCH",
+        body: {
+          displayName: shipping.fullName,
+          phone: shipping.phone,
+          taxId: shipping.taxId,
+          address: address.trim(),
+          city,
+          state,
+        },
+      }).catch(() => {});
+    }
+    toast.success("¡Pedido confirmado! Te contactaremos pronto.");
+    navigate({ to: "/client/orders" });
+  };
+
   const handleSubmit = async () => {
     if (!info) return;
     setSubmitting(true);
-    const shipping = {
-      fullName: fullName.trim(),
-      phone: formatPhone(phonePrefix, phoneNumber)!,
-      taxId: formatTaxId(taxIdPrefix, taxIdNumber),
-      ...(isPickup ? {} : { address: address.trim(), city, state }),
-    };
+    const shipping = buildShipping();
     try {
+      let order: { id: string };
       if (isQuoteCheckout && quoteId) {
-        await apiFetch(`/orders/from-quote/${quoteId}`, {
+        order = await apiFetch(`/orders/from-quote/${quoteId}`, {
           method: "POST",
           body: {
             paymentMethod: info.backendMethod,
@@ -299,7 +327,7 @@ function CheckoutPage() {
         queryClient.invalidateQueries({ queryKey: ["quotes", quoteId] });
         queryClient.invalidateQueries({ queryKey: ["quotes", "mine"] });
       } else {
-        await apiFetch("/orders", {
+        order = await apiFetch("/orders", {
           method: "POST",
           body: {
             items: cart.map((i) => ({ productId: i.product.id, qty: i.qty })),
@@ -311,32 +339,54 @@ function CheckoutPage() {
             discountCode: discount?.code,
           },
         });
+      }
+
+      if (info.backendMethod === "paypal") {
+        // Order + a PENDING PayPal payment now exist server-side (same as
+        // any other method) — surface the actual PayPal buttons instead of
+        // finishing here. handlePaypalCaptured below runs once the
+        // customer approves and the capture succeeds; the cart/discount
+        // stay intact until then in case they abandon the PayPal popup.
+        const payments = await apiFetch<{ id: string; externalReference?: string }[]>(
+          `/payments/order/${order.id}`,
+        );
+        const payment = payments[0];
+        if (!payment?.externalReference) {
+          throw new Error("No se pudo iniciar el pago con PayPal");
+        }
+        setPaypalPending({
+          orderId: order.id,
+          paymentId: payment.id,
+          paypalOrderId: payment.externalReference,
+        });
+        return;
+      }
+
+      if (!isQuoteCheckout) {
         clearCart();
         clearDiscount();
       }
-
-      // Best-effort — save this shipping info for next time. Doesn't block
-      // order success if it fails.
-      if (!isPickup) {
-        apiFetch("/users/me", {
-          method: "PATCH",
-          body: {
-            displayName: shipping.fullName,
-            phone: shipping.phone,
-            taxId: shipping.taxId,
-            address: address.trim(),
-            city,
-            state,
-          },
-        }).catch(() => {});
-      }
-
-      toast.success("¡Pedido confirmado! Te contactaremos pronto.");
-      navigate({ to: "/client/orders" });
+      finishCheckout(shipping);
     } catch (error) {
       toast.error(error instanceof ApiError ? error.message : "No se pudo procesar tu pedido");
     } finally {
       setSubmitting(false);
+    }
+  };
+
+  const handlePaypalCaptured = async () => {
+    if (!paypalPending) return;
+    try {
+      await apiFetch(`/payments/${paypalPending.paymentId}/paypal/capture`, { method: "POST" });
+      if (!isQuoteCheckout) {
+        clearCart();
+        clearDiscount();
+      }
+      finishCheckout(buildShipping());
+    } catch (error) {
+      toast.error(
+        error instanceof ApiError ? error.message : "No se pudo confirmar el pago con PayPal",
+      );
     }
   };
 
@@ -853,33 +903,49 @@ function CheckoutPage() {
             </AnimatePresence>
 
             <Separator className="my-6" />
-            <div className="flex items-center justify-between">
-              <Button
-                variant="ghost"
-                onClick={() => goToStep(Math.max(1, step - 1))}
-                disabled={step === 1}
-              >
-                Atrás
-              </Button>
-              {step < 3 ? (
+            {paypalPending && info?.backendMethod === "paypal" ? (
+              <div className="space-y-3">
+                <p className="text-center text-sm text-muted-foreground">
+                  Completa el pago con PayPal para confirmar tu pedido.
+                </p>
+                <PayPalButton
+                  clientId={PAYPAL_CLIENT_ID!}
+                  paypalOrderId={paypalPending.paypalOrderId}
+                  onCaptured={handlePaypalCaptured}
+                  onError={(message) => toast.error(message)}
+                />
+              </div>
+            ) : (
+              <div className="flex items-center justify-between">
                 <Button
-                  className="bg-brand-blue text-white hover:bg-brand-blue/90"
-                  disabled={(step === 1 && !canContinueStep1) || (step === 2 && !canContinueStep2)}
-                  onClick={() => goToStep(step + 1)}
+                  variant="ghost"
+                  onClick={() => goToStep(Math.max(1, step - 1))}
+                  disabled={step === 1}
                 >
-                  Continuar
+                  Atrás
                 </Button>
-              ) : (
-                <Button
-                  className="gap-2 bg-brand-yellow text-brand-navy hover:bg-brand-yellow/90"
-                  disabled={submitting}
-                  onClick={handleSubmit}
-                >
-                  {submitting && <Loader2 className="h-4 w-4 animate-spin" />}
-                  Confirmar pedido
-                </Button>
-              )}
-            </div>
+                {step < 3 ? (
+                  <Button
+                    className="bg-brand-blue text-white hover:bg-brand-blue/90"
+                    disabled={
+                      (step === 1 && !canContinueStep1) || (step === 2 && !canContinueStep2)
+                    }
+                    onClick={() => goToStep(step + 1)}
+                  >
+                    Continuar
+                  </Button>
+                ) : (
+                  <Button
+                    className="gap-2 bg-brand-yellow text-brand-navy hover:bg-brand-yellow/90"
+                    disabled={submitting}
+                    onClick={handleSubmit}
+                  >
+                    {submitting && <Loader2 className="h-4 w-4 animate-spin" />}
+                    Confirmar pedido
+                  </Button>
+                )}
+              </div>
+            )}
           </Card>
 
           <Card className="h-fit p-6">

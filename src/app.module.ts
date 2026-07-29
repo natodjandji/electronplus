@@ -27,6 +27,7 @@ import { ShippingRatesModule } from './modules/shipping-rates/shipping-rates.mod
 import { DiscountCodesModule } from './modules/discount-codes/discount-codes.module';
 import { SecondStoreModule } from './modules/second-store/second-store.module';
 import { UploadsModule } from './modules/uploads/uploads.module';
+import { ClientErrorsModule } from './modules/client-errors/client-errors.module';
 
 @Module({
   imports: [
@@ -77,6 +78,7 @@ import { UploadsModule } from './modules/uploads/uploads.module';
     DiscountCodesModule,
     SecondStoreModule,
     UploadsModule,
+    ClientErrorsModule,
   ],
   providers: [{ provide: APP_GUARD, useClass: ThrottlerGuard }],
 })

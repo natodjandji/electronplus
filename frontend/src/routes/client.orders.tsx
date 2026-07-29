@@ -34,6 +34,7 @@ import { compressImageToBase64 } from "@/lib/image-compress";
 import { formatMoney } from "@/lib/electron-store";
 import { toast } from "sonner";
 import { formatDate } from "@/lib/format";
+import { PAYMENT_METHOD_LABEL, usePaymentMethods, type PaymentMethod } from "@/lib/payment-methods";
 
 export const Route = createFileRoute("/client/orders")({
   head: () => ({
@@ -45,8 +46,6 @@ export const Route = createFileRoute("/client/orders")({
   }),
   component: ClientOrdersPage,
 });
-
-type PaymentMethod = "bank_transfer" | "pago_movil" | "cash" | "zelle" | "paypal" | "credit_b2b";
 
 interface OrderItem {
   productId: string;
@@ -74,15 +73,6 @@ interface Order {
   createdAt: string;
 }
 
-const PAYMENT_METHOD_LABEL: Record<PaymentMethod, string> = {
-  bank_transfer: "Transferencia bancaria",
-  pago_movil: "Pago móvil",
-  cash: "Efectivo",
-  zelle: "Zelle",
-  paypal: "PayPal",
-  credit_b2b: "Crédito B2B",
-};
-
 interface Payment {
   id: string;
   orderId: string;
@@ -90,16 +80,6 @@ interface Payment {
   status: "pending" | "verified" | "rejected";
   reference?: string;
   rejectionReason?: string;
-}
-
-interface PaymentMethodConfig {
-  id: string;
-  backendMethod: string;
-  label: string;
-  details: string[];
-  needsReference: boolean;
-  needsProof: boolean;
-  enabled: boolean;
 }
 
 function useMyOrders() {
@@ -237,6 +217,7 @@ function ClientOrdersPage() {
 }
 
 function OrderDetailDialog({ order, onClose }: { order: Order; onClose: () => void }) {
+  const { data: paymentMethods } = usePaymentMethods();
   const { data: payments } = useQuery({
     queryKey: ["orders", "mine", "payments", order.id],
     queryFn: () => apiFetch<Payment[]>(`/payments/order/${order.id}`),
@@ -260,7 +241,9 @@ function OrderDetailDialog({ order, onClose }: { order: Order; onClose: () => vo
         <OrderStepper status={order.status} fulfillmentMethod={order.fulfillmentMethod} />
 
         <div className="text-xs text-muted-foreground">
-          Emitido el {formatDate(order.createdAt)} · {PAYMENT_METHOD_LABEL[order.paymentMethod]}
+          Emitido el {formatDate(order.createdAt)} ·{" "}
+          {paymentMethods?.find((m) => m.backendMethod === order.paymentMethod)?.label ??
+            PAYMENT_METHOD_LABEL[order.paymentMethod]}
         </div>
 
         {canRetry && (
@@ -350,10 +333,7 @@ function OrderDetailDialog({ order, onClose }: { order: Order; onClose: () => vo
 
 function RetryPaymentForm({ order }: { order: Order }) {
   const queryClient = useQueryClient();
-  const { data: paymentMethods } = useQuery({
-    queryKey: ["payment-methods"],
-    queryFn: () => apiFetch<PaymentMethodConfig[]>("/payment-methods"),
-  });
+  const { data: paymentMethods } = usePaymentMethods();
   const enabledMethods = paymentMethods?.filter((m) => m.enabled) ?? [];
 
   const [methodId, setMethodId] = useState<string | null>(null);

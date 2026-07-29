@@ -1,18 +1,13 @@
-import { IsArray, IsBoolean, IsEnum, IsOptional, IsString, Matches } from 'class-validator';
-import { PaymentMethod } from '../../payments/entities/payment.entity';
+import { IsArray, IsBoolean, IsOptional, IsString, MaxLength } from 'class-validator';
 
+/** The checkout key (Firestore doc id) and the internal PaymentMethod enum
+ * are both derived server-side (see PaymentMethodsService.create) — an
+ * admin configuring "how this pays" (label, details, reference/proof
+ * requirements) has no reason to also pick backend plumbing that has
+ * nothing to do with that decision. */
 export class CreatePaymentMethodDto {
-  /** Checkout key / doc id — lowercase slug, e.g. "zelle-alt". */
   @IsString()
-  @Matches(/^[a-z0-9]+(-[a-z0-9]+)*$/, {
-    message: 'id must be a lowercase slug (letters, numbers, hyphens)',
-  })
-  id: string;
-
-  @IsEnum(PaymentMethod)
-  backendMethod: PaymentMethod;
-
-  @IsString()
+  @MaxLength(100)
   label: string;
 
   @IsArray()

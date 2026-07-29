@@ -18,6 +18,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { PriceTag } from "@/components/price-tag";
 import { ProductImage } from "@/components/product-image";
+import { BuyNowPaypalButton } from "@/components/buy-now-paypal-button";
 import { apiFetch } from "@/lib/api-client";
 import { type ApiProduct, toProduct } from "@/lib/product-api";
 import { useElectronStore } from "@/lib/electron-store";
@@ -199,6 +200,7 @@ function ProductPage() {
                 <ShoppingCart className="h-4 w-4" />
                 {out ? "No disponible" : "Agregar al carrito"}
               </Button>
+              {!out && <BuyNowPaypalButton product={product} />}
             </div>
 
             <Card className="mt-6 p-5">

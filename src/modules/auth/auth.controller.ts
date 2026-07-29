@@ -1,4 +1,4 @@
-import { Controller, Get, HttpCode, HttpStatus, Post, UseGuards } from '@nestjs/common';
+import { Controller, HttpCode, HttpStatus, Post, UseGuards } from '@nestjs/common';
 import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
 import { FirebaseAuthGuard } from '../../common/guards/firebase-auth.guard';
@@ -21,11 +21,6 @@ export class AuthController {
   @Post('session')
   @HttpCode(HttpStatus.OK)
   session(@CurrentUser() user: AuthenticatedUser) {
-    return this.usersService.findById(user.id);
-  }
-
-  @Get('me')
-  me(@CurrentUser() user: AuthenticatedUser) {
     return this.usersService.findById(user.id);
   }
 }

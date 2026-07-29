@@ -53,6 +53,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { SupplierPicker, useSuppliers } from "@/components/supplier-picker";
 import { apiFetch, ApiError, reportError } from "@/lib/api-client";
 import { formatMoney } from "@/lib/electron-store";
+import { formatDate } from "@/lib/format";
 import { CONTACT_INFO } from "@/lib/contact-info";
 import { toast } from "sonner";
 
@@ -991,7 +992,12 @@ function OrderDetailDialog({ orderId, onClose }: { orderId: string; onClose: () 
                   <Button
                     className="gap-2 bg-brand-yellow text-brand-navy hover:bg-brand-yellow/90"
                     onClick={() => {
-                      setPayAmount(Math.max(0, remaining));
+                      // Rounded defensively: totals are stored rounded to
+                      // cents going forward, but a purchase order created
+                      // before that fix can still have an unrounded total,
+                      // which would pre-fill this field with something like
+                      // 61.17435 instead of a payable amount.
+                      setPayAmount(Math.round(Math.max(0, remaining) * 100) / 100);
                       setPayOpen(true);
                     }}
                   >
@@ -1059,11 +1065,7 @@ function OrderDetailDialog({ orderId, onClose }: { orderId: string; onClose: () 
             <div className="text-right text-xs text-muted-foreground">
               <div className="font-semibold text-brand-navy">Orden de compra #{poNumber}</div>
               <div>
-                {new Date(order.createdAt).toLocaleDateString("es-VE", {
-                  day: "2-digit",
-                  month: "short",
-                  year: "numeric",
-                })}
+                {formatDate(order.createdAt)}
               </div>
               <div>{STATUS_LABEL[order.status]}</div>
             </div>

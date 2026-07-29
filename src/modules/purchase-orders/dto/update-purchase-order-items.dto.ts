@@ -1,11 +1,13 @@
 import { Type } from 'class-transformer';
 import {
+  ArrayMaxSize,
   ArrayMinSize,
   IsArray,
   IsNumber,
   IsOptional,
   IsString,
   Max,
+  MaxLength,
   Min,
   ValidateNested,
 } from 'class-validator';
@@ -14,6 +16,7 @@ import { PurchaseOrderItemInputDto } from './purchase-order-item-input.dto';
 export class UpdatePurchaseOrderItemsDto {
   @IsArray()
   @ArrayMinSize(1)
+  @ArrayMaxSize(100)
   @ValidateNested({ each: true })
   @Type(() => PurchaseOrderItemInputDto)
   items: PurchaseOrderItemInputDto[];
@@ -30,5 +33,6 @@ export class UpdatePurchaseOrderItemsDto {
 
   @IsOptional()
   @IsString()
+  @MaxLength(200)
   supplierName?: string;
 }

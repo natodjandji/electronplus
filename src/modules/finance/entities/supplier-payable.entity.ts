@@ -18,7 +18,6 @@ export interface SupplierPayable extends FirestoreDoc {
   supplierName: string;
   invoiceNumber: string;
   amount: number;
-  currency: string;
   issueDate: string; // YYYY-MM-DD
   dueDate: string; // YYYY-MM-DD
   status: SupplierPayableStatus;

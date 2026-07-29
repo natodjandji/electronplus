@@ -6,10 +6,12 @@ export class RegisterPaymentDto {
   amount: number;
 
   @IsString()
+  @MaxLength(50)
   method: string;
 
   @IsOptional()
   @IsString()
+  @MaxLength(200)
   reference?: string;
 
   /** Payment proof screenshot as a data URI — mirrors CreateOrderDto.paymentProofBase64. */

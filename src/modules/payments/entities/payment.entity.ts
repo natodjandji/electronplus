@@ -7,6 +7,11 @@ export enum PaymentMethod {
   ZELLE = 'zelle',
   PAYPAL = 'paypal',
   CREDIT_B2B = 'credit_b2b',
+  // Catch-all for any payment channel an admin adds via the payment-methods
+  // panel beyond the built-in ones above — those are all reconciled by an
+  // admin against a reference/proof the same way, so they don't each need
+  // their own enum member.
+  OTHER = 'other',
 }
 
 export enum PaymentStatus {
@@ -21,6 +26,7 @@ export const MANUAL_RECONCILIATION_METHODS = [
   PaymentMethod.PAGO_MOVIL,
   PaymentMethod.CASH,
   PaymentMethod.ZELLE,
+  PaymentMethod.OTHER,
 ];
 
 export interface Payment extends FirestoreDoc {

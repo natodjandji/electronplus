@@ -1,5 +1,6 @@
-import { BadRequestException, Inject, Injectable } from '@nestjs/common';
+import { Inject, Injectable } from '@nestjs/common';
 import type { Firestore } from 'firebase-admin/firestore';
+import { slugify } from '../../common/utils/slug';
 import { FIRESTORE } from '../../firebase/firebase.constants';
 import { Collections } from '../../firebase/firestore-collections';
 import { FirestoreRepository } from '../../firebase/firestore.repository';
@@ -8,7 +9,7 @@ import { CreatePaymentMethodDto } from './dto/create-payment-method.dto';
 import { UpdatePaymentMethodDto } from './dto/update-payment-method.dto';
 import { PaymentMethodConfig } from './entities/payment-method.entity';
 
-const DISPLAY_ORDER = ['transferencia', 'pago-movil', 'efectivo', 'credito'];
+const DISPLAY_ORDER = ['transferencia', 'pago-movil', 'efectivo', 'credito', 'paypal'];
 
 /** Seed data — placeholders until an admin customizes them via the payment-methods panel. */
 const DEFAULTS: Record<string, Omit<PaymentMethodConfig, 'id' | 'createdAt' | 'updatedAt'>> = {
@@ -49,6 +50,16 @@ const DEFAULTS: Record<string, Omit<PaymentMethodConfig, 'id' | 'createdAt' | 'u
     needsProof: false,
     enabled: true,
   },
+  // Confirmed via PayPal itself, not a reference/proof upload — no manual
+  // admin verification step, so neither flag applies.
+  paypal: {
+    backendMethod: PaymentMethod.PAYPAL,
+    label: 'PayPal',
+    details: ['Pagas de forma segura a través de PayPal.'],
+    needsReference: false,
+    needsProof: false,
+    enabled: true,
+  },
 };
 
 @Injectable()
@@ -62,12 +73,19 @@ export class PaymentMethodsService {
     );
   }
 
+  /** Seeds the built-in defaults only the very first time this collection
+   * is touched (empty). Previously this checked each default id
+   * individually and recreated whichever was missing — which meant an
+   * admin deleting one of these (e.g. "Efectivo en tienda") only ever
+   * looked deleted until the next findAll()/list() call (every one of
+   * which runs ensureSeeded() first) silently recreated it. Once anything
+   * exists in the collection — a surviving default or an admin-created
+   * method — this does nothing, so deletions and edits actually stick. */
   private async ensureSeeded(): Promise<void> {
+    const anyExisting = await this.repo.findAll({ limit: 1 });
+    if (anyExisting.length > 0) return;
     await Promise.all(
-      Object.entries(DEFAULTS).map(async ([id, data]) => {
-        const existing = await this.repo.findById(id);
-        if (!existing) await this.repo.create(data, id);
-      }),
+      Object.entries(DEFAULTS).map(([id, data]) => this.repo.create(data, id)),
     );
   }
 
@@ -83,12 +101,36 @@ export class PaymentMethodsService {
     });
   }
 
+  /** Every method an admin adds through this endpoint is reconciled the same
+   * way (an admin checks the reference/proof against their own records and
+   * verifies or rejects it) — so it always gets PaymentMethod.OTHER rather
+   * than asking the admin to pick from an enum that exists for the
+   * *processing* differences (PayPal's own API confirmation, Credit B2B's
+   * auto-verification) those built-in seeded methods need, not this one. */
   async create(dto: CreatePaymentMethodDto): Promise<PaymentMethodConfig> {
-    const existing = await this.repo.findById(dto.id);
-    if (existing)
-      throw new BadRequestException(`A payment method with id "${dto.id}" already exists`);
-    const { id, ...data } = dto;
-    return this.repo.create({ ...data, enabled: dto.enabled ?? true }, id);
+    const id = await this.uniqueIdFor(dto.label);
+    return this.repo.create(
+      {
+        backendMethod: PaymentMethod.OTHER,
+        label: dto.label,
+        details: dto.details,
+        needsReference: dto.needsReference,
+        needsProof: dto.needsProof,
+        enabled: dto.enabled ?? true,
+      },
+      id,
+    );
+  }
+
+  /** Slugifies the label into a checkout key, appending -2/-3/... on collision. */
+  private async uniqueIdFor(label: string): Promise<string> {
+    const base = slugify(label) || 'metodo';
+    let id = base;
+    let suffix = 2;
+    while (await this.repo.findById(id)) {
+      id = `${base}-${suffix++}`;
+    }
+    return id;
   }
 
   async update(id: string, dto: UpdatePaymentMethodDto): Promise<PaymentMethodConfig> {

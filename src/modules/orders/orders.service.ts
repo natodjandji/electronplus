@@ -345,14 +345,32 @@ export class OrdersService {
     return this.findById(orderId, user);
   }
 
+  /** Runs as a single transaction, same reasoning as cancel() below: N
+   * sequential adjustStock calls (the old implementation) meant N separate
+   * transactions, and a failure partway through left the remaining items'
+   * stock unrestored while the order got deleted anyway right after the
+   * loop — permanently short-stocked products with no order left to trace
+   * it back to, and no error surfaced to anyone. One transaction makes the
+   * whole compensation all-or-nothing. */
   private async compensate(order: Order, quoteRef?: DocumentReference): Promise<void> {
-    for (const item of order.items) {
-      await this.productsService.adjustStock(item.productId, { delta: item.qty });
-    }
-    if (quoteRef) {
-      await quoteRef.update({ convertedOrderId: FieldValue.delete() });
-    }
-    await this.repo.delete(order.id);
+    const orderRef = this.repo.doc(order.id);
+    const stockChanges = await this.firestore.runTransaction(async (tx) => {
+      // Phase 1 — ALL reads before ANY writes (Firestore transaction rule).
+      const stockContexts = await Promise.all(
+        order.items.map((item) => this.productsService.getStockForUpdate(tx, item.productId)),
+      );
+
+      // Phase 2 — ALL writes.
+      const changes = stockContexts.map((ctx, idx) =>
+        this.productsService.applyStockDelta(tx, ctx, order.items[idx].qty),
+      );
+      if (quoteRef) {
+        tx.update(quoteRef, { convertedOrderId: FieldValue.delete() });
+      }
+      tx.delete(orderRef);
+      return changes;
+    });
+    for (const change of stockChanges) this.productsService.emitStockChanged(change);
   }
 
   findMine(user: AuthenticatedUser): Promise<Order[]> {

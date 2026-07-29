@@ -1,4 +1,4 @@
-import { Injectable, ServiceUnavailableException } from '@nestjs/common';
+import { Injectable, Logger, ServiceUnavailableException } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { EnvConfig } from '../../config/env.validation';
 
@@ -15,6 +15,7 @@ export interface PayPalOrder {
 
 @Injectable()
 export class PayPalClient {
+  private readonly logger = new Logger(PayPalClient.name);
   private cachedToken?: { token: string; expiresAt: number };
 
   constructor(private readonly config: ConfigService<EnvConfig, true>) {}
@@ -52,9 +53,10 @@ export class PayPalClient {
       body: 'grant_type=client_credentials',
     });
     if (!res.ok) {
-      throw new ServiceUnavailableException(
-        `PayPal auth failed: ${res.status} ${await res.text()}`,
-      );
+      // PayPal's raw error body is logged server-side only — it's third-party
+      // internal detail, not something to hand back to the caller verbatim.
+      this.logger.error(`PayPal auth failed: ${res.status} ${await res.text()}`);
+      throw new ServiceUnavailableException('PayPal authentication failed');
     }
     const data = (await res.json()) as PayPalAccessToken;
     this.cachedToken = {
@@ -75,9 +77,8 @@ export class PayPalClient {
       }),
     });
     if (!res.ok) {
-      throw new ServiceUnavailableException(
-        `PayPal create order failed: ${res.status} ${await res.text()}`,
-      );
+      this.logger.error(`PayPal create order failed: ${res.status} ${await res.text()}`);
+      throw new ServiceUnavailableException('PayPal order creation failed');
     }
     return res.json() as Promise<PayPalOrder>;
   }
@@ -90,9 +91,8 @@ export class PayPalClient {
     });
     const raw = await res.json();
     if (!res.ok) {
-      throw new ServiceUnavailableException(
-        `PayPal capture failed: ${res.status} ${JSON.stringify(raw)}`,
-      );
+      this.logger.error(`PayPal capture failed: ${res.status} ${JSON.stringify(raw)}`);
+      throw new ServiceUnavailableException('PayPal capture failed');
     }
     return { status: (raw as { status: string }).status, raw };
   }

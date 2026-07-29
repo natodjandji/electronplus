@@ -1,5 +1,6 @@
 import { Type } from 'class-transformer';
 import {
+  ArrayMaxSize,
   ArrayMinSize,
   IsArray,
   IsEnum,
@@ -25,32 +26,39 @@ export class OrderItemInputDto {
 
 export class ShippingInfoDto {
   @IsString()
+  @MaxLength(200)
   fullName: string;
 
   @IsString()
+  @MaxLength(50)
   phone: string;
 
   @IsOptional()
   @IsString()
+  @MaxLength(50)
   taxId?: string;
 
   /** Required for delivery orders — omitted for pickup. */
   @IsOptional()
   @IsString()
+  @MaxLength(500)
   address?: string;
 
   @IsOptional()
   @IsString()
+  @MaxLength(200)
   city?: string;
 
   @IsOptional()
   @IsString()
+  @MaxLength(200)
   state?: string;
 }
 
 export class CreateOrderDto {
   @IsArray()
   @ArrayMinSize(1)
+  @ArrayMaxSize(100)
   @ValidateNested({ each: true })
   @Type(() => OrderItemInputDto)
   items: OrderItemInputDto[];
@@ -69,10 +77,12 @@ export class CreateOrderDto {
   /** Bank/pago-móvil/Zelle confirmation reference, when applicable. */
   @IsOptional()
   @IsString()
+  @MaxLength(200)
   paymentReference?: string;
 
   @IsOptional()
   @IsString()
+  @MaxLength(50)
   discountCode?: string;
 
   /** Payment proof screenshot as a data URI — capped well under Firestore's

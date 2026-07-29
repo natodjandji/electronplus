@@ -1,4 +1,4 @@
-import { Inject, Injectable, Logger } from '@nestjs/common';
+import { ForbiddenException, Inject, Injectable, Logger } from '@nestjs/common';
 import { OnEvent } from '@nestjs/event-emitter';
 import type { Firestore } from 'firebase-admin/firestore';
 import { FIRESTORE } from '../../firebase/firebase.constants';
@@ -22,7 +22,7 @@ export class NotificationsService {
   private readonly repo: FirestoreRepository<Notification>;
 
   constructor(
-    @Inject(FIRESTORE) firestore: Firestore,
+    @Inject(FIRESTORE) private readonly firestore: Firestore,
     private readonly gateway: NotificationsGateway,
   ) {
     this.repo = new FirestoreRepository<Notification>(firestore, Collections.NOTIFICATIONS);
@@ -36,8 +36,37 @@ export class NotificationsService {
     });
   }
 
-  async markRead(id: string): Promise<void> {
+  async markRead(id: string, role: Role): Promise<void> {
+    // ADMIN and WAREHOUSE_OPERATOR share this endpoint, but a notification
+    // can target just one of them (e.g. invoice-due alerts are ADMIN-only) —
+    // without this check either role could mark the other's notification
+    // read, mirroring the same restriction firestore.rules already applies
+    // to direct client access.
+    const notification = await this.repo.getOrThrow(id, 'Notification not found');
+    if (!notification.targetRoles.includes(role)) {
+      throw new ForbiddenException('This notification is not addressed to your role');
+    }
     await this.repo.update(id, { read: true });
+  }
+
+  /** One batched write instead of one repo.update() per unread notification —
+   * bounded by findForRole's own limit: 100, so this stays a single batch. */
+  async markAllRead(role: Role): Promise<void> {
+    const unread = (await this.findForRole(role)).filter((n) => !n.read);
+    if (unread.length === 0) return;
+    const batch = this.firestore.batch();
+    for (const notification of unread) {
+      batch.update(this.repo.doc(notification.id), { read: true });
+    }
+    await batch.commit();
+  }
+
+  async delete(id: string, role: Role): Promise<void> {
+    const notification = await this.repo.getOrThrow(id, 'Notification not found');
+    if (!notification.targetRoles.includes(role)) {
+      throw new ForbiddenException('This notification is not addressed to your role');
+    }
+    await this.repo.delete(id);
   }
 
   private async create(

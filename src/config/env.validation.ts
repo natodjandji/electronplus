@@ -15,7 +15,6 @@ export const envSchema = z.object({
   // Defaults to the project's Firebase Storage default bucket name.
   FIREBASE_STORAGE_BUCKET: z.string().optional(),
 
-  API_PUBLIC_URL: z.string().default('http://localhost:3000/api'),
   // The public storefront's URL — what product QR codes point to.
   PUBLIC_SITE_URL: z.string().default('https://electronplus.com.ve'),
 

@@ -68,7 +68,6 @@ export class FinanceService {
       supplierName: dto.supplierName,
       invoiceNumber: dto.invoiceNumber,
       amount: dto.amount,
-      currency: dto.currency ?? 'USD',
       issueDate: dto.issueDate,
       dueDate: dto.dueDate,
       status: SupplierPayableStatus.PENDING,
@@ -98,7 +97,6 @@ export class FinanceService {
       supplierName: dto.supplierName ?? invoice.supplierName,
       invoiceNumber: dto.invoiceNumber ?? invoice.invoiceNumber,
       amount: dto.amount ?? invoice.amount,
-      currency: dto.currency ?? invoice.currency,
       issueDate: dto.issueDate ?? invoice.issueDate,
       dueDate,
       dueStatus: dueStatusForDueDate(dueDate),
@@ -220,32 +218,55 @@ export class FinanceService {
     );
   }
 
+  // @nestjs/schedule hands this method straight to the `cron` package as a
+  // bare onTick callback — nothing there awaits or catches its promise, so
+  // an uncaught rejection here becomes an unhandled promise rejection and
+  // crashes the whole process at 6am with no one watching. erp-sync's own
+  // manually-created CronJob already guards against exactly this
+  // (sync.service.ts's onModuleInit `.catch(...)`); this one and
+  // reports.service.ts's rollupYesterday were the two @Cron-decorated
+  // methods that didn't.
   @Cron(CronExpression.EVERY_DAY_AT_6AM)
   async recomputeDueStatuses(): Promise<void> {
-    const openInvoices = await this.payablesRepo.findAll({
-      where: [{ field: 'status', op: '==', value: SupplierPayableStatus.PENDING }],
-    });
+    try {
+      const openInvoices = await this.payablesRepo.findAll({
+        where: [{ field: 'status', op: '==', value: SupplierPayableStatus.PENDING }],
+      });
 
-    for (const invoice of openInvoices) {
-      const nextDueStatus = dueStatusForDueDate(invoice.dueDate);
-      if (nextDueStatus === invoice.dueStatus) continue;
+      let updated = 0;
+      for (const invoice of openInvoices) {
+        // Per-item try/catch: one bad invoice (e.g. an unparseable dueDate)
+        // must not abort the recompute for every other invoice in the batch.
+        try {
+          const nextDueStatus = dueStatusForDueDate(invoice.dueDate);
+          if (nextDueStatus === invoice.dueStatus) continue;
 
-      await this.payablesRepo.update(invoice.id, { dueStatus: nextDueStatus });
+          await this.payablesRepo.update(invoice.id, { dueStatus: nextDueStatus });
+          updated++;
 
-      if (
-        nextDueStatus === PayableDueStatus.DUE_SOON ||
-        nextDueStatus === PayableDueStatus.OVERDUE
-      ) {
-        this.events.emit(INVOICE_DUE_ALERT_EVENT, {
-          invoiceId: invoice.id,
-          invoiceNumber: invoice.invoiceNumber,
-          supplierName: invoice.supplierName,
-          dueStatus: nextDueStatus,
-          dueDate: invoice.dueDate,
-        } satisfies InvoiceDueAlertEvent);
+          if (
+            nextDueStatus === PayableDueStatus.DUE_SOON ||
+            nextDueStatus === PayableDueStatus.OVERDUE
+          ) {
+            this.events.emit(INVOICE_DUE_ALERT_EVENT, {
+              invoiceId: invoice.id,
+              invoiceNumber: invoice.invoiceNumber,
+              supplierName: invoice.supplierName,
+              dueStatus: nextDueStatus,
+              dueDate: invoice.dueDate,
+            } satisfies InvoiceDueAlertEvent);
+          }
+        } catch (error) {
+          this.logger.error(
+            `Failed to recompute due status for invoice ${invoice.id}`,
+            error as Error,
+          );
+        }
       }
+      this.logger.log(`Recomputed due status for ${updated}/${openInvoices.length} open supplier invoice(s)`);
+    } catch (error) {
+      this.logger.error('recomputeDueStatuses cron run failed', error as Error);
     }
-    this.logger.log(`Recomputed due status for ${openInvoices.length} open supplier invoice(s)`);
   }
 }
 

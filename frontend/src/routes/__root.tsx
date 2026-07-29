@@ -37,18 +37,52 @@ function NotFoundComponent() {
   );
 }
 
-// Every deploy renames every JS chunk (content-hashed filenames). A tab
-// left open across a deploy that then navigates to a route it hasn't
-// loaded yet tries to fetch that route's *old* chunk filename, which no
-// longer exists on the server — this is what a dynamic import failure
-// looks like, not an actual app bug. One automatic reload fetches the
-// current shell (with correct chunk references) and resolves it; the
-// sessionStorage guard stops a genuinely broken chunk from reload-looping.
-const STALE_CHUNK_RELOAD_KEY = "ep-stale-chunk-reload";
-function isStaleChunkError(error: Error): boolean {
-  return /dynamically imported module|Importing a module script failed|Failed to fetch dynamically imported module/i.test(
-    error.message,
-  );
+// A chunk fetch can fail two different ways: (1) genuinely stale — a tab
+// left open across a deploy tries to fetch a route's *old* chunk filename,
+// which no longer exists on the server; or (2) transient — confirmed in
+// production behind Cloudflare-proxied custom domains, where a handful of
+// concurrent chunk requests intermittently fail even though the file is
+// present and correct (re-fetching moments later succeeds). Both look
+// identical to the app: a rejected dynamic import(). A couple of retries
+// covers (2); reloading fetches the current shell and covers (1).
+//
+// Matching this by Error.message (as an earlier version of this fix did)
+// is unreliable: Chrome, Firefox and Safari each phrase a failed dynamic
+// import() differently, and a browser whose wording isn't in the regex
+// never triggers the recovery reload. Vite instruments every dynamic
+// import() it emits and always fires this event first, with consistent
+// shape, regardless of browser or wording, so listen for that instead of
+// pattern-matching text.
+//
+// Registered at module scope, not inside a React effect: the failing
+// import is often the very chunk the router needs to render the current
+// route, which can be requested *before* React ever commits and runs
+// effects. An effect-scoped listener registers too late to catch that
+// first, most common case.
+const STALE_CHUNK_RELOAD_KEY = "ep-stale-chunk-reload-count";
+const MAX_RELOAD_ATTEMPTS = 3;
+
+if (typeof window !== "undefined") {
+  window.addEventListener("vite:preloadError", () => {
+    // Deliberately NOT calling event.preventDefault(): doing so stops Vite
+    // from rethrowing the original rejection, which leaves the caller
+    // (the router, mid-route-resolution) holding an undefined module
+    // instead of a rejected promise — it then crashes trying to read
+    // `.component` off that undefined value, in a tight synchronous loop
+    // with no error boundary catching it (confirmed live: blank white
+    // page, console spammed instantly, worse than the plain error screen
+    // this fix exists to recover from). Letting it rethrow keeps the
+    // normal, working path: the router's own error boundary catches it
+    // and shows the "Esta página no cargó" screen while the reload below
+    // is in flight.
+    const attempts = Number(sessionStorage.getItem(STALE_CHUNK_RELOAD_KEY) ?? "0");
+    if (attempts >= MAX_RELOAD_ATTEMPTS) return;
+    sessionStorage.setItem(STALE_CHUNK_RELOAD_KEY, String(attempts + 1));
+    // A short, increasing delay gives a transient proxy/connection hiccup
+    // a moment to clear before the retry, instead of hitting it again
+    // instantly.
+    setTimeout(() => window.location.reload(), 200 * (attempts + 1));
+  });
 }
 
 function ErrorComponent({ error, reset }: { error: Error; reset: () => void }) {
@@ -56,13 +90,6 @@ function ErrorComponent({ error, reset }: { error: Error; reset: () => void }) {
   const router = useRouter();
   useEffect(() => {
     reportLovableError(error, { boundary: "tanstack_root_error_component" });
-  }, [error]);
-
-  useEffect(() => {
-    if (!isStaleChunkError(error)) return;
-    if (sessionStorage.getItem(STALE_CHUNK_RELOAD_KEY)) return;
-    sessionStorage.setItem(STALE_CHUNK_RELOAD_KEY, "1");
-    window.location.reload();
   }, [error]);
 
   return (
@@ -153,9 +180,9 @@ function RootComponent() {
   const { queryClient } = Route.useRouteContext();
 
   // A successful render means the app is on a working bundle — clear the
-  // stale-chunk reload guard so a *later* deploy (same tab, still open)
-  // can also trigger one recovery reload instead of being permanently
-  // blocked by a flag set earlier in this tab's session.
+  // retry counter so a *later*, unrelated chunk failure (same tab, still
+  // open) gets its own fresh set of retries instead of inheriting an
+  // exhausted count from earlier in this tab's session.
   useEffect(() => {
     sessionStorage.removeItem(STALE_CHUNK_RELOAD_KEY);
   }, []);

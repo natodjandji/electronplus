@@ -31,12 +31,25 @@ export class ReportsService {
     );
   }
 
-  /** Nightly rollup of the previous day's sales (paid orders) and purchases (supplier payments). */
+  /**
+   * Nightly rollup of the previous day's sales (paid orders) and purchases
+   * (supplier payments). @nestjs/schedule hands this straight to `cron` as a
+   * bare onTick callback with nothing awaiting or catching its promise — an
+   * uncaught rejection here would be an unhandled promise rejection that
+   * crashes the whole process at 1am. Unlike `rollupDay` (also called
+   * directly from salesSeries(), where letting an error surface to that
+   * HTTP request is correct), this entry point has no caller to catch it.
+   */
   @Cron(CronExpression.EVERY_DAY_AT_1AM)
-  async rollupYesterday(): Promise<SalesDailySummary> {
-    const yesterday = new Date();
-    yesterday.setDate(yesterday.getDate() - 1);
-    return this.rollupDay(yesterday);
+  async rollupYesterday(): Promise<SalesDailySummary | undefined> {
+    try {
+      const yesterday = new Date();
+      yesterday.setDate(yesterday.getDate() - 1);
+      return await this.rollupDay(yesterday);
+    } catch (error) {
+      this.logger.error('rollupYesterday cron run failed', error as Error);
+      return undefined;
+    }
   }
 
   async rollupDay(date: Date): Promise<SalesDailySummary> {

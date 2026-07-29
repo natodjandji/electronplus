@@ -211,7 +211,12 @@ export class PurchaseOrdersService {
       }
 
       const amountPaid = order.amountPaid + dto.amount;
-      const fullyPaid = amountPaid >= order.totals.totalAmount;
+      // Totals are rounded to cents at write time (purchase-order-totals.ts),
+      // but a half-cent epsilon is cheap defense against any float drift
+      // reaching this comparison — the failure mode (stuck PARTIALLY_PAID,
+      // stock-in gated on fullyPaid never happens) is bad enough to guard
+      // twice.
+      const fullyPaid = amountPaid >= order.totals.totalAmount - 0.005;
 
       const payable = order.linkedPayableId
         ? await this.financeService.getPayableForUpdate(tx, order.linkedPayableId)

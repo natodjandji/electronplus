@@ -1,6 +1,6 @@
 import { Body, Controller, Get, Param, Patch, Post, UseGuards } from '@nestjs/common';
 import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
-import { IsString } from 'class-validator';
+import { IsString, MaxLength } from 'class-validator';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
 import { Roles } from '../../common/decorators/roles.decorator';
 import { Role } from '../../common/enums/role.enum';
@@ -11,6 +11,7 @@ import { PaymentsService } from './payments.service';
 
 class RejectPaymentDto {
   @IsString()
+  @MaxLength(500)
   reason: string;
 }
 

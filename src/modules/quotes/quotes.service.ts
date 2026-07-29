@@ -19,7 +19,7 @@ export class QuotesService {
   private readonly repo: FirestoreRepository<Quote>;
 
   constructor(
-    @Inject(FIRESTORE) firestore: Firestore,
+    @Inject(FIRESTORE) private readonly firestore: Firestore,
     private readonly productsService: ProductsService,
     private readonly pricingService: PricingService,
   ) {
@@ -62,11 +62,15 @@ export class QuotesService {
     return quote;
   }
 
+  /** Every line mutation below (add/update/remove/discount) reads the whole
+   * `items` array, mutates it in memory, and writes the entire array back —
+   * so it MUST run inside a transaction. A plain read-then-write let two
+   * concurrent edits (a fast double-click, or two open tabs on the same
+   * quote) both read the same pre-mutation array; the second write silently
+   * clobbered the first with no error to either caller. */
   async addLine(id: string, user: AuthenticatedUser, dto: AddQuoteLineDto): Promise<Quote> {
-    const quote = await this.assertEditable(id, user);
     const product = await this.productsService.findById(dto.productId);
     const unitPrice = this.pricingService.priceFor(product);
-
     const item: QuoteItem = {
       id: randomUUID(),
       productId: product.id,
@@ -77,7 +81,10 @@ export class QuotesService {
       wholesalePrice: product.wholesalePrice,
       discountPct: dto.discountPct ?? 0,
     };
-    return this.repo.update(id, { items: [...quote.items, item] });
+
+    return this.withEditableQuoteTransaction(id, user, (quote) => ({
+      items: [...quote.items, item],
+    }));
   }
 
   async updateLine(
@@ -86,19 +93,23 @@ export class QuotesService {
     user: AuthenticatedUser,
     dto: UpdateQuoteLineDto,
   ): Promise<Quote> {
-    const quote = await this.assertEditable(id, user);
-    const items = quote.items.map((item) =>
-      item.id === lineId
-        ? { ...item, qty: dto.qty ?? item.qty, discountPct: dto.discountPct ?? item.discountPct }
-        : item,
-    );
-    if (!items.some((i) => i.id === lineId)) throw new NotFoundException('Quote line not found');
-    return this.repo.update(id, { items });
+    return this.withEditableQuoteTransaction(id, user, (quote) => {
+      const items = quote.items.map((item) =>
+        item.id === lineId
+          ? { ...item, qty: dto.qty ?? item.qty, discountPct: dto.discountPct ?? item.discountPct }
+          : item,
+      );
+      if (!items.some((i) => i.id === lineId)) {
+        throw new NotFoundException('Quote line not found');
+      }
+      return { items };
+    });
   }
 
   async removeLine(id: string, lineId: string, user: AuthenticatedUser): Promise<Quote> {
-    const quote = await this.assertEditable(id, user);
-    return this.repo.update(id, { items: quote.items.filter((i) => i.id !== lineId) });
+    return this.withEditableQuoteTransaction(id, user, (quote) => ({
+      items: quote.items.filter((i) => i.id !== lineId),
+    }));
   }
 
   /** Draft only — lets the customer state (or change) how they expect to pay
@@ -124,8 +135,7 @@ export class QuotesService {
     user: AuthenticatedUser,
     globalDiscountPct: number,
   ): Promise<Quote> {
-    await this.assertNotFinalized(id, user);
-    return this.repo.update(id, { globalDiscountPct });
+    return this.withNotFinalizedQuoteTransaction(id, user, () => ({ globalDiscountPct }));
   }
 
   /** Admin-only — sets each line's discount so its effective price matches that
@@ -133,22 +143,24 @@ export class QuotesService {
    * so a single flat % can't reproduce this). Clears globalDiscountPct so it
    * doesn't stack a second discount on top of wholesale. */
   async applyWholesalePricing(id: string, user: AuthenticatedUser): Promise<Quote> {
-    const quote = await this.assertNotFinalized(id, user);
-    const items = quote.items.map((item) => ({
-      ...item,
-      discountPct:
-        item.unitPrice > 0
-          ? Math.round(Math.max(0, (1 - item.wholesalePrice / item.unitPrice) * 10000)) / 100
-          : 0,
+    return this.withNotFinalizedQuoteTransaction(id, user, (quote) => ({
+      items: quote.items.map((item) => ({
+        ...item,
+        discountPct:
+          item.unitPrice > 0
+            ? Math.round(Math.max(0, (1 - item.wholesalePrice / item.unitPrice) * 10000)) / 100
+            : 0,
+      })),
+      globalDiscountPct: 0,
     }));
-    return this.repo.update(id, { items, globalDiscountPct: 0 });
   }
 
   /** Admin-only — reverts applyWholesalePricing back to full retail pricing. */
   async resetToRetailPricing(id: string, user: AuthenticatedUser): Promise<Quote> {
-    const quote = await this.assertNotFinalized(id, user);
-    const items = quote.items.map((item) => ({ ...item, discountPct: 0 }));
-    return this.repo.update(id, { items, globalDiscountPct: 0 });
+    return this.withNotFinalizedQuoteTransaction(id, user, (quote) => ({
+      items: quote.items.map((item) => ({ ...item, discountPct: 0 })),
+      globalDiscountPct: 0,
+    }));
   }
 
   /** draft -> sent: the customer submits their quote request for admin review. */
@@ -190,5 +202,68 @@ export class QuotesService {
       throw new ForbiddenException('Cannot change the discount on a finalized quote');
     }
     return quote;
+  }
+
+  private assertOwnership(quote: Quote, user: AuthenticatedUser): void {
+    if (quote.userId !== user.id && user.role !== Role.ADMIN) {
+      throw new ForbiddenException('This quote does not belong to you');
+    }
+  }
+
+  /** Shared by every line/discount mutation: reads the quote inside the
+   * transaction (not before it), so the ownership/status check and the
+   * write both see the same snapshot — a concurrent edit either lands
+   * fully before or fully after this one, never interleaved. */
+  private async withQuoteTransaction(
+    id: string,
+    user: AuthenticatedUser,
+    assertStatus: (quote: Quote) => void,
+    mutate: (quote: Quote) => Partial<Quote>,
+  ): Promise<Quote> {
+    const ref = this.repo.doc(id);
+    return this.firestore.runTransaction(async (tx) => {
+      const snap = await tx.get(ref);
+      if (!snap.exists) throw new NotFoundException('Quote not found');
+      const quote = { ...snap.data(), id: snap.id } as Quote;
+      this.assertOwnership(quote, user);
+      assertStatus(quote);
+      const patch = mutate(quote);
+      tx.update(ref, patch);
+      return { ...quote, ...patch };
+    });
+  }
+
+  private withEditableQuoteTransaction(
+    id: string,
+    user: AuthenticatedUser,
+    mutate: (quote: Quote) => Partial<Quote>,
+  ): Promise<Quote> {
+    return this.withQuoteTransaction(
+      id,
+      user,
+      (quote) => {
+        if (quote.status !== QuoteStatus.DRAFT) {
+          throw new ForbiddenException('Only draft quotes can be edited');
+        }
+      },
+      mutate,
+    );
+  }
+
+  private withNotFinalizedQuoteTransaction(
+    id: string,
+    user: AuthenticatedUser,
+    mutate: (quote: Quote) => Partial<Quote>,
+  ): Promise<Quote> {
+    return this.withQuoteTransaction(
+      id,
+      user,
+      (quote) => {
+        if (quote.status === QuoteStatus.APPROVED || quote.status === QuoteStatus.REJECTED) {
+          throw new ForbiddenException('Cannot change the discount on a finalized quote');
+        }
+      },
+      mutate,
+    );
   }
 }

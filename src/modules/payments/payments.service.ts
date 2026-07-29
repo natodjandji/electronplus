@@ -118,19 +118,30 @@ export class PaymentsService {
     return this.repo.getOrThrow(id, 'Payment not found');
   }
 
-  /** Admin confirms a manual-reconciliation payment against the bank/wallet statement. */
+  /** Admin confirms a manual-reconciliation payment against the bank/wallet statement.
+   * Read-check-write runs inside a transaction so two concurrent verify
+   * clicks (two admin tabs, a double-submit) can't both pass the PENDING
+   * check and each fire PAYMENT_VERIFIED_EVENT — that double-fire would
+   * double-enqueue the ERP sale export for the same order. */
   async verifyManual(id: string, adminUserId: string): Promise<Payment> {
-    const payment = await this.findById(id);
-    if (!MANUAL_RECONCILIATION_METHODS.includes(payment.method)) {
-      throw new BadRequestException('Only manual-reconciliation payments are verified this way');
-    }
-    if (payment.status !== PaymentStatus.PENDING) {
-      throw new BadRequestException(`Payment is already ${payment.status}`);
-    }
-    const saved = await this.repo.update(id, {
-      status: PaymentStatus.VERIFIED,
-      verifiedByUserId: adminUserId,
-      verifiedAt: new Date(),
+    const ref = this.repo.doc(id);
+    const saved = await this.firestore.runTransaction(async (tx) => {
+      const snap = await tx.get(ref);
+      if (!snap.exists) throw new BadRequestException('Payment not found');
+      const payment = { ...snap.data(), id: snap.id } as Payment;
+      if (!MANUAL_RECONCILIATION_METHODS.includes(payment.method)) {
+        throw new BadRequestException('Only manual-reconciliation payments are verified this way');
+      }
+      if (payment.status !== PaymentStatus.PENDING) {
+        throw new BadRequestException(`Payment is already ${payment.status}`);
+      }
+      const patch = {
+        status: PaymentStatus.VERIFIED,
+        verifiedByUserId: adminUserId,
+        verifiedAt: new Date(),
+      };
+      tx.update(ref, patch);
+      return { ...payment, ...patch };
     });
     this.events.emit(PAYMENT_VERIFIED_EVENT, {
       orderId: saved.orderId,
@@ -140,19 +151,35 @@ export class PaymentsService {
   }
 
   async reject(id: string, adminUserId: string, reason: string): Promise<Payment> {
-    const payment = await this.findById(id);
-    if (payment.status !== PaymentStatus.PENDING) {
-      throw new BadRequestException(`Payment is already ${payment.status}`);
-    }
-    return this.repo.update(id, {
-      status: PaymentStatus.REJECTED,
-      verifiedByUserId: adminUserId,
-      verifiedAt: new Date(),
-      rejectionReason: reason,
+    const ref = this.repo.doc(id);
+    return this.firestore.runTransaction(async (tx) => {
+      const snap = await tx.get(ref);
+      if (!snap.exists) throw new BadRequestException('Payment not found');
+      const payment = { ...snap.data(), id: snap.id } as Payment;
+      if (payment.status !== PaymentStatus.PENDING) {
+        throw new BadRequestException(`Payment is already ${payment.status}`);
+      }
+      const patch = {
+        status: PaymentStatus.REJECTED,
+        verifiedByUserId: adminUserId,
+        verifiedAt: new Date(),
+        rejectionReason: reason,
+      };
+      tx.update(ref, patch);
+      return { ...payment, ...patch };
     });
   }
 
-  /** Called after the buyer approves the PayPal order client-side; captures the funds. */
+  /** Called after the buyer approves the PayPal order client-side; captures the funds.
+   * The capture call itself can't run inside a Firestore transaction (an
+   * external network call inside a transaction Firestore may retry is an
+   * anti-pattern), so PayPal's own per-order capture exclusivity is what
+   * prevents a double charge if two requests race — PayPal accepts exactly
+   * one capture per order and errors the other. The transaction below only
+   * needs to guarantee *our own* write+event fire at most once: if another
+   * concurrent request already flipped this payment to VERIFIED by the time
+   * this one's capture call returns, skip the write/event instead of
+   * throwing — the payment did genuinely succeed, just via the other call. */
   async capturePaypal(id: string, user: AuthenticatedUser): Promise<Payment> {
     const payment = await this.findById(id);
     await this.assertOrderAccess(payment.orderId, user);
@@ -166,14 +193,25 @@ export class PaymentsService {
     if (result.status !== 'COMPLETED') {
       throw new BadRequestException(`PayPal order not completed (status: ${result.status})`);
     }
-    const saved = await this.repo.update(id, {
-      status: PaymentStatus.VERIFIED,
-      verifiedAt: new Date(),
+
+    const ref = this.repo.doc(id);
+    const { saved, alreadyVerified } = await this.firestore.runTransaction(async (tx) => {
+      const snap = await tx.get(ref);
+      const current = { ...snap.data(), id: snap.id } as Payment;
+      if (current.status !== PaymentStatus.PENDING) {
+        return { saved: current, alreadyVerified: true };
+      }
+      const patch = { status: PaymentStatus.VERIFIED, verifiedAt: new Date() };
+      tx.update(ref, patch);
+      return { saved: { ...current, ...patch }, alreadyVerified: false };
     });
-    this.events.emit(PAYMENT_VERIFIED_EVENT, {
-      orderId: saved.orderId,
-      paymentId: saved.id,
-    } satisfies PaymentVerifiedEvent);
+
+    if (!alreadyVerified) {
+      this.events.emit(PAYMENT_VERIFIED_EVENT, {
+        orderId: saved.orderId,
+        paymentId: saved.id,
+      } satisfies PaymentVerifiedEvent);
+    }
     return saved;
   }
 }

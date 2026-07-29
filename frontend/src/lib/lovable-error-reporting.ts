@@ -49,9 +49,29 @@ export function reportLovableError(error: unknown, context: Record<string, unkno
       : error instanceof Error
         ? error.message
         : String(error);
+  const stack = error instanceof Error ? error.stack : undefined;
   window.__lovableReportRuntimeError?.({
     message,
-    stack: error instanceof Error ? error.stack : undefined,
+    stack,
     filename: window.location.pathname,
   });
+
+  // The editor hooks above are only present in the Lovable preview iframe —
+  // in production (electronplus-ve.web.app) neither fires, which is exactly
+  // why the two prior "algo salió mal" fixes shipped blind. Mirror the same
+  // report to the backend so it lands in Cloud Run logs, queryable via
+  // `gcloud logging read`. Fire-and-forget: a broken error reporter must
+  // never throw on top of the error it's reporting.
+  const apiBaseUrl = import.meta.env.VITE_API_BASE_URL ?? "http://localhost:3000/api";
+  fetch(`${apiBaseUrl}/client-errors`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      message,
+      stack,
+      route: window.location.pathname,
+      mechanism: typeof context.boundary === "string" ? context.boundary : undefined,
+    }),
+    keepalive: true,
+  }).catch(() => {});
 }

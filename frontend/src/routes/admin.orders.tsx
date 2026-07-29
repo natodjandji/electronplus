@@ -36,6 +36,7 @@ import { apiFetch, ApiError, reportError } from "@/lib/api-client";
 import { formatMoney } from "@/lib/electron-store";
 import { toast } from "sonner";
 import { formatDate } from "@/lib/format";
+import { PAYMENT_METHOD_LABEL, usePaymentMethods, type PaymentMethod } from "@/lib/payment-methods";
 
 export const Route = createFileRoute("/admin/orders")({
   head: () => ({
@@ -46,8 +47,6 @@ export const Route = createFileRoute("/admin/orders")({
   }),
   component: AdminOrdersPage,
 });
-
-type PaymentMethod = "bank_transfer" | "pago_movil" | "cash" | "zelle" | "paypal" | "credit_b2b";
 
 interface OrderItem {
   productId: string;
@@ -97,15 +96,6 @@ const PAYMENT_STATUS_BADGE: Record<Payment["status"], string> = {
   pending: "bg-brand-yellow text-brand-navy",
   verified: "bg-emerald-100 text-emerald-800",
   rejected: "bg-destructive text-white",
-};
-
-const PAYMENT_METHOD_LABEL: Record<PaymentMethod, string> = {
-  bank_transfer: "Transferencia bancaria",
-  pago_movil: "Pago móvil",
-  cash: "Efectivo",
-  zelle: "Zelle",
-  paypal: "PayPal",
-  credit_b2b: "Crédito B2B",
 };
 
 function useOrders() {
@@ -226,6 +216,8 @@ function OrderDetailDialog({ orderId, onClose }: { orderId: string; onClose: () 
     queryFn: () => apiFetch<Order>(`/orders/${orderId}`),
   });
 
+  const { data: paymentMethods } = usePaymentMethods();
+
   const { data: payments } = useQuery({
     queryKey: ["admin", "orders", "payments", orderId],
     queryFn: () => apiFetch<Payment[]>(`/payments/order/${orderId}`),
@@ -325,7 +317,9 @@ function OrderDetailDialog({ orderId, onClose }: { orderId: string; onClose: () 
         <OrderStepper status={order.status} fulfillmentMethod={order.fulfillmentMethod} />
 
         <div className="text-xs text-muted-foreground">
-          Emitido el {formatDate(order.createdAt)} · {PAYMENT_METHOD_LABEL[order.paymentMethod]}
+          Emitido el {formatDate(order.createdAt)} ·{" "}
+          {paymentMethods?.find((m) => m.backendMethod === order.paymentMethod)?.label ??
+            PAYMENT_METHOD_LABEL[order.paymentMethod]}
         </div>
 
         <div className="max-h-56 overflow-auto rounded-md border border-border">
@@ -396,7 +390,10 @@ function OrderDetailDialog({ orderId, onClose }: { orderId: string; onClose: () 
                 </Badge>
               </div>
               <div className="grid gap-1 text-sm text-brand-navy">
-                <div>{PAYMENT_METHOD_LABEL[payment.method]}</div>
+                <div>
+                  {paymentMethods?.find((m) => m.backendMethod === payment.method)?.label ??
+                    PAYMENT_METHOD_LABEL[payment.method]}
+                </div>
                 {payment.reference && (
                   <div className="text-muted-foreground">Referencia: {payment.reference}</div>
                 )}

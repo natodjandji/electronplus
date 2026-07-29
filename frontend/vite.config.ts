@@ -14,4 +14,31 @@ export default defineConfig({
     spa: { enabled: true, prerender: { enabled: true, crawlLinks: true } },
   },
   nitro: false,
+  vite: {
+    build: {
+      rollupOptions: {
+        output: {
+          // Default splitting gives every icon and every shadcn/ui
+          // primitive its own chunk (each shared by 2+ routes), so a
+          // single page load fans out into 30+ concurrent asset requests.
+          // The app works fine like that, but that request burst is also
+          // exactly what got this app's own admin traffic misidentified
+          // as bot activity by Cloudflare in production (verified: the
+          // failing chunk fetches 200 fine individually and under a
+          // scripted 30x-concurrent burst from a plain server, only
+          // breaking down from an automated *browser*). Consolidating the
+          // small shared vendor/UI chunks into a couple of larger ones
+          // cuts that fan-out without touching any Cloudflare setting.
+          manualChunks(id) {
+            if (id.includes("node_modules")) {
+              if (id.includes("lucide-react")) return "vendor-icons";
+              if (id.includes("@radix-ui")) return "vendor-radix";
+            } else if (id.includes("/src/components/ui/")) {
+              return "ui-primitives";
+            }
+          },
+        },
+      },
+    },
+  },
 });

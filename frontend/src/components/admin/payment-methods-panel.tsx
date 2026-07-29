@@ -13,27 +13,11 @@ import {
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
 import { Textarea } from "@/components/ui/textarea";
 import { apiFetch, ApiError, reportError } from "@/lib/api-client";
 import { toast } from "sonner";
-import { slugify, stripDiacritics } from "@/lib/text";
 import { usePaymentMethods, type PaymentMethodConfig } from "@/lib/payment-methods";
-
-const BACKEND_METHODS = [
-  { value: "bank_transfer", label: "Transferencia bancaria" },
-  { value: "pago_movil", label: "Pago móvil" },
-  { value: "cash", label: "Efectivo" },
-  { value: "zelle", label: "Zelle" },
-  { value: "credit_b2b", label: "Crédito B2B" },
-] as const;
 
 export function PaymentMethodsPanel() {
   const { data: methods, isLoading } = usePaymentMethods();
@@ -250,23 +234,16 @@ function EditMethodDialog({
 function CreateMethodDialog({ onClose }: { onClose: () => void }) {
   const queryClient = useQueryClient();
   const [label, setLabel] = useState("");
-  const [id, setId] = useState("");
-  const [idTouched, setIdTouched] = useState(false);
-  const [backendMethod, setBackendMethod] = useState<string>("bank_transfer");
   const [detailsText, setDetailsText] = useState("");
   const [needsReference, setNeedsReference] = useState(true);
   const [needsProof, setNeedsProof] = useState(true);
-
-  const effectiveId = idTouched ? id : slugify(label);
 
   const create = useMutation({
     mutationFn: () =>
       apiFetch("/payment-methods", {
         method: "POST",
         body: {
-          id: effectiveId,
           label,
-          backendMethod,
           details: detailsText
             .split("\n")
             .map((l) => l.trim())
@@ -283,7 +260,7 @@ function CreateMethodDialog({ onClose }: { onClose: () => void }) {
     onError: reportError,
   });
 
-  const canSave = label.trim().length > 0 && /^[a-z0-9]+(-[a-z0-9]+)*$/.test(effectiveId);
+  const canSave = label.trim().length > 0;
 
   return (
     <Dialog open onOpenChange={(open) => !open && onClose()}>
@@ -300,36 +277,6 @@ function CreateMethodDialog({ onClose }: { onClose: () => void }) {
               onChange={(e) => setLabel(e.target.value)}
               placeholder="Ej. Zelle empresarial"
             />
-          </div>
-          <div className="grid gap-1.5">
-            <Label className="text-xs font-medium text-brand-navy">Clave interna (checkout)</Label>
-            <Input
-              value={effectiveId}
-              onChange={(e) => {
-                setIdTouched(true);
-                setId(e.target.value);
-              }}
-              placeholder="zelle-empresarial"
-            />
-            <p className="text-xs text-muted-foreground">Solo minúsculas, números y guiones.</p>
-          </div>
-          <div className="grid gap-1.5">
-            <Label className="text-xs font-medium text-brand-navy">Tipo de pago (backend)</Label>
-            <Select value={backendMethod} onValueChange={setBackendMethod}>
-              <SelectTrigger>
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                {BACKEND_METHODS.map((m) => (
-                  <SelectItem key={m.value} value={m.value}>
-                    {m.label}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-            <p className="text-xs text-muted-foreground">
-              Determina cómo se concilia el pago (manual, o crédito auto-verificado).
-            </p>
           </div>
           <div className="grid gap-1.5">
             <Label className="text-xs font-medium text-brand-navy">

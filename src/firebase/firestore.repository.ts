@@ -23,6 +23,11 @@ export interface FindAllOptions {
   where?: WhereClause[];
   orderBy?: { field: string; direction?: 'asc' | 'desc' };
   limit?: number;
+  /** Page offset in document count — paired with `limit` for page 2+. Costs
+   * a full scan of the skipped documents server-side, same as any
+   * offset-based pagination; fine at this app's catalog scale, not meant
+   * for deep pagination over large collections. */
+  offset?: number;
 }
 
 /**
@@ -111,6 +116,9 @@ export class FirestoreRepository<T extends FirestoreDoc> {
     if (options.orderBy) {
       query = query.orderBy(options.orderBy.field, options.orderBy.direction ?? 'asc');
     }
+    if (options.offset) {
+      query = query.offset(options.offset);
+    }
     if (options.limit) {
       query = query.limit(options.limit);
     }
@@ -121,5 +129,18 @@ export class FirestoreRepository<T extends FirestoreDoc> {
   async findOne(where: WhereClause[], orderBy?: FindAllOptions['orderBy']): Promise<T | null> {
     const results = await this.findAll({ where, orderBy, limit: 1 });
     return results[0] ?? null;
+  }
+
+  /** Total matching document count via Firestore's count() aggregation —
+   * one small server-side count instead of fetching every matching doc just
+   * to read `.length`, for callers (pagination) that need an accurate total
+   * without the page of actual data. */
+  async count(where: WhereClause[] = []): Promise<number> {
+    let query: Query = this.collection();
+    for (const clause of where) {
+      query = query.where(clause.field, clause.op, clause.value);
+    }
+    const snap = await query.count().get();
+    return snap.data().count;
   }
 }

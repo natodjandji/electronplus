@@ -1,5 +1,6 @@
 import { BadRequestException, Inject, Injectable } from '@nestjs/common';
 import type { Firestore } from 'firebase-admin/firestore';
+import { slugify } from '../../common/utils/slug';
 import { FIRESTORE } from '../../firebase/firebase.constants';
 import { Collections } from '../../firebase/firestore-collections';
 import { FirestoreRepository } from '../../firebase/firestore.repository';
@@ -7,26 +8,8 @@ import { CreateShippingRateDto } from './dto/create-shipping-rate.dto';
 import { UpdateShippingRateDto } from './dto/update-shipping-rate.dto';
 import { ShippingRate } from './entities/shipping-rate.entity';
 
-/** Strips combining diacritical marks left behind by NFD normalization. */
-function stripDiacritics(value: string): string {
-  return Array.from(value)
-    .filter((ch) => {
-      const code = ch.codePointAt(0)!;
-      return code < 0x0300 || code > 0x036f;
-    })
-    .join('');
-}
-
-function slug(value: string): string {
-  return stripDiacritics(value.normalize('NFD'))
-    .toLowerCase()
-    .trim()
-    .replace(/[^a-z0-9]+/g, '-')
-    .replace(/^-+|-+$/g, '');
-}
-
 function rateId(state: string, city: string): string {
-  return `${slug(state)}--${city === '*' ? '*' : slug(city)}`;
+  return `${slugify(state)}--${city === '*' ? '*' : slugify(city)}`;
 }
 
 export interface ShippingQuote {

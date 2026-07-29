@@ -39,6 +39,21 @@ export class InventoryService {
 
   @OnEvent(STOCK_CHANGED_EVENT)
   async handleStockChanged(payload: StockChangedEvent): Promise<void> {
+    // EventEmitter2's emit() (used by ProductsService.emitStockChanged, fired
+    // on every order, stock adjustment and ERP sync) never awaits or catches
+    // a listener's returned promise — an uncaught rejection here becomes an
+    // unhandled promise rejection that crashes the whole process (no
+    // process.on('unhandledRejection') handler is installed). Every sibling
+    // @OnEvent handler in notifications.service.ts wraps its body the same
+    // way for the same reason; this one was the one outlier.
+    try {
+      await this.processStockChanged(payload);
+    } catch (error) {
+      this.logger.error(`Failed to process stock change for ${payload.sku}`, error as Error);
+    }
+  }
+
+  private async processStockChanged(payload: StockChangedEvent): Promise<void> {
     const threshold =
       payload.minStockThreshold ??
       this.config.get('LOW_STOCK_DEFAULT_THRESHOLD', { infer: true }) ??

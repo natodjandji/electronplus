@@ -31,3 +31,6 @@ npm-debug.log*
 firebase-debug.log
 firestore-debug.log
 ui-debug.log
+
+# Local Redis dump (BullMQ job payloads — order/ERP-sync data, never commit)
+*.rdb

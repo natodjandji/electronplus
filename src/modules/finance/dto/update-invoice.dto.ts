@@ -19,10 +19,6 @@ export class UpdateInvoiceDto {
   amount?: number;
 
   @IsOptional()
-  @IsString()
-  currency?: string;
-
-  @IsOptional()
   @IsDateString()
   issueDate?: string;
 

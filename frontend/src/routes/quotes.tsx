@@ -46,6 +46,7 @@ import {
 import { apiFetch, ApiError, reportError } from "@/lib/api-client";
 import { useAuth } from "@/lib/auth-context";
 import { formatMoney } from "@/lib/electron-store";
+import { formatDate } from "@/lib/format";
 import {
   paymentMethodLabel,
   usePaymentMethods,
@@ -414,11 +415,7 @@ function QuoteListCard({
       <div>
         <div className="font-semibold text-brand-navy">{quote.customerName || "Sin nombre"}</div>
         <div className="text-xs text-muted-foreground">
-          {new Date(quote.createdAt).toLocaleDateString("es-VE", {
-            day: "2-digit",
-            month: "short",
-            year: "numeric",
-          })}
+          {formatDate(quote.createdAt)}
           {" · "}
           {quote.items.length} producto(s)
         </div>

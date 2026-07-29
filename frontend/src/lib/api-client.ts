@@ -3,6 +3,11 @@ import { auth } from "./firebase";
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL ?? "http://localhost:3000/api";
 
+/** The bare server origin (no /api prefix) — Nest's global route prefix only
+ * applies to @Controller routes, not the WebSocket gateway, so realtime
+ * connections (see notification-bell.tsx) need this instead of API_BASE_URL. */
+export const API_ORIGIN = API_BASE_URL.replace(/\/api\/?$/, "");
+
 export class ApiError extends Error {
   status: number;
   constructor(message: string, status: number) {

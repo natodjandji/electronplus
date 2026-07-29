@@ -18,6 +18,7 @@ import {
 } from "lucide-react";
 import { ElectronLogo } from "./electron-logo";
 import { PageTransition } from "./motion-primitives";
+import { NotificationBell } from "./notification-bell";
 import { useElectronStore, type UserRole } from "@/lib/electron-store";
 import { Button } from "@/components/ui/button";
 import { Sheet, SheetContent, SheetTitle } from "@/components/ui/sheet";
@@ -130,7 +131,9 @@ export function AdminShell({ title, children }: { title: string; children: React
     <div className="flex min-h-screen bg-brand-surface print:contents">
       <aside className="hidden w-64 shrink-0 flex-col bg-brand-navy text-white lg:flex print:hidden">
         <div className="border-b border-white/10 p-4">
-          <ElectronLogo layout="full" tone="white" className="h-8" />
+          <Link to="/" aria-label="Volver a la tienda" className="inline-block">
+            <ElectronLogo layout="full" tone="white" className="h-8" />
+          </Link>
           <div className="mt-3 text-[10px] font-semibold uppercase tracking-widest text-brand-yellow">
             Panel administrativo
           </div>
@@ -145,7 +148,14 @@ export function AdminShell({ title, children }: { title: string; children: React
         >
           <SheetTitle className="sr-only">Menú del panel administrativo</SheetTitle>
           <div className="border-b border-white/10 p-4">
-            <ElectronLogo layout="full" tone="white" className="h-8" />
+            <Link
+              to="/"
+              aria-label="Volver a la tienda"
+              className="inline-block"
+              onClick={() => setMobileNavOpen(false)}
+            >
+              <ElectronLogo layout="full" tone="white" className="h-8" />
+            </Link>
             <div className="mt-3 text-[10px] font-semibold uppercase tracking-widest text-brand-yellow">
               Panel administrativo
             </div>
@@ -172,6 +182,7 @@ export function AdminShell({ title, children }: { title: string; children: React
             <h1 className="truncate text-xl font-bold text-brand-navy sm:text-2xl">{title}</h1>
           </div>
           <div className="flex shrink-0 items-center gap-2">
+            <NotificationBell />
             <span className="hidden rounded-full bg-brand-surface px-3 py-1 text-xs font-medium text-brand-navy sm:inline-block">
               Rol activo: <b className="text-brand-blue">{ROLE_LABEL[role]}</b>
             </span>

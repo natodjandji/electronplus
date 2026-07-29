@@ -1,10 +1,11 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, NotFoundException } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import * as QRCode from 'qrcode';
 import { EnvConfig } from '../../config/env.validation';
 import { Role } from '../../common/enums/role.enum';
 import { AuthenticatedUser } from '../../common/interfaces/authenticated-user.interface';
 import { toCatalogDto } from '../products/mappers/product.mapper';
+import { Product } from '../products/entities/product.entity';
 import { PricingService } from '../products/pricing.service';
 import { ProductsService } from '../products/products.service';
 
@@ -28,8 +29,7 @@ export class QrService {
     private readonly config: ConfigService<EnvConfig, true>,
   ) {}
 
-  async issueLabel(productId: string): Promise<QrLabel> {
-    const product = await this.productsService.findById(productId);
+  private async buildLabel(product: Product): Promise<QrLabel> {
     // Points at the real storefront product page — not the backend API —
     // so scanning the printed label opens a normal webpage for anyone.
     const productUrl = `${this.config.get('PUBLIC_SITE_URL', { infer: true })}/product/qr/${product.id}`;
@@ -46,8 +46,23 @@ export class QrService {
     };
   }
 
+  async issueLabel(productId: string): Promise<QrLabel> {
+    const product = await this.productsService.findById(productId);
+    return this.buildLabel(product);
+  }
+
+  /** Bulk label printing can cover an arbitrary admin-selected slice of the
+   * catalog — batch the product lookup (one Firestore round trip) instead
+   * of issueLabel's one-read-per-id, same fix already applied to
+   * second-store.service.ts's findAll. */
   async issueLabels(productIds: string[]): Promise<QrLabel[]> {
-    return Promise.all(productIds.map((id) => this.issueLabel(id)));
+    const products = await this.productsService.findByIds(productIds);
+    const byId = new Map(products.map((p) => [p.id, p]));
+    const missing = productIds.filter((id) => !byId.has(id));
+    if (missing.length > 0) {
+      throw new NotFoundException(`Product(s) not found: ${missing.join(', ')}`);
+    }
+    return Promise.all(productIds.map((id) => this.buildLabel(byId.get(id)!)));
   }
 
   /**

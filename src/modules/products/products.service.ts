@@ -69,17 +69,21 @@ export class ProductsService {
 
   async findAll(query: QueryProductsDto): Promise<PaginatedResult<Product>> {
     const limit = query.limit ?? 20;
+    const page = query.page ?? 1;
+    const skip = (page - 1) * limit;
 
     if (query.search) {
       // Firestore has no full-text search — scan active products (bounded)
-      // and filter in Node. Fine at this catalog's scale.
+      // and filter in Node. Fine at this catalog's scale. `page` slices the
+      // in-memory filtered array directly (was previously ignored, always
+      // returning page 1's results for every page).
       const all = await this.repo.findAll({ where: [{ field: 'active', op: '==', value: true }] });
       const needle = query.search.toLowerCase();
       const filtered = all.filter(
         (p) => p.name.toLowerCase().includes(needle) || p.sku.toLowerCase().includes(needle),
       );
-      const page = filtered.slice(0, limit);
-      return new PaginatedResult(page, filtered.length, query.page ?? 1, limit);
+      const data = filtered.slice(skip, skip + limit);
+      return new PaginatedResult(data, filtered.length, page, limit);
     }
 
     const where: { field: string; op: '=='; value: unknown }[] = [
@@ -91,8 +95,14 @@ export class ProductsService {
       ]);
       where.push({ field: 'categoryId', op: '==', value: category?.id ?? '__none__' });
     }
-    const data = await this.repo.findAll({ where, orderBy: { field: 'name' }, limit });
-    return new PaginatedResult(data, data.length, query.page ?? 1, limit);
+    // `total` is a real count of every matching doc, not `data.length` (was
+    // previously capped at `limit`, so `pageCount` always came out as 1 —
+    // every caller past page 1 got page 1's results back with no error).
+    const [data, total] = await Promise.all([
+      this.repo.findAll({ where, orderBy: { field: 'name' }, limit, offset: skip }),
+      this.repo.count(where),
+    ]);
+    return new PaginatedResult(data, total, page, limit);
   }
 
   findById(id: string): Promise<Product> {
@@ -238,10 +248,6 @@ export class ProductsService {
     return this.repo.update(id, patch);
   }
 
-  async regenerateQrToken(id: string): Promise<Product> {
-    return this.repo.update(id, { qrToken: generateQrToken() });
-  }
-
   /** Manual admin stock adjustment (+ restock / - shrinkage), optionally scoped to a warehouse. */
   async adjustStock(id: string, dto: AdjustStockDto): Promise<Product> {
     const changed = await this.firestore.runTransaction(async (tx) => {
@@ -357,12 +363,6 @@ export class ProductsService {
         `Insufficient stock for ${product.sku}: ${product.stock} available, ${qty} requested`,
       );
     }
-    tx.update(ref, { stock: nextStock, updatedAt: FieldValue.serverTimestamp() });
-    return nextStock;
-  }
-
-  restoreStock(tx: Transaction, ref: DocumentReference, product: Product, qty: number): number {
-    const nextStock = product.stock + qty;
     tx.update(ref, { stock: nextStock, updatedAt: FieldValue.serverTimestamp() });
     return nextStock;
   }
