@@ -1,6 +1,7 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import * as QRCode from 'qrcode';
+import bwipjs from 'bwip-js';
 import { EnvConfig } from '../../config/env.validation';
 import { Role } from '../../common/enums/role.enum';
 import { AuthenticatedUser } from '../../common/interfaces/authenticated-user.interface';
@@ -18,7 +19,12 @@ export interface QrLabel {
   token: string;
   /** The product's public storefront page — what the printed QR code encodes. */
   productUrl: string;
+  /** QR pointing at the storefront page — the "precio" label format. */
   qrImageDataUrl: string;
+  /** QR encoding just the SKU — the "almacén" label format (internal scanning, no URL). */
+  skuQrImageDataUrl: string;
+  /** Scannable Code128 barcode encoding the SKU — the "producto" label format. */
+  barcodeImageDataUrl: string;
 }
 
 @Injectable()
@@ -29,11 +35,33 @@ export class QrService {
     private readonly config: ConfigService<EnvConfig, true>,
   ) {}
 
+  /** Code128 encodes any ASCII text, no separate numeric-only barcode value
+   * needed — the SKU itself (e.g. "EP-LED-9W") is what's on the label and
+   * what a scanner reads back. */
+  private async buildBarcodeDataUrl(sku: string): Promise<string> {
+    const png = await bwipjs.toBuffer({
+      bcid: 'code128',
+      text: sku,
+      scale: 3,
+      height: 10,
+      includetext: true,
+      textxalign: 'center',
+    });
+    return `data:image/png;base64,${png.toString('base64')}`;
+  }
+
   private async buildLabel(product: Product): Promise<QrLabel> {
     // Points at the real storefront product page — not the backend API —
     // so scanning the printed label opens a normal webpage for anyone.
     const productUrl = `${this.config.get('PUBLIC_SITE_URL', { infer: true })}/product/qr/${product.id}`;
-    const qrImageDataUrl = await QRCode.toDataURL(productUrl, { margin: 1, width: 256 });
+    const [qrImageDataUrl, skuQrImageDataUrl, barcodeImageDataUrl] = await Promise.all([
+      QRCode.toDataURL(productUrl, { margin: 1, width: 256 }),
+      // The "almacén" label format — QR encodes the SKU directly (not a
+      // URL) so warehouse staff can scan it with any generic QR reader
+      // without needing network access to resolve anything.
+      QRCode.toDataURL(product.sku, { margin: 1, width: 256 }),
+      this.buildBarcodeDataUrl(product.sku),
+    ]);
     return {
       productId: product.id,
       sku: product.sku,
@@ -41,6 +69,8 @@ export class QrService {
       retailPrice: product.retailPrice,
       wholesalePrice: product.wholesalePrice,
       token: product.qrToken,
+      skuQrImageDataUrl,
+      barcodeImageDataUrl,
       productUrl,
       qrImageDataUrl,
     };

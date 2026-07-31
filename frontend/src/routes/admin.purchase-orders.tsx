@@ -12,6 +12,7 @@ import {
   AlertCircle,
   Pencil,
   Printer,
+  Search,
 } from "lucide-react";
 import { AdminShell } from "@/components/admin-shell";
 import { ElectronLogo } from "@/components/electron-logo";
@@ -166,6 +167,7 @@ function computeDraftTotal(lines: DraftLine[], globalDiscount: number) {
 function PurchaseOrdersPage() {
   const [statusFilter, setStatusFilter] = useState<string>("all");
   const [supplierFilter, setSupplierFilter] = useState("");
+  const [search, setSearch] = useState("");
   const [creating, setCreating] = useState(false);
   const [selectedId, setSelectedId] = useState<string | null>(null);
 
@@ -173,8 +175,19 @@ function PurchaseOrdersPage() {
     status: statusFilter === "all" ? undefined : statusFilter,
     supplierId: supplierFilter || undefined,
   });
+  const { data: suppliers } = useSuppliers();
   const pager = useMonthPager(orders, (o) => o.createdAt);
-  const visibleOrders = pager.filtered;
+
+  const needle = search.trim().toLowerCase();
+  const visibleOrders = (pager.filtered ?? []).filter(
+    (o) =>
+      !needle ||
+      o.id.toLowerCase().includes(needle) ||
+      o.supplierName.toLowerCase().includes(needle) ||
+      o.items.some(
+        (i) => i.name.toLowerCase().includes(needle) || i.sku.toLowerCase().includes(needle),
+      ),
+  );
 
   return (
     <AdminShell title="Órdenes de compra">
@@ -198,13 +211,35 @@ function PurchaseOrdersPage() {
               </Select>
             </div>
             <div className="grid gap-1.5">
-              <Label className="text-xs font-medium text-brand-navy">Proveedor (ID)</Label>
-              <Input
-                placeholder="Filtrar por supplierId…"
-                value={supplierFilter}
-                onChange={(e) => setSupplierFilter(e.target.value)}
-                className="w-56"
-              />
+              <Label className="text-xs font-medium text-brand-navy">Proveedor</Label>
+              <Select
+                value={supplierFilter || "all"}
+                onValueChange={(v) => setSupplierFilter(v === "all" ? "" : v)}
+              >
+                <SelectTrigger className="w-48">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">Todos</SelectItem>
+                  {suppliers?.map((s) => (
+                    <SelectItem key={s.id} value={s.id}>
+                      {s.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="grid gap-1.5">
+              <Label className="text-xs font-medium text-brand-navy">Buscar</Label>
+              <div className="relative">
+                <Search className="pointer-events-none absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
+                <Input
+                  value={search}
+                  onChange={(e) => setSearch(e.target.value)}
+                  placeholder="N.º de orden, producto o SKU…"
+                  className="w-56 pl-8"
+                />
+              </div>
             </div>
           </div>
           <div className="flex flex-wrap items-center gap-3">
@@ -249,7 +284,7 @@ function PurchaseOrdersPage() {
 
         {!isLoading && (orders?.length ?? 0) > 0 && (visibleOrders?.length ?? 0) === 0 && (
           <Card className="mt-6 p-10 text-center text-muted-foreground">
-            No hay órdenes de compra en este período.
+            No hay órdenes de compra que coincidan con estos filtros.
           </Card>
         )}
 

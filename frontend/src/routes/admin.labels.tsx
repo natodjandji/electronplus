@@ -10,16 +10,17 @@ import { Input } from "@/components/ui/input";
 import { QuantityStepper } from "@/components/quantity-stepper";
 import { apiFetch } from "@/lib/api-client";
 import { formatMoney } from "@/lib/electron-store";
+import { cn } from "@/lib/utils";
 
 export const Route = createFileRoute("/admin/labels")({
   head: () => ({
     meta: [
-      { title: "Etiquetas QR · Admin Electron Plus" },
+      { title: "Etiquetas · Admin Electron Plus" },
       {
         name: "description",
-        content: "Genera e imprime etiquetas con código QR real para cada producto.",
+        content: "Genera e imprime etiquetas de almacén, producto y precio para cada producto.",
       },
-      { property: "og:title", content: "Etiquetas QR · Electron Plus" },
+      { property: "og:title", content: "Etiquetas · Electron Plus" },
       { property: "og:description", content: "Etiquetas imprimibles para tienda y depósito." },
     ],
   }),
@@ -38,8 +39,33 @@ interface QrLabel {
   name: string;
   retailPrice: number;
   wholesalePrice: number;
+  /** QR pointing at the storefront page — the "precio" format. */
   qrImageDataUrl: string;
+  /** QR encoding just the SKU — the "almacén" format. */
+  skuQrImageDataUrl: string;
+  /** Scannable Code128 barcode (SKU baked in as human-readable text) — the "producto" format. */
+  barcodeImageDataUrl: string;
 }
+
+type LabelFormat = "almacen" | "producto" | "precio";
+
+const FORMAT_OPTIONS: { value: LabelFormat; label: string; hint: string }[] = [
+  {
+    value: "almacen",
+    label: "Almacén",
+    hint: "Solo descripción y QR del SKU — para identificar bultos en el depósito, sin precios.",
+  },
+  {
+    value: "producto",
+    label: "Producto",
+    hint: "Código de barras escaneable del SKU y descripción — para pegar en el producto.",
+  },
+  {
+    value: "precio",
+    label: "Precio",
+    hint: "QR a la ficha del producto, nombre, SKU y precios detal/mayor.",
+  },
+];
 
 // search="" shares its queryKey/cache with admin.index.tsx, admin.stock.tsx,
 // and admin.suppliers.tsx's unfiltered GET /products/admin.
@@ -76,9 +102,72 @@ const LABEL_PRINT_STYLE = `
   }
 `;
 
+function LabelCard({ label, format }: { label: QrLabel & { key: string }; format: LabelFormat }) {
+  if (format === "almacen") {
+    return (
+      <div className="qr-label flex items-center gap-2 overflow-hidden border border-dashed border-brand-navy/30 bg-white p-2 print:border-none">
+        <img
+          src={label.skuQrImageDataUrl}
+          alt=""
+          className="h-[22mm] w-[22mm] shrink-0 object-contain"
+        />
+        <div className="line-clamp-4 text-[12px] font-bold leading-tight text-black">
+          {label.name}
+        </div>
+      </div>
+    );
+  }
+
+  if (format === "producto") {
+    return (
+      <div className="qr-label flex flex-col items-center justify-center gap-1 overflow-hidden border border-dashed border-brand-navy/30 bg-white p-1.5 print:border-none">
+        <div className="line-clamp-1 w-full text-center text-[10px] font-bold leading-tight text-black">
+          {label.name}
+        </div>
+        <img
+          src={label.barcodeImageDataUrl}
+          alt=""
+          className="h-[18mm] w-full max-w-[46mm] object-contain"
+        />
+      </div>
+    );
+  }
+
+  return (
+    <div className="qr-label flex items-center gap-1.5 overflow-hidden border border-dashed border-brand-navy/30 bg-white p-1.5 print:border-none">
+      <img
+        src={label.qrImageDataUrl}
+        alt=""
+        className="h-[17mm] w-[17mm] shrink-0 object-contain"
+      />
+      <div className="flex min-w-0 flex-1 flex-col gap-[1.5px]">
+        <ElectronLogo layout="wordmark" tone="black" className="h-[2.8mm] w-auto shrink-0" />
+        <div className="line-clamp-1 text-[10px] font-bold leading-tight text-black">
+          {label.name}
+        </div>
+        <div className="font-mono text-[7.5px] leading-tight text-black">{label.sku}</div>
+        <div className="mt-[1px] flex items-center justify-between gap-1 rounded-[1px] border border-black px-[3px] py-[1.5px] leading-none">
+          <span className="text-[6px] font-semibold uppercase tracking-wide text-black">Detal</span>
+          <span className="text-[10.5px] font-bold leading-tight text-black">
+            {formatMoney(label.retailPrice)}
+          </span>
+        </div>
+        <div className="flex items-center justify-between gap-1 rounded-[1px] border border-black px-[3px] py-[1.5px] leading-none">
+          <span className="text-[6px] font-semibold uppercase tracking-wide text-black">Mayor</span>
+          <span className="text-[10.5px] font-bold leading-tight text-black">
+            {formatMoney(label.wholesalePrice)}
+          </span>
+        </div>
+        <div className="text-[6px] leading-tight text-black/60">IVA no incluido</div>
+      </div>
+    </div>
+  );
+}
+
 function LabelsPage() {
   const [search, setSearch] = useState("");
   const [quantities, setQuantities] = useState<Record<string, number>>({});
+  const [format, setFormat] = useState<LabelFormat>("precio");
   const { data: products, isLoading } = useAdminProducts(search);
 
   const selectedIds = Object.entries(quantities)
@@ -102,8 +191,10 @@ function LabelsPage() {
   const setQty = (id: string, qty: number) =>
     setQuantities((prev) => ({ ...prev, [id]: Math.max(0, qty) }));
 
+  const activeFormat = FORMAT_OPTIONS.find((f) => f.value === format)!;
+
   return (
-    <AdminShell title="Generador e impresor de etiquetas QR">
+    <AdminShell title="Generador e impresor de etiquetas">
       <style>{LABEL_PRINT_STYLE}</style>
 
       <div className="grid gap-6 lg:grid-cols-[380px_minmax(0,1fr)] print:contents">
@@ -168,8 +259,7 @@ function LabelsPage() {
                 Vista previa · {totalLabels} etiqueta{totalLabels === 1 ? "" : "s"}
               </h3>
               <p className="text-xs text-muted-foreground">
-                Etiquetas de 5×3cm para impresora Xprinter XP-D4601B. Escanea el QR para abrir la
-                ficha del producto.
+                Etiquetas de 5×3cm para impresora Xprinter XP-D4601B. {activeFormat.hint}
               </p>
             </div>
             <Button
@@ -182,6 +272,24 @@ function LabelsPage() {
             </Button>
           </div>
 
+          <div className="mt-4 flex gap-1 rounded-md border border-border p-1 print:hidden">
+            {FORMAT_OPTIONS.map((opt) => (
+              <button
+                key={opt.value}
+                type="button"
+                onClick={() => setFormat(opt.value)}
+                className={cn(
+                  "flex-1 rounded-sm px-3 py-1.5 text-sm font-medium transition-colors",
+                  format === opt.value
+                    ? "bg-brand-blue text-white"
+                    : "text-muted-foreground hover:bg-brand-surface",
+                )}
+              >
+                {opt.label}
+              </button>
+            ))}
+          </div>
+
           <div className="mt-4 flex flex-wrap justify-center gap-3 print:mt-0 print:block print:justify-start">
             {totalLabels === 0 && (
               <Card className="flex w-full flex-col items-center gap-2 p-10 text-center text-muted-foreground print:hidden">
@@ -191,48 +299,11 @@ function LabelsPage() {
             )}
             {totalLabels > 0 && labelsLoading && (
               <div className="flex w-full items-center justify-center gap-2 py-16 text-sm text-muted-foreground print:hidden">
-                <Loader2 className="h-4 w-4 animate-spin" /> Generando códigos QR…
+                <Loader2 className="h-4 w-4 animate-spin" /> Generando etiquetas…
               </div>
             )}
             {printItems.map((label) => (
-              <div
-                key={label.key}
-                className="qr-label flex items-center gap-1.5 overflow-hidden border border-dashed border-brand-navy/30 bg-white p-1.5 print:border-none"
-              >
-                <img
-                  src={label.qrImageDataUrl}
-                  alt=""
-                  className="h-[17mm] w-[17mm] shrink-0 object-contain"
-                />
-                <div className="flex min-w-0 flex-1 flex-col gap-[1.5px]">
-                  <ElectronLogo
-                    layout="wordmark"
-                    tone="black"
-                    className="h-[2.8mm] w-auto shrink-0"
-                  />
-                  <div className="line-clamp-1 text-[10px] font-bold leading-tight text-black">
-                    {label.name}
-                  </div>
-                  <div className="font-mono text-[7.5px] leading-tight text-black">{label.sku}</div>
-                  <div className="mt-[1px] flex items-center justify-between gap-1 rounded-[1px] border border-black px-[3px] py-[1.5px] leading-none">
-                    <span className="text-[6px] font-semibold uppercase tracking-wide text-black">
-                      Detal
-                    </span>
-                    <span className="text-[10.5px] font-bold leading-tight text-black">
-                      {formatMoney(label.retailPrice)}
-                    </span>
-                  </div>
-                  <div className="flex items-center justify-between gap-1 rounded-[1px] border border-black px-[3px] py-[1.5px] leading-none">
-                    <span className="text-[6px] font-semibold uppercase tracking-wide text-black">
-                      Mayor
-                    </span>
-                    <span className="text-[10.5px] font-bold leading-tight text-black">
-                      {formatMoney(label.wholesalePrice)}
-                    </span>
-                  </div>
-                  <div className="text-[6px] leading-tight text-black/60">IVA no incluido</div>
-                </div>
-              </div>
+              <LabelCard key={label.key} label={label} format={format} />
             ))}
           </div>
         </div>

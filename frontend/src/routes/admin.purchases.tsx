@@ -11,6 +11,7 @@ import {
   Paperclip,
   Pencil,
   Plus,
+  Search,
 } from "lucide-react";
 import { AdminShell } from "@/components/admin-shell";
 import { TableRowsSkeleton } from "@/components/table-skeleton";
@@ -37,7 +38,7 @@ import {
 } from "@/components/ui/select";
 import { Separator } from "@/components/ui/separator";
 import { Textarea } from "@/components/ui/textarea";
-import { SupplierPicker } from "@/components/supplier-picker";
+import { SupplierPicker, useSuppliers } from "@/components/supplier-picker";
 import { apiFetch, ApiError, reportError } from "@/lib/api-client";
 import { formatMoney } from "@/lib/electron-store";
 import { compressImageToBase64 } from "@/lib/image-compress";
@@ -121,34 +122,98 @@ function sum(arr: Invoice[]) {
 function PurchasesPage() {
   const [creating, setCreating] = useState(false);
   const [selectedId, setSelectedId] = useState<string | null>(null);
+  const [search, setSearch] = useState("");
+  const [supplierFilter, setSupplierFilter] = useState("all");
+  const [statusFilter, setStatusFilter] = useState<"all" | PayableStatus>("all");
   const { data: invoices, isLoading } = useInvoices();
+  const { data: suppliers } = useSuppliers();
 
   const all = invoices ?? [];
+  // The overdue/dueSoon/current summary cards above always consider every
+  // invoice regardless of these filters — only the table below is filtered.
   const overdue = all.filter((f) => f.status === "pending" && f.dueStatus === "overdue");
   const dueSoon = all.filter((f) => f.status === "pending" && f.dueStatus === "due_soon");
   const current = all.filter((f) => f.status === "pending" && f.dueStatus === "current");
   const pager = useMonthPager(all, (f) => f.dueDate, { allowFuture: true });
-  const visibleInvoices = pager.filtered ?? [];
+
+  const needle = search.trim().toLowerCase();
+  const visibleInvoices = (pager.filtered ?? [])
+    .filter((f) => statusFilter === "all" || f.status === statusFilter)
+    .filter((f) => supplierFilter === "all" || f.supplierId === supplierFilter)
+    .filter(
+      (f) =>
+        !needle ||
+        f.invoiceNumber.toLowerCase().includes(needle) ||
+        f.supplierName.toLowerCase().includes(needle),
+    );
 
   return (
     <AdminShell title="Compras & vencimiento de facturas">
-      <div className="flex flex-wrap items-center justify-end gap-3">
-        {all.length > 0 && (
-          <MonthPagerBar
-            label={pager.label}
-            showAll={pager.showAll}
-            onPrev={pager.goPrev}
-            onNext={pager.goNext}
-            onToggleAll={() => pager.setShowAll((v) => !v)}
-            canGoNext={pager.canGoNext}
-          />
-        )}
-        <Button
-          className="gap-2 bg-brand-blue text-white hover:bg-brand-blue/90"
-          onClick={() => setCreating(true)}
-        >
-          <Plus className="h-4 w-4" /> Nueva factura
-        </Button>
+      <div className="flex flex-wrap items-end justify-between gap-3">
+        <div className="flex flex-wrap items-end gap-3">
+          <div className="grid gap-1.5">
+            <Label className="text-xs font-medium text-brand-navy">Buscar</Label>
+            <div className="relative">
+              <Search className="pointer-events-none absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
+              <Input
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                placeholder="N.º de factura o proveedor…"
+                className="w-56 pl-8"
+              />
+            </div>
+          </div>
+          <div className="grid gap-1.5">
+            <Label className="text-xs font-medium text-brand-navy">Proveedor</Label>
+            <Select value={supplierFilter} onValueChange={setSupplierFilter}>
+              <SelectTrigger className="w-48">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">Todos</SelectItem>
+                {suppliers?.map((s) => (
+                  <SelectItem key={s.id} value={s.id}>
+                    {s.name}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+          <div className="grid gap-1.5">
+            <Label className="text-xs font-medium text-brand-navy">Estado</Label>
+            <Select
+              value={statusFilter}
+              onValueChange={(v) => setStatusFilter(v as "all" | PayableStatus)}
+            >
+              <SelectTrigger className="w-40">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">Todos</SelectItem>
+                <SelectItem value="pending">Pendiente</SelectItem>
+                <SelectItem value="paid">Pagada</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+        </div>
+        <div className="flex flex-wrap items-center gap-3">
+          {all.length > 0 && (
+            <MonthPagerBar
+              label={pager.label}
+              showAll={pager.showAll}
+              onPrev={pager.goPrev}
+              onNext={pager.goNext}
+              onToggleAll={() => pager.setShowAll((v) => !v)}
+              canGoNext={pager.canGoNext}
+            />
+          )}
+          <Button
+            className="gap-2 bg-brand-blue text-white hover:bg-brand-blue/90"
+            onClick={() => setCreating(true)}
+          >
+            <Plus className="h-4 w-4" /> Nueva factura
+          </Button>
+        </div>
       </div>
       <p className="mt-2 text-xs text-muted-foreground">
         Los resúmenes de vencidas/por vencer/vigentes consideran todas las facturas, sin importar el
@@ -201,7 +266,7 @@ function PurchasesPage() {
 
       {!isLoading && all.length > 0 && visibleInvoices.length === 0 && (
         <Card className="mt-6 p-10 text-center text-muted-foreground">
-          No hay facturas con vencimiento en este período.
+          No hay facturas que coincidan con estos filtros.
         </Card>
       )}
 
