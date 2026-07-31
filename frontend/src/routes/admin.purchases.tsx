@@ -152,18 +152,6 @@ function PurchasesPage() {
       <div className="flex flex-wrap items-end justify-between gap-3">
         <div className="flex flex-wrap items-end gap-3">
           <div className="grid gap-1.5">
-            <Label className="text-xs font-medium text-brand-navy">Buscar</Label>
-            <div className="relative">
-              <Search className="pointer-events-none absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
-              <Input
-                value={search}
-                onChange={(e) => setSearch(e.target.value)}
-                placeholder="N.º de factura o proveedor…"
-                className="w-56 pl-8"
-              />
-            </div>
-          </div>
-          <div className="grid gap-1.5">
             <Label className="text-xs font-medium text-brand-navy">Proveedor</Label>
             <Select value={supplierFilter} onValueChange={setSupplierFilter}>
               <SelectTrigger className="w-48">
@@ -194,6 +182,18 @@ function PurchasesPage() {
                 <SelectItem value="paid">Pagada</SelectItem>
               </SelectContent>
             </Select>
+          </div>
+          <div className="grid gap-1.5">
+            <Label className="text-xs font-medium text-brand-navy">Buscar</Label>
+            <div className="relative">
+              <Search className="pointer-events-none absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
+              <Input
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                placeholder="N.º de factura o proveedor…"
+                className="w-56 pl-8"
+              />
+            </div>
           </div>
         </div>
         <div className="flex flex-wrap items-center gap-3">
