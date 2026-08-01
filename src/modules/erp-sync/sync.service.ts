@@ -12,7 +12,7 @@ import { CategoriesService } from '../products/categories.service';
 import { Product } from '../products/entities/product.entity';
 import { ProductsService } from '../products/products.service';
 import { PROFIT_PLUS_ADAPTER, ProfitPlusAdapter } from './adapters/profit-plus-adapter.interface';
-import { SyncDirection, SyncLog, SyncStatus } from './entities/sync-log.entity';
+import { SyncDirection, SyncLog, SyncStatus, syncLogExpiresAt } from './entities/sync-log.entity';
 
 const INBOUND_CRON_JOB_NAME = 'profit-plus-inbound-sync';
 
@@ -57,6 +57,7 @@ export class SyncService implements OnModuleInit {
       direction: SyncDirection.INBOUND,
       status: SyncStatus.RUNNING,
       startedAt: new Date(),
+      expiresAt: syncLogExpiresAt(),
     });
 
     try {

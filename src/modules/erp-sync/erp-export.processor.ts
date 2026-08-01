@@ -8,7 +8,7 @@ import { Collections } from '../../firebase/firestore-collections';
 import { FirestoreRepository } from '../../firebase/firestore.repository';
 import { OrdersService } from '../orders/orders.service';
 import { PROFIT_PLUS_ADAPTER, ProfitPlusAdapter } from './adapters/profit-plus-adapter.interface';
-import { SyncDirection, SyncLog, SyncStatus } from './entities/sync-log.entity';
+import { SyncDirection, SyncLog, SyncStatus, syncLogExpiresAt } from './entities/sync-log.entity';
 import { ERP_SYNC_ERROR_EVENT, ErpSyncErrorEvent } from './sync.service';
 
 export const ERP_EXPORT_QUEUE = 'erp-export';
@@ -39,6 +39,7 @@ export class ErpExportProcessor extends WorkerHost {
       status: SyncStatus.RUNNING,
       startedAt: new Date(),
       reference: orderId,
+      expiresAt: syncLogExpiresAt(),
     });
 
     try {

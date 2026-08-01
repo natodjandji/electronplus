@@ -34,8 +34,13 @@ async function bootstrap() {
 
   // Auth is a Bearer token in the Authorization header, not a cookie, so
   // credentialed CORS isn't needed — and it's invalid alongside a wildcard
-  // origin anyway (browsers reject that combination).
-  app.enableCors({ origin: config.get('CORS_ORIGIN', { infer: true }) });
+  // origin anyway (browsers reject that combination). CORS_ORIGIN holds one
+  // or more comma-separated origins (the custom domain + the default
+  // *.web.app one both serve the same Hosting site) — split so each is
+  // matched exactly instead of accepting any origin, which `*` did in
+  // production despite this API requiring a real user's Bearer token.
+  const corsOrigin = config.get('CORS_ORIGIN', { infer: true });
+  app.enableCors({ origin: corsOrigin === '*' ? '*' : corsOrigin.split(',').map((o) => o.trim()) });
 
   app.useGlobalPipes(
     new ValidationPipe({

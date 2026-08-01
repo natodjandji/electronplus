@@ -108,6 +108,8 @@ interface CatalogProduct {
   sku: string;
   name: string;
   retailPrice: number;
+  /** Never shown while picking a product — only used to warn if the
+   * requested qty exceeds what's on hand (see shortItems below). */
   stock: number;
 }
 
@@ -484,10 +486,18 @@ function QuoteBuilder({ id, onBack }: { id: string; onBack: () => void }) {
     return stock !== undefined && item.qty > stock;
   });
 
-  const invalidate = () => {
-    queryClient.invalidateQueries({ queryKey: ["quotes", id] });
-    queryClient.invalidateQueries({ queryKey: ["quotes", "mine"] });
+  // Every mutation below already gets the full updated quote back in its
+  // response — writing it straight into the cache updates the screen the
+  // instant that one request resolves. The old code additionally called
+  // invalidateQueries on ["quotes", id], which is *actively mounted* here
+  // and so triggered a second, redundant GET before the UI could update —
+  // every click/keystroke waited on two round trips instead of one.
+  const applyQuote = (updated: Quote) => {
+    queryClient.setQueryData(["quotes", id], updated);
   };
+  // The list view (["quotes","mine"]) isn't mounted while the builder is
+  // open, so this just marks it stale for next time — no extra fetch now.
+  const invalidateMineList = () => queryClient.invalidateQueries({ queryKey: ["quotes", "mine"] });
 
   const isDraft = quote?.status === "draft";
 
@@ -495,9 +505,13 @@ function QuoteBuilder({ id, onBack }: { id: string; onBack: () => void }) {
     if (!pick) return;
     setBusy(true);
     try {
-      await apiFetch(`/quotes/${id}/lines`, { method: "POST", body: { productId: pick, qty: 1 } });
+      const updated = await apiFetch<Quote>(`/quotes/${id}/lines`, {
+        method: "POST",
+        body: { productId: pick, qty: 1 },
+      });
       setPick("");
-      invalidate();
+      applyQuote(updated);
+      invalidateMineList();
     } catch (error) {
       reportError(error);
     } finally {
@@ -505,11 +519,21 @@ function QuoteBuilder({ id, onBack }: { id: string; onBack: () => void }) {
     }
   };
 
-  // Typing a quantity fired a PATCH (a full Firestore transaction on the
-  // quote doc) plus two query invalidations on every keystroke. Debounced
-  // per line so only the value the user settles on is written.
+  // Typing a quantity used to wait on a PATCH plus a follow-up refetch
+  // before the row (or the totals) moved at all. Now the cache is updated
+  // optimistically on every keystroke — qty and totals move instantly —
+  // while the actual PATCH is still debounced per line so the server only
+  // sees the value the user settles on. A failed write resyncs from the
+  // server instead of leaving the optimistic guess in place.
   const qtyDebounceTimers = useRef(new Map<string, ReturnType<typeof setTimeout>>());
   const updateQty = (lineId: string, qty: number) => {
+    const safeQty = Math.max(1, qty);
+    queryClient.setQueryData<Quote>(["quotes", id], (prev) =>
+      prev
+        ? { ...prev, items: prev.items.map((i) => (i.id === lineId ? { ...i, qty: safeQty } : i)) }
+        : prev,
+    );
+
     const pending = qtyDebounceTimers.current.get(lineId);
     if (pending) clearTimeout(pending);
     qtyDebounceTimers.current.set(
@@ -517,13 +541,15 @@ function QuoteBuilder({ id, onBack }: { id: string; onBack: () => void }) {
       setTimeout(async () => {
         qtyDebounceTimers.current.delete(lineId);
         try {
-          await apiFetch(`/quotes/${id}/lines/${lineId}`, {
+          const updated = await apiFetch<Quote>(`/quotes/${id}/lines/${lineId}`, {
             method: "PATCH",
-            body: { qty: Math.max(1, qty) },
+            body: { qty: safeQty },
           });
-          invalidate();
+          applyQuote(updated);
+          invalidateMineList();
         } catch (error) {
           reportError(error);
+          queryClient.invalidateQueries({ queryKey: ["quotes", id] });
         }
       }, 500),
     );
@@ -531,8 +557,9 @@ function QuoteBuilder({ id, onBack }: { id: string; onBack: () => void }) {
 
   const removeLine = async (lineId: string) => {
     try {
-      await apiFetch(`/quotes/${id}/lines/${lineId}`, { method: "DELETE" });
-      invalidate();
+      const updated = await apiFetch<Quote>(`/quotes/${id}/lines/${lineId}`, { method: "DELETE" });
+      applyQuote(updated);
+      invalidateMineList();
     } catch (error) {
       reportError(error);
     }
@@ -540,11 +567,11 @@ function QuoteBuilder({ id, onBack }: { id: string; onBack: () => void }) {
 
   const updatePaymentMethod = async (method: string) => {
     try {
-      await apiFetch(`/quotes/${id}/payment-method`, {
+      const updated = await apiFetch<Quote>(`/quotes/${id}/payment-method`, {
         method: "PATCH",
         body: { expectedPaymentMethod: method },
       });
-      invalidate();
+      applyQuote(updated);
     } catch (error) {
       reportError(error);
     }
@@ -735,8 +762,7 @@ function QuoteBuilder({ id, onBack }: { id: string; onBack: () => void }) {
                     <SelectContent>
                       {availableProducts.map((p) => (
                         <SelectItem key={p.id} value={p.id}>
-                          {p.name} — {p.sku} · {formatMoney(p.retailPrice)} ·{" "}
-                          {p.stock > 0 ? `${p.stock} disponibles` : "sin stock"}
+                          {p.name} — {p.sku} · {formatMoney(p.retailPrice)}
                         </SelectItem>
                       ))}
                     </SelectContent>

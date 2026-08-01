@@ -1,5 +1,6 @@
 import { ForbiddenException, Inject, Injectable, NotFoundException } from '@nestjs/common';
 import { randomUUID } from 'crypto';
+import { EventEmitter2 } from '@nestjs/event-emitter';
 import type { Firestore } from 'firebase-admin/firestore';
 import { FIRESTORE } from '../../firebase/firebase.constants';
 import { Collections } from '../../firebase/firestore-collections';
@@ -14,6 +15,16 @@ import { CreateQuoteDto } from './dto/create-quote.dto';
 import { UpdateQuoteLineDto } from './dto/update-quote-line.dto';
 import { Quote, QuoteItem, QuoteStatus } from './entities/quote.entity';
 
+/** Fires when a sent quote is approved or rejected, so email can react
+ * without approve()/reject() knowing about that concern — mirrors
+ * OrdersService's ORDER_STATUS_CHANGED_EVENT. */
+export const QUOTE_STATUS_CHANGED_EVENT = 'quote.status_changed';
+
+export interface QuoteStatusChangedEvent {
+  quoteId: string;
+  status: QuoteStatus.APPROVED | QuoteStatus.REJECTED;
+}
+
 @Injectable()
 export class QuotesService {
   private readonly repo: FirestoreRepository<Quote>;
@@ -22,6 +33,7 @@ export class QuotesService {
     @Inject(FIRESTORE) private readonly firestore: Firestore,
     private readonly productsService: ProductsService,
     private readonly pricingService: PricingService,
+    private readonly events: EventEmitter2,
   ) {
     this.repo = new FirestoreRepository<Quote>(firestore, Collections.QUOTES);
   }
@@ -60,6 +72,12 @@ export class QuotesService {
       throw new ForbiddenException('This quote does not belong to you');
     }
     return quote;
+  }
+
+  /** No ownership check — for system-context lookups (e.g. EmailListener
+   * reacting to QUOTE_STATUS_CHANGED_EVENT) that don't have a requesting user. */
+  findById(id: string): Promise<Quote> {
+    return this.repo.getOrThrow(id, 'Quote not found');
   }
 
   /** Every line mutation below (add/update/remove/discount) reads the whole
@@ -175,7 +193,12 @@ export class QuotesService {
     if (quote.status !== QuoteStatus.SENT) {
       throw new ForbiddenException('Only sent quotes can be approved');
     }
-    return this.repo.update(id, { status: QuoteStatus.APPROVED });
+    const updated = await this.repo.update(id, { status: QuoteStatus.APPROVED });
+    this.events.emit(QUOTE_STATUS_CHANGED_EVENT, {
+      quoteId: id,
+      status: QuoteStatus.APPROVED,
+    } satisfies QuoteStatusChangedEvent);
+    return updated;
   }
 
   /** sent -> rejected: admin-only, with an optional reason shown to the customer. */
@@ -184,7 +207,15 @@ export class QuotesService {
     if (quote.status !== QuoteStatus.SENT) {
       throw new ForbiddenException('Only sent quotes can be rejected');
     }
-    return this.repo.update(id, { status: QuoteStatus.REJECTED, rejectionReason: reason });
+    const updated = await this.repo.update(id, {
+      status: QuoteStatus.REJECTED,
+      rejectionReason: reason,
+    });
+    this.events.emit(QUOTE_STATUS_CHANGED_EVENT, {
+      quoteId: id,
+      status: QuoteStatus.REJECTED,
+    } satisfies QuoteStatusChangedEvent);
+    return updated;
   }
 
   private async assertEditable(id: string, user: AuthenticatedUser): Promise<Quote> {

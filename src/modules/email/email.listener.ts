@@ -10,10 +10,16 @@ import {
   OrderStatusChangedEvent,
 } from '../orders/orders.service';
 import { OrdersService } from '../orders/orders.service';
+import {
+  QUOTE_STATUS_CHANGED_EVENT,
+  QuoteStatusChangedEvent,
+  QuotesService,
+} from '../quotes/quotes.service';
 import { UsersService } from '../users/users.service';
 import { EmailService } from './email.service';
 import { orderCreatedEmail } from './templates/order-created-email';
 import { orderStatusEmail } from './templates/order-status-email';
+import { quoteStatusEmail } from './templates/quote-status-email';
 import { welcomeEmail } from './templates/welcome-email';
 
 /** One listener per lifecycle email (welcome, order received, fulfillment
@@ -29,6 +35,7 @@ export class EmailListener {
   constructor(
     private readonly email: EmailService,
     private readonly ordersService: OrdersService,
+    private readonly quotesService: QuotesService,
     private readonly usersService: UsersService,
     config: ConfigService<EnvConfig, true>,
   ) {
@@ -72,6 +79,20 @@ export class EmailListener {
       await this.email.send(user.email, content.subject, content.html);
     } catch (error) {
       this.logger.error(`Failed to send status email for order ${payload.orderId}`, error as Error);
+    }
+  }
+
+  @OnEvent(QUOTE_STATUS_CHANGED_EVENT)
+  async handleQuoteStatusChanged(payload: QuoteStatusChangedEvent): Promise<void> {
+    try {
+      const quote = await this.quotesService.findById(payload.quoteId);
+      const content = quoteStatusEmail(quote, this.siteUrl);
+      if (!content) return;
+      const user = await this.usersService.findById(quote.userId);
+      if (!user.email) return;
+      await this.email.send(user.email, content.subject, content.html);
+    } catch (error) {
+      this.logger.error(`Failed to send status email for quote ${payload.quoteId}`, error as Error);
     }
   }
 }
