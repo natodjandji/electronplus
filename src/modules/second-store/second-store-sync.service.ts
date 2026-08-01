@@ -204,6 +204,6 @@ export class SecondStoreSyncService implements OnModuleInit {
   }
 
   async getLogs(): Promise<SecondStoreSyncLog[]> {
-    return this.logsRepo.findAll({ orderBy: { field: 'startedAt', direction: 'desc' }, limit: 50 });
+    return this.logsRepo.findAll({ orderBy: { field: 'startedAt', direction: 'desc' }, limit: 5 });
   }
 }

@@ -172,6 +172,6 @@ export class SyncService implements OnModuleInit {
   }
 
   async getLogs(): Promise<SyncLog[]> {
-    return this.repo.findAll({ orderBy: { field: 'startedAt', direction: 'desc' }, limit: 50 });
+    return this.repo.findAll({ orderBy: { field: 'startedAt', direction: 'desc' }, limit: 5 });
   }
 }

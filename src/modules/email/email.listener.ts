@@ -15,11 +15,17 @@ import {
   QuoteStatusChangedEvent,
   QuotesService,
 } from '../quotes/quotes.service';
+import { STOCK_ALERT_RAISED_EVENT, StockAlertRaisedEvent } from '../inventory/inventory.service';
+import { INVOICE_DUE_ALERT_EVENT, InvoiceDueAlertEvent } from '../finance/finance.service';
+import { EXPENSE_DUE_ALERT_EVENT, ExpenseDueAlertEvent } from '../expenses/expenses.service';
 import { UsersService } from '../users/users.service';
 import { EmailService } from './email.service';
+import { expenseDueEmail } from './templates/expense-due-email';
+import { invoiceDueEmail } from './templates/invoice-due-email';
 import { orderCreatedEmail } from './templates/order-created-email';
 import { orderStatusEmail } from './templates/order-status-email';
 import { quoteStatusEmail } from './templates/quote-status-email';
+import { stockAlertEmail } from './templates/stock-alert-email';
 import { welcomeEmail } from './templates/welcome-email';
 
 /** One listener per lifecycle email (welcome, order received, fulfillment
@@ -93,6 +99,51 @@ export class EmailListener {
       await this.email.send(user.email, content.subject, content.html);
     } catch (error) {
       this.logger.error(`Failed to send status email for quote ${payload.quoteId}`, error as Error);
+    }
+  }
+
+  // --- Operational alerts (stock/invoices/expenses) — admin-only, never
+  // the warehouse operator role even though the in-app notification for
+  // stock alerts also reaches them (NotificationsService.handleStockAlert).
+  // Email is more disruptive than the bell, so it's scoped tighter.
+
+  private async emailEveryAdmin(subject: string, html: string): Promise<void> {
+    const admins = await this.usersService.findAdmins();
+    await Promise.all(
+      admins.filter((a) => a.email).map((a) => this.email.send(a.email, subject, html)),
+    );
+  }
+
+  @OnEvent(STOCK_ALERT_RAISED_EVENT)
+  async handleStockAlertEmail(payload: StockAlertRaisedEvent): Promise<void> {
+    try {
+      const { subject, html } = stockAlertEmail(payload, this.siteUrl);
+      await this.emailEveryAdmin(subject, html);
+    } catch (error) {
+      this.logger.error(`Failed to send stock alert email for ${payload.sku}`, error as Error);
+    }
+  }
+
+  @OnEvent(INVOICE_DUE_ALERT_EVENT)
+  async handleInvoiceDueEmail(payload: InvoiceDueAlertEvent): Promise<void> {
+    try {
+      const { subject, html } = invoiceDueEmail(payload, this.siteUrl);
+      await this.emailEveryAdmin(subject, html);
+    } catch (error) {
+      this.logger.error(
+        `Failed to send invoice due email for ${payload.invoiceNumber}`,
+        error as Error,
+      );
+    }
+  }
+
+  @OnEvent(EXPENSE_DUE_ALERT_EVENT)
+  async handleExpenseDueEmail(payload: ExpenseDueAlertEvent): Promise<void> {
+    try {
+      const { subject, html } = expenseDueEmail(payload, this.siteUrl);
+      await this.emailEveryAdmin(subject, html);
+    } catch (error) {
+      this.logger.error(`Failed to send expense due email for ${payload.name}`, error as Error);
     }
   }
 }

@@ -1,4 +1,15 @@
-import { Body, Controller, Get, Param, Patch, Post, Query, UseGuards } from '@nestjs/common';
+import {
+  Body,
+  Controller,
+  Delete,
+  Get,
+  HttpCode,
+  Param,
+  Patch,
+  Post,
+  Query,
+  UseGuards,
+} from '@nestjs/common';
 import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
 import { Roles } from '../../common/decorators/roles.decorator';
@@ -36,6 +47,12 @@ export class FinanceController {
   @Patch('suppliers/:id')
   updateSupplier(@Param('id') id: string, @Body() dto: UpdateSupplierDto) {
     return this.financeService.updateSupplier(id, dto);
+  }
+
+  @Delete('suppliers/:id')
+  @HttpCode(204)
+  deleteSupplier(@Param('id') id: string) {
+    return this.financeService.deleteSupplier(id);
   }
 
   @Post('invoices')

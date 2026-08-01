@@ -1,12 +1,23 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
-import { Building2, Loader2, Mail, Pencil, Phone, Plus } from "lucide-react";
+import { Building2, Loader2, Mail, Pencil, Phone, Plus, Trash2 } from "lucide-react";
 import { AdminShell } from "@/components/admin-shell";
 import { Card } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from "@/components/ui/alert-dialog";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -208,6 +219,16 @@ function SupplierDetailDialog({
     onError: reportError,
   });
 
+  const deleteSupplier = useMutation({
+    mutationFn: () => apiFetch(`/finance/suppliers/${supplierId}`, { method: "DELETE" }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["admin", "suppliers"] });
+      toast.success("Proveedor eliminado");
+      onClose();
+    },
+    onError: reportError,
+  });
+
   if (!supplier) return null;
 
   return (
@@ -222,14 +243,41 @@ function SupplierDetailDialog({
               <DialogTitle className="truncate">{supplier.name}</DialogTitle>
             </div>
             {!editing && (
-              <Button
-                size="sm"
-                variant="outline"
-                className="shrink-0 gap-1.5"
-                onClick={startEditing}
-              >
-                <Pencil className="h-3.5 w-3.5" /> Editar
-              </Button>
+              <div className="flex shrink-0 items-center gap-2">
+                <Button size="sm" variant="outline" className="gap-1.5" onClick={startEditing}>
+                  <Pencil className="h-3.5 w-3.5" /> Editar
+                </Button>
+                <AlertDialog>
+                  <AlertDialogTrigger asChild>
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      className="gap-1.5 text-destructive hover:text-destructive"
+                    >
+                      <Trash2 className="h-3.5 w-3.5" /> Eliminar
+                    </Button>
+                  </AlertDialogTrigger>
+                  <AlertDialogContent>
+                    <AlertDialogHeader>
+                      <AlertDialogTitle>¿Eliminar este proveedor?</AlertDialogTitle>
+                      <AlertDialogDescription>
+                        Esta acción no se puede deshacer. Se eliminará a "{supplier.name}" de la
+                        lista de proveedores. Los productos, facturas y órdenes de compra que lo
+                        referencian no se ven afectados.
+                      </AlertDialogDescription>
+                    </AlertDialogHeader>
+                    <AlertDialogFooter>
+                      <AlertDialogCancel>Cancelar</AlertDialogCancel>
+                      <AlertDialogAction
+                        onClick={() => deleteSupplier.mutate()}
+                        className="bg-destructive text-white hover:bg-destructive/90"
+                      >
+                        Eliminar
+                      </AlertDialogAction>
+                    </AlertDialogFooter>
+                  </AlertDialogContent>
+                </AlertDialog>
+              </div>
             )}
           </div>
         </DialogHeader>

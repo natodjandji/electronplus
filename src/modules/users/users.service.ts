@@ -24,6 +24,13 @@ export class UsersService {
     return this.repo.findAll({ orderBy: { field: 'createdAt', direction: 'desc' } });
   }
 
+  /** Operational alert emails (low stock, invoice/expense due) go to every
+   * admin, not just one hardcoded address — a Firestore-side filter instead
+   * of fetching findAll() and filtering in memory. */
+  findAdmins(): Promise<User[]> {
+    return this.repo.findAll({ where: [{ field: 'role', op: '==', value: Role.ADMIN }] });
+  }
+
   findById(uid: string): Promise<User> {
     return this.repo.getOrThrow(uid, 'User not found');
   }

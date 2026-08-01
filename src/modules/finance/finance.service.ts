@@ -62,6 +62,15 @@ export class FinanceService {
     return this.suppliersRepo.update(id, dto);
   }
 
+  /** Products/invoices/purchase orders that reference this supplier keep
+   * working — invoices/purchase orders snapshot supplierName at creation
+   * (see CreateInvoiceDto), and a product's supplierName lookup already
+   * falls back to "—" for an unknown supplierId (admin.inventory.tsx). */
+  async deleteSupplier(id: string): Promise<void> {
+    await this.suppliersRepo.getOrThrow(id, 'Supplier not found');
+    await this.suppliersRepo.delete(id);
+  }
+
   async createInvoice(dto: CreateInvoiceDto): Promise<SupplierPayable> {
     return this.payablesRepo.create({
       supplierId: dto.supplierId,
