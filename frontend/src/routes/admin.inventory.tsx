@@ -1,13 +1,33 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState, type ChangeEvent } from "react";
-import { AlertTriangle, ImageIcon, Link2, PackageX, Plus, Search, Unlink } from "lucide-react";
+import {
+  AlertTriangle,
+  ImageIcon,
+  Link2,
+  PackageX,
+  Plus,
+  Search,
+  Trash2,
+  Unlink,
+} from "lucide-react";
 import { AdminShell } from "@/components/admin-shell";
 import { ProductImage } from "@/components/product-image";
 import { TableRowsSkeleton } from "@/components/table-skeleton";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from "@/components/ui/alert-dialog";
 import {
   Dialog,
   DialogContent,
@@ -97,10 +117,20 @@ function InventoryPage() {
   const { data: products, isLoading } = useAdminProducts(search);
   const { data: suppliers } = useSuppliers();
   const { data: secondStoreProducts } = useSecondStoreProducts();
+  const queryClient = useQueryClient();
 
   const supplierName = (id?: string) => suppliers?.find((s) => s.id === id)?.name;
   const secondStoreLink = (productId: string) =>
     secondStoreProducts?.find((s) => s.linkedProduct?.id === productId) ?? null;
+
+  const deleteProduct = useMutation({
+    mutationFn: (id: string) => apiFetch(`/products/${id}`, { method: "DELETE" }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["admin", "products"] });
+      toast.success("Producto eliminado");
+    },
+    onError: reportError,
+  });
 
   return (
     <AdminShell title="Inventario">
@@ -127,7 +157,7 @@ function InventoryPage() {
 
       <Card className="mt-6 overflow-hidden">
         <div className="overflow-x-auto">
-          <table className="w-full min-w-[900px] text-sm">
+          <table className="w-full min-w-[960px] text-sm">
             <thead className="bg-brand-surface">
               <tr className="text-left text-xs uppercase tracking-wider text-muted-foreground">
                 <th className="px-4 py-2">Producto</th>
@@ -138,13 +168,14 @@ function InventoryPage() {
                 <th className="px-4 py-2 text-right">Detal</th>
                 <th className="px-4 py-2 text-right">Mayor</th>
                 <th className="px-4 py-2">Estado</th>
+                <th className="px-4 py-2" />
               </tr>
             </thead>
             <tbody>
-              {isLoading && <TableRowsSkeleton columns={8} />}
+              {isLoading && <TableRowsSkeleton columns={9} />}
               {!isLoading && (products?.length ?? 0) === 0 && (
                 <tr>
-                  <td colSpan={8} className="py-8 text-center text-muted-foreground">
+                  <td colSpan={9} className="py-8 text-center text-muted-foreground">
                     No hay productos con este filtro.
                   </td>
                 </tr>
@@ -228,6 +259,38 @@ function InventoryPage() {
                           <Badge className="bg-muted text-muted-foreground">Inactivo</Badge>
                         )}
                       </div>
+                    </td>
+                    <td className="px-4 py-3 text-right">
+                      <AlertDialog>
+                        <AlertDialogTrigger asChild>
+                          <button
+                            type="button"
+                            onClick={(e) => e.stopPropagation()}
+                            className="text-muted-foreground transition-colors hover:text-destructive"
+                            aria-label="Eliminar producto"
+                          >
+                            <Trash2 className="h-4 w-4" />
+                          </button>
+                        </AlertDialogTrigger>
+                        <AlertDialogContent onClick={(e) => e.stopPropagation()}>
+                          <AlertDialogHeader>
+                            <AlertDialogTitle>¿Eliminar este producto?</AlertDialogTitle>
+                            <AlertDialogDescription>
+                              Esta acción no se puede deshacer. Se eliminará "{p.name}" ({p.sku})
+                              del inventario permanentemente.
+                            </AlertDialogDescription>
+                          </AlertDialogHeader>
+                          <AlertDialogFooter>
+                            <AlertDialogCancel>Cancelar</AlertDialogCancel>
+                            <AlertDialogAction
+                              onClick={() => deleteProduct.mutate(p.id)}
+                              className="bg-destructive text-white hover:bg-destructive/90"
+                            >
+                              Eliminar
+                            </AlertDialogAction>
+                          </AlertDialogFooter>
+                        </AlertDialogContent>
+                      </AlertDialog>
                     </td>
                   </tr>
                 );

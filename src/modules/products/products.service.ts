@@ -267,6 +267,22 @@ export class ProductsService {
     return this.repo.update(id, patch);
   }
 
+  /** Hard delete — quotes/orders/purchase orders already snapshot sku/name/
+   * price into their own line items at the time a product is added, so
+   * they don't need the product doc to still exist. Second-store links
+   * already handle a since-deleted product gracefully (surfaced as
+   * unlinked, see SecondStoreService.findAll/findById). */
+  async delete(id: string): Promise<void> {
+    await this.repo.getOrThrow(id, 'Product not found');
+    const stockLevels = await this.firestore.collection(`products/${id}/stockLevels`).get();
+    if (!stockLevels.empty) {
+      const batch = this.firestore.batch();
+      for (const doc of stockLevels.docs) batch.delete(doc.ref);
+      await batch.commit();
+    }
+    await this.repo.delete(id);
+  }
+
   /** Manual admin stock adjustment (+ restock / - shrinkage), optionally scoped to a warehouse. */
   async adjustStock(id: string, dto: AdjustStockDto): Promise<Product> {
     const changed = await this.firestore.runTransaction(async (tx) => {
