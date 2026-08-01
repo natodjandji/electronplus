@@ -240,7 +240,7 @@ function SupplierDetailDialog({
               <div className="grid h-10 w-10 shrink-0 place-items-center rounded-md bg-brand-blue/10 text-brand-blue">
                 <Building2 className="h-5 w-5" />
               </div>
-              <DialogTitle className="truncate">{supplier.name}</DialogTitle>
+              <DialogTitle className="min-w-0 truncate">{supplier.name}</DialogTitle>
             </div>
             {!editing && (
               <div className="flex shrink-0 items-center gap-2">

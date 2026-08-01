@@ -54,7 +54,14 @@ const DialogContent = React.forwardRef<
 DialogContent.displayName = DialogPrimitive.Content.displayName;
 
 const DialogHeader = ({ className, ...props }: React.HTMLAttributes<HTMLDivElement>) => (
-  <div className={cn("flex flex-col space-y-1.5 text-center sm:text-left", className)} {...props} />
+  // min-w-0: DialogContent's grid item children default to min-width:auto,
+  // so without this a header with a long/dynamic title (e.g. a truncated
+  // entity name) refuses to shrink and overflows the dialog instead of
+  // truncating, pushing anything next to it (buttons, close icon) out of view.
+  <div
+    className={cn("flex min-w-0 flex-col space-y-1.5 text-center sm:text-left", className)}
+    {...props}
+  />
 );
 DialogHeader.displayName = "DialogHeader";
 
