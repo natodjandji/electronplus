@@ -14,13 +14,14 @@ export interface SecondStoreProductWithLink extends SecondStoreProduct {
 }
 
 /**
- * `stock` here can be set two ways: manually via update() below, or by
- * SecondStoreSyncService's scheduled pull from profit-plus-bridge-secundaria
- * (see that file's doc comment — matches by `name` text since that bridge
- * only reports description+stock, no code). Both stay available at once,
- * same tradeoff the primary catalog already accepts between its own ERP
- * sync and ProductsController's manual adjustStock endpoint: whichever
- * wrote last wins, and the next scheduled sync overwrites it again.
+ * `stock`/`retailPrice`/`wholesalePrice` here can each be set two ways:
+ * manually via update() below, or by SecondStoreSyncService's scheduled
+ * pull from profit-plus-bridge-secundaria (see that file's doc comment for
+ * the code/name matching rules). Both stay available at once, same
+ * tradeoff the primary catalog already accepts between its own ERP sync
+ * and ProductsController's manual adjustStock endpoint: whichever wrote
+ * last wins, and the next scheduled sync overwrites the ERP-owned fields
+ * again.
  */
 
 @Injectable()

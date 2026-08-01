@@ -8,8 +8,18 @@ import { FirestoreDoc } from '../../../firebase/firestore.repository';
  */
 export interface SecondStoreProduct extends FirestoreDoc {
   name: string;
+  /** External code from the secundaria store's own Profit Plus (`art.ref`)
+   * — once present, sync matches on this instead of the `name` text match
+   * it falls back to for records that predate the code being available. */
   code?: string;
   stock: number;
+  /** ERP-synced retail/wholesale prices (profit-plus-bridge-secundaria's
+   * precio1/precio2) — separate from the pre-existing manual `price` field
+   * below so a manually-entered reference price is never silently
+   * overwritten by (or confused with) what the sync reports. */
+  retailPrice?: number;
+  wholesalePrice?: number;
+  /** Manual reference price, set from the admin form — not touched by sync. */
   price?: number;
   notes?: string;
   linkedProductId?: string;

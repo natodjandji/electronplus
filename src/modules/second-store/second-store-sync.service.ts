@@ -16,20 +16,22 @@ import {
 
 /**
  * Syncs the SECUNDARIA store's Profit Plus install into `secondStoreProducts`
- * — description+stock only, via profit-plus-bridge-secundaria. This is a
- * distinct system from the PRINCIPAL store's integration (SyncService,
- * ../erp-sync/sync.service.ts): different SQL Server, different bridge,
- * different field contract (no code — matches by name text, see
- * runInboundSync below), different Firestore collection (products, not
- * this one). Don't merge their config, cron, or logic — the two ERP
- * installs are unrelated beyond both being "Profit Plus". Unlike the
- * principal side there's no adapter/mock indirection here — no bridge
+ * — full catalog (código, descripción, stock, precio1, precio2), via
+ * profit-plus-bridge-secundaria. This is a distinct system from the
+ * PRINCIPAL store's integration (SyncService, ../erp-sync/sync.service.ts):
+ * different SQL Server, different bridge, different Firestore collection
+ * (products, not this one). Don't merge their config, cron, or logic — the
+ * two ERP installs are unrelated beyond both being "Profit Plus". Unlike
+ * the principal side there's no adapter/mock indirection here — no bridge
  * configured just means this cron skips its run and logs a warning.
  */
 const SYNC_JOB_NAME = 'second-store-profit-inbound-sync';
 
 interface BridgeProduct {
+  codigo: string;
   descripcion: string;
+  precio1: number;
+  precio2: number;
   stock: number;
 }
 
@@ -48,20 +50,23 @@ export interface SecondStoreSyncResult {
 /**
  * Pulls from profit-plus-bridge-secundaria/ (a separate bridge, separate
  * SQL Server, separate small standalone project — see its own README) and
- * keeps second_store_products in sync. Unlike the primary store's ERP sync
- * (erp-sync/sync.service.ts), that bridge only reports descripción+stock —
- * no code/SKU — so matching against an existing record is by exact `name`
- * text (case/whitespace-insensitive), not an external id. A description
- * with no matching record gets a brand-new SecondStoreProduct created,
- * unlinked — linking it to a catalog Product stays a deliberate admin
- * action via SecondStoreService.link(), same as for a manually-entered
- * record (see that entity's doc comment on why linking isn't automatic).
+ * keeps secondStoreProducts in sync. Matching against an existing record is
+ * by `code` (`art.ref` in the secundaria store's own Profit Plus) when the
+ * record has one; a record predating this (created back when the bridge
+ * only reported description+stock, or entered manually with no code) falls
+ * back to matching by exact `name` text — and gets its `code` backfilled
+ * the moment that match succeeds, so every run after the first uses the
+ * reliable path. A description with no matching record at all gets a
+ * brand-new SecondStoreProduct created, unlinked — linking it to a catalog
+ * Product stays a deliberate admin action via SecondStoreService.link(),
+ * same as for a manually-entered record (see that entity's doc comment on
+ * why linking isn't automatic).
  *
- * Manual editing of `stock` (SecondStoreService.update()) stays available
- * once this sync is live, same as the primary store keeps its manual
- * adjustStock endpoint alongside its own ERP sync — whichever wrote last
- * wins, and the next scheduled sync will overwrite it again from Profit
- * Plus, same tradeoff already accepted for the primary catalog.
+ * Manual editing of `stock`/`price` (SecondStoreService.update()) stays
+ * available once this sync is live, same as the primary store keeps its
+ * manual adjustStock endpoint alongside its own ERP sync — whichever wrote
+ * last wins, and the next scheduled sync will overwrite the ERP-owned
+ * fields again, same tradeoff already accepted for the primary catalog.
  */
 @Injectable()
 export class SecondStoreSyncService implements OnModuleInit {
@@ -129,25 +134,48 @@ export class SecondStoreSyncService implements OnModuleInit {
       const data = (await res.json()) as BridgeResponse;
 
       // Una sola lectura para toda la corrida — cada artículo del bridge se
-      // resuelve en memoria contra este mapa en vez de una query por
+      // resuelve en memoria contra estos mapas en vez de una query por
       // artículo (mismo patrón ya usado en el sync de la tienda principal).
       const existing = await this.repo.findAll();
+      const byCode = new Map(existing.filter((p) => p.code).map((p) => [p.code!, p]));
       const byName = new Map(existing.map((p) => [p.name.trim().toLowerCase(), p]));
 
       let created = 0;
       let updated = 0;
       for (const item of data.productos) {
-        const key = item.descripcion.trim().toLowerCase();
-        const match = byName.get(key);
+        const match = byCode.get(item.codigo) ?? byName.get(item.descripcion.trim().toLowerCase());
 
         if (!match) {
-          await this.repo.create({ name: item.descripcion, stock: item.stock });
+          await this.repo.create({
+            name: item.descripcion,
+            code: item.codigo,
+            stock: item.stock,
+            retailPrice: item.precio1,
+            wholesalePrice: item.precio2,
+          });
           created++;
           continue;
         }
-        // Dirty-check — no reescribe el documento si el stock no cambió.
-        if (match.stock !== item.stock) {
-          await this.repo.update(match.id, { stock: item.stock });
+
+        // Dirty-check — no reescribe el documento si nada cambió. Un match
+        // encontrado solo por nombre (sin `code` propio todavía) siempre
+        // cuenta como cambio, porque necesita el backfill de `code`.
+        const changed =
+          !match.code ||
+          match.code !== item.codigo ||
+          match.name !== item.descripcion ||
+          match.stock !== item.stock ||
+          match.retailPrice !== item.precio1 ||
+          match.wholesalePrice !== item.precio2;
+
+        if (changed) {
+          await this.repo.update(match.id, {
+            name: item.descripcion,
+            code: item.codigo,
+            stock: item.stock,
+            retailPrice: item.precio1,
+            wholesalePrice: item.precio2,
+          });
           updated++;
         }
       }

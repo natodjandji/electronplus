@@ -36,10 +36,10 @@ export const envSchema = z.object({
   // different SQL Server, a different bridge (see
   // profit-plus-bridge-secundaria/), a different sync engine
   // (SecondStoreSyncService, not SyncService above), and a different
-  // Firestore collection (secondStoreProducts, not products). Never share
-  // config or code with the principal integration above — they're two
-  // distinct ERP installs with two distinct field contracts (this one
-  // reports only description+stock). Optional — the sync just skips its
+  // Firestore collection (secondStoreProducts, not products). Both bridges
+  // report the same shape (código, descripción, stock, precio1, precio2)
+  // but never share config or code — they're two distinct ERP installs on
+  // two distinct physical servers. Optional — the sync just skips its
   // scheduled run and logs a warning until both are set.
   SECOND_STORE_PROFIT_API_URL: z.string().optional(),
   SECOND_STORE_PROFIT_API_KEY: z.string().optional(),
