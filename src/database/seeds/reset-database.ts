@@ -28,16 +28,22 @@ const PRESERVED_ADMIN_EMAIL = 'electronplusve@gmail.com';
  * deliberately, right before a store goes live for real, NOT as a routine
  * dev-cleanup command.
  *
- * Deliberately NEVER touches:
- *   - products / categories / warehouses / suppliers / paymentMethods /
- *     shippingRates / discountCodes — this is catalog/config structure,
- *     not "test data"; wiping it would take the storefront down. If any
- *     of these genuinely hold placeholder rows, remove those specific
- *     documents by hand from the Firebase console instead of scripting it.
+ * Deliberately NEVER touches (unless --include-products is also passed):
+ *   - categories / warehouses / suppliers / paymentMethods / shippingRates /
+ *     discountCodes — this is store config, not "test data"; wiping it
+ *     breaks checkout until it's reconfigured. If any of these genuinely
+ *     hold placeholder rows, remove those specific documents by hand from
+ *     the Firebase console instead of scripting it.
+ *   - products — same reasoning, EXCEPT when the catalog itself is still
+ *     just seed/demo rows (run-seed.ts) with no real ERP-synced inventory
+ *     yet, in which case --include-products clears it out too, on the
+ *     assumption the real catalog will repopulate via ApiProfitPlusAdapter
+ *     once that's connected.
  *
  * Usage:
  *   npx ts-node -r tsconfig-paths/register src/database/seeds/reset-database.ts --dry-run
  *   npx ts-node -r tsconfig-paths/register src/database/seeds/reset-database.ts --confirm
+ *   npx ts-node -r tsconfig-paths/register src/database/seeds/reset-database.ts --confirm --include-products
  *
  * Without --confirm it only prints what it *would* delete — running it
  * blind against a live store is exactly the kind of irreversible mistake
@@ -132,6 +138,7 @@ async function deleteUsersExcept(
 
 async function run() {
   const dryRun = !process.argv.includes('--confirm');
+  const includeProducts = process.argv.includes('--include-products');
   const app = await NestFactory.createApplicationContext(AppModule, {
     logger: ['log', 'warn', 'error'],
   });
@@ -155,6 +162,22 @@ async function run() {
     logger.log(`${collection}: ${count} doc(s)${dryRun ? ' would be deleted' : ' deleted'}`);
   }
 
+  if (includeProducts) {
+    const stockLevelCount = await deleteSubcollections(
+      firestore,
+      Collections.PRODUCTS,
+      Collections.STOCK_LEVELS,
+      dryRun,
+    );
+    logger.log(
+      `products/*/${Collections.STOCK_LEVELS}: ${stockLevelCount} doc(s)${dryRun ? ' would be deleted' : ' deleted'}`,
+    );
+    const productCount = await deleteCollection(firestore, Collections.PRODUCTS, dryRun);
+    logger.log(
+      `${Collections.PRODUCTS}: ${productCount} doc(s)${dryRun ? ' would be deleted' : ' deleted'}`,
+    );
+  }
+
   const proofCount = await deleteStorageFolder(bucket, 'payment-proofs/', dryRun);
   logger.log(
     `Storage payment-proofs/: ${proofCount} file(s)${dryRun ? ' would be deleted' : ' deleted'}`,
@@ -166,7 +189,7 @@ async function run() {
   );
 
   logger.log(
-    'Left untouched: products, categories, warehouses, suppliers, ' +
+    `Left untouched: ${includeProducts ? '' : 'products, '}categories, warehouses, suppliers, ` +
       'paymentMethods, shippingRates, discountCodes, and Storage products/*.',
   );
 
