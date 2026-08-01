@@ -9,6 +9,18 @@ import { Collections } from '../../firebase/firestore-collections';
 import { FirestoreRepository } from '../../firebase/firestore.repository';
 import { SecondStoreProduct } from './entities/second-store-product.entity';
 
+/**
+ * Syncs the SECUNDARIA store's Profit Plus install into `secondStoreProducts`
+ * — description+stock only, via profit-plus-bridge-secundaria. This is a
+ * distinct system from the PRINCIPAL store's integration (SyncService,
+ * ../erp-sync/sync.service.ts): different SQL Server, different bridge,
+ * different field contract (no code — matches by name text, see
+ * runInboundSync below), different Firestore collection (products, not
+ * this one). Don't merge their config, cron, or logic — the two ERP
+ * installs are unrelated beyond both being "Profit Plus". Unlike the
+ * principal side there's no adapter/mock indirection here — no bridge
+ * configured just means this cron skips its run and logs a warning.
+ */
 const SYNC_JOB_NAME = 'second-store-profit-inbound-sync';
 
 interface BridgeProduct {

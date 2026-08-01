@@ -18,17 +18,29 @@ export const envSchema = z.object({
   // The public storefront's URL — what product QR codes point to.
   PUBLIC_SITE_URL: z.string().default('https://electronplus.com.ve'),
 
-  PROFIT_PLUS_ADAPTER: z.enum(['mock', 'db', 'api']).default('mock'),
+  // Principal store's Profit Plus install (full 6-field catalog sync into
+  // `products`, via profit-plus-bridge-principal). 'api' is the default —
+  // ApiProfitPlusAdapter no-ops-with-a-logged-error until
+  // PROFIT_PLUS_API_URL/KEY are set, same graceful-degradation as every
+  // other optional integration below. There is deliberately no 'mock'
+  // option: it used to seed a fake demo catalog on every cron tick, which
+  // kept resurrecting products an admin had just deleted from the real
+  // database — see erp-sync.module.ts.
+  PROFIT_PLUS_ADAPTER: z.enum(['db', 'api']).default('api'),
   PROFIT_PLUS_SYNC_CRON: z.string().default('*/15 * * * *'),
   PROFIT_PLUS_DB_URL: z.string().optional(),
   PROFIT_PLUS_API_URL: z.string().optional(),
   PROFIT_PLUS_API_KEY: z.string().optional(),
 
-  // Second store's own Profit Plus install — a separate SQL Server, a
-  // separate bridge (see profit-plus-bridge-secundaria/), a separate
-  // catalog (second_store_products, not products). Optional — the sync
-  // just skips its scheduled run and logs a warning until both are set,
-  // same as the primary integration above.
+  // Second store's own, ENTIRELY SEPARATE Profit Plus install — a
+  // different SQL Server, a different bridge (see
+  // profit-plus-bridge-secundaria/), a different sync engine
+  // (SecondStoreSyncService, not SyncService above), and a different
+  // Firestore collection (secondStoreProducts, not products). Never share
+  // config or code with the principal integration above — they're two
+  // distinct ERP installs with two distinct field contracts (this one
+  // reports only description+stock). Optional — the sync just skips its
+  // scheduled run and logs a warning until both are set.
   SECOND_STORE_PROFIT_API_URL: z.string().optional(),
   SECOND_STORE_PROFIT_API_KEY: z.string().optional(),
   SECOND_STORE_SYNC_CRON: z.string().default('*/15 * * * *'),

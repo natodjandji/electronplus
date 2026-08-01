@@ -14,6 +14,17 @@ import { ProductsService } from '../products/products.service';
 import { PROFIT_PLUS_ADAPTER, ProfitPlusAdapter } from './adapters/profit-plus-adapter.interface';
 import { SyncDirection, SyncLog, SyncStatus, syncLogExpiresAt } from './entities/sync-log.entity';
 
+/**
+ * Syncs the PRINCIPAL store's Profit Plus install into the main `products`
+ * collection — full catalog (code, description, category, stock, both
+ * prices) via profit-plus-bridge-principal / ApiProfitPlusAdapter. This is
+ * a distinct system from the SECUNDARIA store's integration
+ * (SecondStoreSyncService, ../second-store/second-store-sync.service.ts):
+ * different SQL Server, different bridge, different field contract
+ * (description+stock only), different Firestore collection
+ * (secondStoreProducts). Don't merge their config, cron, or logic — the
+ * two ERP installs are unrelated beyond both being "Profit Plus".
+ */
 const INBOUND_CRON_JOB_NAME = 'profit-plus-inbound-sync';
 
 export const ERP_SYNC_ERROR_EVENT = 'erp.sync.error';
