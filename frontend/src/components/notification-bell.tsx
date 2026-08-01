@@ -10,7 +10,13 @@ import { auth } from "@/lib/firebase";
 import { formatDate } from "@/lib/format";
 
 type NotificationType =
-  "low_stock" | "out_of_stock" | "invoice_due_soon" | "invoice_overdue" | "sync_error";
+  | "low_stock"
+  | "out_of_stock"
+  | "invoice_due_soon"
+  | "invoice_overdue"
+  | "expense_due_soon"
+  | "expense_overdue"
+  | "sync_error";
 
 interface AppNotification {
   id: string;
@@ -33,6 +39,9 @@ function targetFor(notification: AppNotification): string {
     case "invoice_due_soon":
     case "invoice_overdue":
       return "/admin/purchases";
+    case "expense_due_soon":
+    case "expense_overdue":
+      return "/admin/expenses";
     case "sync_error":
       return "/admin/settings?tab=erp-sync";
   }

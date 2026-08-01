@@ -24,6 +24,15 @@ export const envSchema = z.object({
   PROFIT_PLUS_API_URL: z.string().optional(),
   PROFIT_PLUS_API_KEY: z.string().optional(),
 
+  // Second store's own Profit Plus install — a separate SQL Server, a
+  // separate bridge (see profit-plus-bridge-secundaria/), a separate
+  // catalog (second_store_products, not products). Optional — the sync
+  // just skips its scheduled run and logs a warning until both are set,
+  // same as the primary integration above.
+  SECOND_STORE_PROFIT_API_URL: z.string().optional(),
+  SECOND_STORE_PROFIT_API_KEY: z.string().optional(),
+  SECOND_STORE_SYNC_CRON: z.string().default('*/15 * * * *'),
+
   LOW_STOCK_DEFAULT_THRESHOLD: z.coerce.number().default(10),
 
   PAYPAL_CLIENT_ID: z.string().optional(),

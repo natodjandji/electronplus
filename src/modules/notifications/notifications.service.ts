@@ -8,6 +8,8 @@ import { Role } from '../../common/enums/role.enum';
 import { ERP_SYNC_ERROR_EVENT, ErpSyncErrorEvent } from '../erp-sync/sync.service';
 import { INVOICE_DUE_ALERT_EVENT, InvoiceDueAlertEvent } from '../finance/finance.service';
 import { PayableDueStatus } from '../finance/entities/supplier-payable.entity';
+import { EXPENSE_DUE_ALERT_EVENT, ExpenseDueAlertEvent } from '../expenses/expenses.service';
+import { ExpenseDueStatus } from '../expenses/entities/expense.entity';
 import { STOCK_ALERT_RAISED_EVENT, StockAlertRaisedEvent } from '../inventory/inventory.service';
 import { StockAlertLevel } from '../inventory/entities/stock-alert.entity';
 import { STOCK_CHANGED_EVENT, StockChangedEvent } from '../products/products.service';
@@ -121,6 +123,25 @@ export class NotificationsService {
     } catch (error) {
       this.logger.error(
         `Failed to create invoice due notification for ${payload.invoiceNumber}`,
+        error as Error,
+      );
+    }
+  }
+
+  @OnEvent(EXPENSE_DUE_ALERT_EVENT)
+  async handleExpenseDue(payload: ExpenseDueAlertEvent): Promise<void> {
+    try {
+      const isOverdue = payload.dueStatus === ExpenseDueStatus.OVERDUE;
+      await this.create(
+        isOverdue ? NotificationType.EXPENSE_OVERDUE : NotificationType.EXPENSE_DUE_SOON,
+        isOverdue ? 'Gasto vencido' : 'Gasto por vencer',
+        `${payload.name} vence el ${payload.dueDate}`,
+        [Role.ADMIN],
+        { ...payload },
+      );
+    } catch (error) {
+      this.logger.error(
+        `Failed to create expense due notification for ${payload.name}`,
         error as Error,
       );
     }

@@ -17,6 +17,7 @@ import { PaymentsModule } from './modules/payments/payments.module';
 import { ErpSyncModule } from './modules/erp-sync/erp-sync.module';
 import { InventoryModule } from './modules/inventory/inventory.module';
 import { FinanceModule } from './modules/finance/finance.module';
+import { ExpensesModule } from './modules/expenses/expenses.module';
 import { PurchaseOrdersModule } from './modules/purchase-orders/purchase-orders.module';
 import { ReportsModule } from './modules/reports/reports.module';
 import { QrModule } from './modules/qr/qr.module';
@@ -69,6 +70,7 @@ import { EmailModule } from './modules/email/email.module';
     ErpSyncModule,
     InventoryModule,
     FinanceModule,
+    ExpensesModule,
     PurchaseOrdersModule,
     ReportsModule,
     QrModule,

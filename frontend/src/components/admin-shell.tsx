@@ -15,6 +15,7 @@ import {
   AlertTriangle,
   Settings,
   Menu,
+  Wallet,
 } from "lucide-react";
 import { ElectronLogo } from "./electron-logo";
 import { PageTransition } from "./motion-primitives";
@@ -66,6 +67,10 @@ const NAV_GROUPS = [
         exact: false,
       },
     ],
+  },
+  {
+    label: "Finanzas",
+    items: [{ to: "/admin/expenses", label: "Gastos", icon: Wallet, exact: false }],
   },
 ];
 

@@ -66,7 +66,7 @@ export function PriceTag({
         )}
       </div>
 
-      <div className={`flex items-center ${WHOLESALE_BOX[size]}`}>
+      <div className={`inline-flex w-fit items-center ${WHOLESALE_BOX[size]}`}>
         <Tag className="h-3.5 w-3.5 shrink-0 text-brand-yellow" />
         <span
           className={`font-bold leading-none tabular-nums text-brand-navy ${WHOLESALE_AMOUNT[size]}`}

@@ -17,7 +17,6 @@ import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { PriceTag } from "@/components/price-tag";
-import { CasheaBanner } from "@/components/cashea-banner";
 import { ProductImage } from "@/components/product-image";
 import { apiFetch } from "@/lib/api-client";
 import { type ApiProduct, toProduct } from "@/lib/product-api";
@@ -171,7 +170,6 @@ function ProductPage() {
                   Tasa BCV del día: {formatBs(1, bcv.rate)} por USD
                 </p>
               )}
-              <CasheaBanner />
             </div>
 
             <div className="mt-5 flex flex-wrap items-center gap-3">

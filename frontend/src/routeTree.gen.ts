@@ -20,6 +20,7 @@ import { Route as LoginRouteImport } from './routes/login'
 import { Route as QuotesRouteImport } from './routes/quotes'
 import { Route as RegisterRouteImport } from './routes/register'
 import { Route as AdminIndexRouteImport } from './routes/admin.index'
+import { Route as AdminExpensesRouteImport } from './routes/admin.expenses'
 import { Route as AdminInventoryRouteImport } from './routes/admin.inventory'
 import { Route as AdminLabelsRouteImport } from './routes/admin.labels'
 import { Route as AdminOrdersRouteImport } from './routes/admin.orders'
@@ -87,6 +88,11 @@ const RegisterRoute = RegisterRouteImport.update({
 const AdminIndexRoute = AdminIndexRouteImport.update({
   id: '/',
   path: '/',
+  getParentRoute: () => AdminRoute,
+} as any)
+const AdminExpensesRoute = AdminExpensesRouteImport.update({
+  id: '/expenses',
+  path: '/expenses',
   getParentRoute: () => AdminRoute,
 } as any)
 const AdminInventoryRoute = AdminInventoryRouteImport.update({
@@ -166,6 +172,7 @@ export interface FileRoutesByFullPath {
   '/login': typeof LoginRoute
   '/quotes': typeof QuotesRoute
   '/register': typeof RegisterRoute
+  '/admin/expenses': typeof AdminExpensesRoute
   '/admin/inventory': typeof AdminInventoryRoute
   '/admin/labels': typeof AdminLabelsRoute
   '/admin/orders': typeof AdminOrdersRoute
@@ -191,6 +198,7 @@ export interface FileRoutesByTo {
   '/login': typeof LoginRoute
   '/quotes': typeof QuotesRoute
   '/register': typeof RegisterRoute
+  '/admin/expenses': typeof AdminExpensesRoute
   '/admin/inventory': typeof AdminInventoryRoute
   '/admin/labels': typeof AdminLabelsRoute
   '/admin/orders': typeof AdminOrdersRoute
@@ -218,6 +226,7 @@ export interface FileRoutesById {
   '/login': typeof LoginRoute
   '/quotes': typeof QuotesRoute
   '/register': typeof RegisterRoute
+  '/admin/expenses': typeof AdminExpensesRoute
   '/admin/inventory': typeof AdminInventoryRoute
   '/admin/labels': typeof AdminLabelsRoute
   '/admin/orders': typeof AdminOrdersRoute
@@ -246,6 +255,7 @@ export interface FileRouteTypes {
     | '/login'
     | '/quotes'
     | '/register'
+    | '/admin/expenses'
     | '/admin/inventory'
     | '/admin/labels'
     | '/admin/orders'
@@ -271,6 +281,7 @@ export interface FileRouteTypes {
     | '/login'
     | '/quotes'
     | '/register'
+    | '/admin/expenses'
     | '/admin/inventory'
     | '/admin/labels'
     | '/admin/orders'
@@ -297,6 +308,7 @@ export interface FileRouteTypes {
     | '/login'
     | '/quotes'
     | '/register'
+    | '/admin/expenses'
     | '/admin/inventory'
     | '/admin/labels'
     | '/admin/orders'
@@ -407,6 +419,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AdminIndexRouteImport
       parentRoute: typeof AdminRoute
     }
+    '/admin/expenses': {
+      id: '/admin/expenses'
+      path: '/expenses'
+      fullPath: '/admin/expenses'
+      preLoaderRoute: typeof AdminExpensesRouteImport
+      parentRoute: typeof AdminRoute
+    }
     '/admin/inventory': {
       id: '/admin/inventory'
       path: '/inventory'
@@ -502,6 +521,7 @@ declare module '@tanstack/react-router' {
 }
 
 interface AdminRouteChildren {
+  AdminExpensesRoute: typeof AdminExpensesRoute
   AdminInventoryRoute: typeof AdminInventoryRoute
   AdminLabelsRoute: typeof AdminLabelsRoute
   AdminOrdersRoute: typeof AdminOrdersRoute
@@ -516,6 +536,7 @@ interface AdminRouteChildren {
 }
 
 const AdminRouteChildren: AdminRouteChildren = {
+  AdminExpensesRoute: AdminExpensesRoute,
   AdminInventoryRoute: AdminInventoryRoute,
   AdminLabelsRoute: AdminLabelsRoute,
   AdminOrdersRoute: AdminOrdersRoute,

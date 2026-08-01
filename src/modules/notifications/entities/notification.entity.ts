@@ -6,6 +6,8 @@ export enum NotificationType {
   OUT_OF_STOCK = 'out_of_stock',
   INVOICE_DUE_SOON = 'invoice_due_soon',
   INVOICE_OVERDUE = 'invoice_overdue',
+  EXPENSE_DUE_SOON = 'expense_due_soon',
+  EXPENSE_OVERDUE = 'expense_overdue',
   SYNC_ERROR = 'sync_error',
 }
 

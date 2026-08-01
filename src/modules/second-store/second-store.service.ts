@@ -14,20 +14,13 @@ export interface SecondStoreProductWithLink extends SecondStoreProduct {
 }
 
 /**
- * Readiness note for the second Profit Plus integration (secondary store):
- * `stock` here is manually entered today (via update() below) because
- * there's no live feed yet. Once one exists, wire it in the same shape as
- * the primary store's sync (see erp-sync/sync.service.ts's
- * runInboundSync() + ProductsService.upsertFromErp()) — a scheduled job
- * that, for each item the second system reports, looks up the matching
- * SecondStoreProduct by its external SKU/code and calls repo.update(id,
- * { stock }). No frontend change is needed for this: admin.inventory.tsx
- * already just renders whatever `stock` value is on the record, whether a
- * human or a sync job set it last. The one open design decision — not
- * something to guess at — is whether manual editing should stay available
- * once a live feed exists (for one-off corrections) or get disabled in
- * favor of the feed being the sole source of truth, matching how the
- * primary store already works.
+ * `stock` here can be set two ways: manually via update() below, or by
+ * SecondStoreSyncService's scheduled pull from profit-plus-bridge-secundaria
+ * (see that file's doc comment — matches by `name` text since that bridge
+ * only reports description+stock, no code). Both stay available at once,
+ * same tradeoff the primary catalog already accepts between its own ERP
+ * sync and ProductsController's manual adjustStock endpoint: whichever
+ * wrote last wins, and the next scheduled sync overwrites it again.
  */
 
 @Injectable()

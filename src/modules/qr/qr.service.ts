@@ -17,12 +17,10 @@ export interface QrLabel {
   retailPrice: number;
   wholesalePrice: number;
   token: string;
-  /** The product's public storefront page — what the printed QR code encodes. */
+  /** The product's public storefront page — what every printed QR code encodes. */
   productUrl: string;
-  /** QR pointing at the storefront page — the "precio" label format. */
+  /** QR pointing at the storefront page — used by both the "precio" and "almacén" label formats. */
   qrImageDataUrl: string;
-  /** QR encoding just the SKU — the "almacén" label format (internal scanning, no URL). */
-  skuQrImageDataUrl: string;
   /** Scannable Code128 barcode encoding the SKU — the "producto" label format. */
   barcodeImageDataUrl: string;
 }
@@ -54,12 +52,8 @@ export class QrService {
     // Points at the real storefront product page — not the backend API —
     // so scanning the printed label opens a normal webpage for anyone.
     const productUrl = `${this.config.get('PUBLIC_SITE_URL', { infer: true })}/product/qr/${product.id}`;
-    const [qrImageDataUrl, skuQrImageDataUrl, barcodeImageDataUrl] = await Promise.all([
+    const [qrImageDataUrl, barcodeImageDataUrl] = await Promise.all([
       QRCode.toDataURL(productUrl, { margin: 1, width: 256 }),
-      // The "almacén" label format — QR encodes the SKU directly (not a
-      // URL) so warehouse staff can scan it with any generic QR reader
-      // without needing network access to resolve anything.
-      QRCode.toDataURL(product.sku, { margin: 1, width: 256 }),
       this.buildBarcodeDataUrl(product.sku),
     ]);
     return {
@@ -69,7 +63,6 @@ export class QrService {
       retailPrice: product.retailPrice,
       wholesalePrice: product.wholesalePrice,
       token: product.qrToken,
-      skuQrImageDataUrl,
       barcodeImageDataUrl,
       productUrl,
       qrImageDataUrl,

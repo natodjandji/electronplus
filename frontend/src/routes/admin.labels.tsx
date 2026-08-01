@@ -39,10 +39,8 @@ interface QrLabel {
   name: string;
   retailPrice: number;
   wholesalePrice: number;
-  /** QR pointing at the storefront page — the "precio" format. */
+  /** QR pointing at the storefront page — used by both the "precio" and "almacén" formats. */
   qrImageDataUrl: string;
-  /** QR encoding just the SKU — the "almacén" format. */
-  skuQrImageDataUrl: string;
   /** Scannable Code128 barcode (SKU baked in as human-readable text) — the "producto" format. */
   barcodeImageDataUrl: string;
 }
@@ -53,7 +51,7 @@ const FORMAT_OPTIONS: { value: LabelFormat; label: string; hint: string }[] = [
   {
     value: "almacen",
     label: "Almacén",
-    hint: "Solo descripción y QR del SKU — para identificar bultos en el depósito, sin precios.",
+    hint: "Descripción y QR a la ficha del producto — para identificar bultos en el depósito, sin precios.",
   },
   {
     value: "producto",
@@ -107,7 +105,7 @@ function LabelCard({ label, format }: { label: QrLabel & { key: string }; format
     return (
       <div className="qr-label flex items-center gap-2 overflow-hidden border border-dashed border-brand-navy/30 bg-white p-2 print:border-none">
         <img
-          src={label.skuQrImageDataUrl}
+          src={label.qrImageDataUrl}
           alt=""
           className="h-[22mm] w-[22mm] shrink-0 object-contain"
         />
