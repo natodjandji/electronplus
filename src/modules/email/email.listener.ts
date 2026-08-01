@@ -28,6 +28,8 @@ import { quoteStatusEmail } from './templates/quote-status-email';
 import { stockAlertEmail } from './templates/stock-alert-email';
 import { welcomeEmail } from './templates/welcome-email';
 
+const ADMIN_CACHE_TTL_MS = 5 * 60 * 1000;
+
 /** One listener per lifecycle email (welcome, order received, fulfillment
  * updates) — each wrapped in try/catch so a failed send (or a lookup that
  * 404s, e.g. a since-deleted order) never bubbles up and disrupts whatever
@@ -37,6 +39,7 @@ import { welcomeEmail } from './templates/welcome-email';
 export class EmailListener {
   private readonly logger = new Logger(EmailListener.name);
   private readonly siteUrl: string;
+  private cachedAdminEmails?: { emails: string[]; at: number };
 
   constructor(
     private readonly email: EmailService,
@@ -107,11 +110,23 @@ export class EmailListener {
   // stock alerts also reaches them (NotificationsService.handleStockAlert).
   // Email is more disruptive than the bell, so it's scoped tighter.
 
+  /** Alert events arrive in bursts — one ERP sync can raise a low-stock alert for
+   * every product that crossed its threshold, and each one lands here separately.
+   * Re-reading the admin list per alert made that a Firestore read per email, so
+   * the recipient list is cached briefly; admins change far more rarely than
+   * alerts fire. */
+  private async adminEmails(): Promise<string[]> {
+    if (this.cachedAdminEmails && Date.now() - this.cachedAdminEmails.at < ADMIN_CACHE_TTL_MS) {
+      return this.cachedAdminEmails.emails;
+    }
+    const emails = (await this.usersService.findAdmins()).map((a) => a.email).filter(Boolean);
+    this.cachedAdminEmails = { emails, at: Date.now() };
+    return emails;
+  }
+
   private async emailEveryAdmin(subject: string, html: string): Promise<void> {
-    const admins = await this.usersService.findAdmins();
-    await Promise.all(
-      admins.filter((a) => a.email).map((a) => this.email.send(a.email, subject, html)),
-    );
+    const emails = await this.adminEmails();
+    await Promise.all(emails.map((to) => this.email.send(to, subject, html)));
   }
 
   @OnEvent(STOCK_ALERT_RAISED_EVENT)

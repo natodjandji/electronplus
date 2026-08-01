@@ -56,6 +56,10 @@ function generateQrToken(): string {
 // orders on every call — cached briefly per `limit` so the busiest
 // unauthenticated route on the site doesn't rescan on every visit.
 const TOP_SELLING_CACHE_TTL_MS = 15 * 60 * 1000;
+const TOP_SELLING_DEFAULT_LIMIT = 8;
+// Caps how many distinct cache keys can ever exist (1..24), since the key
+// comes from an unauthenticated query param — see topSelling()'s doc comment.
+const TOP_SELLING_MAX_LIMIT = 24;
 
 @Injectable()
 export class ProductsService {
@@ -123,8 +127,19 @@ export class ProductsService {
    * days — falls back to filling remaining slots with other active products so a fresh store
    * never looks sparse. Bounded to a recent window (rather than the full order history) since
    * this backs the public, unauthenticated /products/best-sellers endpoint hit on every
-   * storefront visit — an unbounded scan would grow more expensive with every order ever placed. */
-  async topSelling(limit = 8): Promise<Product[]> {
+   * storefront visit — an unbounded scan would grow more expensive with every order ever placed.
+   *
+   * `limit` arrives straight off an unauthenticated query string, and it's also the
+   * topSellingCache key — so it MUST be normalized to a small set of integers before being
+   * used. Unclamped, `?limit=<n>` for arbitrary n gave an attacker two free primitives:
+   * grow the cache Map without bound (one permanent entry per distinct value → OOM), and
+   * force a cache miss on every request (each miss re-runs the 90-day order scan → Firestore
+   * read amplification). Non-numeric input also reached the cache as a NaN key and made
+   * slice(0, NaN) silently return an empty list. */
+  async topSelling(limitInput = TOP_SELLING_DEFAULT_LIMIT): Promise<Product[]> {
+    const limit = Number.isFinite(limitInput)
+      ? Math.min(Math.max(Math.trunc(limitInput), 1), TOP_SELLING_MAX_LIMIT)
+      : TOP_SELLING_DEFAULT_LIMIT;
     const cached = this.topSellingCache.get(limit);
     if (cached && Date.now() - cached.cachedAt < TOP_SELLING_CACHE_TTL_MS) {
       return cached.data;

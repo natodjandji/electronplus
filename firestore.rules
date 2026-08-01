@@ -167,5 +167,50 @@ service cloud.firestore {
       allow read: if isAdmin() || (isSignedIn() && userRole() in resource.data.targetRoles);
       allow write: if false;
     }
+
+    match /secondStoreSyncLogs/{logId} {
+      allow read: if isOps();
+      allow write: if false;
+    }
+
+    // ---------- storefront config + second-store catalog ----------
+    // These were previously covered only by Firestore's implicit
+    // deny-by-default (no matching rule = denied), which is correct today
+    // but silent: nothing here declared the intent, so a future catch-all
+    // rule would have quietly opened them up. Every one of these is written
+    // exclusively by the NestJS backend via the Admin SDK (which bypasses
+    // rules entirely), so direct client writes stay denied — the rules just
+    // say so explicitly now.
+
+    // Enabled payment methods and shipping rates are rendered during a
+    // public checkout, so they stay world-readable like the catalog above.
+    match /paymentMethods/{methodId} {
+      allow read: if true;
+      allow write: if false;
+    }
+
+    match /shippingRates/{rateId} {
+      allow read: if true;
+      allow write: if false;
+    }
+
+    // Discount codes are NOT public — listing them would hand out every
+    // active promo. Validation/redemption happens server-side at checkout.
+    match /discountCodes/{codeId} {
+      allow read: if isAdmin();
+      allow write: if false;
+    }
+
+    match /secondStoreProducts/{productId} {
+      allow read: if isOps();
+      allow write: if false;
+    }
+
+    // Operating expenses — rent, payroll, taxes. Admin-only, same absolute
+    // boundary as suppliers_payables.
+    match /expenses/{expenseId} {
+      allow read: if isAdmin();
+      allow write: if false;
+    }
   }
 }
