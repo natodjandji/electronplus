@@ -1,9 +1,10 @@
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { AdminShell } from "@/components/admin-shell";
 import { DiscountCodesPanel } from "@/components/admin/discount-codes-panel";
-import { ErpSyncPanel } from "@/components/admin/erp-sync-panel";
+import { ErpSyncPanel, SecondStoreSyncPanel } from "@/components/admin/erp-sync-panel";
 import { PaymentMethodsPanel } from "@/components/admin/payment-methods-panel";
 import { ShippingRatesPanel } from "@/components/admin/shipping-rates-panel";
+import { Separator } from "@/components/ui/separator";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 
 const TABS = ["payment-methods", "shipping", "discounts", "erp-sync"] as const;
@@ -53,8 +54,13 @@ function SettingsPage() {
         <TabsContent value="discounts" className="mt-6">
           <DiscountCodesPanel />
         </TabsContent>
-        <TabsContent value="erp-sync" className="mt-6">
+        <TabsContent value="erp-sync" className="mt-6 space-y-6">
+          {/* Two independent Profit Plus servers, two independent
+              locations — each store's connection health/history is shown
+              on its own, never combined into a single status. */}
           <ErpSyncPanel />
+          <Separator />
+          <SecondStoreSyncPanel />
         </TabsContent>
       </Tabs>
     </AdminShell>

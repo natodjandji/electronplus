@@ -3,7 +3,7 @@ import { AlertTriangle, CheckCircle2, Loader2, RefreshCw, XCircle } from "lucide
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
-import { apiFetch, ApiError, reportError } from "@/lib/api-client";
+import { apiFetch, reportError } from "@/lib/api-client";
 import { toast } from "sonner";
 
 type SyncDirection = "inbound" | "outbound";
@@ -11,7 +11,7 @@ type SyncStatus = "running" | "success" | "error";
 
 interface SyncLog {
   id: string;
-  direction: SyncDirection;
+  direction?: SyncDirection;
   status: SyncStatus;
   startedAt: string;
   finishedAt?: string;
@@ -22,7 +22,6 @@ interface SyncLog {
 
 interface SyncStatusResponse {
   lastInbound: SyncLog | null;
-  lastOutbound: SyncLog | null;
   adapterHealthy: boolean;
 }
 
@@ -47,33 +46,50 @@ function formatDateTime(iso: string): string {
   });
 }
 
-function useSyncStatus() {
-  return useQuery({
-    queryKey: ["admin", "erp-sync", "status"],
-    queryFn: () => apiFetch<SyncStatusResponse>("/erp-sync/status"),
+/**
+ * Generic status+history panel for one ERP sync engine. The principal and
+ * secundaria stores each get their own instance of this (see below) — they
+ * point at different API paths because they're genuinely two different
+ * Profit Plus servers in two different physical locations, so one being
+ * reachable says nothing about the other. Never merge them into a single
+ * combined status.
+ */
+function SyncStatusPanel({
+  title,
+  description,
+  statusPath,
+  logsPath,
+  triggerPath,
+  queryKeyPrefix,
+  showDirectionColumn = false,
+}: {
+  title: string;
+  description: string;
+  statusPath: string;
+  logsPath: string;
+  triggerPath: string;
+  queryKeyPrefix: string;
+  showDirectionColumn?: boolean;
+}) {
+  const queryClient = useQueryClient();
+
+  const { data: status, isLoading: statusLoading } = useQuery({
+    queryKey: ["admin", queryKeyPrefix, "status"],
+    queryFn: () => apiFetch<SyncStatusResponse>(statusPath),
     // The inbound sync runs on its own cron every ~15 min — poll so a
     // stuck/failed run shows up here without needing a manual refresh.
     refetchInterval: 30_000,
   });
-}
-
-function useSyncLogs() {
-  return useQuery({
-    queryKey: ["admin", "erp-sync", "logs"],
-    queryFn: () => apiFetch<SyncLog[]>("/erp-sync/logs"),
+  const { data: logs, isLoading: logsLoading } = useQuery({
+    queryKey: ["admin", queryKeyPrefix, "logs"],
+    queryFn: () => apiFetch<SyncLog[]>(logsPath),
     refetchInterval: 30_000,
   });
-}
-
-export function ErpSyncPanel() {
-  const { data: status, isLoading: statusLoading } = useSyncStatus();
-  const { data: logs, isLoading: logsLoading } = useSyncLogs();
-  const queryClient = useQueryClient();
 
   const trigger = useMutation({
-    mutationFn: () => apiFetch("/erp-sync/trigger", { method: "POST" }),
+    mutationFn: () => apiFetch(triggerPath, { method: "POST" }),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["admin", "erp-sync"] });
+      queryClient.invalidateQueries({ queryKey: ["admin", queryKeyPrefix] });
       toast.success("Sincronización con Profit Plus completada");
     },
     onError: reportError,
@@ -82,10 +98,10 @@ export function ErpSyncPanel() {
   return (
     <div>
       <div className="flex flex-wrap items-start justify-between gap-3">
-        <p className="max-w-2xl text-sm text-muted-foreground">
-          Estado de la sincronización automática de inventario con Profit Plus (cada 15 minutos) y
-          el historial de corridas.
-        </p>
+        <div>
+          <h3 className="text-sm font-semibold text-brand-navy">{title}</h3>
+          <p className="mt-0.5 max-w-2xl text-sm text-muted-foreground">{description}</p>
+        </div>
         <Button
           className="shrink-0 gap-2 bg-brand-blue text-white hover:bg-brand-blue/90"
           onClick={() => trigger.mutate()}
@@ -100,7 +116,7 @@ export function ErpSyncPanel() {
         </Button>
       </div>
 
-      <div className="mt-6 grid gap-4 sm:grid-cols-2">
+      <div className="mt-4 grid gap-4 sm:grid-cols-2">
         <Card className="p-5">
           <div className="flex items-center gap-3">
             <div
@@ -158,7 +174,7 @@ export function ErpSyncPanel() {
         </Card>
       </div>
 
-      <Card className="mt-6 overflow-hidden">
+      <Card className="mt-4 overflow-hidden">
         <div className="border-b border-border bg-brand-surface px-4 py-2 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
           Historial
         </div>
@@ -167,7 +183,7 @@ export function ErpSyncPanel() {
             <thead>
               <tr className="border-b border-border text-left text-xs uppercase tracking-wider text-muted-foreground">
                 <th className="px-4 py-2">Fecha</th>
-                <th className="px-4 py-2">Dirección</th>
+                {showDirectionColumn && <th className="px-4 py-2">Dirección</th>}
                 <th className="px-4 py-2">Estado</th>
                 <th className="px-4 py-2 text-right">Ítems</th>
               </tr>
@@ -175,7 +191,10 @@ export function ErpSyncPanel() {
             <tbody>
               {!logsLoading && (logs?.length ?? 0) === 0 && (
                 <tr>
-                  <td colSpan={4} className="py-8 text-center text-muted-foreground">
+                  <td
+                    colSpan={showDirectionColumn ? 4 : 3}
+                    className="py-8 text-center text-muted-foreground"
+                  >
                     Sin corridas registradas.
                   </td>
                 </tr>
@@ -183,9 +202,11 @@ export function ErpSyncPanel() {
               {logs?.map((log) => (
                 <tr key={log.id} className="border-t border-border">
                   <td className="px-4 py-2.5 text-brand-navy">{formatDateTime(log.startedAt)}</td>
-                  <td className="px-4 py-2.5 text-muted-foreground">
-                    {log.direction === "inbound" ? "Entrante" : "Saliente"}
-                  </td>
+                  {showDirectionColumn && (
+                    <td className="px-4 py-2.5 text-muted-foreground">
+                      {log.direction === "inbound" ? "Entrante" : "Saliente"}
+                    </td>
+                  )}
                   <td className="px-4 py-2.5">
                     <Badge className={STATUS_BADGE[log.status]}>{STATUS_LABEL[log.status]}</Badge>
                     {log.status === "error" && log.error && (
@@ -200,5 +221,32 @@ export function ErpSyncPanel() {
         </div>
       </Card>
     </div>
+  );
+}
+
+export function ErpSyncPanel() {
+  return (
+    <SyncStatusPanel
+      title="Tienda principal"
+      description="Sincronización automática de inventario con el Profit Plus de la tienda principal (cada 15 minutos) y su historial de corridas."
+      statusPath="/erp-sync/status"
+      logsPath="/erp-sync/logs"
+      triggerPath="/erp-sync/trigger"
+      queryKeyPrefix="erp-sync"
+      showDirectionColumn
+    />
+  );
+}
+
+export function SecondStoreSyncPanel() {
+  return (
+    <SyncStatusPanel
+      title="Tienda secundaria"
+      description="Sincronización automática de descripción y stock con el Profit Plus de la tienda secundaria (cada 15 minutos) — un servidor distinto, en una ubicación distinta al de la tienda principal."
+      statusPath="/second-store-products/sync/status"
+      logsPath="/second-store-products/sync/logs"
+      triggerPath="/second-store-products/sync/trigger"
+      queryKeyPrefix="second-store-sync"
+    />
   );
 }

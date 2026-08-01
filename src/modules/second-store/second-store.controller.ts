@@ -46,6 +46,16 @@ export class SecondStoreController {
     return this.secondStoreSyncService.runInboundSync();
   }
 
+  @Get('sync/status')
+  syncStatus() {
+    return this.secondStoreSyncService.getStatus();
+  }
+
+  @Get('sync/logs')
+  syncLogs() {
+    return this.secondStoreSyncService.getLogs();
+  }
+
   @Post()
   @Roles(Role.ADMIN)
   create(@Body() dto: CreateSecondStoreProductDto) {

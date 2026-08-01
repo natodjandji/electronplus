@@ -20,5 +20,6 @@ export const Collections = {
   SHIPPING_RATES: 'shippingRates',
   DISCOUNT_CODES: 'discountCodes',
   SECOND_STORE_PRODUCTS: 'secondStoreProducts',
+  SECOND_STORE_SYNC_LOGS: 'secondStoreSyncLogs',
   EXPENSES: 'expenses',
 } as const;

@@ -8,6 +8,11 @@ import { FIRESTORE } from '../../firebase/firebase.constants';
 import { Collections } from '../../firebase/firestore-collections';
 import { FirestoreRepository } from '../../firebase/firestore.repository';
 import { SecondStoreProduct } from './entities/second-store-product.entity';
+import {
+  SecondStoreSyncLog,
+  SecondStoreSyncStatus,
+  secondStoreSyncLogExpiresAt,
+} from './entities/second-store-sync-log.entity';
 
 /**
  * Syncs the SECUNDARIA store's Profit Plus install into `secondStoreProducts`
@@ -62,6 +67,7 @@ export interface SecondStoreSyncResult {
 export class SecondStoreSyncService implements OnModuleInit {
   private readonly logger = new Logger(SecondStoreSyncService.name);
   private readonly repo: FirestoreRepository<SecondStoreProduct>;
+  private readonly logsRepo: FirestoreRepository<SecondStoreSyncLog>;
 
   constructor(
     @Inject(FIRESTORE) firestore: Firestore,
@@ -71,6 +77,10 @@ export class SecondStoreSyncService implements OnModuleInit {
     this.repo = new FirestoreRepository<SecondStoreProduct>(
       firestore,
       Collections.SECOND_STORE_PRODUCTS,
+    );
+    this.logsRepo = new FirestoreRepository<SecondStoreSyncLog>(
+      firestore,
+      Collections.SECOND_STORE_SYNC_LOGS,
     );
   }
 
@@ -86,58 +96,114 @@ export class SecondStoreSyncService implements OnModuleInit {
   }
 
   async runInboundSync(): Promise<SecondStoreSyncResult> {
+    const log = await this.logsRepo.create({
+      status: SecondStoreSyncStatus.RUNNING,
+      startedAt: new Date(),
+      itemsProcessed: 0,
+      expiresAt: secondStoreSyncLogExpiresAt(),
+    });
+
     const url = this.config.get('SECOND_STORE_PROFIT_API_URL', { infer: true });
     const apiKey = this.config.get('SECOND_STORE_PROFIT_API_KEY', { infer: true });
     if (!url || !apiKey) {
-      this.logger.warn(
-        'SECOND_STORE_PROFIT_API_URL/SECOND_STORE_PROFIT_API_KEY no configurados todavía — se salta este ciclo de sincronización.',
-      );
+      const message =
+        'SECOND_STORE_PROFIT_API_URL/SECOND_STORE_PROFIT_API_KEY no configurados todavía — se salta este ciclo de sincronización.';
+      this.logger.warn(message);
+      await this.logsRepo.update(log.id, {
+        status: SecondStoreSyncStatus.ERROR,
+        error: message,
+        finishedAt: new Date(),
+      });
       return { fromBridge: 0, created: 0, updated: 0, unchanged: 0 };
     }
 
-    const res = await fetch(`${url.replace(/\/+$/, '')}/api/productos-sincronizacion`, {
-      headers: { Authorization: `Bearer ${apiKey}` },
-    });
-    if (!res.ok) {
-      throw new Error(
-        `El bridge de la tienda secundaria respondió ${res.status}: ${await res.text()}`,
+    try {
+      const res = await fetch(`${url.replace(/\/+$/, '')}/api/productos-sincronizacion`, {
+        headers: { Authorization: `Bearer ${apiKey}` },
+      });
+      if (!res.ok) {
+        throw new Error(
+          `El bridge de la tienda secundaria respondió ${res.status}: ${await res.text()}`,
+        );
+      }
+      const data = (await res.json()) as BridgeResponse;
+
+      // Una sola lectura para toda la corrida — cada artículo del bridge se
+      // resuelve en memoria contra este mapa en vez de una query por
+      // artículo (mismo patrón ya usado en el sync de la tienda principal).
+      const existing = await this.repo.findAll();
+      const byName = new Map(existing.map((p) => [p.name.trim().toLowerCase(), p]));
+
+      let created = 0;
+      let updated = 0;
+      for (const item of data.productos) {
+        const key = item.descripcion.trim().toLowerCase();
+        const match = byName.get(key);
+
+        if (!match) {
+          await this.repo.create({ name: item.descripcion, stock: item.stock });
+          created++;
+          continue;
+        }
+        // Dirty-check — no reescribe el documento si el stock no cambió.
+        if (match.stock !== item.stock) {
+          await this.repo.update(match.id, { stock: item.stock });
+          updated++;
+        }
+      }
+
+      const result: SecondStoreSyncResult = {
+        fromBridge: data.productos.length,
+        created,
+        updated,
+        unchanged: data.productos.length - created - updated,
+      };
+      this.logger.log(
+        `Second-store sync: ${result.fromBridge} artículos del bridge, ${result.created} creados, ${result.updated} actualizados, ${result.unchanged} sin cambios.`,
       );
+      await this.logsRepo.update(log.id, {
+        status: SecondStoreSyncStatus.SUCCESS,
+        itemsProcessed: result.fromBridge,
+        finishedAt: new Date(),
+      });
+      return result;
+    } catch (error) {
+      await this.logsRepo.update(log.id, {
+        status: SecondStoreSyncStatus.ERROR,
+        error: (error as Error).message,
+        finishedAt: new Date(),
+      });
+      throw error;
     }
-    const data = (await res.json()) as BridgeResponse;
+  }
 
-    // Una sola lectura para toda la corrida — cada artículo del bridge se
-    // resuelve en memoria contra este mapa en vez de una query por
-    // artículo (mismo patrón ya usado en el sync de la tienda principal).
-    const existing = await this.repo.findAll();
-    const byName = new Map(existing.map((p) => [p.name.trim().toLowerCase(), p]));
-
-    let created = 0;
-    let updated = 0;
-    for (const item of data.productos) {
-      const key = item.descripcion.trim().toLowerCase();
-      const match = byName.get(key);
-
-      if (!match) {
-        await this.repo.create({ name: item.descripcion, stock: item.stock });
-        created++;
-        continue;
-      }
-      // Dirty-check — no reescribe el documento si el stock no cambió.
-      if (match.stock !== item.stock) {
-        await this.repo.update(match.id, { stock: item.stock });
-        updated++;
-      }
+  /** The two Profit Plus servers live at different physical locations —
+   * this store's bridge being reachable says nothing about the other
+   * store's, so each gets its own independent health check rather than a
+   * single combined "ERP connection" status. */
+  async healthCheck(): Promise<boolean> {
+    const url = this.config.get('SECOND_STORE_PROFIT_API_URL', { infer: true });
+    if (!url) return false;
+    try {
+      const res = await fetch(`${url.replace(/\/+$/, '')}/health`);
+      return res.ok;
+    } catch {
+      return false;
     }
+  }
 
-    const result: SecondStoreSyncResult = {
-      fromBridge: data.productos.length,
-      created,
-      updated,
-      unchanged: data.productos.length - created - updated,
-    };
-    this.logger.log(
-      `Second-store sync: ${result.fromBridge} artículos del bridge, ${result.created} creados, ${result.updated} actualizados, ${result.unchanged} sin cambios.`,
-    );
-    return result;
+  async getStatus(): Promise<{
+    lastInbound: SecondStoreSyncLog | null;
+    adapterHealthy: boolean;
+  }> {
+    const [lastInbound, adapterHealthy] = await Promise.all([
+      this.logsRepo.findOne([], { field: 'startedAt', direction: 'desc' }),
+      this.healthCheck(),
+    ]);
+    return { lastInbound, adapterHealthy };
+  }
+
+  async getLogs(): Promise<SecondStoreSyncLog[]> {
+    return this.logsRepo.findAll({ orderBy: { field: 'startedAt', direction: 'desc' }, limit: 50 });
   }
 }
