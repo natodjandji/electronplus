@@ -1,28 +1,34 @@
 import 'reflect-metadata';
 import { Logger } from '@nestjs/common';
 import { NestFactory } from '@nestjs/core';
+import type { Auth } from 'firebase-admin/auth';
 import type { Firestore } from 'firebase-admin/firestore';
 import type { Bucket } from '@google-cloud/storage';
 import { AppModule } from '../../app.module';
-import { FIREBASE_STORAGE_BUCKET, FIRESTORE } from '../../firebase/firebase.constants';
+import {
+  FIREBASE_AUTH,
+  FIREBASE_STORAGE_BUCKET,
+  FIRESTORE,
+} from '../../firebase/firebase.constants';
 import { Collections } from '../../firebase/firestore-collections';
 
 const logger = new Logger('ResetDatabase');
+
+/** The one account every run of this script keeps — everyone else in
+ * Firebase Auth + the users collection gets deleted. Change this if the
+ * account that should survive a reset ever changes. */
+const PRESERVED_ADMIN_EMAIL = 'electronplusve@gmail.com';
 
 /**
  * Wipes every transactional/operational collection — quotes, orders,
  * payments, purchase orders + their payment subcollections, suppliers'
  * payables, notifications, stock alerts, sync logs, daily sales summaries,
- * second-store items, expenses — plus the payment-proof and (optionally)
- * product-image Storage folders. Run once, deliberately, right before a
- * store goes live for real, NOT as a routine dev-cleanup command.
+ * second-store items, expenses — plus every user (Auth + Firestore) except
+ * PRESERVED_ADMIN_EMAIL, plus the payment-proof Storage folder. Run once,
+ * deliberately, right before a store goes live for real, NOT as a routine
+ * dev-cleanup command.
  *
  * Deliberately NEVER touches:
- *   - users (Firebase Auth is the source of truth; deleting the Firestore
- *     doc without also deleting the Auth account just gets it silently
- *     recreated on the user's next request — see FirebaseAuthGuard
- *     .loadOrCreateUserAndBackfillClaim). Remove real people through
- *     Firebase Auth directly if that's actually the intent.
  *   - products / categories / warehouses / suppliers / paymentMethods /
  *     shippingRates / discountCodes — this is catalog/config structure,
  *     not "test data"; wiping it would take the storefront down. If any
@@ -98,6 +104,32 @@ async function deleteStorageFolder(
   return files.length;
 }
 
+/** Deletes Auth first, then the Firestore doc — the reverse order silently
+ * un-deletes the doc if the account still has a live session mid-run, see
+ * FirebaseAuthGuard.loadOrCreateUserAndBackfillClaim. */
+async function deleteUsersExcept(
+  auth: Auth,
+  firestore: Firestore,
+  preservedEmail: string,
+  dryRun: boolean,
+): Promise<{ kept: string; deleted: string[] }> {
+  const deleted: string[] = [];
+  let pageToken: string | undefined;
+  do {
+    const page = await auth.listUsers(1000, pageToken);
+    for (const user of page.users) {
+      if (user.email === preservedEmail) continue;
+      deleted.push(user.email ?? user.uid);
+      if (!dryRun) {
+        await auth.deleteUser(user.uid);
+        await firestore.collection(Collections.USERS).doc(user.uid).delete();
+      }
+    }
+    pageToken = page.pageToken;
+  } while (pageToken);
+  return { kept: preservedEmail, deleted };
+}
+
 async function run() {
   const dryRun = !process.argv.includes('--confirm');
   const app = await NestFactory.createApplicationContext(AppModule, {
@@ -105,6 +137,7 @@ async function run() {
   });
   const firestore = app.get<Firestore>(FIRESTORE);
   const bucket = app.get<Bucket>(FIREBASE_STORAGE_BUCKET);
+  const auth = app.get<Auth>(FIREBASE_AUTH);
 
   logger.log(
     dryRun
@@ -127,8 +160,13 @@ async function run() {
     `Storage payment-proofs/: ${proofCount} file(s)${dryRun ? ' would be deleted' : ' deleted'}`,
   );
 
+  const { kept, deleted } = await deleteUsersExcept(auth, firestore, PRESERVED_ADMIN_EMAIL, dryRun);
   logger.log(
-    'Left untouched: users, products, categories, warehouses, suppliers, ' +
+    `users: ${deleted.length} account(s)${dryRun ? ' would be deleted' : ' deleted'} (${deleted.join(', ') || 'none'}) — kept: ${kept}`,
+  );
+
+  logger.log(
+    'Left untouched: products, categories, warehouses, suppliers, ' +
       'paymentMethods, shippingRates, discountCodes, and Storage products/*.',
   );
 
