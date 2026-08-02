@@ -15,6 +15,16 @@ export class CreateSecondStoreProductDto {
   @IsOptional()
   @IsNumber()
   @Min(0)
+  retailPrice?: number;
+
+  @IsOptional()
+  @IsNumber()
+  @Min(0)
+  wholesalePrice?: number;
+
+  @IsOptional()
+  @IsNumber()
+  @Min(0)
   price?: number;
 
   @IsOptional()

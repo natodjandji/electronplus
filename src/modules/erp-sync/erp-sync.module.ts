@@ -20,8 +20,9 @@ import { SyncService } from './sync.service';
 // (SECOND_STORE_PROFIT_API_URL/KEY), its own sync engine
 // (SecondStoreSyncService in ../second-store/), and its own Firestore
 // collection (secondStoreProducts) — the two never share code, config, or
-// data, because they're two distinct ERP installs with distinct field
-// contracts (description+stock only vs. the full catalog).
+// data, even though both bridges now report the same field shape (código,
+// descripción, stock, precio1, precio2). Two distinct physical ERP
+// installs, not one system with two endpoints.
 const adapterProvider: Provider = {
   provide: PROFIT_PLUS_ADAPTER,
   inject: [ConfigService, DbProfitPlusAdapter, ApiProfitPlusAdapter],

@@ -242,7 +242,7 @@ export function SecondStoreSyncPanel() {
   return (
     <SyncStatusPanel
       title="Tienda secundaria"
-      description="Sincronización automática de descripción y stock con el Profit Plus de la tienda secundaria (cada 15 minutos) — un servidor distinto, en una ubicación distinta al de la tienda principal."
+      description="Sincronización automática del catálogo con el Profit Plus de la tienda secundaria (cada 30 minutos) — un servidor distinto, en una ubicación distinta al de la tienda principal."
       statusPath="/second-store-products/sync/status"
       logsPath="/second-store-products/sync/logs"
       triggerPath="/second-store-products/sync/trigger"

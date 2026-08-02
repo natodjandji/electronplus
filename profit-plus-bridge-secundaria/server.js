@@ -119,8 +119,11 @@ app.get('/api/productos-sincronizacion', requireApiKey, async (req, res) => {
     const result = await pool.request().query(PRODUCTOS_QUERY);
 
     const productos = result.recordset.map((row) => ({
-      codigo: row.codigo,
-      descripcion: row.descripcion,
+      // art.ref/art_des son columnas char() de ancho fijo en esta
+      // instalación — vienen rellenas con espacios a la derecha, hay que
+      // recortarlas o el matching por código en el sync falla.
+      codigo: (row.codigo ?? '').trim(),
+      descripcion: (row.descripcion ?? '').trim(),
       precio1: Number(row.precio1) || 0,
       precio2: Number(row.precio2) || 0,
       stock: Number(row.stock) || 0,

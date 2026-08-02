@@ -86,6 +86,8 @@ interface SecondStoreProduct {
   name: string;
   code?: string;
   stock: number;
+  retailPrice?: number;
+  wholesalePrice?: number;
   linkedProductId?: string;
   linkedProduct: { id: string; sku: string; name: string; stock: number } | null;
 }
@@ -328,7 +330,12 @@ function SecondStoreLinkDialog({
   const [newName, setNewName] = useState("");
   const [newCode, setNewCode] = useState("");
   const [newStock, setNewStock] = useState(0);
+  const [newRetailPrice, setNewRetailPrice] = useState(0);
+  const [newWholesalePrice, setNewWholesalePrice] = useState(0);
+  const [codeEdit, setCodeEdit] = useState(link?.code ?? "");
   const [stockEdit, setStockEdit] = useState(link?.stock ?? 0);
+  const [retailPriceEdit, setRetailPriceEdit] = useState(link?.retailPrice ?? 0);
+  const [wholesalePriceEdit, setWholesalePriceEdit] = useState(link?.wholesalePrice ?? 0);
   const { data: allSecondStore } = useSecondStoreProducts();
 
   const invalidate = () => {
@@ -361,6 +368,8 @@ function SecondStoreLinkDialog({
           name: newName,
           code: newCode || undefined,
           stock: newStock,
+          retailPrice: newRetailPrice || undefined,
+          wholesalePrice: newWholesalePrice || undefined,
           linkedProductId: product.id,
         },
       }),
@@ -372,15 +381,20 @@ function SecondStoreLinkDialog({
     onError: reportError,
   });
 
-  const saveStock = useMutation({
+  const saveLink = useMutation({
     mutationFn: () =>
       apiFetch(`/second-store-products/${link!.id}`, {
         method: "PATCH",
-        body: { stock: stockEdit },
+        body: {
+          code: codeEdit || undefined,
+          stock: stockEdit,
+          retailPrice: retailPriceEdit,
+          wholesalePrice: wholesalePriceEdit,
+        },
       }),
     onSuccess: () => {
       invalidate();
-      toast.success("Stock actualizado");
+      toast.success("Producto actualizado");
     },
     onError: reportError,
   });
@@ -406,34 +420,60 @@ function SecondStoreLinkDialog({
           <div className="grid gap-3">
             <div className="rounded-md border border-border bg-brand-surface p-3 text-sm">
               <div className="font-semibold text-brand-navy">{link.name}</div>
-              {link.code && <div className="text-xs text-muted-foreground">{link.code}</div>}
             </div>
-            <div className="grid gap-1.5">
-              <Label className="text-xs font-medium text-brand-navy">
-                Stock en tienda secundaria
-              </Label>
-              <div className="flex gap-2">
+            <div className="grid grid-cols-2 gap-2">
+              <div className="grid gap-1.5">
+                <Label className="text-xs font-medium text-brand-navy">Código</Label>
+                <Input value={codeEdit} onChange={(e) => setCodeEdit(e.target.value)} />
+              </div>
+              <div className="grid gap-1.5">
+                <Label className="text-xs font-medium text-brand-navy">Stock</Label>
                 <Input
                   type="number"
                   min={0}
                   value={stockEdit}
                   onChange={(e) => setStockEdit(Math.max(0, Number(e.target.value)))}
-                  className="flex-1"
                 />
-                <Button
-                  type="button"
-                  variant="outline"
-                  disabled={stockEdit === link.stock || saveStock.isPending}
-                  onClick={() => saveStock.mutate()}
-                >
-                  Guardar
-                </Button>
               </div>
-              <p className="text-xs text-muted-foreground">
-                Stock combinado: {product.stock} (principal) + {link.stock} (secundaria) ={" "}
-                <b>{product.stock + link.stock}</b>
-              </p>
+              <div className="grid gap-1.5">
+                <Label className="text-xs font-medium text-brand-navy">Precio al detal</Label>
+                <Input
+                  type="number"
+                  min={0}
+                  step="0.01"
+                  value={retailPriceEdit}
+                  onChange={(e) => setRetailPriceEdit(Math.max(0, Number(e.target.value)))}
+                />
+              </div>
+              <div className="grid gap-1.5">
+                <Label className="text-xs font-medium text-brand-navy">Precio al mayor</Label>
+                <Input
+                  type="number"
+                  min={0}
+                  step="0.01"
+                  value={wholesalePriceEdit}
+                  onChange={(e) => setWholesalePriceEdit(Math.max(0, Number(e.target.value)))}
+                />
+              </div>
             </div>
+            <Button
+              type="button"
+              variant="outline"
+              disabled={
+                (codeEdit === (link.code ?? "") &&
+                  stockEdit === link.stock &&
+                  retailPriceEdit === (link.retailPrice ?? 0) &&
+                  wholesalePriceEdit === (link.wholesalePrice ?? 0)) ||
+                saveLink.isPending
+              }
+              onClick={() => saveLink.mutate()}
+            >
+              Guardar cambios
+            </Button>
+            <p className="text-xs text-muted-foreground">
+              Stock combinado: {product.stock} (principal) + {link.stock} (secundaria) ={" "}
+              <b>{product.stock + link.stock}</b>
+            </p>
             <Button
               type="button"
               variant="outline"
@@ -510,6 +550,26 @@ function SecondStoreLinkDialog({
                       min={0}
                       value={newStock}
                       onChange={(e) => setNewStock(Math.max(0, Number(e.target.value)))}
+                    />
+                  </div>
+                  <div className="grid gap-1.5">
+                    <Label className="text-xs font-medium text-brand-navy">Precio al detal</Label>
+                    <Input
+                      type="number"
+                      min={0}
+                      step="0.01"
+                      value={newRetailPrice}
+                      onChange={(e) => setNewRetailPrice(Math.max(0, Number(e.target.value)))}
+                    />
+                  </div>
+                  <div className="grid gap-1.5">
+                    <Label className="text-xs font-medium text-brand-navy">Precio al mayor</Label>
+                    <Input
+                      type="number"
+                      min={0}
+                      step="0.01"
+                      value={newWholesalePrice}
+                      onChange={(e) => setNewWholesalePrice(Math.max(0, Number(e.target.value)))}
                     />
                   </div>
                 </div>

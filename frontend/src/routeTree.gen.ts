@@ -27,6 +27,7 @@ import { Route as AdminOrdersRouteImport } from './routes/admin.orders'
 import { Route as AdminPurchaseOrdersRouteImport } from './routes/admin.purchase-orders'
 import { Route as AdminPurchasesRouteImport } from './routes/admin.purchases'
 import { Route as AdminQuotesRouteImport } from './routes/admin.quotes'
+import { Route as AdminSecondStoreInventoryRouteImport } from './routes/admin.second-store-inventory'
 import { Route as AdminSettingsRouteImport } from './routes/admin.settings'
 import { Route as AdminStockRouteImport } from './routes/admin.stock'
 import { Route as AdminSuppliersRouteImport } from './routes/admin.suppliers'
@@ -125,6 +126,12 @@ const AdminQuotesRoute = AdminQuotesRouteImport.update({
   path: '/quotes',
   getParentRoute: () => AdminRoute,
 } as any)
+const AdminSecondStoreInventoryRoute =
+  AdminSecondStoreInventoryRouteImport.update({
+    id: '/second-store-inventory',
+    path: '/second-store-inventory',
+    getParentRoute: () => AdminRoute,
+  } as any)
 const AdminSettingsRoute = AdminSettingsRouteImport.update({
   id: '/settings',
   path: '/settings',
@@ -179,6 +186,7 @@ export interface FileRoutesByFullPath {
   '/admin/purchase-orders': typeof AdminPurchaseOrdersRoute
   '/admin/purchases': typeof AdminPurchasesRoute
   '/admin/quotes': typeof AdminQuotesRoute
+  '/admin/second-store-inventory': typeof AdminSecondStoreInventoryRoute
   '/admin/settings': typeof AdminSettingsRoute
   '/admin/stock': typeof AdminStockRoute
   '/admin/suppliers': typeof AdminSuppliersRoute
@@ -205,6 +213,7 @@ export interface FileRoutesByTo {
   '/admin/purchase-orders': typeof AdminPurchaseOrdersRoute
   '/admin/purchases': typeof AdminPurchasesRoute
   '/admin/quotes': typeof AdminQuotesRoute
+  '/admin/second-store-inventory': typeof AdminSecondStoreInventoryRoute
   '/admin/settings': typeof AdminSettingsRoute
   '/admin/stock': typeof AdminStockRoute
   '/admin/suppliers': typeof AdminSuppliersRoute
@@ -233,6 +242,7 @@ export interface FileRoutesById {
   '/admin/purchase-orders': typeof AdminPurchaseOrdersRoute
   '/admin/purchases': typeof AdminPurchasesRoute
   '/admin/quotes': typeof AdminQuotesRoute
+  '/admin/second-store-inventory': typeof AdminSecondStoreInventoryRoute
   '/admin/settings': typeof AdminSettingsRoute
   '/admin/stock': typeof AdminStockRoute
   '/admin/suppliers': typeof AdminSuppliersRoute
@@ -262,6 +272,7 @@ export interface FileRouteTypes {
     | '/admin/purchase-orders'
     | '/admin/purchases'
     | '/admin/quotes'
+    | '/admin/second-store-inventory'
     | '/admin/settings'
     | '/admin/stock'
     | '/admin/suppliers'
@@ -288,6 +299,7 @@ export interface FileRouteTypes {
     | '/admin/purchase-orders'
     | '/admin/purchases'
     | '/admin/quotes'
+    | '/admin/second-store-inventory'
     | '/admin/settings'
     | '/admin/stock'
     | '/admin/suppliers'
@@ -315,6 +327,7 @@ export interface FileRouteTypes {
     | '/admin/purchase-orders'
     | '/admin/purchases'
     | '/admin/quotes'
+    | '/admin/second-store-inventory'
     | '/admin/settings'
     | '/admin/stock'
     | '/admin/suppliers'
@@ -468,6 +481,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AdminQuotesRouteImport
       parentRoute: typeof AdminRoute
     }
+    '/admin/second-store-inventory': {
+      id: '/admin/second-store-inventory'
+      path: '/second-store-inventory'
+      fullPath: '/admin/second-store-inventory'
+      preLoaderRoute: typeof AdminSecondStoreInventoryRouteImport
+      parentRoute: typeof AdminRoute
+    }
     '/admin/settings': {
       id: '/admin/settings'
       path: '/settings'
@@ -528,6 +548,7 @@ interface AdminRouteChildren {
   AdminPurchaseOrdersRoute: typeof AdminPurchaseOrdersRoute
   AdminPurchasesRoute: typeof AdminPurchasesRoute
   AdminQuotesRoute: typeof AdminQuotesRoute
+  AdminSecondStoreInventoryRoute: typeof AdminSecondStoreInventoryRoute
   AdminSettingsRoute: typeof AdminSettingsRoute
   AdminStockRoute: typeof AdminStockRoute
   AdminSuppliersRoute: typeof AdminSuppliersRoute
@@ -543,6 +564,7 @@ const AdminRouteChildren: AdminRouteChildren = {
   AdminPurchaseOrdersRoute: AdminPurchaseOrdersRoute,
   AdminPurchasesRoute: AdminPurchasesRoute,
   AdminQuotesRoute: AdminQuotesRoute,
+  AdminSecondStoreInventoryRoute: AdminSecondStoreInventoryRoute,
   AdminSettingsRoute: AdminSettingsRoute,
   AdminStockRoute: AdminStockRoute,
   AdminSuppliersRoute: AdminSuppliersRoute,

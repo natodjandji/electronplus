@@ -8,4 +8,4 @@ Disallow: /login
 Disallow: /register
 Disallow: /product/qr/
 
-Sitemap: https://electronplus-ve.web.app/sitemap.xml
+Sitemap: https://electronplus.com.ve/sitemap.xml
