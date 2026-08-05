@@ -279,7 +279,12 @@ export class ProductsService {
       const category = await this.categoriesRepo.getOrThrow(dto.categoryId, 'Category not found');
       patch.category = { id: category.id, code: category.code, label: category.label };
     }
-    return this.repo.update(id, patch);
+    const updated = await this.repo.update(id, patch);
+    // Deactivating is the other way a product stops being eligible for
+    // topSelling()'s active-only filter — same staleness problem as
+    // delete() below if the cache isn't cleared.
+    if (dto.active === false) this.topSellingCache.clear();
+    return updated;
   }
 
   /** Hard delete — quotes/orders/purchase orders already snapshot sku/name/
@@ -296,6 +301,10 @@ export class ProductsService {
       await batch.commit();
     }
     await this.repo.delete(id);
+    // Without this, a deleted product can keep showing on the public
+    // homepage's "más vendidos" section for up to TOP_SELLING_CACHE_TTL_MS
+    // (15 min) — topSelling() only re-checks Firestore on a cache miss.
+    this.topSellingCache.clear();
   }
 
   /** Manual admin stock adjustment (+ restock / - shrinkage), optionally scoped to a warehouse. */
