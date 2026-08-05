@@ -35,7 +35,7 @@ import {
 import { Textarea } from "@/components/ui/textarea";
 import { TableRowsSkeleton } from "@/components/table-skeleton";
 import { apiFetch, reportError } from "@/lib/api-client";
-import { formatMoney } from "@/lib/electron-store";
+import { formatMoneyAdmin } from "@/lib/electron-store";
 import { toast } from "sonner";
 
 export const Route = createFileRoute("/admin/expenses")({
@@ -264,7 +264,7 @@ function ExpensesPage() {
                     >
                       <td className="px-4 py-3 font-semibold text-brand-navy">{e.name}</td>
                       <td className="px-4 py-3 text-muted-foreground">{e.category}</td>
-                      <td className="px-4 py-3 text-right">{formatMoney(e.amount)}</td>
+                      <td className="px-4 py-3 text-right">{formatMoneyAdmin(e.amount)}</td>
                       <td className="px-4 py-3">
                         <span className="inline-flex items-center gap-1 text-muted-foreground">
                           {e.frequency !== "once" && <Repeat className="h-3.5 w-3.5" />}
@@ -324,7 +324,7 @@ function SummaryCard({
         <div>
           <div className="text-xs font-medium text-muted-foreground">{label}</div>
           <div className="mt-1 text-2xl font-bold text-brand-navy">{count}</div>
-          <div className="text-sm text-muted-foreground">{formatMoney(amount)}</div>
+          <div className="text-sm text-muted-foreground">{formatMoneyAdmin(amount)}</div>
         </div>
         <div className={`grid h-10 w-10 place-items-center rounded-md ${toneMap}`}>
           <Icon className="h-5 w-5" />
@@ -391,7 +391,7 @@ function CreateExpenseDialog({ onClose }: { onClose: () => void }) {
             </Select>
           </div>
           <div className="grid gap-1.5">
-            <Label className="text-xs font-medium text-brand-navy">Monto (USD)</Label>
+            <Label className="text-xs font-medium text-brand-navy">Monto ($)</Label>
             <Input
               type="number"
               min={0.01}
@@ -527,7 +527,7 @@ function EditExpenseDialog({ expense, onClose }: { expense: Expense; onClose: ()
             </Select>
           </div>
           <div className="grid gap-1.5">
-            <Label className="text-xs font-medium text-brand-navy">Monto (USD)</Label>
+            <Label className="text-xs font-medium text-brand-navy">Monto ($)</Label>
             <Input
               type="number"
               min={0.01}

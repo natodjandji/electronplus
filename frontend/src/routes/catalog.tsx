@@ -200,7 +200,7 @@ function CatalogPage() {
               <PopoverContent align="start" className="w-72">
                 <div className="mb-4">
                   <div className="mb-2 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-                    Rango de precio (USD)
+                    Rango de precio (REF)
                   </div>
                   <Slider
                     value={range}

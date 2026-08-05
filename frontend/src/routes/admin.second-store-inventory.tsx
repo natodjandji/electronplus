@@ -16,7 +16,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { apiFetch, reportError } from "@/lib/api-client";
-import { formatMoney } from "@/lib/electron-store";
+import { formatMoneyAdmin } from "@/lib/electron-store";
 import { toast } from "sonner";
 
 export const Route = createFileRoute("/admin/second-store-inventory")({
@@ -128,8 +128,8 @@ function SecondStoreInventoryPage() {
                   <td className="px-4 py-3 text-muted-foreground">{p.code || "—"}</td>
                   <td className="px-4 py-3 font-medium text-brand-navy">{p.name}</td>
                   <td className="px-4 py-3 text-right">{p.stock}</td>
-                  <td className="px-4 py-3 text-right">{formatMoney(p.retailPrice ?? 0)}</td>
-                  <td className="px-4 py-3 text-right">{formatMoney(p.wholesalePrice ?? 0)}</td>
+                  <td className="px-4 py-3 text-right">{formatMoneyAdmin(p.retailPrice ?? 0)}</td>
+                  <td className="px-4 py-3 text-right">{formatMoneyAdmin(p.wholesalePrice ?? 0)}</td>
                   <td className="px-4 py-3 text-muted-foreground">
                     {p.linkedProduct ? p.linkedProduct.name : "—"}
                   </td>

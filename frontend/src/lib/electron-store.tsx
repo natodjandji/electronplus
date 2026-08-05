@@ -169,10 +169,30 @@ export function useElectronStore() {
   return ctx;
 }
 
+// Intl.NumberFormat only accepts real ISO 4217 codes, so USD is still what
+// drives the number formatting (grouping, decimals) — the currency part
+// gets swapped for a display label after formatting. Anything a customer
+// can see (storefront, cart, checkout, emails, printed QR/price labels)
+// must say "REF" (referencial), not "USD" — Venezuelan price regulations
+// don't allow advertising retail prices as literal USD. Use this one for
+// all of that.
 export function formatMoney(n: number) {
-  return new Intl.NumberFormat("es-VE", {
+  return formatMoneyWithLabel(n, "REF");
+}
+
+// Internal admin tooling only (dashboards, inventory, purchases, expenses,
+// quotes management, etc.) — never shown to a customer, so the regulatory
+// constraint above doesn't apply. Uses the plain $ symbol instead of the
+// "REF" label so admin screens read like normal accounting figures.
+export function formatMoneyAdmin(n: number) {
+  return formatMoneyWithLabel(n, "$");
+}
+
+function formatMoneyWithLabel(n: number, label: string) {
+  const parts = new Intl.NumberFormat("es-VE", {
     style: "currency",
     currency: "USD",
     minimumFractionDigits: 2,
-  }).format(n);
+  }).formatToParts(n);
+  return parts.map((part) => (part.type === "currency" ? label : part.value)).join("");
 }

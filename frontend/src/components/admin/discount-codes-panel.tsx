@@ -22,7 +22,7 @@ import {
 } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
 import { apiFetch, ApiError, reportError } from "@/lib/api-client";
-import { formatMoney } from "@/lib/electron-store";
+import { formatMoneyAdmin } from "@/lib/electron-store";
 import { toast } from "sonner";
 
 type DiscountType = "percentage" | "fixed";
@@ -43,7 +43,7 @@ function useDiscountCodes() {
 }
 
 function valueLabel(d: Pick<DiscountCode, "type" | "value">): string {
-  return d.type === "percentage" ? `${d.value}%` : formatMoney(d.value);
+  return d.type === "percentage" ? `${d.value}%` : formatMoneyAdmin(d.value);
 }
 
 export function DiscountCodesPanel() {
@@ -221,13 +221,13 @@ function CreateCodeDialog({ onClose }: { onClose: () => void }) {
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="percentage">Porcentaje (%)</SelectItem>
-                <SelectItem value="fixed">Monto fijo (USD)</SelectItem>
+                <SelectItem value="fixed">Monto fijo ($)</SelectItem>
               </SelectContent>
             </Select>
           </div>
           <div className="grid gap-1.5">
             <Label className="text-xs font-medium text-brand-navy">
-              Valor {type === "percentage" ? "(%)" : "(USD)"}
+              Valor {type === "percentage" ? "(%)" : "($)"}
             </Label>
             <Input
               type="number"
@@ -290,13 +290,13 @@ function EditCodeDialog({ code, onClose }: { code: DiscountCode; onClose: () => 
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="percentage">Porcentaje (%)</SelectItem>
-                <SelectItem value="fixed">Monto fijo (USD)</SelectItem>
+                <SelectItem value="fixed">Monto fijo ($)</SelectItem>
               </SelectContent>
             </Select>
           </div>
           <div className="grid gap-1.5">
             <Label className="text-xs font-medium text-brand-navy">
-              Valor {type === "percentage" ? "(%)" : "(USD)"}
+              Valor {type === "percentage" ? "(%)" : "($)"}
             </Label>
             <Input
               type="number"

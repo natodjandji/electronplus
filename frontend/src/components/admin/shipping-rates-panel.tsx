@@ -21,7 +21,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { apiFetch, ApiError, reportError } from "@/lib/api-client";
-import { formatMoney } from "@/lib/electron-store";
+import { formatMoneyAdmin } from "@/lib/electron-store";
 import { VENEZUELA_STATE_NAMES, citiesForState } from "@/lib/venezuela-locations";
 import { toast } from "sonner";
 
@@ -117,7 +117,7 @@ export function ShippingRatesPanel() {
                     )}
                   </td>
                   <td className="px-4 py-3 text-right font-semibold text-brand-navy">
-                    {formatMoney(r.amount)}
+                    {formatMoneyAdmin(r.amount)}
                   </td>
                   <td className="px-4 py-3">
                     <div className="flex justify-end gap-2">
@@ -236,7 +236,7 @@ function CreateRateDialog({ onClose }: { onClose: () => void }) {
             </Select>
           </div>
           <div className="grid gap-1.5">
-            <Label className="text-xs font-medium text-brand-navy">Monto (USD)</Label>
+            <Label className="text-xs font-medium text-brand-navy">Monto ($)</Label>
             <Input
               type="number"
               min={0}
@@ -288,7 +288,7 @@ function EditRateDialog({ rate, onClose }: { rate: ShippingRate; onClose: () => 
         </DialogHeader>
 
         <div className="grid gap-1.5">
-          <Label className="text-xs font-medium text-brand-navy">Monto (USD)</Label>
+          <Label className="text-xs font-medium text-brand-navy">Monto ($)</Label>
           <Input
             type="number"
             min={0}

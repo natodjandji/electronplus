@@ -48,7 +48,7 @@ import { Switch } from "@/components/ui/switch";
 import { SupplierPicker, useSuppliers } from "@/components/supplier-picker";
 import { apiFetch, ApiError, reportError } from "@/lib/api-client";
 import { uploadProductImage } from "@/lib/image-compress";
-import { formatMoney } from "@/lib/electron-store";
+import { formatMoneyAdmin } from "@/lib/electron-store";
 import { toast } from "sonner";
 import { slugify, stripDiacritics } from "@/lib/text";
 import { useCategories, type Category } from "@/lib/categories";
@@ -243,8 +243,8 @@ function InventoryPage() {
                         </Button>
                       </div>
                     </td>
-                    <td className="px-4 py-3 text-right">{formatMoney(p.retailPrice)}</td>
-                    <td className="px-4 py-3 text-right">{formatMoney(p.wholesalePrice)}</td>
+                    <td className="px-4 py-3 text-right">{formatMoneyAdmin(p.retailPrice)}</td>
+                    <td className="px-4 py-3 text-right">{formatMoneyAdmin(p.wholesalePrice)}</td>
                     <td className="px-4 py-3">
                       <div className="flex flex-wrap gap-1.5">
                         {p.stock === 0 && (
@@ -731,7 +731,7 @@ function ProductFormDialog({ product, onClose }: { product?: AdminProduct; onClo
             <SupplierPicker value={supplierId} onChange={(id) => setSupplierId(id)} />
           </div>
           <div className="grid gap-1.5">
-            <Label className="text-xs font-medium text-brand-navy">Precio detal (USD)</Label>
+            <Label className="text-xs font-medium text-brand-navy">Precio detal ($)</Label>
             <Input
               type="number"
               min={0}
@@ -741,7 +741,7 @@ function ProductFormDialog({ product, onClose }: { product?: AdminProduct; onClo
             />
           </div>
           <div className="grid gap-1.5">
-            <Label className="text-xs font-medium text-brand-navy">Precio mayor (USD)</Label>
+            <Label className="text-xs font-medium text-brand-navy">Precio mayor ($)</Label>
             <Input
               type="number"
               min={0}
@@ -751,7 +751,7 @@ function ProductFormDialog({ product, onClose }: { product?: AdminProduct; onClo
             />
           </div>
           <div className="grid gap-1.5">
-            <Label className="text-xs font-medium text-brand-navy">Costo (USD, opcional)</Label>
+            <Label className="text-xs font-medium text-brand-navy">Costo ($, opcional)</Label>
             <Input
               type="number"
               min={0}

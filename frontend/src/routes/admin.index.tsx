@@ -19,7 +19,7 @@ import { DollarSign, ShoppingBag, AlertTriangle, TrendingUp } from "lucide-react
 import { AdminShell } from "@/components/admin-shell";
 import { Card } from "@/components/ui/card";
 import { apiFetch } from "@/lib/api-client";
-import { formatMoney } from "@/lib/electron-store";
+import { formatMoneyAdmin } from "@/lib/electron-store";
 
 export const Route = createFileRoute("/admin/")({
   head: () => ({
@@ -122,7 +122,7 @@ function AdminDashboard() {
         <Kpi
           icon={DollarSign}
           label="Ventas del mes"
-          value={formatMoney(totalSales)}
+          value={formatMoneyAdmin(totalSales)}
           trend={
             salesTrend === null
               ? "Sin datos del mes anterior"
@@ -143,7 +143,7 @@ function AdminDashboard() {
         <Kpi
           icon={TrendingUp}
           label="Compras del mes"
-          value={formatMoney(totalPurchases)}
+          value={formatMoneyAdmin(totalPurchases)}
           trend={
             purchasesTrend === null
               ? "Sin datos del mes anterior"
@@ -230,7 +230,7 @@ function AdminDashboard() {
               <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
               <XAxis dataKey="label" stroke="#64748b" fontSize={12} />
               <YAxis stroke="#64748b" fontSize={12} />
-              <Tooltip formatter={(value: number) => formatMoney(value)} />
+              <Tooltip formatter={(value: number) => formatMoneyAdmin(value)} />
               <Legend />
               <Bar dataKey="revenue" name="Ingresos" fill="#0056b3" radius={[6, 6, 0, 0]} />
               <Bar dataKey="margin" name="Margen" fill="#ffb703" radius={[6, 6, 0, 0]} />

@@ -53,7 +53,7 @@ import { Separator } from "@/components/ui/separator";
 import { Textarea } from "@/components/ui/textarea";
 import { SupplierPicker, useSuppliers } from "@/components/supplier-picker";
 import { apiFetch, ApiError, reportError } from "@/lib/api-client";
-import { formatMoney } from "@/lib/electron-store";
+import { formatMoneyAdmin } from "@/lib/electron-store";
 import { formatDate } from "@/lib/format";
 import { CONTACT_INFO } from "@/lib/contact-info";
 import { toast } from "sonner";
@@ -309,9 +309,9 @@ function PurchaseOrdersPage() {
                       onClick={() => setSelectedId(o.id)}
                     >
                       <td className="px-4 py-3 font-semibold text-brand-navy">{o.supplierName}</td>
-                      <td className="px-4 py-3 text-right">{formatMoney(o.totals.totalAmount)}</td>
+                      <td className="px-4 py-3 text-right">{formatMoneyAdmin(o.totals.totalAmount)}</td>
                       <td className="px-4 py-3 text-right text-muted-foreground">
-                        {formatMoney(o.amountPaid)}
+                        {formatMoneyAdmin(o.amountPaid)}
                       </td>
                       <td className="px-4 py-3">
                         <Badge className={STATUS_BADGE[o.status]}>{STATUS_LABEL[o.status]}</Badge>
@@ -477,7 +477,7 @@ function LineItemsEditor({
                   />
                 </td>
                 <td className="py-2 text-right font-semibold text-brand-navy">
-                  {formatMoney(lineSubtotal(l))}
+                  {formatMoneyAdmin(lineSubtotal(l))}
                 </td>
                 <td className="py-2 pl-2 text-right">
                   <button
@@ -597,7 +597,7 @@ function CreateOrderDialog({ onClose }: { onClose: () => void }) {
           <div className="w-full max-w-xs space-y-1 text-sm">
             <div className="flex justify-between text-lg font-bold text-brand-navy">
               <span>Total</span>
-              <span>{formatMoney(totalAmount)}</span>
+              <span>{formatMoneyAdmin(totalAmount)}</span>
             </div>
           </div>
         </div>
@@ -825,11 +825,11 @@ function OrderDetailDialog({ orderId, onClose }: { orderId: string; onClose: () 
                   <div>
                     <div className="font-medium text-brand-navy">{item.name}</div>
                     <div className="text-xs text-muted-foreground">
-                      {item.sku} · {item.quantityOrdered} × {formatMoney(item.unitCost)}
+                      {item.sku} · {item.quantityOrdered} × {formatMoneyAdmin(item.unitCost)}
                       {item.discountPerItem > 0 ? ` · -${item.discountPerItem}%` : ""}
                     </div>
                   </div>
-                  <div className="font-semibold text-brand-navy">{formatMoney(item.subtotal)}</div>
+                  <div className="font-semibold text-brand-navy">{formatMoneyAdmin(item.subtotal)}</div>
                 </div>
               ))}
             </div>
@@ -864,7 +864,7 @@ function OrderDetailDialog({ orderId, onClose }: { orderId: string; onClose: () 
               </div>
               <div className="flex justify-between text-base font-bold text-brand-navy">
                 <span>Total (nuevo)</span>
-                <span>{formatMoney(computeDraftTotal(editLines, editGlobalDiscount))}</span>
+                <span>{formatMoneyAdmin(computeDraftTotal(editLines, editGlobalDiscount))}</span>
               </div>
               <div className="flex justify-end gap-2">
                 <Button variant="outline" size="sm" onClick={() => setEditingItems(false)}>
@@ -886,24 +886,24 @@ function OrderDetailDialog({ orderId, onClose }: { orderId: string; onClose: () 
             <div className="space-y-1 text-sm">
               <div className="flex justify-between text-muted-foreground">
                 <span>Subtotal</span>
-                <span>{formatMoney(order.totals.subtotal)}</span>
+                <span>{formatMoneyAdmin(order.totals.subtotal)}</span>
               </div>
               <div className="flex justify-between text-muted-foreground">
                 <span>Descuento total</span>
-                <span>-{formatMoney(order.totals.totalDiscount)}</span>
+                <span>-{formatMoneyAdmin(order.totals.totalDiscount)}</span>
               </div>
               <div className="flex justify-between text-base font-bold text-brand-navy">
                 <span>Total</span>
-                <span>{formatMoney(order.totals.totalAmount)}</span>
+                <span>{formatMoneyAdmin(order.totals.totalAmount)}</span>
               </div>
               <div className="flex justify-between text-muted-foreground">
                 <span>Pagado</span>
-                <span>{formatMoney(order.amountPaid)}</span>
+                <span>{formatMoneyAdmin(order.amountPaid)}</span>
               </div>
               {order.status !== "paid" && order.status !== "cancelled" && (
                 <div className="flex justify-between font-medium text-brand-navy">
                   <span>Saldo pendiente</span>
-                  <span>{formatMoney(Math.max(0, remaining))}</span>
+                  <span>{formatMoneyAdmin(Math.max(0, remaining))}</span>
                 </div>
               )}
             </div>
@@ -960,7 +960,7 @@ function OrderDetailDialog({ orderId, onClose }: { orderId: string; onClose: () 
                         {new Date(p.paidAt).toLocaleDateString("es-VE")} · {p.method}
                         {p.reference ? ` · ${p.reference}` : ""}
                       </div>
-                      <div className="font-semibold text-brand-navy">{formatMoney(p.amount)}</div>
+                      <div className="font-semibold text-brand-navy">{formatMoneyAdmin(p.amount)}</div>
                     </div>
                   ))}
                 </div>
@@ -1148,12 +1148,12 @@ function OrderDetailDialog({ orderId, onClose }: { orderId: string; onClose: () 
                     <div className="text-xs text-muted-foreground">{item.sku}</div>
                   </td>
                   <td className="py-3 text-right">{item.quantityOrdered}</td>
-                  <td className="py-3 text-right">{formatMoney(item.unitCost)}</td>
+                  <td className="py-3 text-right">{formatMoneyAdmin(item.unitCost)}</td>
                   <td className="py-3 text-right text-muted-foreground">
                     {item.discountPerItem > 0 ? `-${item.discountPerItem}%` : "—"}
                   </td>
                   <td className="py-3 text-right font-semibold text-brand-navy">
-                    {formatMoney(item.subtotal)}
+                    {formatMoneyAdmin(item.subtotal)}
                   </td>
                 </tr>
               ))}
@@ -1163,22 +1163,22 @@ function OrderDetailDialog({ orderId, onClose }: { orderId: string; onClose: () 
           <div className="mt-6 flex flex-col items-end gap-1 text-sm">
             <div className="flex w-56 justify-between text-muted-foreground">
               <span>Subtotal</span>
-              <span>{formatMoney(order.totals.subtotal)}</span>
+              <span>{formatMoneyAdmin(order.totals.subtotal)}</span>
             </div>
             {order.totals.totalDiscount > 0 && (
               <div className="flex w-56 justify-between text-muted-foreground">
                 <span>Descuento</span>
-                <span>-{formatMoney(order.totals.totalDiscount)}</span>
+                <span>-{formatMoneyAdmin(order.totals.totalDiscount)}</span>
               </div>
             )}
             <div className="flex w-56 justify-between text-lg font-bold text-brand-navy">
               <span>Total</span>
-              <span>{formatMoney(order.totals.totalAmount)}</span>
+              <span>{formatMoneyAdmin(order.totals.totalAmount)}</span>
             </div>
             {order.amountPaid > 0 && (
               <div className="flex w-56 justify-between text-muted-foreground">
                 <span>Pagado</span>
-                <span>{formatMoney(order.amountPaid)}</span>
+                <span>{formatMoneyAdmin(order.amountPaid)}</span>
               </div>
             )}
           </div>

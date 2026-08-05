@@ -33,7 +33,7 @@ import {
   type OrderStatus,
 } from "@/components/order-stepper";
 import { apiFetch, ApiError, reportError } from "@/lib/api-client";
-import { formatMoney } from "@/lib/electron-store";
+import { formatMoneyAdmin } from "@/lib/electron-store";
 import { toast } from "sonner";
 import { formatDate } from "@/lib/format";
 import { PAYMENT_METHOD_LABEL, usePaymentMethods, type PaymentMethod } from "@/lib/payment-methods";
@@ -180,7 +180,7 @@ function AdminOrdersPage() {
                 <div className="flex items-center gap-3">
                   <div className="text-right">
                     <div className="text-xs text-muted-foreground">Total</div>
-                    <div className="font-bold text-brand-navy">{formatMoney(o.totalAmount)}</div>
+                    <div className="font-bold text-brand-navy">{formatMoneyAdmin(o.totalAmount)}</div>
                   </div>
                   {o.fulfillmentMethod === "pickup" && (
                     <Badge className="border-transparent bg-muted text-muted-foreground">
@@ -340,9 +340,9 @@ function OrderDetailDialog({ orderId, onClose }: { orderId: string; onClose: () 
                     <div className="text-xs text-muted-foreground">{item.sku}</div>
                   </td>
                   <td className="px-3 py-2 text-right">{item.qty}</td>
-                  <td className="px-3 py-2 text-right">{formatMoney(item.unitPrice)}</td>
+                  <td className="px-3 py-2 text-right">{formatMoneyAdmin(item.unitPrice)}</td>
                   <td className="px-3 py-2 text-right font-semibold text-brand-navy">
-                    {formatMoney(item.lineTotal)}
+                    {formatMoneyAdmin(item.lineTotal)}
                   </td>
                 </tr>
               ))}
@@ -351,7 +351,7 @@ function OrderDetailDialog({ orderId, onClose }: { orderId: string; onClose: () 
         </div>
 
         <div className="flex justify-end text-lg font-bold text-brand-navy">
-          Total {formatMoney(order.totalAmount)}
+          Total {formatMoneyAdmin(order.totalAmount)}
         </div>
 
         <Separator />

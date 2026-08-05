@@ -40,7 +40,7 @@ import { Separator } from "@/components/ui/separator";
 import { Textarea } from "@/components/ui/textarea";
 import { SupplierPicker, useSuppliers } from "@/components/supplier-picker";
 import { apiFetch, ApiError, reportError } from "@/lib/api-client";
-import { formatMoney } from "@/lib/electron-store";
+import { formatMoneyAdmin } from "@/lib/electron-store";
 import { compressImageToBase64 } from "@/lib/image-compress";
 import { toast } from "sonner";
 
@@ -300,9 +300,9 @@ function PurchasesPage() {
                     >
                       <td className="px-4 py-3 font-semibold text-brand-navy">{f.invoiceNumber}</td>
                       <td className="px-4 py-3">{f.supplierName}</td>
-                      <td className="px-4 py-3 text-right">{formatMoney(f.amount)}</td>
+                      <td className="px-4 py-3 text-right">{formatMoneyAdmin(f.amount)}</td>
                       <td className="px-4 py-3 text-right text-muted-foreground">
-                        {formatMoney(f.amountPaid)}
+                        {formatMoneyAdmin(f.amountPaid)}
                       </td>
                       <td className="px-4 py-3 text-muted-foreground">
                         {new Date(f.dueDate).toLocaleDateString("es-VE")}
@@ -354,7 +354,7 @@ function SummaryCard({
         <div>
           <div className="text-xs font-medium text-muted-foreground">{label}</div>
           <div className="mt-1 text-2xl font-bold text-brand-navy">{count}</div>
-          <div className="text-sm text-muted-foreground">{formatMoney(amount)}</div>
+          <div className="text-sm text-muted-foreground">{formatMoneyAdmin(amount)}</div>
         </div>
         <div className={`grid h-10 w-10 place-items-center rounded-md ${toneMap}`}>
           <Icon className="h-5 w-5" />
@@ -427,7 +427,7 @@ function CreateInvoiceDialog({ onClose }: { onClose: () => void }) {
             />
           </div>
           <div className="grid gap-1.5">
-            <Label className="text-xs font-medium text-brand-navy">Monto (USD)</Label>
+            <Label className="text-xs font-medium text-brand-navy">Monto ($)</Label>
             <Input
               type="number"
               min={0.01}
@@ -648,16 +648,16 @@ function InvoiceDetailDialog({ invoiceId, onClose }: { invoiceId: string; onClos
             </div>
             <div className="flex justify-between text-base font-bold text-brand-navy">
               <span>Total</span>
-              <span>{formatMoney(invoice.amount)}</span>
+              <span>{formatMoneyAdmin(invoice.amount)}</span>
             </div>
             <div className="flex justify-between text-muted-foreground">
               <span>Pagado</span>
-              <span>{formatMoney(invoice.amountPaid)}</span>
+              <span>{formatMoneyAdmin(invoice.amountPaid)}</span>
             </div>
             {invoice.status !== "paid" && (
               <div className="flex justify-between font-medium text-brand-navy">
                 <span>Saldo pendiente</span>
-                <span>{formatMoney(Math.max(0, remaining))}</span>
+                <span>{formatMoneyAdmin(Math.max(0, remaining))}</span>
               </div>
             )}
           </div>
@@ -684,7 +684,7 @@ function InvoiceDetailDialog({ invoiceId, onClose }: { invoiceId: string; onClos
                 />
               </div>
               <div className="grid gap-1.5">
-                <Label className="text-xs font-medium text-brand-navy">Monto (USD)</Label>
+                <Label className="text-xs font-medium text-brand-navy">Monto ($)</Label>
                 <Input
                   type="number"
                   min={invoice.amountPaid || 0.01}
@@ -794,7 +794,7 @@ function InvoiceDetailDialog({ invoiceId, onClose }: { invoiceId: string; onClos
                         </a>
                       )}
                     </div>
-                    <div className="font-semibold text-brand-navy">{formatMoney(p.amount)}</div>
+                    <div className="font-semibold text-brand-navy">{formatMoneyAdmin(p.amount)}</div>
                   </div>
                 ))}
               </div>

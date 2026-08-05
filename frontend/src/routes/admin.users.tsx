@@ -19,7 +19,7 @@ import { Card } from "@/components/ui/card";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Separator } from "@/components/ui/separator";
 import { apiFetch, ApiError, reportError } from "@/lib/api-client";
-import { formatMoney } from "@/lib/electron-store";
+import { formatMoneyAdmin } from "@/lib/electron-store";
 import type { BackendRole } from "@/lib/auth-context";
 import {
   ORDER_STATUS_BADGE,
@@ -322,7 +322,7 @@ function ClientDetailDialog({ user, onClose }: { user: AppUser; onClose: () => v
               {ordersLoading ? (
                 <Loader2 className="mx-auto h-5 w-5 animate-spin" />
               ) : (
-                formatMoney(spent)
+                formatMoneyAdmin(spent)
               )}
             </div>
           </Card>
@@ -380,7 +380,7 @@ function ClientDetailDialog({ user, onClose }: { user: AppUser; onClose: () => v
                   <div>
                     <div className="text-xs text-muted-foreground">{formatDate(q.createdAt)}</div>
                     <div className="font-semibold text-brand-navy">
-                      {formatMoney(quoteTotal(q))}
+                      {formatMoneyAdmin(quoteTotal(q))}
                     </div>
                   </div>
                   <Badge className={QUOTE_STATUS_BADGE[q.status]}>
@@ -420,7 +420,7 @@ function ClientDetailDialog({ user, onClose }: { user: AppUser; onClose: () => v
                       {formatDate(o.createdAt)} · {o.items.length} producto(s)
                     </div>
                     <div className="font-semibold text-brand-navy">
-                      {formatMoney(o.totalAmount)}
+                      {formatMoneyAdmin(o.totalAmount)}
                     </div>
                   </div>
                   <Badge className={ORDER_STATUS_BADGE[o.status]}>

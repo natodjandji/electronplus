@@ -23,7 +23,7 @@ import { Separator } from "@/components/ui/separator";
 import { Switch } from "@/components/ui/switch";
 import { Textarea } from "@/components/ui/textarea";
 import { apiFetch, ApiError, reportError } from "@/lib/api-client";
-import { formatMoney } from "@/lib/electron-store";
+import { formatMoneyAdmin } from "@/lib/electron-store";
 import { formatDate } from "@/lib/format";
 import {
   paymentMethodLabel,
@@ -169,7 +169,7 @@ function AdminQuotesPage() {
                 <div className="flex items-center gap-3">
                   <div className="text-right">
                     <div className="text-xs text-muted-foreground">Total</div>
-                    <div className="font-bold text-brand-navy">{formatMoney(computeTotal(q))}</div>
+                    <div className="font-bold text-brand-navy">{formatMoneyAdmin(computeTotal(q))}</div>
                   </div>
                   <Badge className={STATUS_BADGE[q.status]}>{STATUS_LABEL[q.status]}</Badge>
                 </div>
@@ -296,12 +296,12 @@ function QuoteDetailDialog({ id, onClose }: { id: string; onClose: () => void })
                       <div className="text-xs text-muted-foreground">{item.sku}</div>
                     </td>
                     <td className="px-3 py-2 text-right">{item.qty}</td>
-                    <td className="px-3 py-2 text-right">{formatMoney(item.unitPrice)}</td>
+                    <td className="px-3 py-2 text-right">{formatMoneyAdmin(item.unitPrice)}</td>
                     <td className="px-3 py-2 text-right text-muted-foreground">
-                      {formatMoney(item.wholesalePrice)}
+                      {formatMoneyAdmin(item.wholesalePrice)}
                     </td>
                     <td className="px-3 py-2 text-right font-semibold text-brand-navy">
-                      {formatMoney(item.unitPrice * item.qty * (1 - item.discountPct / 100))}
+                      {formatMoneyAdmin(item.unitPrice * item.qty * (1 - item.discountPct / 100))}
                     </td>
                   </tr>
                 ))}
@@ -312,11 +312,11 @@ function QuoteDetailDialog({ id, onClose }: { id: string; onClose: () => void })
           <div className="flex items-center justify-between gap-3 rounded-md bg-brand-surface p-3 text-sm">
             <div>
               <div className="text-xs text-muted-foreground">Total al detal</div>
-              <div className="text-lg font-bold text-brand-navy">{formatMoney(total)}</div>
+              <div className="text-lg font-bold text-brand-navy">{formatMoneyAdmin(total)}</div>
             </div>
             <div className="text-right">
               <div className="text-xs text-muted-foreground">Total al mayor</div>
-              <div className="text-lg font-bold text-brand-navy">{formatMoney(wholesaleTotal)}</div>
+              <div className="text-lg font-bold text-brand-navy">{formatMoneyAdmin(wholesaleTotal)}</div>
             </div>
           </div>
 
@@ -441,13 +441,13 @@ function QuoteDetailDialog({ id, onClose }: { id: string; onClose: () => void })
                     <div className="font-semibold text-brand-navy">{item.name}</div>
                     <div className="text-xs text-muted-foreground">{item.sku}</div>
                   </td>
-                  <td className="py-3 text-right">{formatMoney(item.unitPrice)}</td>
+                  <td className="py-3 text-right">{formatMoneyAdmin(item.unitPrice)}</td>
                   <td className="py-3 text-right text-muted-foreground">
-                    {formatMoney(item.wholesalePrice)}
+                    {formatMoneyAdmin(item.wholesalePrice)}
                   </td>
                   <td className="py-3 text-right">{item.qty}</td>
                   <td className="py-3 text-right font-semibold text-brand-navy">
-                    {formatMoney(item.unitPrice * item.qty * (1 - item.discountPct / 100))}
+                    {formatMoneyAdmin(item.unitPrice * item.qty * (1 - item.discountPct / 100))}
                   </td>
                 </tr>
               ))}
@@ -465,7 +465,7 @@ function QuoteDetailDialog({ id, onClose }: { id: string; onClose: () => void })
               <span className="text-lg font-bold text-brand-navy">Total detal</span>
               <span className="flex items-baseline gap-2">
                 <span className="text-lg font-bold tabular-nums text-brand-navy">
-                  {formatMoney(total)}
+                  {formatMoneyAdmin(total)}
                 </span>
                 {bcv && (
                   <span className="inline-flex items-center rounded-full bg-brand-blue/10 px-2 py-0.5 text-xs font-semibold tabular-nums text-brand-blue">
@@ -477,7 +477,7 @@ function QuoteDetailDialog({ id, onClose }: { id: string; onClose: () => void })
             <div className="flex items-center gap-1.5 rounded-md bg-brand-yellow/10 px-2.5 py-1.5 text-sm text-brand-navy/70">
               <Tag className="h-3.5 w-3.5 shrink-0 text-brand-yellow" />
               <span className="font-bold tabular-nums text-brand-navy">
-                {formatMoney(wholesaleTotal)}
+                {formatMoneyAdmin(wholesaleTotal)}
               </span>
               <span>Total al mayor</span>
             </div>
