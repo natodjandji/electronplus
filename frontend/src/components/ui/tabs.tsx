@@ -12,7 +12,11 @@ const TabsList = React.forwardRef<
   <TabsPrimitive.List
     ref={ref}
     className={cn(
-      "inline-flex h-9 items-center justify-center rounded-lg bg-muted p-1 text-muted-foreground",
+      // flex-wrap + h-auto (instead of a fixed h-9) let the trigger row
+      // break onto a second line on narrow screens instead of forcing the
+      // whole page wider than the viewport — h-9 alone clipped/overlapped
+      // a wrapped second row, since it locked the list to one line's height.
+      "inline-flex h-auto flex-wrap items-center justify-center gap-1 rounded-lg bg-muted p-1 text-muted-foreground",
       className,
     )}
     {...props}
