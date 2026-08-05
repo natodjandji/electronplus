@@ -1,13 +1,11 @@
 import { useNavigate } from "@tanstack/react-router";
-import { useEffect } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { io, type Socket } from "socket.io-client";
 import { Bell, Check, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
-import { apiFetch, API_ORIGIN, reportError } from "@/lib/api-client";
-import { auth } from "@/lib/firebase";
+import { apiFetch, reportError } from "@/lib/api-client";
 import { formatDate } from "@/lib/format";
+import { NOTIFICATIONS_KEY } from "@/lib/use-realtime-ops-sync";
 
 type NotificationType =
   | "low_stock"
@@ -26,8 +24,6 @@ interface AppNotification {
   read: boolean;
   createdAt: string;
 }
-
-const NOTIFICATIONS_KEY = ["admin", "notifications"];
 
 /** Where clicking a notification should take the admin — the screen that
  * actually shows what triggered it, not just wherever they happened to be. */
@@ -51,18 +47,20 @@ function useNotifications() {
   return useQuery({
     queryKey: NOTIFICATIONS_KEY,
     queryFn: () => apiFetch<AppNotification[]>("/notifications"),
-    // The realtime socket below invalidates this on every push — this
-    // interval is just a fallback in case a connection ever drops silently.
+    // useRealtimeOpsSync (mounted once at the app root, see __root.tsx)
+    // invalidates this on every push over the same socket — this interval
+    // is just a fallback in case a connection ever drops silently.
     refetchInterval: 60_000,
   });
 }
 
 /**
- * Backend side of this (notifications.gateway.ts) has been fully built and
- * broadcasting stock-alert / invoice-due / sync-error events for a while —
- * this is the first UI that actually shows them. Connects to the same
- * Socket.IO `realtime` namespace/room-per-role scheme the gateway already
- * implements, rather than polling alone, so alerts show up live.
+ * Backend side of this (notifications.gateway.ts) broadcasts stock-alert /
+ * invoice-due / sync-error events over Socket.IO — this is the UI that
+ * shows them. The socket connection itself lives in useRealtimeOpsSync,
+ * shared app-wide rather than owned by this component, so pages outside
+ * AdminShell (e.g. the public product detail page's ops-only stock panel)
+ * get live stock updates too, not just wherever this bell is rendered.
  */
 export function NotificationBell() {
   const { data: notifications } = useNotifications();
@@ -71,28 +69,6 @@ export function NotificationBell() {
   const unread = notifications?.filter((n) => !n.read) ?? [];
 
   const invalidate = () => queryClient.invalidateQueries({ queryKey: NOTIFICATIONS_KEY });
-
-  useEffect(() => {
-    let socket: Socket | undefined;
-    let cancelled = false;
-
-    void (async () => {
-      const token = await auth.currentUser?.getIdToken();
-      if (!token || cancelled) return;
-      socket = io(`${API_ORIGIN}/realtime`, {
-        auth: { token },
-        transports: ["websocket"],
-      });
-      socket.on("notification.created", invalidate);
-      socket.on("stock.changed", invalidate);
-    })();
-
-    return () => {
-      cancelled = true;
-      socket?.disconnect();
-    };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [queryClient]);
 
   const markRead = useMutation({
     mutationFn: (id: string) => apiFetch(`/notifications/${id}/read`, { method: "PATCH" }),

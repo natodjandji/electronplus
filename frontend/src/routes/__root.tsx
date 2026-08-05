@@ -13,6 +13,7 @@ import appCss from "../styles.css?url";
 import { reportLovableError } from "../lib/lovable-error-reporting";
 import { AuthProvider } from "@/lib/auth-context";
 import { ElectronStoreProvider } from "@/lib/electron-store";
+import { useRealtimeOpsSync } from "@/lib/use-realtime-ops-sync";
 import { Toaster } from "@/components/ui/sonner";
 
 function NotFoundComponent() {
@@ -180,6 +181,14 @@ function RootShell({ children }: { children: ReactNode }) {
   );
 }
 
+// Needs to run inside ElectronStoreProvider (for isOps) but renders
+// nothing — a plain function component is the only way to call a hook at
+// this point in the tree, RootComponent itself sits above the provider.
+function RealtimeOpsSync() {
+  useRealtimeOpsSync();
+  return null;
+}
+
 function RootComponent() {
   const { queryClient } = Route.useRouteContext();
 
@@ -195,6 +204,7 @@ function RootComponent() {
     <QueryClientProvider client={queryClient}>
       <AuthProvider>
         <ElectronStoreProvider>
+          <RealtimeOpsSync />
           <Outlet />
           <Toaster richColors position="top-right" offset={{ top: "80px", right: "16px" }} />
         </ElectronStoreProvider>
