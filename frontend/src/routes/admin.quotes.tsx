@@ -169,7 +169,9 @@ function AdminQuotesPage() {
                 <div className="flex items-center gap-3">
                   <div className="text-right">
                     <div className="text-xs text-muted-foreground">Total</div>
-                    <div className="font-bold text-brand-navy">{formatMoneyAdmin(computeTotal(q))}</div>
+                    <div className="font-bold text-brand-navy">
+                      {formatMoneyAdmin(computeTotal(q))}
+                    </div>
                   </div>
                   <Badge className={STATUS_BADGE[q.status]}>{STATUS_LABEL[q.status]}</Badge>
                 </div>
@@ -316,7 +318,9 @@ function QuoteDetailDialog({ id, onClose }: { id: string; onClose: () => void })
             </div>
             <div className="text-right">
               <div className="text-xs text-muted-foreground">Total al mayor</div>
-              <div className="text-lg font-bold text-brand-navy">{formatMoneyAdmin(wholesaleTotal)}</div>
+              <div className="text-lg font-bold text-brand-navy">
+                {formatMoneyAdmin(wholesaleTotal)}
+              </div>
             </div>
           </div>
 

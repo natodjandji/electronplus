@@ -794,7 +794,9 @@ function InvoiceDetailDialog({ invoiceId, onClose }: { invoiceId: string; onClos
                         </a>
                       )}
                     </div>
-                    <div className="font-semibold text-brand-navy">{formatMoneyAdmin(p.amount)}</div>
+                    <div className="font-semibold text-brand-navy">
+                      {formatMoneyAdmin(p.amount)}
+                    </div>
                   </div>
                 ))}
               </div>

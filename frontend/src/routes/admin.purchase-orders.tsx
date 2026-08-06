@@ -309,7 +309,9 @@ function PurchaseOrdersPage() {
                       onClick={() => setSelectedId(o.id)}
                     >
                       <td className="px-4 py-3 font-semibold text-brand-navy">{o.supplierName}</td>
-                      <td className="px-4 py-3 text-right">{formatMoneyAdmin(o.totals.totalAmount)}</td>
+                      <td className="px-4 py-3 text-right">
+                        {formatMoneyAdmin(o.totals.totalAmount)}
+                      </td>
                       <td className="px-4 py-3 text-right text-muted-foreground">
                         {formatMoneyAdmin(o.amountPaid)}
                       </td>
@@ -829,7 +831,9 @@ function OrderDetailDialog({ orderId, onClose }: { orderId: string; onClose: () 
                       {item.discountPerItem > 0 ? ` · -${item.discountPerItem}%` : ""}
                     </div>
                   </div>
-                  <div className="font-semibold text-brand-navy">{formatMoneyAdmin(item.subtotal)}</div>
+                  <div className="font-semibold text-brand-navy">
+                    {formatMoneyAdmin(item.subtotal)}
+                  </div>
                 </div>
               ))}
             </div>
@@ -960,7 +964,9 @@ function OrderDetailDialog({ orderId, onClose }: { orderId: string; onClose: () 
                         {new Date(p.paidAt).toLocaleDateString("es-VE")} · {p.method}
                         {p.reference ? ` · ${p.reference}` : ""}
                       </div>
-                      <div className="font-semibold text-brand-navy">{formatMoneyAdmin(p.amount)}</div>
+                      <div className="font-semibold text-brand-navy">
+                        {formatMoneyAdmin(p.amount)}
+                      </div>
                     </div>
                   ))}
                 </div>

@@ -180,7 +180,9 @@ function AdminOrdersPage() {
                 <div className="flex items-center gap-3">
                   <div className="text-right">
                     <div className="text-xs text-muted-foreground">Total</div>
-                    <div className="font-bold text-brand-navy">{formatMoneyAdmin(o.totalAmount)}</div>
+                    <div className="font-bold text-brand-navy">
+                      {formatMoneyAdmin(o.totalAmount)}
+                    </div>
                   </div>
                   {o.fulfillmentMethod === "pickup" && (
                     <Badge className="border-transparent bg-muted text-muted-foreground">

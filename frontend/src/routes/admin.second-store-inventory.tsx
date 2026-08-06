@@ -129,7 +129,9 @@ function SecondStoreInventoryPage() {
                   <td className="px-4 py-3 font-medium text-brand-navy">{p.name}</td>
                   <td className="px-4 py-3 text-right">{p.stock}</td>
                   <td className="px-4 py-3 text-right">{formatMoneyAdmin(p.retailPrice ?? 0)}</td>
-                  <td className="px-4 py-3 text-right">{formatMoneyAdmin(p.wholesalePrice ?? 0)}</td>
+                  <td className="px-4 py-3 text-right">
+                    {formatMoneyAdmin(p.wholesalePrice ?? 0)}
+                  </td>
                   <td className="px-4 py-3 text-muted-foreground">
                     {p.linkedProduct ? p.linkedProduct.name : "—"}
                   </td>
