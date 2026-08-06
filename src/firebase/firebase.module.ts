@@ -1,6 +1,21 @@
 import { Global, Module, Provider } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import * as admin from 'firebase-admin';
+// Modular entry points, not the legacy `import * as admin from 'firebase-admin'`
+// namespace — firebase-admin v14 dropped `admin.credential`, `admin.apps` and
+// the `admin.app.App` type. The rest of the codebase already imported this way
+// (firebase-admin/firestore, firebase-admin/auth); this file was the last
+// holdout.
+import {
+  applicationDefault,
+  cert,
+  getApps,
+  initializeApp,
+  type App,
+  type Credential,
+} from 'firebase-admin/app';
+import { getAuth } from 'firebase-admin/auth';
+import { getFirestore } from 'firebase-admin/firestore';
+import { getStorage } from 'firebase-admin/storage';
 import type { Bucket } from '@google-cloud/storage';
 import { EnvConfig } from '../config/env.validation';
 import {
@@ -10,23 +25,24 @@ import {
   FIRESTORE,
 } from './firebase.constants';
 
-function buildCredential(config: ConfigService<EnvConfig, true>): admin.credential.Credential {
+function buildCredential(config: ConfigService<EnvConfig, true>): Credential {
   const base64Key = config.get('FIREBASE_SERVICE_ACCOUNT_BASE64', { infer: true });
   if (base64Key) {
     const serviceAccount = JSON.parse(Buffer.from(base64Key, 'base64').toString('utf8'));
-    return admin.credential.cert(serviceAccount);
+    return cert(serviceAccount);
   }
   // Falls back to GOOGLE_APPLICATION_CREDENTIALS (a service-account key file path)
   // or the ambient metadata server when running on GCP.
-  return admin.credential.applicationDefault();
+  return applicationDefault();
 }
 
 const firebaseAppProvider: Provider = {
   provide: FIREBASE_APP,
   inject: [ConfigService],
-  useFactory: (config: ConfigService<EnvConfig, true>): admin.app.App => {
-    if (admin.apps.length > 0) return admin.apps[0] as admin.app.App;
-    return admin.initializeApp({
+  useFactory: (config: ConfigService<EnvConfig, true>): App => {
+    const existing = getApps();
+    if (existing.length > 0) return existing[0];
+    return initializeApp({
       credential: buildCredential(config),
       projectId: config.get('FIREBASE_PROJECT_ID', { infer: true }),
     });
@@ -36,8 +52,8 @@ const firebaseAppProvider: Provider = {
 const firestoreProvider: Provider = {
   provide: FIRESTORE,
   inject: [FIREBASE_APP],
-  useFactory: (app: admin.app.App) => {
-    const firestore = app.firestore();
+  useFactory: (app: App) => {
+    const firestore = getFirestore(app);
     firestore.settings({ ignoreUndefinedProperties: true });
     return firestore;
   },
@@ -46,17 +62,17 @@ const firestoreProvider: Provider = {
 const firebaseAuthProvider: Provider = {
   provide: FIREBASE_AUTH,
   inject: [FIREBASE_APP],
-  useFactory: (app: admin.app.App) => app.auth(),
+  useFactory: (app: App) => getAuth(app),
 };
 
 const storageBucketProvider: Provider = {
   provide: FIREBASE_STORAGE_BUCKET,
   inject: [FIREBASE_APP, ConfigService],
-  useFactory: (app: admin.app.App, config: ConfigService<EnvConfig, true>): Bucket => {
+  useFactory: (app: App, config: ConfigService<EnvConfig, true>): Bucket => {
     const bucketName =
       config.get('FIREBASE_STORAGE_BUCKET', { infer: true }) ??
       `${config.get('FIREBASE_PROJECT_ID', { infer: true })}.firebasestorage.app`;
-    return app.storage().bucket(bucketName);
+    return getStorage(app).bucket(bucketName);
   },
 };
 
