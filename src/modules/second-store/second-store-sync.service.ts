@@ -3,6 +3,7 @@ import { SchedulerRegistry } from '@nestjs/schedule';
 import { CronJob } from 'cron';
 import { ConfigService } from '@nestjs/config';
 import type { Firestore } from 'firebase-admin/firestore';
+import { FieldValue } from 'firebase-admin/firestore';
 import { EnvConfig } from '../../config/env.validation';
 import { FIRESTORE } from '../../firebase/firebase.constants';
 import { Collections } from '../../firebase/firestore-collections';
@@ -75,7 +76,7 @@ export class SecondStoreSyncService implements OnModuleInit {
   private readonly logsRepo: FirestoreRepository<SecondStoreSyncLog>;
 
   constructor(
-    @Inject(FIRESTORE) firestore: Firestore,
+    @Inject(FIRESTORE) private readonly firestore: Firestore,
     private readonly schedulerRegistry: SchedulerRegistry,
     private readonly config: ConfigService<EnvConfig, true>,
   ) {
@@ -140,19 +141,30 @@ export class SecondStoreSyncService implements OnModuleInit {
       const byCode = new Map(existing.filter((p) => p.code).map((p) => [p.code!, p]));
       const byName = new Map(existing.map((p) => [p.name.trim().toLowerCase(), p]));
 
+      // BulkWriter instead of per-item repo.create()/update(): those each
+      // cost an extra read, because both re-read the doc afterwards to
+      // return the saved entity (see FirestoreRepository) — and this loop
+      // discards that return value anyway. On a full re-sync of this
+      // catalog that was ~5.4k writes + ~5.4k pointless reads, issued
+      // serially; BulkWriter batches them and skips the reads entirely.
+      const writer = this.firestore.bulkWriter();
+      const collection = this.repo.collection();
+      const now = FieldValue.serverTimestamp();
+
       let created = 0;
       let updated = 0;
       for (const item of data.productos) {
         const match = byCode.get(item.codigo) ?? byName.get(item.descripcion.trim().toLowerCase());
+        const fields = {
+          name: item.descripcion,
+          code: item.codigo,
+          stock: item.stock,
+          retailPrice: item.precio1,
+          wholesalePrice: item.precio2,
+        };
 
         if (!match) {
-          await this.repo.create({
-            name: item.descripcion,
-            code: item.codigo,
-            stock: item.stock,
-            retailPrice: item.precio1,
-            wholesalePrice: item.precio2,
-          });
+          void writer.set(collection.doc(), { ...fields, createdAt: now, updatedAt: now });
           created++;
           continue;
         }
@@ -169,16 +181,14 @@ export class SecondStoreSyncService implements OnModuleInit {
           match.wholesalePrice !== item.precio2;
 
         if (changed) {
-          await this.repo.update(match.id, {
-            name: item.descripcion,
-            code: item.codigo,
-            stock: item.stock,
-            retailPrice: item.precio1,
-            wholesalePrice: item.precio2,
-          });
+          void writer.set(collection.doc(match.id), { ...fields, updatedAt: now }, { merge: true });
           updated++;
         }
       }
+      // Throws if any queued write ultimately failed after BulkWriter's own
+      // retries, so a partial sync surfaces as an ERROR log rather than
+      // being silently reported as a success below.
+      await writer.close();
 
       const result: SecondStoreSyncResult = {
         fromBridge: data.productos.length,

@@ -58,7 +58,6 @@ interface SecondStoreProduct {
   id: string;
   name: string;
   stock: number;
-  linkedProduct: { id: string; sku: string; name: string; stock: number } | null;
 }
 
 function NotFound() {
@@ -89,13 +88,15 @@ function ProductPage() {
       apiFetch<{ qrImageDataUrl: string }>(`/qr/tokens/${product.id}`, { method: "POST" }),
     enabled: isOps,
   });
-  const { data: secondStoreProducts } = useQuery({
-    queryKey: ["admin", "second-store-products"],
-    queryFn: () => apiFetch<SecondStoreProduct[]>("/second-store-products"),
+  // Single-product lookup, NOT the full catalog. Fetching every
+  // second-store row here and .find()-ing in memory cost ~5.4k Firestore
+  // reads per page view just to show one stock number.
+  const { data: secondStoreLink } = useQuery({
+    queryKey: ["admin", "second-store-products", "by-product", product.id],
+    queryFn: () =>
+      apiFetch<SecondStoreProduct | null>(`/second-store-products/by-product/${product.id}`),
     enabled: isOps,
   });
-  const secondStoreLink =
-    secondStoreProducts?.find((s) => s.linkedProduct?.id === product.id) ?? null;
   const out = product.stock === 0;
   const low = product.stock > 0 && product.stock <= 10;
   const [qty, setQty] = useState(1);

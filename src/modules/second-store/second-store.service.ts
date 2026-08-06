@@ -59,6 +59,20 @@ export class SecondStoreService {
     });
   }
 
+  /**
+   * The second-store row linked to a given catalog product, or null.
+   *
+   * Exists so a caller that only needs ONE product's link (the product
+   * detail page's ops-only "Stock tienda secundaria" figure) doesn't pull
+   * the whole catalog and `.find()` in memory — that was ~5.4k document
+   * reads to render a single number, on every product page view by an
+   * admin/almacenista. This is an indexed single-field equality query with
+   * limit 1, so it costs 1 read regardless of catalog size.
+   */
+  async findByLinkedProductId(productId: string): Promise<SecondStoreProduct | null> {
+    return this.repo.findOne([{ field: 'linkedProductId', op: '==', value: productId }]);
+  }
+
   async findById(id: string): Promise<SecondStoreProductWithLink> {
     const item = await this.repo.getOrThrow(id, 'Second store product not found');
     if (!item.linkedProductId) return { ...item, linkedProduct: null };

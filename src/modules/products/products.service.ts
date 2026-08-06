@@ -61,12 +61,24 @@ const TOP_SELLING_DEFAULT_LIMIT = 8;
 // comes from an unauthenticated query param — see topSelling()'s doc comment.
 const TOP_SELLING_MAX_LIMIT = 24;
 
+// Firestore has no full-text search, so `?search=` scans every active
+// product and filters in Node. That route is UNAUTHENTICATED
+// (OptionalFirebaseAuthGuard) and the global throttle allows 100 req/min
+// per IP — uncached, that let a single client force 100 full-collection
+// scans a minute. Caching the scanned corpus makes the catalog size cost
+// one read-set per TTL window instead of one per request. Kept short (and
+// cleared on every catalog write, see clearCatalogCaches) so a newly
+// added/edited product shows up in search almost immediately.
+const SEARCH_CACHE_TTL_MS = 60 * 1000;
+
 @Injectable()
 export class ProductsService {
   private readonly repo: FirestoreRepository<Product>;
   private readonly categoriesRepo: FirestoreRepository<Category>;
   private readonly warehousesRepo: FirestoreRepository<Warehouse>;
   private readonly topSellingCache = new Map<number, { data: Product[]; cachedAt: number }>();
+  /** Backs the public search path in findAll() — see SEARCH_CACHE_TTL_MS. */
+  private searchCorpusCache: { data: Product[]; cachedAt: number } | null = null;
 
   constructor(
     @Inject(FIRESTORE) private readonly firestore: Firestore,
@@ -83,11 +95,12 @@ export class ProductsService {
     const skip = (page - 1) * limit;
 
     if (query.search) {
-      // Firestore has no full-text search — scan active products (bounded)
-      // and filter in Node. Fine at this catalog's scale. `page` slices the
-      // in-memory filtered array directly (was previously ignored, always
-      // returning page 1's results for every page).
-      const all = await this.repo.findAll({ where: [{ field: 'active', op: '==', value: true }] });
+      // Firestore has no full-text search — scan active products and filter
+      // in Node. `page` slices the in-memory filtered array directly (was
+      // previously ignored, always returning page 1's results for every
+      // page). The scan is served from a short-lived cache — see
+      // SEARCH_CACHE_TTL_MS for why that matters on this route.
+      const all = await this.activeProductsForSearch();
       const needle = query.search.toLowerCase();
       const filtered = all.filter(
         (p) => p.name.toLowerCase().includes(needle) || p.sku.toLowerCase().includes(needle),
@@ -113,6 +126,24 @@ export class ProductsService {
       this.repo.count(where),
     ]);
     return new PaginatedResult(data, total, page, limit);
+  }
+
+  private async activeProductsForSearch(): Promise<Product[]> {
+    const cached = this.searchCorpusCache;
+    if (cached && Date.now() - cached.cachedAt < SEARCH_CACHE_TTL_MS) return cached.data;
+    const data = await this.repo.findAll({
+      where: [{ field: 'active', op: '==', value: true }],
+    });
+    this.searchCorpusCache = { data, cachedAt: Date.now() };
+    return data;
+  }
+
+  /** Every in-memory catalog cache, dropped together. Called from each write
+   * path so an admin never has to wait out a TTL to see their own change —
+   * clearing is cheap, and the next reader repopulates lazily. */
+  private clearCatalogCaches(): void {
+    this.topSellingCache.clear();
+    this.searchCorpusCache = null;
   }
 
   findById(id: string): Promise<Product> {
@@ -254,6 +285,7 @@ export class ProductsService {
 
   async create(dto: CreateProductDto): Promise<Product> {
     const category = await this.categoriesRepo.getOrThrow(dto.categoryId, 'Category not found');
+    this.clearCatalogCaches();
     return this.repo.create({
       sku: dto.sku,
       name: dto.name,
@@ -280,10 +312,9 @@ export class ProductsService {
       patch.category = { id: category.id, code: category.code, label: category.label };
     }
     const updated = await this.repo.update(id, patch);
-    // Deactivating is the other way a product stops being eligible for
-    // topSelling()'s active-only filter — same staleness problem as
-    // delete() below if the cache isn't cleared.
-    if (dto.active === false) this.topSellingCache.clear();
+    // Any edit can change what search returns (name/sku/active), so unlike
+    // the previous active-only check this clears unconditionally.
+    this.clearCatalogCaches();
     return updated;
   }
 
@@ -303,8 +334,9 @@ export class ProductsService {
     await this.repo.delete(id);
     // Without this, a deleted product can keep showing on the public
     // homepage's "más vendidos" section for up to TOP_SELLING_CACHE_TTL_MS
-    // (15 min) — topSelling() only re-checks Firestore on a cache miss.
-    this.topSellingCache.clear();
+    // (15 min), and in search results for up to SEARCH_CACHE_TTL_MS —
+    // both only re-check Firestore on a cache miss.
+    this.clearCatalogCaches();
   }
 
   /** Manual admin stock adjustment (+ restock / - shrinkage), optionally scoped to a warehouse. */
@@ -614,6 +646,10 @@ export class ProductsService {
           active: true,
           qrToken: generateQrToken(),
         });
+
+    // Only reached when something actually changed (the dirty-check above
+    // returns early otherwise), so a no-op sync run leaves the caches warm.
+    this.clearCatalogCaches();
 
     if (stockChanged) {
       this.emitStockChanged({

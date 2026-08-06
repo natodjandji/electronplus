@@ -43,7 +43,11 @@ export const envSchema = z.object({
   // scheduled run and logs a warning until both are set.
   SECOND_STORE_PROFIT_API_URL: z.string().optional(),
   SECOND_STORE_PROFIT_API_KEY: z.string().optional(),
-  SECOND_STORE_SYNC_CRON: z.string().default('*/15 * * * *'),
+  // 30 min, not 15 like the principal store above: this catalog is ~5.4k
+  // products and each run re-reads all of them to diff, so the interval is
+  // the main lever on its Firestore read bill. Matches what production is
+  // actually set to — keep the two in step.
+  SECOND_STORE_SYNC_CRON: z.string().default('*/30 * * * *'),
 
   LOW_STOCK_DEFAULT_THRESHOLD: z.coerce.number().default(10),
 

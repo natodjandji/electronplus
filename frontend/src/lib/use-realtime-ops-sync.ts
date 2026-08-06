@@ -60,17 +60,21 @@ export function useRealtimeOpsSync() {
       });
       socket.on("notification.created", invalidateNotifications);
       socket.on("stock.changed", invalidateStock);
+      // Catch-up on reconnect instead of polling on a timer. Socket.IO
+      // reconnects on its own, and any stock.changed emitted while the
+      // connection was down was missed — one invalidation on `reconnect`
+      // closes that gap exactly when it matters.
+      //
+      // Deliberately NOT a setInterval: invalidateStock refetches the
+      // second-store catalog (5k+ docs today), so an unconditional timer
+      // would bill a full-collection read per tick for every ops user
+      // with a tab open, whether or not anything actually changed.
+      socket.io.on("reconnect", invalidateStock);
     })();
-
-    // Same reasoning as useNotifications' refetchInterval fallback — a
-    // dropped socket connection shouldn't mean stock silently goes stale
-    // for the rest of the session.
-    const fallbackInterval = setInterval(invalidateStock, 60_000);
 
     return () => {
       cancelled = true;
       socket?.disconnect();
-      clearInterval(fallbackInterval);
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isOps, queryClient]);

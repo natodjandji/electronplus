@@ -46,6 +46,14 @@ export class SecondStoreController {
     return this.secondStoreSyncService.runInboundSync();
   }
 
+  // Single-product link lookup — 1 indexed read, vs. the ~5.4k the full
+  // findAll() above costs. Declared before any ':id' route so it isn't
+  // swallowed as an id.
+  @Get('by-product/:productId')
+  findByLinkedProduct(@Param('productId') productId: string) {
+    return this.secondStoreService.findByLinkedProductId(productId);
+  }
+
   @Get('sync/status')
   syncStatus() {
     return this.secondStoreSyncService.getStatus();
