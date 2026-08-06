@@ -12,13 +12,18 @@ import { absoluteUrl } from "@/lib/site-url";
 export const Route = createFileRoute("/collections")({
   head: () => ({
     meta: [
-      { title: "Colecciones · Electron Plus" },
+      { title: "Categorías de productos eléctricos · Electron Plus" },
       {
         name: "description",
-        content: "Explora nuestras categorías: iluminación, cables, tableros, tomas y protección.",
+        content:
+          "Compra por categoría: iluminación LED, cables, tableros, tomacorrientes y protección eléctrica. Precios detal y mayorista con despacho nacional.",
       },
-      { property: "og:title", content: "Colecciones · Electron Plus" },
-      { property: "og:description", content: "Compra por categoría en Electron Plus." },
+      { property: "og:title", content: "Categorías de productos eléctricos · Electron Plus" },
+      {
+        property: "og:description",
+        content:
+          "Iluminación, cables, tableros, tomas y protección eléctrica. Precios detal y mayorista.",
+      },
       { property: "og:url", content: absoluteUrl("/collections") },
     ],
     links: [{ rel: "canonical", href: absoluteUrl("/collections") }],

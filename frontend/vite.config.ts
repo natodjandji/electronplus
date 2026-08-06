@@ -9,9 +9,23 @@ import { defineConfig } from "@lovable.dev/vite-tanstack-config";
 // Firebase Hosting only serves static files (free Spark plan, no Cloud Functions/Cloud Run
 // billing) — so the app builds in TanStack Start's SPA mode (prerendered shell + client-side
 // rendering, no server runtime) instead of the default Cloudflare SSR target.
+// Every route rewrites to the prerendered shell (see firebase.json), so
+// whatever meta the shell was built with is what a crawler that doesn't run
+// JavaScript sees on EVERY url. That meant /catalog and /collections served
+// the homepage's og:title, og:url and — the damaging one — its
+// rel=canonical, which tells Google those pages are duplicates of `/` and
+// shouldn't be indexed on their own. Listing them here emits a real HTML
+// file per route with its own head, so the static response matches the page.
+const PUBLIC_PAGES = [
+  { path: "/", sitemap: { priority: 1.0, changefreq: "weekly" as const } },
+  { path: "/catalog", sitemap: { priority: 0.9, changefreq: "daily" as const } },
+  { path: "/collections", sitemap: { priority: 0.7, changefreq: "weekly" as const } },
+];
+
 export default defineConfig({
   tanstackStart: {
     spa: { enabled: true, prerender: { enabled: true, crawlLinks: true } },
+    pages: PUBLIC_PAGES,
   },
   nitro: false,
   vite: {

@@ -14,7 +14,8 @@ import { ProductImage } from "@/components/product-image";
 import { apiFetch } from "@/lib/api-client";
 import { type ApiProduct, toProduct } from "@/lib/product-api";
 import type { Product } from "@/lib/mock-data";
-import { SITE_URL, absoluteUrl } from "@/lib/site-url";
+import { SITE_URL, absoluteUrl, OG_IMAGE } from "@/lib/site-url";
+import { CONTACT_INFO } from "@/lib/contact-info";
 import { safeJsonLd } from "@/lib/text";
 
 const HERO_GROUP_SIZE = 4;
@@ -40,6 +41,53 @@ function useRotatingGroups<T>(items: T[], groupSize: number, intervalMs: number)
   return { group: items.slice(start, start + groupSize), index };
 }
 
+// @id lets the WebSite node below point at this one instead of repeating it,
+// which is what keeps Google treating them as one entity rather than two.
+const ORGANIZATION_JSON_LD = {
+  "@context": "https://schema.org",
+  "@type": "Store",
+  "@id": `${SITE_URL}/#organization`,
+  name: "Electron Plus",
+  url: SITE_URL,
+  logo: absoluteUrl("/assets/brand/logo-full-color.svg"),
+  image: OG_IMAGE,
+  description:
+    "Tienda especializada en iluminación, cables y materiales eléctricos en Venezuela. Precios detal y mayorista, cotizaciones y despacho a nivel nacional.",
+  email: CONTACT_INFO.email,
+  telephone: CONTACT_INFO.phone,
+  areaServed: { "@type": "Country", name: "Venezuela" },
+  currenciesAccepted: "USD, VES",
+  openingHours: "Mo-Sa 08:00-18:00",
+  contactPoint: {
+    "@type": "ContactPoint",
+    contactType: "sales",
+    telephone: CONTACT_INFO.phone,
+    email: CONTACT_INFO.email,
+    areaServed: "VE",
+    availableLanguage: ["Spanish"],
+  },
+};
+
+// Declares the site's own search endpoint so Google can surface a search box
+// directly in the result for the brand query.
+const WEBSITE_JSON_LD = {
+  "@context": "https://schema.org",
+  "@type": "WebSite",
+  "@id": `${SITE_URL}/#website`,
+  url: SITE_URL,
+  name: "Electron Plus",
+  inLanguage: "es-VE",
+  publisher: { "@id": `${SITE_URL}/#organization` },
+  potentialAction: {
+    "@type": "SearchAction",
+    target: {
+      "@type": "EntryPoint",
+      urlTemplate: `${absoluteUrl("/catalog")}?search={search_term_string}`,
+    },
+    "query-input": "required name=search_term_string",
+  },
+};
+
 export const Route = createFileRoute("/")({
   head: () => ({
     meta: [
@@ -58,19 +106,19 @@ export const Route = createFileRoute("/")({
       { property: "og:url", content: SITE_URL },
     ],
     links: [{ rel: "canonical", href: SITE_URL }],
+    // JSON-LD belongs in head(), not in the component body. This app builds
+    // in SPA mode (see vite.config.ts — Firebase Spark has no SSR runtime),
+    // and the prerender only emits the <head>; the body ships empty. A
+    // <script type="application/ld+json"> rendered as a child would
+    // therefore exist only after JS runs, which every non-Google crawler
+    // never does. Declared here, it lands in the static HTML.
+    scripts: [
+      { type: "application/ld+json", children: safeJsonLd(ORGANIZATION_JSON_LD) },
+      { type: "application/ld+json", children: safeJsonLd(WEBSITE_JSON_LD) },
+    ],
   }),
   component: Home,
 });
-
-const ORGANIZATION_JSON_LD = {
-  "@context": "https://schema.org",
-  "@type": "Organization",
-  name: "Electron Plus",
-  url: SITE_URL,
-  logo: absoluteUrl("/assets/brand/logo-full-color.svg"),
-  description:
-    "Tienda especializada en iluminación, cables y materiales eléctricos en Venezuela. Precios detal y mayorista, cotizaciones y despacho a nivel nacional.",
-};
 
 function Home() {
   const { data: bestSellers = [], isLoading: bestSellersLoading } = useQuery({
@@ -82,10 +130,6 @@ function Home() {
   const reduceMotion = useReducedMotion();
   return (
     <PublicShell>
-      <script
-        type="application/ld+json"
-        dangerouslySetInnerHTML={{ __html: safeJsonLd(ORGANIZATION_JSON_LD) }}
-      />
       {/* Hero */}
       <section className="relative overflow-hidden bg-brand-navy text-white">
         <div

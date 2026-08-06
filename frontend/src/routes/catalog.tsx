@@ -44,13 +44,18 @@ export const Route = createFileRoute("/catalog")({
   }),
   head: () => ({
     meta: [
-      { title: "Catálogo · Electron Plus" },
+      { title: "Catálogo de materiales eléctricos · Electron Plus" },
       {
         name: "description",
-        content: "Explora iluminación, cables, breakers, tableros y tomas con filtros avanzados.",
+        content:
+          "Bombillos LED, cables THHN, breakers, tableros y tomacorrientes con precio detal y mayorista. Filtra por categoría y cotiza en línea.",
       },
-      { property: "og:title", content: "Catálogo · Electron Plus" },
-      { property: "og:description", content: "Productos eléctricos con precio detal y mayorista." },
+      { property: "og:title", content: "Catálogo de materiales eléctricos · Electron Plus" },
+      {
+        property: "og:description",
+        content:
+          "Bombillos LED, cables, breakers, tableros y tomas con precio detal y mayorista. Cotiza en línea.",
+      },
       { property: "og:url", content: absoluteUrl("/catalog") },
     ],
     links: [{ rel: "canonical", href: absoluteUrl("/catalog") }],

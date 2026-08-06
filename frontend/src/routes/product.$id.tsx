@@ -20,10 +20,75 @@ import { PriceTag } from "@/components/price-tag";
 import { ProductImage } from "@/components/product-image";
 import { apiFetch } from "@/lib/api-client";
 import { type ApiProduct, toProduct } from "@/lib/product-api";
+import { CATEGORIES, type Product } from "@/lib/mock-data";
 import { useElectronStore } from "@/lib/electron-store";
 import { formatBs, useBcvRate } from "@/lib/use-bcv-rate";
-import { absoluteUrl } from "@/lib/site-url";
+import { absoluteUrl, OG_IMAGE, SITE_URL } from "@/lib/site-url";
 import { safeJsonLd } from "@/lib/text";
+
+function categoryLabel(category: Product["category"]): string {
+  return CATEGORIES.find((c) => c.id === category)?.label ?? "Material eléctrico";
+}
+
+/** Meta/JSON-LD description for a product. `specs` is the ideal source but is
+ * frequently blank, and an empty description is worse than a generated one —
+ * Google drops it and picks arbitrary page text instead. Builds a sentence
+ * from the fields every product does have, trimmed to the ~155 chars search
+ * results actually render. */
+function productDescription(product: Pick<Product, "name" | "specs" | "category">): string {
+  const base = product.specs?.trim()
+    ? product.specs.trim()
+    : `${product.name} — ${categoryLabel(product.category)} disponible en Electron Plus con precio detal y mayorista, cotización en línea y despacho nacional.`;
+  return base.length > 155 ? `${base.slice(0, 152).trimEnd()}…` : base;
+}
+
+function buildProductJsonLd(product: Product) {
+  return {
+    "@context": "https://schema.org",
+    "@type": "Product",
+    name: product.name,
+    sku: product.sku,
+    mpn: product.sku,
+    description: productDescription(product),
+    category: categoryLabel(product.category),
+    // Google's Product rich-result guidance wants a brand; the catalog has no
+    // per-item manufacturer field, so the seller stands in rather than
+    // omitting a recommended property.
+    brand: { "@type": "Brand", name: "Electron Plus" },
+    ...(product.image ? { image: [product.image] } : {}),
+    offers: {
+      "@type": "Offer",
+      url: absoluteUrl(`/product/${product.id}`),
+      // Must stay a real ISO 4217 code — schema.org/Google reject "REF", the
+      // label the UI shows (see formatMoney in electron-store.tsx).
+      priceCurrency: "USD",
+      price: product.retailPrice,
+      itemCondition: "https://schema.org/NewCondition",
+      availability:
+        product.stock === 0 ? "https://schema.org/OutOfStock" : "https://schema.org/InStock",
+      seller: { "@type": "Organization", name: "Electron Plus" },
+    },
+  };
+}
+
+/** Lets Google render "Inicio > Catalogo > Producto" instead of a raw URL
+ * under the result title. */
+function buildBreadcrumbJsonLd(product: Product) {
+  return {
+    "@context": "https://schema.org",
+    "@type": "BreadcrumbList",
+    itemListElement: [
+      { "@type": "ListItem", position: 1, name: "Inicio", item: SITE_URL },
+      { "@type": "ListItem", position: 2, name: "Catálogo", item: absoluteUrl("/catalog") },
+      {
+        "@type": "ListItem",
+        position: 3,
+        name: product.name,
+        item: absoluteUrl(`/product/${product.id}`),
+      },
+    ],
+  };
+}
 
 export const Route = createFileRoute("/product/$id")({
   loader: async ({ params }) => {
@@ -34,22 +99,46 @@ export const Route = createFileRoute("/product/$id")({
       throw notFound();
     }
   },
-  head: ({ loaderData, params }) => ({
-    meta: loaderData
-      ? [
-          { title: `${loaderData.product.name} · Electron Plus` },
-          { name: "description", content: loaderData.product.specs },
-          { property: "og:title", content: `${loaderData.product.name} · Electron Plus` },
-          { property: "og:description", content: loaderData.product.specs },
-          { property: "og:image", content: loaderData.product.image },
-          { property: "og:url", content: absoluteUrl(`/product/${params.id}`) },
-          { name: "twitter:image", content: loaderData.product.image },
-        ]
-      : [{ title: "Producto · Electron Plus" }, { name: "robots", content: "noindex" }],
-    links: loaderData
-      ? [{ rel: "canonical", href: absoluteUrl(`/product/${params.id}`) }]
-      : undefined,
-  }),
+  head: ({ loaderData, params }) => {
+    if (!loaderData) {
+      return {
+        meta: [
+          { title: "Producto no encontrado · Electron Plus" },
+          { name: "robots", content: "noindex, follow" },
+        ],
+      };
+    }
+    const { product } = loaderData;
+    // `specs` is optional upstream and toProduct() defaults it to "" — using
+    // it raw emitted an EMPTY description/og:description on every product
+    // without specs. Same for `image`: an empty og:image breaks the share
+    // card outright, so fall back to the site card instead of emitting "".
+    const description = productDescription(product);
+    const image = product.image || OG_IMAGE;
+    return {
+      meta: [
+        { title: `${product.name} · Electron Plus` },
+        { name: "description", content: description },
+        { property: "og:title", content: `${product.name} · Electron Plus` },
+        { property: "og:description", content: description },
+        { property: "og:type", content: "product" },
+        { property: "og:image", content: image },
+        { property: "og:image:alt", content: product.name },
+        { property: "og:url", content: absoluteUrl(`/product/${params.id}`) },
+        { name: "twitter:image", content: image },
+        { name: "twitter:image:alt", content: product.name },
+      ],
+      links: [{ rel: "canonical", href: absoluteUrl(`/product/${params.id}`) }],
+      // In head(), not the body — see the note on the home route. Product
+      // URLs aren't prerendered (they're dynamic), so this still only
+      // reaches crawlers that execute JS, but it keeps every structured-data
+      // block declared the same way.
+      scripts: [
+        { type: "application/ld+json", children: safeJsonLd(buildProductJsonLd(product)) },
+        { type: "application/ld+json", children: safeJsonLd(buildBreadcrumbJsonLd(product)) },
+      ],
+    };
+  },
   notFoundComponent: NotFound,
   component: ProductPage,
 });
@@ -108,28 +197,8 @@ function ProductPage() {
     setQty(1);
   };
 
-  const productJsonLd = {
-    "@context": "https://schema.org",
-    "@type": "Product",
-    name: product.name,
-    sku: product.sku,
-    description: product.specs,
-    ...(product.image ? { image: product.image } : {}),
-    offers: {
-      "@type": "Offer",
-      url: absoluteUrl(`/product/${product.id}`),
-      priceCurrency: "USD",
-      price: product.retailPrice,
-      availability: out ? "https://schema.org/OutOfStock" : "https://schema.org/InStock",
-    },
-  };
-
   return (
     <PublicShell>
-      <script
-        type="application/ld+json"
-        dangerouslySetInnerHTML={{ __html: safeJsonLd(productJsonLd) }}
-      />
       <section className="mx-auto max-w-6xl px-4 py-8 sm:px-6">
         <Link
           to="/catalog"

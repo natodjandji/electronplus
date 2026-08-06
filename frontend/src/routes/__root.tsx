@@ -13,6 +13,7 @@ import appCss from "../styles.css?url";
 import { reportLovableError } from "../lib/lovable-error-reporting";
 import { AuthProvider } from "@/lib/auth-context";
 import { ElectronStoreProvider } from "@/lib/electron-store";
+import { OG_IMAGE, OG_IMAGE_ALT, OG_IMAGE_HEIGHT, OG_IMAGE_WIDTH, SITE_URL } from "@/lib/site-url";
 import { useRealtimeOpsSync } from "@/lib/use-realtime-ops-sync";
 import { Toaster } from "@/components/ui/sonner";
 
@@ -136,13 +137,31 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
           "Electron Plus: tienda especializada en iluminación, cables y materiales eléctricos. Precios detal y mayorista, cotizaciones y panel administrativo.",
       },
       { name: "author", content: "Electron Plus" },
+      // Site-wide default. Public routes are indexable; every private route
+      // (admin/*, client/*, cart, checkout, login, register, quotes) sets its
+      // own noindex, and robots.txt disallows them as a second layer.
+      { name: "robots", content: "index, follow" },
       { property: "og:title", content: "Electron Plus · Iluminación y materiales eléctricos" },
       {
         property: "og:description",
         content: "Catálogo, cotizaciones y gestión operativa para Electron Plus.",
       },
       { property: "og:type", content: "website" },
+      { property: "og:site_name", content: "Electron Plus" },
+      { property: "og:locale", content: "es_VE" },
+      { property: "og:url", content: SITE_URL },
+      // Without an og:image, a link shared on WhatsApp — the main channel
+      // here — renders as a bare text row with no preview. Declared once
+      // globally so every page inherits it; product pages override with the
+      // product photo when one exists.
+      { property: "og:image", content: OG_IMAGE },
+      { property: "og:image:width", content: OG_IMAGE_WIDTH },
+      { property: "og:image:height", content: OG_IMAGE_HEIGHT },
+      { property: "og:image:alt", content: OG_IMAGE_ALT },
+      { property: "og:image:type", content: "image/jpeg" },
       { name: "twitter:card", content: "summary_large_image" },
+      { name: "twitter:image", content: OG_IMAGE },
+      { name: "twitter:image:alt", content: OG_IMAGE_ALT },
     ],
     links: [
       { rel: "stylesheet", href: appCss },
