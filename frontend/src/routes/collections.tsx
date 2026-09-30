@@ -73,7 +73,7 @@ function CollectionsPage() {
                         loading="lazy"
                       />
                     )}
-                    <div className="absolute inset-0 bg-gradient-to-t from-brand-navy/95 via-brand-navy/50 to-brand-navy/10" />
+                    <div className="absolute inset-0 bg-gradient-to-t from-brand-blue/95 via-brand-blue/50 to-brand-blue/10" />
                     <div className="relative">
                       <h3 className="flex items-center gap-1.5 text-lg font-semibold text-white">
                         {c.label}

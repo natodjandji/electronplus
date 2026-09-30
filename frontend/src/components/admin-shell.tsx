@@ -141,7 +141,7 @@ export function AdminShell({ title, children }: { title: string; children: React
 
   return (
     <div className="flex min-h-screen bg-brand-surface print:contents">
-      <aside className="hidden w-64 shrink-0 flex-col bg-brand-navy text-white lg:flex print:hidden">
+      <aside className="hidden w-64 shrink-0 flex-col bg-brand-blue text-white lg:flex print:hidden">
         <div className="border-b border-white/10 p-4">
           <Link to="/" aria-label="Volver a la tienda" className="inline-block">
             <ElectronLogo layout="full" tone="white" className="h-8" />
@@ -156,7 +156,7 @@ export function AdminShell({ title, children }: { title: string; children: React
       <Sheet open={mobileNavOpen} onOpenChange={setMobileNavOpen}>
         <SheetContent
           side="left"
-          className="flex w-72 flex-col gap-0 border-white/10 bg-brand-navy p-0 text-white"
+          className="flex w-72 flex-col gap-0 border-white/10 bg-brand-blue p-0 text-white"
         >
           <SheetTitle className="sr-only">Menú del panel administrativo</SheetTitle>
           <div className="border-b border-white/10 p-4">

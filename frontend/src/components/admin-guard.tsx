@@ -27,7 +27,7 @@ export function AdminGuard({ children }: { children: ReactNode }) {
 
   if (loading) {
     return (
-      <div className="grid min-h-screen place-items-center bg-brand-navy">
+      <div className="grid min-h-screen place-items-center bg-brand-blue">
         <Loader2
           className="h-6 w-6 animate-spin text-brand-yellow"
           aria-label="Verificando sesión"

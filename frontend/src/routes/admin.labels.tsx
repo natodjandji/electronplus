@@ -103,7 +103,7 @@ const LABEL_PRINT_STYLE = `
 function LabelCard({ label, format }: { label: QrLabel & { key: string }; format: LabelFormat }) {
   if (format === "almacen") {
     return (
-      <div className="qr-label flex items-center gap-2 overflow-hidden border border-dashed border-brand-navy/30 bg-white p-2 print:border-none">
+      <div className="qr-label flex items-center gap-2 overflow-hidden border border-dashed border-brand-blue/30 bg-white p-2 print:border-none">
         <img
           src={label.qrImageDataUrl}
           alt=""
@@ -118,7 +118,7 @@ function LabelCard({ label, format }: { label: QrLabel & { key: string }; format
 
   if (format === "producto") {
     return (
-      <div className="qr-label flex flex-col items-center justify-center gap-1 overflow-hidden border border-dashed border-brand-navy/30 bg-white p-1.5 print:border-none">
+      <div className="qr-label flex flex-col items-center justify-center gap-1 overflow-hidden border border-dashed border-brand-blue/30 bg-white p-1.5 print:border-none">
         <div className="line-clamp-1 w-full text-center text-[10px] font-bold leading-tight text-black">
           {label.name}
         </div>
@@ -132,7 +132,7 @@ function LabelCard({ label, format }: { label: QrLabel & { key: string }; format
   }
 
   return (
-    <div className="qr-label flex items-center gap-1.5 overflow-hidden border border-dashed border-brand-navy/30 bg-white p-1.5 print:border-none">
+    <div className="qr-label flex items-center gap-1.5 overflow-hidden border border-dashed border-brand-blue/30 bg-white p-1.5 print:border-none">
       <img
         src={label.qrImageDataUrl}
         alt=""

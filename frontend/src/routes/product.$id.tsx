@@ -223,7 +223,7 @@ function ProductPage() {
           <div>
             {isOps && (
               <div className="flex items-center gap-2">
-                <Badge className="bg-brand-navy text-white">
+                <Badge className="bg-brand-blue text-white">
                   <ShieldCheck className="mr-1 h-3 w-3" />
                   {role === "admin" ? "Vista administrador" : "Vista almacén"}
                 </Badge>
@@ -280,7 +280,7 @@ function ProductPage() {
             </Card>
 
             {isOps ? (
-              <Card className="mt-4 border-brand-navy/20 bg-brand-navy p-5 text-white">
+              <Card className="mt-4 border-brand-blue/20 bg-brand-blue p-5 text-white">
                 <div className="text-[10px] font-semibold uppercase tracking-widest text-brand-yellow">
                   Información interna
                 </div>
