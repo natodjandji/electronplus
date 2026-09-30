@@ -19,11 +19,23 @@ import { apiFetch } from "./api-client";
  * full-page redirect instead of just failing. Deliberately excludes
  * "popup-closed-by-user": that's a real user backing out, not a technical
  * failure, and shouldn't be followed by an unexpected full navigation.
+ *
+ * "internal-error" and "web-storage-unsupported" are included too: our
+ * authDomain (electronplus-ve.firebaseapp.com, required by the Google OAuth
+ * client — see firebase.ts) is a different origin from the app itself, so
+ * signInWithPopup depends on third-party storage/cookies to hand the result
+ * back across that origin boundary. Chrome/Safari/Brave increasingly block
+ * that by default, which is the most likely cause of intermittent
+ * "no se pudo completar la operación" reports — it throws one of these two
+ * codes instead of a clean popup-blocked, and redirect sidesteps the whole
+ * cross-window handoff since it's a plain top-level navigation.
  */
 const POPUP_FALLBACK_CODES = new Set([
   "auth/popup-blocked",
   "auth/cancelled-popup-request",
   "auth/operation-not-supported-in-this-environment",
+  "auth/internal-error",
+  "auth/web-storage-unsupported",
 ]);
 
 export type BackendRole = "client" | "admin" | "warehouse_operator";
@@ -70,7 +82,12 @@ export function authErrorMessage(error: unknown): string {
       return "Cerraste la ventana de Google antes de completar el inicio de sesión.";
     case "auth/network-request-failed":
       return "Sin conexión. Revisa tu internet e inténtalo de nuevo.";
+    case "auth/account-exists-with-different-credential":
+      return "Ya existe una cuenta con este correo usando contraseña. Inicia sesión con tu correo y contraseña.";
     default:
+      // Not one of the codes above — log it so a recurring report can get a
+      // precise fix instead of staying stuck behind this generic message.
+      if (code) console.error("Unhandled Firebase auth error code:", code);
       return "No se pudo completar la operación. Inténtalo de nuevo.";
   }
 }
