@@ -136,7 +136,7 @@ function Home() {
           className="absolute inset-0 opacity-[0.08]"
           style={{
             backgroundImage:
-              "radial-gradient(circle at 20% 20%, #ffb703 0, transparent 40%), radial-gradient(circle at 80% 60%, #0056b3 0, transparent 45%)",
+              "radial-gradient(circle at 20% 20%, #ffb703 0, transparent 40%), radial-gradient(circle at 80% 60%, #003594 0, transparent 45%)",
           }}
         />
         <CircuitBackground className="opacity-40 [&_path]:stroke-white" />

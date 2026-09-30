@@ -56,7 +56,7 @@ export function CircuitBackground({ className = "" }: { className?: string }) {
       className={`pointer-events-none absolute inset-0 h-full w-full ${className}`}
     >
       {TRACES.map((d) => (
-        <path key={d} d={d} fill="none" stroke="#0056b3" strokeOpacity="0.14" strokeWidth="1.5" />
+        <path key={d} d={d} fill="none" stroke="#003594" strokeOpacity="0.14" strokeWidth="1.5" />
       ))}
       {NODES.map(([cx, cy]) => (
         <circle
@@ -65,7 +65,7 @@ export function CircuitBackground({ className = "" }: { className?: string }) {
           cy={cy}
           r="3"
           fill="none"
-          stroke="#0056b3"
+          stroke="#003594"
           strokeOpacity="0.25"
           strokeWidth="1.5"
         />
@@ -82,7 +82,7 @@ export function CircuitDivider({ className = "" }: { className?: string }) {
   return (
     <div aria-hidden className={`relative h-4 w-full overflow-hidden ${className}`}>
       <svg viewBox="0 0 1100 16" preserveAspectRatio="none" className="h-full w-full">
-        <path d={path} fill="none" stroke="#0056b3" strokeOpacity="0.18" strokeWidth="1.5" />
+        <path d={path} fill="none" stroke="#003594" strokeOpacity="0.18" strokeWidth="1.5" />
         <Pulse path={path} dur={7} begin={0} />
       </svg>
     </div>
