@@ -4,6 +4,7 @@
  * animation costs no JS and pauses automatically for users with
  * prefers-reduced-motion (see styles.css).
  */
+import { BRAND_BLUE_HEX } from "@/lib/brand-colors";
 
 const TRACES = [
   "M0 40 H180 L220 80 H420 L460 40 H720 L760 80 H1100",
@@ -56,7 +57,14 @@ export function CircuitBackground({ className = "" }: { className?: string }) {
       className={`pointer-events-none absolute inset-0 h-full w-full ${className}`}
     >
       {TRACES.map((d) => (
-        <path key={d} d={d} fill="none" stroke="#003891" strokeOpacity="0.14" strokeWidth="1.5" />
+        <path
+          key={d}
+          d={d}
+          fill="none"
+          stroke={BRAND_BLUE_HEX}
+          strokeOpacity="0.14"
+          strokeWidth="1.5"
+        />
       ))}
       {NODES.map(([cx, cy]) => (
         <circle
@@ -65,7 +73,7 @@ export function CircuitBackground({ className = "" }: { className?: string }) {
           cy={cy}
           r="3"
           fill="none"
-          stroke="#003891"
+          stroke={BRAND_BLUE_HEX}
           strokeOpacity="0.25"
           strokeWidth="1.5"
         />
@@ -82,7 +90,7 @@ export function CircuitDivider({ className = "" }: { className?: string }) {
   return (
     <div aria-hidden className={`relative h-4 w-full overflow-hidden ${className}`}>
       <svg viewBox="0 0 1100 16" preserveAspectRatio="none" className="h-full w-full">
-        <path d={path} fill="none" stroke="#003891" strokeOpacity="0.18" strokeWidth="1.5" />
+        <path d={path} fill="none" stroke={BRAND_BLUE_HEX} strokeOpacity="0.18" strokeWidth="1.5" />
         <Pulse path={path} dur={7} begin={0} />
       </svg>
     </div>

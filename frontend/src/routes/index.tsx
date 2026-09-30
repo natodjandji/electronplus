@@ -17,6 +17,7 @@ import type { Product } from "@/lib/mock-data";
 import { SITE_URL, absoluteUrl, OG_IMAGE } from "@/lib/site-url";
 import { CONTACT_INFO } from "@/lib/contact-info";
 import { safeJsonLd } from "@/lib/text";
+import { BRAND_BLUE_HEX } from "@/lib/brand-colors";
 
 const HERO_GROUP_SIZE = 4;
 const HERO_ROTATE_MS = 5000;
@@ -135,8 +136,7 @@ function Home() {
         <div
           className="absolute inset-0 opacity-[0.08]"
           style={{
-            backgroundImage:
-              "radial-gradient(circle at 20% 20%, #ffb703 0, transparent 40%), radial-gradient(circle at 80% 60%, #003891 0, transparent 45%)",
+            backgroundImage: `radial-gradient(circle at 20% 20%, #ffb703 0, transparent 40%), radial-gradient(circle at 80% 60%, ${BRAND_BLUE_HEX} 0, transparent 45%)`,
           }}
         />
         <CircuitBackground className="opacity-40 [&_path]:stroke-white" />

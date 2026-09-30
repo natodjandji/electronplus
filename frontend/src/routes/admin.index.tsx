@@ -20,6 +20,7 @@ import { AdminShell } from "@/components/admin-shell";
 import { Card } from "@/components/ui/card";
 import { apiFetch } from "@/lib/api-client";
 import { formatMoneyAdmin } from "@/lib/electron-store";
+import { BRAND_BLUE_HEX, BRAND_NAVY_HEX } from "@/lib/brand-colors";
 
 export const Route = createFileRoute("/admin/")({
   head: () => ({
@@ -33,7 +34,7 @@ export const Route = createFileRoute("/admin/")({
   component: AdminDashboard,
 });
 
-const COLORS = ["#003891", "#ffb703", "#0b2545", "#4aa3df", "#e85d3a"];
+const COLORS = [BRAND_BLUE_HEX, "#ffb703", BRAND_NAVY_HEX, "#4aa3df", "#e85d3a"];
 
 interface SalesSeriesPoint {
   month: string;
@@ -176,7 +177,7 @@ function AdminDashboard() {
                 <Line
                   type="monotone"
                   dataKey="ventas"
-                  stroke="#003891"
+                  stroke={BRAND_BLUE_HEX}
                   strokeWidth={2.5}
                   dot={{ r: 3 }}
                 />
@@ -232,7 +233,7 @@ function AdminDashboard() {
               <YAxis stroke="#64748b" fontSize={12} />
               <Tooltip formatter={(value: number) => formatMoneyAdmin(value)} />
               <Legend />
-              <Bar dataKey="revenue" name="Ingresos" fill="#003891" radius={[6, 6, 0, 0]} />
+              <Bar dataKey="revenue" name="Ingresos" fill={BRAND_BLUE_HEX} radius={[6, 6, 0, 0]} />
               <Bar dataKey="margin" name="Margen" fill="#ffb703" radius={[6, 6, 0, 0]} />
             </BarChart>
           </ResponsiveContainer>
