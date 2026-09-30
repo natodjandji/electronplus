@@ -5,5 +5,5 @@ export const CONTACT_INFO = {
   email: "electronplusve@gmail.com",
   emailHref: "mailto:electronplusve@gmail.com",
   gmailComposeHref: "https://mail.google.com/mail/?view=cm&fs=1&to=electronplusve@gmail.com",
-  hours: "Lun–Sáb 8am–6pm",
+  hours: "Lun–Sáb 9am–5pm",
 };

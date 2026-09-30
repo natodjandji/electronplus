@@ -58,7 +58,7 @@ const ORGANIZATION_JSON_LD = {
   telephone: CONTACT_INFO.phone,
   areaServed: { "@type": "Country", name: "Venezuela" },
   currenciesAccepted: "USD, VES",
-  openingHours: "Mo-Sa 08:00-18:00",
+  openingHours: "Mo-Sa 09:00-17:00",
   contactPoint: {
     "@type": "ContactPoint",
     contactType: "sales",
