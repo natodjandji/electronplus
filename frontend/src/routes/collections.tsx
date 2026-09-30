@@ -64,7 +64,7 @@ function CollectionsPage() {
               const cover = items[0]?.imageUrl;
               return (
                 <Link key={c.id} to="/catalog" search={{ category: c.code }} className="block">
-                  <Card className="group relative flex h-48 flex-col justify-end overflow-hidden border-border p-5 shadow-sm transition-all duration-300 hover:-translate-y-1 hover:shadow-[0_8px_30px_-8px_rgba(0,86,179,0.25)]">
+                  <Card className="group relative flex h-48 flex-col justify-end overflow-hidden border-border p-5 shadow-sm transition-all duration-300 hover:-translate-y-1 hover:shadow-[0_8px_30px_-8px_rgba(0,56,145,0.25)]">
                     {cover && (
                       <img
                         src={cover}

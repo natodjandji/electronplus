@@ -14,7 +14,7 @@ const STORE_LINKS: StoreLink[] = [
 
 export function SiteFooter() {
   return (
-    <footer className="mt-16 border-t border-border bg-brand-navy text-white">
+    <footer className="mt-16 border-t border-border bg-brand-blue text-white">
       <div className="mx-auto grid max-w-7xl gap-8 px-4 py-10 sm:px-6 md:grid-cols-4">
         <div className="md:col-span-2">
           <ElectronLogo layout="full" tone="white" className="h-9" />

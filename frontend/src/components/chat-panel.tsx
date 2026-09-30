@@ -321,7 +321,7 @@ export function ChatPanel({ open, onClose }: { open: boolean; onClose: () => voi
           transition={{ type: "spring", stiffness: 320, damping: 28 }}
           className="pointer-events-auto flex h-[min(560px,70vh)] w-[min(360px,90vw)] flex-col overflow-hidden rounded-2xl border border-border bg-white shadow-2xl"
         >
-          <div className="flex shrink-0 items-center gap-3 border-b border-border bg-brand-navy px-4 py-3">
+          <div className="flex shrink-0 items-center gap-3 border-b border-border bg-brand-blue px-4 py-3">
             <img src="/mascot/mascot-idle.png" alt="" className="h-9 w-9 object-contain" />
             <div className="flex-1">
               <div className="text-sm font-semibold text-white">Asistente Electron+</div>

@@ -30,6 +30,16 @@
             "value": "public, max-age=31536000, immutable"
           }
         ]
+      },
+      {
+        "// comment": "frontend/public/assets/brand/** is copied verbatim into dist/client/assets/ alongside Vite's content-hashed build chunks, so it matches the immutable rule above too — but these filenames never change on edit (no content hash), so a 1-year immutable cache meant a brand-color/logo update here silently never reached anyone. Overrides back to no-cache for this one subpath; hashed build assets elsewhere under /assets/ are unaffected.",
+        "source": "/assets/brand/**",
+        "headers": [
+          {
+            "key": "Cache-Control",
+            "value": "no-cache"
+          }
+        ]
       }
     ]
   },

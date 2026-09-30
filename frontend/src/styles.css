@@ -72,7 +72,7 @@
 
   /* Electron Plus brand */
   --brand-navy: oklch(0.24 0.07 260);      /* #0b2545 */
-  --brand-blue: oklch(0.37 0.16 261);      /* PANTONE 661 C -> #003594 */
+  --brand-blue: oklch(0.373 0.156 260.5);  /* official brand blue, from the logo -> #003891 */
   --brand-yellow: oklch(0.82 0.16 82);     /* #ffb703 */
   --brand-surface: oklch(0.97 0.005 250);  /* #f4f6f9 */
 

@@ -33,7 +33,7 @@ export const Route = createFileRoute("/admin/")({
   component: AdminDashboard,
 });
 
-const COLORS = ["#003594", "#ffb703", "#0b2545", "#4aa3df", "#e85d3a"];
+const COLORS = ["#003891", "#ffb703", "#0b2545", "#4aa3df", "#e85d3a"];
 
 interface SalesSeriesPoint {
   month: string;
@@ -176,7 +176,7 @@ function AdminDashboard() {
                 <Line
                   type="monotone"
                   dataKey="ventas"
-                  stroke="#003594"
+                  stroke="#003891"
                   strokeWidth={2.5}
                   dot={{ r: 3 }}
                 />
@@ -232,7 +232,7 @@ function AdminDashboard() {
               <YAxis stroke="#64748b" fontSize={12} />
               <Tooltip formatter={(value: number) => formatMoneyAdmin(value)} />
               <Legend />
-              <Bar dataKey="revenue" name="Ingresos" fill="#003594" radius={[6, 6, 0, 0]} />
+              <Bar dataKey="revenue" name="Ingresos" fill="#003891" radius={[6, 6, 0, 0]} />
               <Bar dataKey="margin" name="Margen" fill="#ffb703" radius={[6, 6, 0, 0]} />
             </BarChart>
           </ResponsiveContainer>

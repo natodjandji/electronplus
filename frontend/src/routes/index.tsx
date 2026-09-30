@@ -131,12 +131,12 @@ function Home() {
   return (
     <PublicShell>
       {/* Hero */}
-      <section className="relative overflow-hidden bg-brand-navy text-white">
+      <section className="relative overflow-hidden bg-brand-blue text-white">
         <div
           className="absolute inset-0 opacity-[0.08]"
           style={{
             backgroundImage:
-              "radial-gradient(circle at 20% 20%, #ffb703 0, transparent 40%), radial-gradient(circle at 80% 60%, #003594 0, transparent 45%)",
+              "radial-gradient(circle at 20% 20%, #ffb703 0, transparent 40%), radial-gradient(circle at 80% 60%, #003891 0, transparent 45%)",
           }}
         />
         <CircuitBackground className="opacity-40 [&_path]:stroke-white" />
@@ -334,7 +334,7 @@ function FeaturedProductCard({ product }: { product: Product }) {
       tabIndex={0}
       onClick={go}
       onKeyDown={onKeyDown}
-      className="group cursor-pointer overflow-hidden border-border p-0 shadow-sm transition-all duration-300 hover:-translate-y-1 hover:border-brand-blue/40 hover:shadow-[0_8px_30px_-8px_rgba(0,86,179,0.25)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-blue"
+      className="group cursor-pointer overflow-hidden border-border p-0 shadow-sm transition-all duration-300 hover:-translate-y-1 hover:border-brand-blue/40 hover:shadow-[0_8px_30px_-8px_rgba(0,56,145,0.25)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-blue"
     >
       <div className="aspect-square overflow-hidden bg-brand-surface">
         <ProductImage

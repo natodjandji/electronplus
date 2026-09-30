@@ -392,7 +392,7 @@ function ProductCard({
       tabIndex={0}
       onClick={onClick}
       onKeyDown={onKeyDown}
-      className="group flex h-full cursor-pointer flex-col overflow-hidden border-border p-0 shadow-sm transition-all duration-300 hover:-translate-y-1 hover:border-brand-blue/40 hover:shadow-[0_8px_30px_-8px_rgba(0,86,179,0.25)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-blue"
+      className="group flex h-full cursor-pointer flex-col overflow-hidden border-border p-0 shadow-sm transition-all duration-300 hover:-translate-y-1 hover:border-brand-blue/40 hover:shadow-[0_8px_30px_-8px_rgba(0,56,145,0.25)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-blue"
     >
       <div className="relative aspect-square overflow-hidden bg-brand-surface">
         <ProductImage
@@ -457,7 +457,7 @@ function ProductListRow({
       tabIndex={0}
       onClick={onClick}
       onKeyDown={onKeyDown}
-      className="group flex cursor-pointer flex-col gap-3 overflow-hidden border-border p-3 shadow-sm transition-all duration-300 hover:border-brand-blue/40 hover:shadow-[0_8px_30px_-8px_rgba(0,86,179,0.25)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-blue sm:flex-row sm:items-center sm:gap-4 sm:p-4"
+      className="group flex cursor-pointer flex-col gap-3 overflow-hidden border-border p-3 shadow-sm transition-all duration-300 hover:border-brand-blue/40 hover:shadow-[0_8px_30px_-8px_rgba(0,56,145,0.25)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-blue sm:flex-row sm:items-center sm:gap-4 sm:p-4"
     >
       <div className="flex min-w-0 items-center gap-4 sm:flex-1">
         <div className="relative h-20 w-20 shrink-0 overflow-hidden rounded-md bg-brand-surface sm:h-24 sm:w-24">
