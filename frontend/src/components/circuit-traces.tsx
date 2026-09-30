@@ -1,10 +1,21 @@
 /**
- * Animated "circuit board" decorations — brand-blue traces with yellow
+ * Animated "circuit board" decorations — brand-colored traces with yellow
  * current pulses traveling along them. Pure SVG (`animateMotion`), so the
  * animation costs no JS and pauses automatically for users with
  * prefers-reduced-motion (see styles.css).
+ *
+ * Traces use `stroke="currentColor"` and pick up color from the `tone` prop
+ * (mapped to a `text-*` class) rather than a hardcoded hex, so they stay
+ * visible regardless of what background they're placed on — pass tone="white"
+ * on brand-blue/brand-navy surfaces, the default suits light surfaces.
  */
-import { BRAND_BLUE_HEX } from "@/lib/brand-colors";
+
+const TONE_CLASS = {
+  blue: "text-brand-blue",
+  white: "text-white",
+} as const;
+
+type CircuitTone = keyof typeof TONE_CLASS;
 
 const TRACES = [
   "M0 40 H180 L220 80 H420 L460 40 H720 L760 80 H1100",
@@ -48,20 +59,26 @@ function Pulse({ path, dur, begin }: { path: string; dur: number; begin: number 
   );
 }
 
-export function CircuitBackground({ className = "" }: { className?: string }) {
+export function CircuitBackground({
+  className = "",
+  tone = "blue",
+}: {
+  className?: string;
+  tone?: CircuitTone;
+}) {
   return (
     <svg
       viewBox="0 0 1100 180"
       preserveAspectRatio="xMidYMid slice"
       aria-hidden
-      className={`pointer-events-none absolute inset-0 h-full w-full ${className}`}
+      className={`pointer-events-none absolute inset-0 h-full w-full ${TONE_CLASS[tone]} ${className}`}
     >
       {TRACES.map((d) => (
         <path
           key={d}
           d={d}
           fill="none"
-          stroke={BRAND_BLUE_HEX}
+          stroke="currentColor"
           strokeOpacity="0.14"
           strokeWidth="1.5"
         />
@@ -73,7 +90,7 @@ export function CircuitBackground({ className = "" }: { className?: string }) {
           cy={cy}
           r="3"
           fill="none"
-          stroke={BRAND_BLUE_HEX}
+          stroke="currentColor"
           strokeOpacity="0.25"
           strokeWidth="1.5"
         />
@@ -85,12 +102,22 @@ export function CircuitBackground({ className = "" }: { className?: string }) {
   );
 }
 
-export function CircuitDivider({ className = "" }: { className?: string }) {
+export function CircuitDivider({
+  className = "",
+  tone = "blue",
+}: {
+  className?: string;
+  tone?: CircuitTone;
+}) {
   const path = "M0 8 H320 L340 2 H700 L720 8 H1100";
   return (
     <div aria-hidden className={`relative h-4 w-full overflow-hidden ${className}`}>
-      <svg viewBox="0 0 1100 16" preserveAspectRatio="none" className="h-full w-full">
-        <path d={path} fill="none" stroke={BRAND_BLUE_HEX} strokeOpacity="0.18" strokeWidth="1.5" />
+      <svg
+        viewBox="0 0 1100 16"
+        preserveAspectRatio="none"
+        className={`h-full w-full ${TONE_CLASS[tone]}`}
+      >
+        <path d={path} fill="none" stroke="currentColor" strokeOpacity="0.18" strokeWidth="1.5" />
         <Pulse path={path} dur={7} begin={0} />
       </svg>
     </div>

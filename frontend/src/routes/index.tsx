@@ -139,7 +139,7 @@ function Home() {
             backgroundImage: `radial-gradient(circle at 20% 20%, #ffb703 0, transparent 40%), radial-gradient(circle at 80% 60%, ${BRAND_BLUE_HEX} 0, transparent 45%)`,
           }}
         />
-        <CircuitBackground className="opacity-40 [&_path]:stroke-white" />
+        <CircuitBackground className="opacity-40" tone="white" />
         <div className="relative mx-auto grid max-w-7xl items-center gap-10 px-4 py-16 sm:px-6 md:grid-cols-2 md:py-24">
           <div>
             <div className="inline-flex items-center gap-2 rounded-full border border-brand-yellow/40 bg-brand-yellow/10 px-3 py-1 text-xs font-semibold text-brand-yellow">
