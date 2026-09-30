@@ -34,3 +34,6 @@ ui-debug.log
 
 # Local Redis dump (BullMQ job payloads — order/ERP-sync data, never commit)
 *.rdb
+
+# graphify codebase-graph output (regenerable, large binary-ish JSON/HTML)
+graphify-out/
