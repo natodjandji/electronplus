@@ -15,6 +15,12 @@ export interface DiscountInfo {
 
 type CartItem = { product: Product; qty: number };
 
+export interface CartSyncResult {
+  removed: string[];
+  priceChanged: string[];
+  qtyReduced: string[];
+}
+
 type StoreValue = {
   role: UserRole;
   isAdmin: boolean;
@@ -27,6 +33,14 @@ type StoreValue = {
   removeFromCart: (id: string) => void;
   updateQty: (id: string, qty: number) => void;
   clearCart: () => void;
+  /** Cart items are localStorage snapshots taken at add-to-cart time — they
+   * never see a later price/stock change on their own (the server is still
+   * the source of truth at checkout, but the customer shouldn't be looking
+   * at stale numbers before then). Call with the current catalog (e.g. on
+   * the cart page) to refresh each line in place, dropping/clamping any
+   * that no longer check out; returns what changed so the caller can tell
+   * the customer. */
+  syncCartWithCatalog: (liveProducts: Product[]) => CartSyncResult;
   cartTotal: number;
   cartCount: number;
   discount: DiscountInfo | null;
@@ -128,27 +142,53 @@ export function ElectronStoreProvider({ children }: { children: ReactNode }) {
       cart,
       addToCart: (p, qty = 1) =>
         setCart((prev) => {
+          // stock <= 0 means truly nothing can be added — the ternary this
+          // replaced fell back to the requested qty in that case, which is
+          // no cap at all (every UI call site happens to disable its own
+          // "add" button at 0 stock, but the store had no defense of its own).
+          if (p.stock <= 0) return prev;
           const existing = prev.find((i) => i.product.id === p.id);
-          const cap = p.stock > 0 ? p.stock : qty;
           if (existing) {
-            const nextQty = Math.min(cap, existing.qty + qty);
+            const nextQty = Math.min(p.stock, existing.qty + qty);
             return prev.map((i) => (i.product.id === p.id ? { ...i, qty: nextQty } : i));
           }
-          return [...prev, { product: p, qty: Math.min(cap, Math.max(1, qty)) }];
+          return [...prev, { product: p, qty: Math.min(p.stock, Math.max(1, qty)) }];
         }),
       removeFromCart: (id) => setCart((prev) => prev.filter((i) => i.product.id !== id)),
       updateQty: (id, qty) =>
         setCart((prev) =>
-          prev.map((i) =>
-            i.product.id === id
-              ? {
-                  ...i,
-                  qty: Math.min(i.product.stock > 0 ? i.product.stock : qty, Math.max(1, qty)),
-                }
-              : i,
-          ),
+          prev
+            .map((i) =>
+              i.product.id === id
+                ? { ...i, qty: Math.min(Math.max(i.product.stock, 0), Math.max(1, qty)) }
+                : i,
+            )
+            // A cached item whose stock has since dropped to 0 (see
+            // syncCartWithCatalog) would otherwise clamp to a silent,
+            // unremovable qty-0 line — drop it instead.
+            .filter((i) => i.qty > 0),
         ),
       clearCart: () => setCart([]),
+      syncCartWithCatalog: (liveProducts) => {
+        const byId = new Map(liveProducts.map((p) => [p.id, p]));
+        const removed: string[] = [];
+        const priceChanged: string[] = [];
+        const qtyReduced: string[] = [];
+        const next: CartItem[] = [];
+        for (const item of cart) {
+          const live = byId.get(item.product.id);
+          if (!live || live.stock <= 0) {
+            removed.push(item.product.name);
+            continue;
+          }
+          const qty = Math.min(item.qty, live.stock);
+          if (qty < item.qty) qtyReduced.push(live.name);
+          if (live.retailPrice !== item.product.retailPrice) priceChanged.push(live.name);
+          next.push({ product: live, qty });
+        }
+        setCart(next);
+        return { removed, priceChanged, qtyReduced };
+      },
       cartTotal,
       cartCount,
       discount,
