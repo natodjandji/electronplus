@@ -52,6 +52,16 @@ type AuthContextValue = {
   user: FirebaseUser | null;
   profile: UserProfile | null;
   loading: boolean;
+  /** True when Firebase auth succeeded but syncing the profile with our own
+   * backend failed (network blip, cold start, etc.) — distinct from a
+   * confirmed non-ops `profile.role`. AdminGuard must tell these apart: the
+   * former means "we don't know yet, let them retry", the latter means
+   * "actually not an admin, redirect home". */
+  sessionError: boolean;
+  /** Re-runs the backend session sync for the current Firebase user —
+   * what AdminGuard offers when sessionError is true instead of silently
+   * redirecting a real admin away on a transient failure. */
+  retrySession: () => Promise<void>;
   /** Set once, right after mount, if a pending signInWithRedirect() came back with an error (e.g. the user denied consent). */
   redirectError: unknown;
   signInWithGoogle: () => Promise<void>;
@@ -96,7 +106,21 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<FirebaseUser | null>(null);
   const [profile, setProfile] = useState<UserProfile | null>(null);
   const [loading, setLoading] = useState(true);
+  const [sessionError, setSessionError] = useState(false);
   const [redirectError, setRedirectError] = useState<unknown>(null);
+
+  const syncSession = async (firebaseUser: FirebaseUser) => {
+    try {
+      const idToken = await firebaseUser.getIdToken();
+      const synced = await apiFetch<UserProfile>("/auth/session", { method: "POST", idToken });
+      setProfile(synced);
+      setSessionError(false);
+    } catch (error) {
+      console.error("Failed to sync session with backend", error);
+      setProfile(null);
+      setSessionError(true);
+    }
+  };
 
   useEffect(() => {
     // Finalizes a pending signInWithRedirect() (the popup-blocked fallback)
@@ -110,22 +134,20 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setUser(firebaseUser);
       if (!firebaseUser) {
         setProfile(null);
+        setSessionError(false);
         setLoading(false);
         return;
       }
-      try {
-        const idToken = await firebaseUser.getIdToken();
-        const synced = await apiFetch<UserProfile>("/auth/session", { method: "POST", idToken });
-        setProfile(synced);
-      } catch (error) {
-        console.error("Failed to sync session with backend", error);
-        setProfile(null);
-      } finally {
-        setLoading(false);
-      }
+      await syncSession(firebaseUser);
+      setLoading(false);
     });
     return unsubscribe;
   }, []);
+
+  const retrySession = async () => {
+    if (!user) return;
+    await syncSession(user);
+  };
 
   const signInWithGoogle = async () => {
     try {
@@ -170,6 +192,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         user,
         profile,
         loading,
+        sessionError,
+        retrySession,
         redirectError,
         signInWithGoogle,
         signInWithEmail,
