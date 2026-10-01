@@ -464,17 +464,15 @@ export function buildReply(raw: string, ctx: ChatCtx): BotReplyContent[] {
   }
 
   if (looksLikeProductQuestion(t, tokens)) {
-    return [
-      {
-        text: "Cuéntame qué producto buscas exactamente (ej. 'cable 12 AWG', 'breaker 20A' o 'bombillo LED') y te digo si está disponible y su precio.",
-      },
-    ];
+    const reply = {
+      text: "Cuéntame qué producto buscas exactamente (ej. 'cable 12 AWG', 'breaker 20A' o 'bombillo LED') y te digo si está disponible y su precio.",
+    };
+    return [isGreeting ? prependGreeting(reply) : reply];
   }
 
-  return [
-    {
-      text: "No estoy seguro de haber entendido 🤔 ¿Puedes elegir una opción o intentar con otras palabras?",
-      quickReplies: MAIN_MENU,
-    },
-  ];
+  const reply = {
+    text: "No estoy seguro de haber entendido 🤔 ¿Puedes elegir una opción o intentar con otras palabras?",
+    quickReplies: MAIN_MENU,
+  };
+  return [isGreeting ? prependGreeting(reply) : reply];
 }
