@@ -30,6 +30,7 @@ import { SecondStoreModule } from './modules/second-store/second-store.module';
 import { UploadsModule } from './modules/uploads/uploads.module';
 import { ClientErrorsModule } from './modules/client-errors/client-errors.module';
 import { EmailModule } from './modules/email/email.module';
+import { ChatBotModule } from './modules/chat-bot/chat-bot.module';
 
 @Module({
   imports: [
@@ -83,6 +84,7 @@ import { EmailModule } from './modules/email/email.module';
     UploadsModule,
     ClientErrorsModule,
     EmailModule,
+    ChatBotModule,
   ],
   providers: [{ provide: APP_GUARD, useClass: ThrottlerGuard }],
 })

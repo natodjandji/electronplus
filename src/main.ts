@@ -2,7 +2,7 @@ import { ClassSerializerInterceptor, ValidationPipe } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { NestFactory, Reflector } from '@nestjs/core';
 import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
-import { json, urlencoded } from 'express';
+import { json, urlencoded, type Request } from 'express';
 import helmet from 'helmet';
 import { AppModule } from './app.module';
 import { EnvConfig } from './config/env.validation';
@@ -13,7 +13,18 @@ async function bootstrap() {
   // base64 payment-proof image) replace Nest's default 100kb parser
   // instead of stacking behind it.
   const app = await NestFactory.create(AppModule, { bodyParser: false });
-  app.use(json({ limit: '2mb' }));
+  app.use(
+    json({
+      limit: '2mb',
+      // Captures the exact bytes Meta signed, alongside the normal parsed
+      // body — the chat bot's webhook needs this to verify
+      // X-Hub-Signature-256 (an HMAC over the raw payload); re-serializing
+      // the parsed JSON wouldn't byte-for-byte match what Meta hashed.
+      verify: (req, _res, buf) => {
+        (req as Request & { rawBody?: Buffer }).rawBody = buf;
+      },
+    }),
+  );
   app.use(urlencoded({ limit: '2mb', extended: true }));
   // Sets standard defensive headers (X-Content-Type-Options, X-Frame-Options,
   // etc.) that Cloud Run/GFE don't add on their own. CSP is left at helmet's

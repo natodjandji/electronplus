@@ -57,6 +57,18 @@ export const envSchema = z.object({
 
   CORS_ORIGIN: z.string().default('*'),
 
+  // WhatsApp Cloud API (Meta) — the storefront chat bot's WhatsApp channel.
+  // All optional, same graceful-degradation as every other integration
+  // above: the webhook still verifies and accepts messages with these
+  // unset, it just logs the reply instead of calling Meta's Send API, and
+  // the GET verification handshake always rejects (as it should — there's
+  // no real webhook to verify yet). Comes from a Meta Developer App with
+  // the WhatsApp product added — see src/modules/chat-bot/README.md.
+  META_VERIFY_TOKEN: z.string().optional(),
+  META_APP_SECRET: z.string().optional(),
+  META_WHATSAPP_ACCESS_TOKEN: z.string().optional(),
+  META_WHATSAPP_PHONE_NUMBER_ID: z.string().optional(),
+
   // Transactional email (welcome, order confirmation, fulfillment updates).
   // Optional — EmailService logs instead of sending when unset, same
   // graceful-degradation as the other optional integrations above.
