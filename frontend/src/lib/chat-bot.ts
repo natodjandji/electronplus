@@ -405,12 +405,30 @@ function singularize(tok: string): string | null {
   return null;
 }
 
+/** Conversational filler with no product meaning: greetings, politeness
+ * (including what slang expands to — "xfa" -> "por favor", "q" -> "que"),
+ * and question/request words. Searched as-is they match inside unrelated
+ * product text ("por" is a substring of "portalámparas"), polluting results. */
+const SEARCH_STOPWORDS = new Set(
+  (
+    "que por favor para con del los las una uno unos unas esta estan ese esa eso " +
+    "tiene tienen tengo hay como cual cuales cuanto cuanta cuesta vale sale precio precios " +
+    "quiero necesito busco buscando algun alguno alguna dame dime pasa pasas regala regalas " +
+    "ustedes tambien donde hola epa oye buenas buenos dias tardes noches saludos gracias " +
+    "disponible disponibles existencia stock venden consiguen todo toda todos todas"
+  ).split(" "),
+);
+
+/** The tokens worth searching the catalog for. */
+function searchTerms(tokens: string[]): string[] {
+  return tokens.filter((w) => w.length >= 3 && !SEARCH_STOPWORDS.has(w));
+}
+
 function searchProducts(
-  tokens: string[],
+  searchTokens: string[],
   products: Product[],
   categoryLabel: Record<string, string>,
 ): Product[] {
-  const searchTokens = tokens.filter((w) => w.length >= 3);
   if (!searchTokens.length) return [];
   const scored = products
     .map((p) => {
@@ -448,15 +466,16 @@ export function buildReply(raw: string, ctx: ChatCtx): BotReplyContent[] {
     return [isGreeting ? prependGreeting(best.reply) : best.reply];
   }
 
-  const matches = searchProducts(tokens, ctx.products, ctx.categoryLabel);
+  const terms = searchTerms(tokens);
+  const matches = searchProducts(terms, ctx.products, ctx.categoryLabel);
   if (matches.length > 0) {
-    return [
-      {
-        text: `Encontré esto en el catálogo para "${raw}":`,
-        products: matches,
-        quickReplies: [{ label: "🔎 Ver todo en catálogo", send: `__navq:${raw}` }],
-      },
-    ];
+    const query = terms.join(" ");
+    const reply = {
+      text: `Encontré esto en el catálogo para "${query}":`,
+      products: matches,
+      quickReplies: [{ label: "🔎 Ver todo en catálogo", send: `__navq:${query}` }],
+    };
+    return [isGreeting ? prependGreeting(reply) : reply];
   }
 
   if (isGreeting && tokens.length <= 4) {
