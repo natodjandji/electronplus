@@ -1,6 +1,6 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
-import { useEffect, useRef, useState } from "react";
-import { useMutation, useQuery } from "@tanstack/react-query";
+import { useState } from "react";
+import { useMutation } from "@tanstack/react-query";
 import { AnimatePresence, motion } from "motion/react";
 import { Trash2, ShoppingBag, Tag, Loader2, X } from "lucide-react";
 import { PublicShell } from "@/components/public-shell";
@@ -14,9 +14,9 @@ import { PriceTag } from "@/components/price-tag";
 import { ProductImage } from "@/components/product-image";
 import { QuantityStepper } from "@/components/quantity-stepper";
 import { apiFetch, ApiError } from "@/lib/api-client";
-import { type ApiProduct, toProduct } from "@/lib/product-api";
 import { formatBs, useBcvRate } from "@/lib/use-bcv-rate";
 import { formatMoney, useElectronStore } from "@/lib/electron-store";
+import { useCartCatalogSync } from "@/lib/use-cart-sync";
 import { toast } from "sonner";
 
 interface DiscountValidation {
@@ -55,7 +55,6 @@ function CartPage() {
     cartTotal,
     priceFor,
     clearCart,
-    syncCartWithCatalog,
     discount,
     setDiscount,
     clearDiscount,
@@ -68,33 +67,7 @@ function CartPage() {
   const [codeInput, setCodeInput] = useState("");
   const total = taxableBase + taxAmount;
 
-  // Cart entries are snapshots taken at add-to-cart time (see
-  // syncCartWithCatalog's doc comment) — refresh them against the real
-  // catalog once per visit so price/stock shown here match what checkout
-  // will actually charge, instead of surfacing that mismatch as a surprise
-  // after the customer has already confirmed.
-  const { data: catalogResp } = useQuery({
-    queryKey: ["products", "list"],
-    queryFn: () => apiFetch<{ data: ApiProduct[] }>("/products?limit=100"),
-    staleTime: 5 * 60 * 1000,
-  });
-  const syncedRef = useRef(false);
-  useEffect(() => {
-    if (!catalogResp || syncedRef.current) return;
-    syncedRef.current = true;
-    const { removed, priceChanged, qtyReduced } = syncCartWithCatalog(
-      catalogResp.data.map(toProduct),
-    );
-    if (removed.length) {
-      toast.error(`Ya no disponible, quitado del carrito: ${removed.join(", ")}`);
-    }
-    if (qtyReduced.length) {
-      toast(`Cantidad ajustada al stock disponible: ${qtyReduced.join(", ")}`);
-    }
-    if (priceChanged.length) {
-      toast(`El precio cambió para: ${priceChanged.join(", ")}`);
-    }
-  }, [catalogResp, syncCartWithCatalog]);
+  useCartCatalogSync();
 
   const applyCode = useMutation({
     mutationFn: () =>

@@ -1,4 +1,12 @@
-import { createContext, useContext, useEffect, useMemo, useState, type ReactNode } from "react";
+import {
+  createContext,
+  useContext,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  type ReactNode,
+} from "react";
 import type { Product } from "./mock-data";
 import { useAuth, type BackendRole } from "./auth-context";
 
@@ -21,6 +29,12 @@ export interface CartSyncResult {
   qtyReduced: string[];
 }
 
+/** product id -> its current catalog entry, or null when the catalog
+ * CONFIRMED it no longer exists. An id absent from the map means "couldn't
+ * check" (network error, etc.) — those lines are left exactly as they are,
+ * since failing to verify is not evidence a product is gone. */
+export type LiveCatalogLookup = Map<string, Product | null>;
+
 type StoreValue = {
   role: UserRole;
   isAdmin: boolean;
@@ -40,7 +54,7 @@ type StoreValue = {
    * the cart page) to refresh each line in place, dropping/clamping any
    * that no longer check out; returns what changed so the caller can tell
    * the customer. */
-  syncCartWithCatalog: (liveProducts: Product[]) => CartSyncResult;
+  syncCartWithCatalog: (live: LiveCatalogLookup) => CartSyncResult;
   cartTotal: number;
   cartCount: number;
   discount: DiscountInfo | null;
@@ -54,6 +68,33 @@ type StoreValue = {
 
 function round2(n: number): number {
   return Math.round(n * 100) / 100;
+}
+
+/** Applies a catalog lookup to a cart — refreshes each line's snapshot,
+ * clamps qty to live stock, and drops lines that are confirmed gone or out
+ * of stock. */
+function reconcileCart(
+  cart: CartItem[],
+  live: LiveCatalogLookup,
+): { next: CartItem[]; result: CartSyncResult } {
+  const result: CartSyncResult = { removed: [], priceChanged: [], qtyReduced: [] };
+  const next: CartItem[] = [];
+  for (const item of cart) {
+    const entry = live.get(item.product.id);
+    if (entry === undefined) {
+      next.push(item);
+      continue;
+    }
+    if (entry === null || entry.stock <= 0) {
+      result.removed.push(item.product.name);
+      continue;
+    }
+    const qty = Math.min(item.qty, entry.stock);
+    if (qty < item.qty) result.qtyReduced.push(entry.name);
+    if (entry.retailPrice !== item.product.retailPrice) result.priceChanged.push(entry.name);
+    next.push({ product: entry, qty });
+  }
+  return { next, result };
 }
 
 const CART_STORAGE_KEY = "electron-plus:cart";
@@ -103,6 +144,11 @@ export function ElectronStoreProvider({ children }: { children: ReactNode }) {
   const [cart, setCart] = useState<CartItem[]>([]);
   const [discount, setDiscountState] = useState<DiscountInfo | null>(null);
   const [hydrated, setHydrated] = useState(false);
+  // Latest committed cart for callbacks that run after an await (the sync
+  // below) — a closure over `cart` would be stale by then and clobber any
+  // quantity change made while the catalog requests were in flight.
+  const cartRef = useRef(cart);
+  cartRef.current = cart;
 
   // Loaded client-side only, after mount — reading localStorage during the
   // initial render would make the client's first paint disagree with the
@@ -169,25 +215,10 @@ export function ElectronStoreProvider({ children }: { children: ReactNode }) {
             .filter((i) => i.qty > 0),
         ),
       clearCart: () => setCart([]),
-      syncCartWithCatalog: (liveProducts) => {
-        const byId = new Map(liveProducts.map((p) => [p.id, p]));
-        const removed: string[] = [];
-        const priceChanged: string[] = [];
-        const qtyReduced: string[] = [];
-        const next: CartItem[] = [];
-        for (const item of cart) {
-          const live = byId.get(item.product.id);
-          if (!live || live.stock <= 0) {
-            removed.push(item.product.name);
-            continue;
-          }
-          const qty = Math.min(item.qty, live.stock);
-          if (qty < item.qty) qtyReduced.push(live.name);
-          if (live.retailPrice !== item.product.retailPrice) priceChanged.push(live.name);
-          next.push({ product: live, qty });
-        }
+      syncCartWithCatalog: (live) => {
+        const { next, result } = reconcileCart(cartRef.current, live);
         setCart(next);
-        return { removed, priceChanged, qtyReduced };
+        return result;
       },
       cartTotal,
       cartCount,
