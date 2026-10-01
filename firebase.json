@@ -39,6 +39,15 @@
             "value": "no-cache"
           }
         ]
+      },
+      {
+        "source": "/fonts/**",
+        "headers": [
+          {
+            "key": "Access-Control-Allow-Origin",
+            "value": "*"
+          }
+        ]
       }
     ]
   },

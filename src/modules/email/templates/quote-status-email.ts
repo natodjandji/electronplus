@@ -2,7 +2,15 @@ import { computeQuoteTotals } from '../../quotes/quote-totals';
 import { Quote, QuoteStatus } from '../../quotes/entities/quote.entity';
 import { formatMoney } from '../format-money';
 import { escapeHtml } from '../html-escape';
-import { badge, button, emailLayout } from './base-layout';
+import {
+  badge,
+  button,
+  emailLayout,
+  eyebrow,
+  heading,
+  itemCard,
+  summaryTable,
+} from './base-layout';
 
 /** Mirrors frontend/src/routes/quotes.tsx's per-status copy under the quote
  * builder (lines ~630-670) — same wording, translated to email. */
@@ -16,29 +24,18 @@ export function quoteStatusEmail(
 
   const { lines, total } = computeQuoteTotals(quote);
   const itemRows = lines
-    .map((line) => {
-      const item = quote.items.find((i) => i.id === line.id)!;
-      return `
-        <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="border:1px solid #e5e7eb;border-radius:8px;margin-bottom:10px;">
-          <tr>
-            <td style="padding:12px 14px;">
-              <div style="font-weight:bold;color:#0b2545;font-size:14px;">${escapeHtml(item.name)}</div>
-              <div style="color:#6b7280;font-size:12px;margin-top:2px;">${escapeHtml(item.sku)} · Cantidad: ${item.qty}</div>
-            </td>
-            <td align="right" style="padding:12px 14px;white-space:nowrap;font-weight:bold;color:#0b2545;font-size:14px;">
-              ${formatMoney(line.lineTotal)}
-            </td>
-          </tr>
-        </table>`;
-    })
+    .map((line) =>
+      itemCard(
+        quote.items.find((i) => i.id === line.id)!,
+        line.lineTotal,
+      ),
+    )
     .join('');
 
   const isApproved = quote.status === QuoteStatus.APPROVED;
 
-  const heading = isApproved ? 'Cotización aprobada' : 'Cotización rechazada';
-  const badgeHtml = isApproved
-    ? badge('Aprobada', '#d1fae5', '#047857')
-    : badge('Rechazada', '#fee2e2', '#b91c1c');
+  const title = isApproved ? 'Cotización aprobada' : 'Cotización rechazada';
+  const badgeHtml = isApproved ? badge('Aprobada', 'success') : badge('Rechazada', 'danger');
 
   const previewText = isApproved
     ? `Tu cotización fue aprobada${quote.globalDiscountPct > 0 ? ` con un ${quote.globalDiscountPct}% de descuento especial` : ''}.`
@@ -59,29 +56,19 @@ export function quoteStatusEmail(
     : button('Ver mis cotizaciones', `${siteUrl}/quotes`);
 
   const body = `
-    <div style="font-size:13px;font-weight:bold;letter-spacing:0.06em;text-transform:uppercase;color:#0056b3;margin:0 0 8px;">Actualización de tu cotización</div>
-    <h1 style="font-size:22px;margin:0 0 8px;color:#0b2545;">${heading}</h1>
+    ${eyebrow('Actualización de tu cotización')}
+    ${heading(title)}
     <p style="margin:0 0 16px;">${badgeHtml}</p>
     <p style="margin:0 0 24px;">${intro}</p>
 
     ${itemRows}
-
-    ${
-      isApproved
-        ? `<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="margin-top:8px;padding-top:12px;border-top:1px solid #e5e7eb;">
-            <tr>
-              <td style="padding:4px 0;color:#0b2545;font-size:15px;font-weight:bold;">Total</td>
-              <td align="right" style="padding:4px 0;color:#0b2545;font-size:15px;font-weight:bold;">${formatMoney(total)}</td>
-            </tr>
-          </table>`
-        : ''
-    }
+    ${isApproved ? summaryTable([{ label: 'Total', value: formatMoney(total), emphasis: true }]) : ''}
 
     <p style="margin:28px 0 0;">${cta}</p>
   `;
 
   return {
     subject: isApproved ? 'Tu cotización fue aprobada' : 'Tu cotización fue rechazada',
-    html: emailLayout(previewText, body),
+    html: emailLayout(previewText, body, siteUrl),
   };
 }
