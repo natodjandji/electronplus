@@ -9,225 +9,26 @@ import { apiFetch } from "@/lib/api-client";
 import { type ApiProduct, toProduct } from "@/lib/product-api";
 import { useCategories } from "@/lib/categories";
 import { useElectronStore, formatMoney } from "@/lib/electron-store";
-import { CONTACT_INFO } from "@/lib/contact-info";
+import {
+  buildReply,
+  welcomeReply,
+  type QuickReply,
+  type ExternalLink,
+  type BotReplyContent,
+} from "@/lib/chat-bot";
 import { cn } from "@/lib/utils";
 import { ProductImage } from "@/components/product-image";
 
-type QuickReply = { label: string; send: string };
-type ExternalLink = { label: string; href: string };
+type ChatMessage = BotReplyContent & { id: string; from: "bot" | "user" };
 
-type ChatMessage = {
-  id: string;
-  from: "bot" | "user";
-  text?: string;
-  quickReplies?: QuickReply[];
-  links?: ExternalLink[];
-  products?: Product[];
-};
-
-const MAIN_MENU: QuickReply[] = [
-  { label: "🔎 Buscar productos", send: "buscar productos" },
-  { label: "🧾 Cotizaciones", send: "quiero una cotización" },
-  { label: "💲 Precios detal/mayorista", send: "precios mayorista y detal" },
-  { label: "📦 Mi pedido", send: "estado de mi pedido" },
-  { label: "🚚 Envíos y garantía", send: "envíos y garantía" },
-  { label: "☎️ Hablar con un asesor", send: "hablar con un asesor" },
-];
-
-function normalize(text: string) {
-  return text.normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase().trim();
-}
-
-function searchProducts(
-  normalizedText: string,
-  products: Product[],
-  categoryLabel: Record<string, string>,
-): Product[] {
-  const tokens = normalizedText.split(/\s+/).filter((w) => w.length >= 3);
-  if (!tokens.length) return [];
-  const scored = products
-    .map((p) => {
-      const haystack = normalize(
-        `${p.name} ${p.sku} ${p.specs} ${categoryLabel[p.category] ?? ""}`,
-      );
-      const hits = tokens.filter((tok) => haystack.includes(tok)).length;
-      return { p, hits };
-    })
-    .filter((x) => x.hits > 0);
-  scored.sort((a, b) => b.hits - a.hits);
-  return scored.slice(0, 3).map((x) => x.p);
-}
-
-function welcomeMessage(): ChatMessage {
-  return {
-    id: crypto.randomUUID(),
-    from: "bot",
-    text: "¡Hola! Soy el asistente de Electron+. Puedo ayudarte a buscar productos, armar una cotización, revisar precios o ponerte en contacto con nuestro equipo. ¿En qué te ayudo?",
-    quickReplies: MAIN_MENU,
-  };
-}
-
-type Ctx = {
-  role: ReturnType<typeof useElectronStore>["role"];
-  cartCount: number;
-  cartTotal: number;
-  products: Product[];
-  categoryLabel: Record<string, string>;
-};
-
-function buildReply(raw: string, ctx: Ctx): ChatMessage[] {
-  const t = normalize(raw);
-  const bot = (partial: Omit<ChatMessage, "id" | "from">): ChatMessage[] => [
-    { id: crypto.randomUUID(), from: "bot", ...partial },
-  ];
-
-  if (!t) return [];
-
-  if (/^(hola|buenas|hey|buenos dias|buenas tardes|buenas noches)[!., ]*$/.test(t)) {
-    return bot({
-      text: "¡Hola! ¿Qué necesitas hoy?",
-      quickReplies: MAIN_MENU,
-    });
-  }
-
-  if (t.includes("menu") || t.includes("ayuda") || t.includes("opciones")) {
-    return bot({
-      text: "Estas son las cosas en las que te puedo ayudar:",
-      quickReplies: MAIN_MENU,
-    });
-  }
-
-  if (t.includes("buscar") && t.includes("producto")) {
-    return bot({
-      text: "Claro, dime el nombre o la categoría que buscas (ej. 'cable 12 AWG', 'breaker' o 'iluminación') y te muestro opciones del catálogo.",
-    });
-  }
-
-  if (t.includes("cotiz") || t.includes("presupuesto")) {
-    return bot({
-      text: "Puedes armar tu solicitud de cotización en la sección Cotizaciones: eliges productos y cantidades, y la envías para que nuestro equipo la revise. Te confirmamos si se aprueba, se rechaza, o si aplica un descuento especial. ¿Te llevo para allá?",
-      quickReplies: [
-        { label: "🧾 Ir a Cotizaciones", send: "__nav:/quotes" },
-        { label: "🔎 Ver catálogo primero", send: "__nav:/catalog" },
-      ],
-    });
-  }
-
-  if (
-    t.includes("pedido") ||
-    t.includes("orden") ||
-    t.includes("seguimiento") ||
-    t.includes("mi compra")
-  ) {
-    return ctx.role === "guest"
-      ? bot({
-          text: "Inicia sesión para ver el historial y estado de tus pedidos.",
-          quickReplies: [{ label: "🔑 Iniciar sesión", send: "__nav:/login" }],
-        })
-      : bot({
-          text: "Puedes ver el estado de todos tus pedidos (procesando, pagado, entregado…) en Mis pedidos.",
-          quickReplies: [{ label: "📦 Ver mis pedidos", send: "__nav:/client/orders" }],
-        });
-  }
-
-  if (
-    t.includes("mayorista") ||
-    t.includes("detal") ||
-    t.includes("precio") ||
-    t.includes("descuento") ||
-    t.includes("b2b")
-  ) {
-    return bot({
-      text: "El catálogo siempre muestra el precio detal y el precio mayorista de referencia. Para acceder al mayorista (o pedir un descuento especial), envía una solicitud de cotización — nuestro equipo la revisa y te confirma.",
-      quickReplies: [
-        { label: "🧾 Solicitar cotización", send: "__nav:/quotes" },
-        { label: "🔎 Ver catálogo", send: "__nav:/catalog" },
-      ],
-    });
-  }
-
-  if (
-    t.includes("envio") ||
-    t.includes("despacho") ||
-    t.includes("domicilio") ||
-    t.includes("delivery")
-  ) {
-    return bot({
-      text: "Hacemos despacho a nivel nacional. Los tiempos y costos varían según destino y volumen — nuestro equipo te confirma el detalle exacto al armar tu pedido.",
-    });
-  }
-
-  if (t.includes("garantia")) {
-    return bot({
-      text: "Todos los productos tienen garantía de marca. Si algo llega con falla, contáctanos con tu número de pedido y lo resolvemos con el fabricante o distribuidor.",
-    });
-  }
-
-  if (t.includes("carrito")) {
-    return ctx.cartCount > 0
-      ? bot({
-          text: `Tienes ${ctx.cartCount} artículo(s) en el carrito por ${formatMoney(ctx.cartTotal)}.`,
-          quickReplies: [{ label: "🛒 Ir al carrito", send: "__nav:/cart" }],
-        })
-      : bot({
-          text: "Tu carrito está vacío por ahora.",
-          quickReplies: [{ label: "🔎 Ver catálogo", send: "__nav:/catalog" }],
-        });
-  }
-
-  if (
-    t.includes("iniciar sesion") ||
-    t.includes("login") ||
-    t.includes("registrar") ||
-    t.includes("crear cuenta") ||
-    t.includes("cuenta")
-  ) {
-    return bot({
-      text: "Puedes iniciar sesión con Google o correo, o crear una cuenta nueva en segundos.",
-      quickReplies: [
-        { label: "🔑 Iniciar sesión", send: "__nav:/login" },
-        { label: "📝 Crear cuenta", send: "__nav:/register" },
-      ],
-    });
-  }
-
-  if (
-    t.includes("contacto") ||
-    t.includes("humano") ||
-    t.includes("asesor") ||
-    t.includes("telefono") ||
-    t.includes("correo") ||
-    t.includes("whatsapp") ||
-    t.includes("horario")
-  ) {
-    return bot({
-      text: `Con gusto. Puedes escribirnos directamente:\nHorario: ${CONTACT_INFO.hours}.`,
-      links: [
-        { label: `✉️ ${CONTACT_INFO.email}`, href: CONTACT_INFO.emailHref },
-        { label: `☎️ ${CONTACT_INFO.phone}`, href: CONTACT_INFO.phoneHref },
-      ],
-    });
-  }
-
-  const matches = searchProducts(t, ctx.products, ctx.categoryLabel);
-  if (matches.length > 0) {
-    return bot({
-      text: `Encontré esto en el catálogo para "${raw}":`,
-      products: matches,
-      quickReplies: [{ label: "🔎 Ver todo en catálogo", send: `__navq:${raw}` }],
-    });
-  }
-
-  return bot({
-    text: "No estoy seguro de haber entendido 🤔 ¿Puedes elegir una opción o intentar con otras palabras?",
-    quickReplies: MAIN_MENU,
-  });
+function toMessage(content: BotReplyContent): ChatMessage {
+  return { id: crypto.randomUUID(), from: "bot", ...content };
 }
 
 export function ChatPanel({ open, onClose }: { open: boolean; onClose: () => void }) {
   const navigate = useNavigate();
   const store = useElectronStore();
-  const [messages, setMessages] = useState<ChatMessage[]>(() => [welcomeMessage()]);
+  const [messages, setMessages] = useState<ChatMessage[]>(() => [toMessage(welcomeReply())]);
   const [input, setInput] = useState("");
   const [typing, setTyping] = useState(false);
   const listRef = useRef<HTMLDivElement>(null);
@@ -283,7 +84,8 @@ export function ChatPanel({ open, onClose }: { open: boolean; onClose: () => voi
             cartTotal: store.cartTotal,
             products,
             categoryLabel,
-          }),
+            formatMoney,
+          }).map(toMessage),
         ]);
       },
       380 + Math.random() * 260,
