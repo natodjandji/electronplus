@@ -32,7 +32,7 @@ import { TaxIdField } from "@/components/tax-id-field";
 import { PhoneField } from "@/components/phone-field";
 import { apiFetch, ApiError } from "@/lib/api-client";
 import { useAuth } from "@/lib/auth-context";
-import { formatMoney, useElectronStore } from "@/lib/electron-store";
+import { formatMoney, TAX_RATE, useElectronStore } from "@/lib/electron-store";
 import { formatBs, useBcvRate } from "@/lib/use-bcv-rate";
 import { compressImageToBase64 } from "@/lib/image-compress";
 import {
@@ -151,7 +151,7 @@ function CheckoutPage() {
     quoteItemsPriced.reduce((s, i) => s + i.effectiveUnitPrice * i.qty, 0),
   );
   const effectiveTaxableBase = isQuoteCheckout ? quoteSubtotal : taxableBase;
-  const effectiveTaxAmount = isQuoteCheckout ? round2(quoteSubtotal * 0.16) : taxAmount;
+  const effectiveTaxAmount = isQuoteCheckout ? round2(quoteSubtotal * TAX_RATE) : taxAmount;
   const effectiveItemCount = isQuoteCheckout
     ? quoteItemsPriced.reduce((s, i) => s + i.qty, 0)
     : cartCount;
