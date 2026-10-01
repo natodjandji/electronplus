@@ -36,6 +36,17 @@ export class FakeDocRef {
     this.store.set(this.path, opts?.merge ? { ...existing, ...data } : data);
   }
 
+  /** Mirrors the real SDK: rejects with gRPC code 6 (ALREADY_EXISTS) instead
+   * of overwriting. Synchronous check-and-write, so unlike the real service
+   * it can't model two truly simultaneous creates — but it does prove the
+   * caller handles the rejection instead of assuming success. */
+  async create(data: DocData) {
+    if (this.store.has(this.path)) {
+      throw Object.assign(new Error('ALREADY_EXISTS'), { code: 6 });
+    }
+    this.store.set(this.path, data);
+  }
+
   async delete() {
     this.store.delete(this.path);
   }

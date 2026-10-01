@@ -188,3 +188,93 @@ describe('ProductsService batched transaction reads', () => {
     });
   });
 });
+
+/** Product ids double as public URLs (/product/{id}) and are baked into
+ * printed QR labels — see ProductsService.createWithSlugId. */
+describe('ProductsService slug ids', () => {
+  const CATEGORY = { id: 'cat-1', code: 'cables', label: 'Cables' };
+
+  function setup() {
+    const firestore = new FakeFirestore();
+    firestore.seed(Collections.CATEGORIES, CATEGORY.id, CATEGORY);
+    const service = new ProductsService(
+      firestore as unknown as ConstructorParameters<typeof ProductsService>[0],
+      new EventEmitter2(),
+    );
+    const create = (name: string) =>
+      service.create({
+        sku: `SKU-${name}`,
+        name,
+        categoryId: CATEGORY.id,
+        retailPrice: 1,
+        wholesalePrice: 1,
+      } as never);
+    const erpItem = (externalId: string, name: string) => ({
+      externalId,
+      sku: externalId,
+      name,
+      categoryId: CATEGORY.id,
+      category: CATEGORY,
+      retailPrice: 1,
+      wholesalePrice: 1,
+      stock: 1,
+    });
+    return { firestore, service, create, erpItem };
+  }
+
+  it('derives the id from the name, stripping accents and punctuation', async () => {
+    const { create } = setup();
+    expect((await create('Bombillo LED 9W E27 luz fría')).id).toBe('bombillo-led-9w-e27-luz-fria');
+  });
+
+  it('suffixes -2/-3 on name collisions without touching the earlier products', async () => {
+    const { create, service } = setup();
+    const first = await create('Cable 12 AWG');
+    const second = await create('Cable 12 AWG');
+    const third = await create('cable 12 awg!');
+    expect([first.id, second.id, third.id]).toEqual([
+      'cable-12-awg',
+      'cable-12-awg-2',
+      'cable-12-awg-3',
+    ]);
+    expect((await service.findById('cable-12-awg')).sku).toBe('SKU-Cable 12 AWG');
+  });
+
+  it('never lets concurrent ERP upserts with the same name overwrite each other', async () => {
+    const { service, erpItem } = setup();
+    const results = await Promise.all(
+      ['A', 'B', 'C', 'D'].map((x) =>
+        service.upsertFromErp(erpItem(`ERP-${x}`, 'Tornillo'), undefined),
+      ),
+    );
+    const ids = results.map((r) => r.product.id).sort();
+    expect(ids).toEqual(['tornillo', 'tornillo-2', 'tornillo-3', 'tornillo-4']);
+    const skus = await Promise.all(ids.map(async (id) => (await service.findById(id)).sku));
+    expect(new Set(skus)).toEqual(new Set(['ERP-A', 'ERP-B', 'ERP-C', 'ERP-D']));
+  });
+
+  it('skips ids that would shadow a static products/ route', async () => {
+    const { create } = setup();
+    expect((await create('Admin')).id).toBe('admin-2');
+    expect((await create('Best Sellers')).id).toBe('best-sellers-2');
+  });
+
+  it('truncates long names without leaving a dangling hyphen', async () => {
+    const { create } = setup();
+    const id = (await create(`${'a'.repeat(79)} bbbbbb`)).id;
+    expect(id).toBe('a'.repeat(79));
+    expect(id.endsWith('-')).toBe(false);
+  });
+
+  it('falls back to "producto" when the name has no usable characters', async () => {
+    const { create } = setup();
+    expect((await create('¿¡?!')).id).toBe('producto');
+  });
+
+  it('keeps the id stable when the name is edited later', async () => {
+    const { create, service } = setup();
+    const product = await create('Breaker 20A');
+    const updated = await service.update(product.id, { name: 'Breaker 20A Bipolar' } as never);
+    expect(updated.id).toBe('breaker-20a');
+  });
+});

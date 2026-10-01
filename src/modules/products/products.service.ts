@@ -53,6 +53,19 @@ function generateQrToken(): string {
   return randomBytes(24).toString('base64url');
 }
 
+/** `GET products/<segment>` routes declared before `products/:id` in
+ * ProductsController — a product slugified to one of these would be
+ * unreachable (the static route wins). Keep in sync with that controller. */
+const RESERVED_PRODUCT_IDS = new Set(['admin', 'best-sellers']);
+
+const PRODUCT_ID_MAX_LENGTH = 80;
+
+/** Name -> id stem. Re-trims after the cut so truncating mid-name never
+ * leaves a dangling hyphen; falls back for names with no usable characters. */
+function productIdBase(name: string): string {
+  return slugify(name).slice(0, PRODUCT_ID_MAX_LENGTH).replace(/-+$/, '') || 'producto';
+}
+
 // topSelling() backs the public homepage and re-scans up to 90 days of
 // orders on every call — cached briefly per `limit` so the busiest
 // unauthenticated route on the site doesn't rescan on every visit.
@@ -284,46 +297,50 @@ export class ProductsService {
     });
   }
 
-  /** Slugifies the product name into its Firestore document id — and
-   * therefore its public URL, /product/{id} — appending -2/-3/... on
-   * collision. Mirrors PaymentMethodsService.uniqueIdFor(). Only runs for
-   * NEW products: an existing product's id never changes on a later name
-   * edit, since that would break any link/QR code/order already pointing
-   * at it (its printed QR embeds this id directly — see qr.service.ts). */
-  private async uniqueProductId(name: string): Promise<string> {
-    const base = slugify(name).slice(0, 80) || 'producto';
-    let id = base;
-    let suffix = 2;
-    while (await this.repo.findById(id)) {
-      id = `${base}-${suffix++}`;
+  /** Inserts a product under an id slugified from its name — that id is also
+   * its public URL (/product/{id}) and is embedded in printed QR labels, so
+   * it must never change afterwards (a later name edit leaves it alone).
+   * Collisions get -2/-3/... Uses an atomic create instead of
+   * check-then-write: ERP sync upserts products concurrently
+   * (Promise.allSettled), and two items sharing a name would otherwise both
+   * pass an existence check and the second set() would silently overwrite
+   * the first product. */
+  private async createWithSlugId(
+    name: string,
+    data: Omit<Partial<Product>, 'id' | 'createdAt' | 'updatedAt'>,
+  ): Promise<Product> {
+    const base = productIdBase(name);
+    for (let suffix = 1; ; suffix++) {
+      const id = suffix === 1 ? base : `${base}-${suffix}`;
+      if (RESERVED_PRODUCT_IDS.has(id)) continue;
+      const created = await this.repo.createIfAbsent(data, id);
+      if (created) return created;
     }
-    return id;
   }
 
   async create(dto: CreateProductDto): Promise<Product> {
     const category = await this.categoriesRepo.getOrThrow(dto.categoryId, 'Category not found');
+    const product = await this.createWithSlugId(dto.name, {
+      sku: dto.sku,
+      name: dto.name,
+      specs: dto.specs,
+      categoryId: category.id,
+      category: { id: category.id, code: category.code, label: category.label },
+      supplierId: dto.supplierId,
+      retailPrice: dto.retailPrice,
+      wholesalePrice: dto.wholesalePrice,
+      cost: dto.cost,
+      stock: 0,
+      minStockThreshold: dto.minStockThreshold,
+      imageUrl: dto.imageUrl,
+      thumbnailUrl: dto.thumbnailUrl,
+      active: dto.active ?? true,
+      qrToken: generateQrToken(),
+    });
+    // After the write, not before: clearing first left a window where a
+    // concurrent search re-warmed the cache without the new product.
     this.clearCatalogCaches();
-    const id = await this.uniqueProductId(dto.name);
-    return this.repo.create(
-      {
-        sku: dto.sku,
-        name: dto.name,
-        specs: dto.specs,
-        categoryId: category.id,
-        category: { id: category.id, code: category.code, label: category.label },
-        supplierId: dto.supplierId,
-        retailPrice: dto.retailPrice,
-        wholesalePrice: dto.wholesalePrice,
-        cost: dto.cost,
-        stock: 0,
-        minStockThreshold: dto.minStockThreshold,
-        imageUrl: dto.imageUrl,
-        thumbnailUrl: dto.thumbnailUrl,
-        active: dto.active ?? true,
-        qrToken: generateQrToken(),
-      },
-      id,
-    );
+    return product;
   }
 
   async update(id: string, dto: UpdateProductDto): Promise<Product> {
@@ -661,15 +678,12 @@ export class ProductsService {
 
     const saved = existing
       ? await this.repo.update(existing.id, { ...patch, erpSyncedAt: new Date() })
-      : await this.repo.create(
-          {
-            ...patch,
-            erpSyncedAt: new Date(),
-            active: true,
-            qrToken: generateQrToken(),
-          },
-          await this.uniqueProductId(item.name),
-        );
+      : await this.createWithSlugId(item.name, {
+          ...patch,
+          erpSyncedAt: new Date(),
+          active: true,
+          qrToken: generateQrToken(),
+        });
 
     // Only reached when something actually changed (the dirty-check above
     // returns early otherwise), so a no-op sync run leaves the caches warm.

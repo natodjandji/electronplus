@@ -7,6 +7,9 @@ import type {
 } from 'firebase-admin/firestore';
 import { FieldValue } from 'firebase-admin/firestore';
 
+/** gRPC status code Firestore returns when create() hits an existing doc. */
+const ALREADY_EXISTS = 6;
+
 export interface FirestoreDoc {
   id: string;
   createdAt: Date;
@@ -97,6 +100,24 @@ export class FirestoreRepository<T extends FirestoreDoc> {
     const now = FieldValue.serverTimestamp();
     await ref.set({ ...data, createdAt: now, updatedAt: now });
     return this.getOrThrow(ref.id);
+  }
+
+  /** Atomic create at a caller-chosen id: returns null instead of overwriting
+   * when the id is already taken. Unlike create(data, id) — which uses set()
+   * and silently replaces an existing doc — this is safe against concurrent
+   * writers racing for the same id (Firestore enforces it server-side). */
+  async createIfAbsent(
+    data: Omit<Partial<T>, 'id' | 'createdAt' | 'updatedAt'>,
+    id: string,
+  ): Promise<T | null> {
+    const now = FieldValue.serverTimestamp();
+    try {
+      await this.doc(id).create({ ...data, createdAt: now, updatedAt: now });
+    } catch (error) {
+      if ((error as { code?: number }).code === ALREADY_EXISTS) return null;
+      throw error;
+    }
+    return this.getOrThrow(id);
   }
 
   async update(id: string, data: Partial<Omit<T, 'id' | 'createdAt'>>): Promise<T> {
