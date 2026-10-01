@@ -9,7 +9,6 @@ export enum NotificationType {
   EXPENSE_DUE_SOON = 'expense_due_soon',
   EXPENSE_OVERDUE = 'expense_overdue',
   SYNC_ERROR = 'sync_error',
-  CHATBOT_ESCALATION = 'chatbot_escalation',
 }
 
 export interface Notification extends FirestoreDoc {

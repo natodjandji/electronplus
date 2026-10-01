@@ -13,7 +13,6 @@ import { ExpenseDueStatus } from '../expenses/entities/expense.entity';
 import { STOCK_ALERT_RAISED_EVENT, StockAlertRaisedEvent } from '../inventory/inventory.service';
 import { StockAlertLevel } from '../inventory/entities/stock-alert.entity';
 import { STOCK_CHANGED_EVENT, StockChangedEvent } from '../products/products.service';
-import { CHATBOT_ESCALATION_EVENT, ChatbotEscalationEvent } from '../chat-bot/chat-bot.events';
 import { Notification, NotificationType } from './entities/notification.entity';
 import { NotificationsGateway } from './notifications.gateway';
 
@@ -162,24 +161,6 @@ export class NotificationsService {
       );
     } catch (error) {
       this.logger.error('Failed to create ERP sync error notification', error as Error);
-    }
-  }
-
-  @OnEvent(CHATBOT_ESCALATION_EVENT)
-  async handleChatbotEscalation(payload: ChatbotEscalationEvent): Promise<void> {
-    try {
-      await this.create(
-        NotificationType.CHATBOT_ESCALATION,
-        'El bot de WhatsApp necesita ayuda',
-        `${payload.contactName ?? payload.from}: "${payload.message}"`,
-        OPS_ROLES,
-        { ...payload },
-      );
-    } catch (error) {
-      this.logger.error(
-        `Failed to create chatbot escalation notification for ${payload.from}`,
-        error as Error,
-      );
     }
   }
 
