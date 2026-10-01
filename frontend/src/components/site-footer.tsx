@@ -1,6 +1,7 @@
 import { Link } from "@tanstack/react-router";
 import type { ReactNode } from "react";
 import { ElectronLogo } from "./electron-logo";
+import { WhatsappIcon } from "./whatsapp-icon";
 import { CONTACT_INFO } from "@/lib/contact-info";
 
 type StoreLink = { label: string; to: "/catalog" | "/quotes" | "/collections" | "/client/orders" };
@@ -40,8 +41,9 @@ export function SiteFooter() {
               href={CONTACT_INFO.whatsappHref}
               target="_blank"
               rel="noopener noreferrer"
-              className="transition-colors hover:text-white"
+              className="inline-flex items-center gap-1.5 transition-colors hover:text-white"
             >
+              <WhatsappIcon className="h-3.5 w-3.5 shrink-0" />
               {CONTACT_INFO.phone}
             </a>
           </li>

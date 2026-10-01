@@ -348,8 +348,9 @@ const INTENTS: Intent[] = [
     reply: () => ({
       text: `Con gusto. Puedes escribirnos directamente:\nHorario: ${CONTACT_INFO.hours}.`,
       links: [
+        { label: `💬 WhatsApp: ${CONTACT_INFO.phone}`, href: CONTACT_INFO.whatsappHref },
         { label: `✉️ ${CONTACT_INFO.email}`, href: CONTACT_INFO.emailHref },
-        { label: `☎️ ${CONTACT_INFO.phone}`, href: CONTACT_INFO.phoneHref },
+        { label: `☎️ Llamar: ${CONTACT_INFO.phone}`, href: CONTACT_INFO.phoneHref },
       ],
     }),
   },
