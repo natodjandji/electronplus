@@ -2,7 +2,8 @@ import { useEffect, useRef, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { ApiError, apiFetch } from "./api-client";
-import { useElectronStore, type LiveCatalogLookup } from "./electron-store";
+import type { LiveCatalogLookup } from "./cart-reconcile";
+import { useElectronStore } from "./electron-store";
 import { type ApiProduct, toProduct } from "./product-api";
 
 /** One request per cart line (carts are small) rather than scanning the
