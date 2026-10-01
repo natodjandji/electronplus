@@ -7,6 +7,7 @@ import { FIRESTORE } from '../../firebase/firebase.constants';
 import { Collections } from '../../firebase/firestore-collections';
 import { FirestoreRepository, WhereClause } from '../../firebase/firestore.repository';
 import { PaginatedResult } from '../../common/dto/pagination.dto';
+import { slugify } from '../../common/utils/slug';
 import { OrderStatus } from '../orders/entities/order.entity';
 import { AdjustStockDto } from './dto/adjust-stock.dto';
 import { AdminQueryProductsDto } from './dto/admin-query-products.dto';
@@ -283,26 +284,46 @@ export class ProductsService {
     });
   }
 
+  /** Slugifies the product name into its Firestore document id — and
+   * therefore its public URL, /product/{id} — appending -2/-3/... on
+   * collision. Mirrors PaymentMethodsService.uniqueIdFor(). Only runs for
+   * NEW products: an existing product's id never changes on a later name
+   * edit, since that would break any link/QR code/order already pointing
+   * at it (its printed QR embeds this id directly — see qr.service.ts). */
+  private async uniqueProductId(name: string): Promise<string> {
+    const base = slugify(name).slice(0, 80) || 'producto';
+    let id = base;
+    let suffix = 2;
+    while (await this.repo.findById(id)) {
+      id = `${base}-${suffix++}`;
+    }
+    return id;
+  }
+
   async create(dto: CreateProductDto): Promise<Product> {
     const category = await this.categoriesRepo.getOrThrow(dto.categoryId, 'Category not found');
     this.clearCatalogCaches();
-    return this.repo.create({
-      sku: dto.sku,
-      name: dto.name,
-      specs: dto.specs,
-      categoryId: category.id,
-      category: { id: category.id, code: category.code, label: category.label },
-      supplierId: dto.supplierId,
-      retailPrice: dto.retailPrice,
-      wholesalePrice: dto.wholesalePrice,
-      cost: dto.cost,
-      stock: 0,
-      minStockThreshold: dto.minStockThreshold,
-      imageUrl: dto.imageUrl,
-      thumbnailUrl: dto.thumbnailUrl,
-      active: dto.active ?? true,
-      qrToken: generateQrToken(),
-    });
+    const id = await this.uniqueProductId(dto.name);
+    return this.repo.create(
+      {
+        sku: dto.sku,
+        name: dto.name,
+        specs: dto.specs,
+        categoryId: category.id,
+        category: { id: category.id, code: category.code, label: category.label },
+        supplierId: dto.supplierId,
+        retailPrice: dto.retailPrice,
+        wholesalePrice: dto.wholesalePrice,
+        cost: dto.cost,
+        stock: 0,
+        minStockThreshold: dto.minStockThreshold,
+        imageUrl: dto.imageUrl,
+        thumbnailUrl: dto.thumbnailUrl,
+        active: dto.active ?? true,
+        qrToken: generateQrToken(),
+      },
+      id,
+    );
   }
 
   async update(id: string, dto: UpdateProductDto): Promise<Product> {
@@ -640,12 +661,15 @@ export class ProductsService {
 
     const saved = existing
       ? await this.repo.update(existing.id, { ...patch, erpSyncedAt: new Date() })
-      : await this.repo.create({
-          ...patch,
-          erpSyncedAt: new Date(),
-          active: true,
-          qrToken: generateQrToken(),
-        });
+      : await this.repo.create(
+          {
+            ...patch,
+            erpSyncedAt: new Date(),
+            active: true,
+            qrToken: generateQrToken(),
+          },
+          await this.uniqueProductId(item.name),
+        );
 
     // Only reached when something actually changed (the dirty-check above
     // returns early otherwise), so a no-op sync run leaves the caches warm.
