@@ -1,6 +1,5 @@
 export const CONTACT_INFO = {
   phone: "+58 424-555.5990",
-  phoneHref: "tel:+584245555990",
   whatsappHref: "https://wa.me/584245555990",
   email: "electronplusve@gmail.com",
   emailHref: "mailto:electronplusve@gmail.com",

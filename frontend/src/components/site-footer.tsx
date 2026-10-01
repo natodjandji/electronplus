@@ -43,7 +43,7 @@ export function SiteFooter() {
               rel="noopener noreferrer"
               className="inline-flex items-center gap-1.5 transition-colors hover:text-white"
             >
-              <WhatsappIcon className="h-3.5 w-3.5 shrink-0" />
+              <WhatsappIcon className="h-3.5 w-3.5 shrink-0" color="#fff" />
               {CONTACT_INFO.phone}
             </a>
           </li>

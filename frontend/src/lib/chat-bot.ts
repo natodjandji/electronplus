@@ -350,7 +350,6 @@ const INTENTS: Intent[] = [
       links: [
         { label: `💬 WhatsApp: ${CONTACT_INFO.phone}`, href: CONTACT_INFO.whatsappHref },
         { label: `✉️ ${CONTACT_INFO.email}`, href: CONTACT_INFO.emailHref },
-        { label: `☎️ Llamar: ${CONTACT_INFO.phone}`, href: CONTACT_INFO.phoneHref },
       ],
     }),
   },
