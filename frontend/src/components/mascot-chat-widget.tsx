@@ -10,11 +10,11 @@ const FRAME_INTERVAL_MS = 1000 / 18;
 
 const SMILE_FRAMES = Array.from(
   { length: SMILE_FRAME_COUNT },
-  (_, i) => `/mascot/smile/frame-${String(i + 1).padStart(2, "0")}.webp`,
+  (_, i) => `/mascot/smile/frame-${String(i + 1).padStart(2, "0")}.png`,
 );
 const WAVE_FRAMES = Array.from(
   { length: WAVE_FRAME_COUNT },
-  (_, i) => `/mascot/wave/frame-${String(i + 1).padStart(2, "0")}.webp`,
+  (_, i) => `/mascot/wave/frame-${String(i + 1).padStart(2, "0")}.png`,
 );
 
 /**
@@ -30,26 +30,11 @@ export function MascotChatWidget() {
   const [open, setOpen] = useState(false);
   const [frameIndex, setFrameIndex] = useState(0);
 
-  // Warm the frame cache once the page has gone idle, so the hover/click
-  // sequences play without flicker — but never compete with the page's own
-  // first load for bandwidth, and skip it entirely when the visitor asked
-  // the browser to save data.
   useEffect(() => {
-    const connection = (navigator as Navigator & { connection?: { saveData?: boolean } })
-      .connection;
-    if (connection?.saveData) return;
-    const preload = () => {
-      for (const src of [...SMILE_FRAMES, ...WAVE_FRAMES]) {
-        const img = new Image();
-        img.src = src;
-      }
-    };
-    if ("requestIdleCallback" in window) {
-      const id = window.requestIdleCallback(preload, { timeout: 4000 });
-      return () => window.cancelIdleCallback(id);
+    for (const src of [...SMILE_FRAMES, ...WAVE_FRAMES]) {
+      const img = new Image();
+      img.src = src;
     }
-    const id = setTimeout(preload, 2500);
-    return () => clearTimeout(id);
   }, []);
 
   useEffect(() => {
@@ -89,7 +74,7 @@ export function MascotChatWidget() {
 
   const src =
     iconMode === "idle"
-      ? "/mascot/mascot-idle.webp"
+      ? "/mascot/mascot-idle.png"
       : iconMode === "smile"
         ? SMILE_FRAMES[frameIndex]
         : WAVE_FRAMES[frameIndex];
