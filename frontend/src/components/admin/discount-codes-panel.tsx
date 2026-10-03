@@ -24,6 +24,7 @@ import {
 import { Switch } from "@/components/ui/switch";
 import { apiFetch, ApiError, reportError } from "@/lib/api-client";
 import { formatMoneyAdmin } from "@/lib/electron-store";
+import { formatCalendarDate } from "@/lib/format";
 import { toast } from "sonner";
 
 type DiscountType = "percentage" | "fixed";
@@ -34,6 +35,28 @@ interface DiscountCode {
   type: DiscountType;
   value: number;
   enabled: boolean;
+  /** Last valid day, YYYY-MM-DD (Venezuela time). */
+  expiresOn?: string | null;
+  maxUses?: number | null;
+  usedCount?: number;
+}
+
+/** Today as the API judges expiry: in Venezuela, whatever the browser's zone. */
+function todayInVenezuela(): string {
+  return new Intl.DateTimeFormat("en-CA", { timeZone: "America/Caracas" }).format(new Date());
+}
+
+type CodeStatus = { label: string; className: string };
+
+function statusOf(d: DiscountCode): CodeStatus {
+  if (!d.enabled) return { label: "Inactivo", className: "bg-muted text-muted-foreground" };
+  if (d.expiresOn && d.expiresOn < todayInVenezuela()) {
+    return { label: "Vencido", className: "bg-amber-100 text-amber-800" };
+  }
+  if (d.maxUses != null && (d.usedCount ?? 0) >= d.maxUses) {
+    return { label: "Agotado", className: "bg-amber-100 text-amber-800" };
+  }
+  return { label: "Activo", className: "bg-emerald-100 text-emerald-800" };
 }
 
 function useDiscountCodes() {
@@ -88,11 +111,13 @@ export function DiscountCodesPanel() {
 
       <Card className="mt-6 overflow-hidden">
         <div className="overflow-x-auto">
-          <table className="w-full min-w-[460px] text-sm">
+          <table className="w-full min-w-[640px] text-sm">
             <thead className="bg-brand-surface">
               <tr className="text-left text-xs uppercase tracking-wider text-muted-foreground">
                 <th className="px-4 py-2">Código</th>
                 <th className="px-4 py-2">Descuento</th>
+                <th className="px-4 py-2">Usos</th>
+                <th className="px-4 py-2">Vence</th>
                 <th className="px-4 py-2">Estado</th>
                 <th className="px-4 py-2 text-right">Acciones</th>
               </tr>
@@ -100,55 +125,62 @@ export function DiscountCodesPanel() {
             <tbody>
               {isLoading && (
                 <tr>
-                  <td colSpan={4} className="py-8 text-center text-muted-foreground">
+                  <td colSpan={6} className="py-8 text-center text-muted-foreground">
                     Cargando…
                   </td>
                 </tr>
               )}
               {!isLoading && (codes?.length ?? 0) === 0 && (
                 <tr>
-                  <td colSpan={4} className="py-8 text-center text-muted-foreground">
+                  <td colSpan={6} className="py-8 text-center text-muted-foreground">
                     No hay códigos de descuento creados.
                   </td>
                 </tr>
               )}
-              {codes?.map((d) => (
-                <tr key={d.id} className="border-t border-border">
-                  <td className="px-4 py-3 font-mono font-semibold text-brand-navy">{d.code}</td>
-                  <td className="px-4 py-3 text-brand-navy">{valueLabel(d)}</td>
-                  <td className="px-4 py-3">
-                    <button
-                      onClick={() => toggleEnabled.mutate(d)}
-                      disabled={toggleEnabled.isPending}
-                    >
-                      <Badge
-                        className={
-                          d.enabled
-                            ? "bg-emerald-100 text-emerald-800"
-                            : "bg-muted text-muted-foreground"
-                        }
+              {codes?.map((d) => {
+                const status = statusOf(d);
+                return (
+                  <tr key={d.id} className="border-t border-border">
+                    <td className="px-4 py-3 font-mono font-semibold text-brand-navy">{d.code}</td>
+                    <td className="px-4 py-3 text-brand-navy">{valueLabel(d)}</td>
+                    <td className="px-4 py-3 tabular-nums text-brand-navy">
+                      {d.usedCount ?? 0}
+                      <span className="text-muted-foreground"> / {d.maxUses ?? "∞"}</span>
+                    </td>
+                    <td className="px-4 py-3 text-brand-navy">
+                      {d.expiresOn ? (
+                        formatCalendarDate(d.expiresOn)
+                      ) : (
+                        <span className="text-muted-foreground">Sin vencimiento</span>
+                      )}
+                    </td>
+                    <td className="px-4 py-3">
+                      <button
+                        onClick={() => toggleEnabled.mutate(d)}
+                        disabled={toggleEnabled.isPending}
+                        aria-label={d.enabled ? `Desactivar ${d.code}` : `Activar ${d.code}`}
                       >
-                        {d.enabled ? "Activo" : "Inactivo"}
-                      </Badge>
-                    </button>
-                  </td>
-                  <td className="px-4 py-3">
-                    <div className="flex justify-end gap-2">
-                      <Button variant="outline" size="icon" onClick={() => setEditing(d)}>
-                        <Pencil className="h-3.5 w-3.5" />
-                      </Button>
-                      <Button
-                        variant="outline"
-                        size="icon"
-                        className="text-destructive"
-                        onClick={() => setDeleting(d)}
-                      >
-                        <Trash2 className="h-3.5 w-3.5" />
-                      </Button>
-                    </div>
-                  </td>
-                </tr>
-              ))}
+                        <Badge className={status.className}>{status.label}</Badge>
+                      </button>
+                    </td>
+                    <td className="px-4 py-3">
+                      <div className="flex justify-end gap-2">
+                        <Button variant="outline" size="icon" onClick={() => setEditing(d)}>
+                          <Pencil className="h-3.5 w-3.5" />
+                        </Button>
+                        <Button
+                          variant="outline"
+                          size="icon"
+                          className="text-destructive"
+                          onClick={() => setDeleting(d)}
+                        >
+                          <Trash2 className="h-3.5 w-3.5" />
+                        </Button>
+                      </div>
+                    </td>
+                  </tr>
+                );
+              })}
             </tbody>
           </table>
         </div>
@@ -186,9 +218,14 @@ function CreateCodeDialog({ onClose }: { onClose: () => void }) {
   const [code, setCode] = useState("");
   const [type, setType] = useState<DiscountType>("percentage");
   const [value, setValue] = useState(10);
+  const [limits, setLimits] = useState<LimitsDraft>({ maxUses: "", expiresOn: "" });
 
   const create = useMutation({
-    mutationFn: () => apiFetch("/discount-codes", { method: "POST", body: { code, type, value } }),
+    mutationFn: () =>
+      apiFetch("/discount-codes", {
+        method: "POST",
+        body: { code, type, value, ...limitsBody(limits) },
+      }),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["admin", "discount-codes"] });
       toast.success("Código creado");
@@ -239,6 +276,7 @@ function CreateCodeDialog({ onClose }: { onClose: () => void }) {
               onChange={(e) => setValue(Math.max(0, Number(e.target.value)))}
             />
           </Field>
+          <LimitsFields limits={limits} onChange={setLimits} />
         </div>
 
         <DialogFooter>
@@ -247,7 +285,7 @@ function CreateCodeDialog({ onClose }: { onClose: () => void }) {
           </Button>
           <Button
             className="bg-brand-blue text-white hover:bg-brand-blue/90"
-            disabled={!code.trim() || create.isPending}
+            disabled={!code.trim() || !limitsValid(limits) || create.isPending}
             onClick={() => create.mutate()}
           >
             Crear código
@@ -263,10 +301,17 @@ function EditCodeDialog({ code, onClose }: { code: DiscountCode; onClose: () => 
   const [type, setType] = useState<DiscountType>(code.type);
   const [value, setValue] = useState(code.value);
   const [enabled, setEnabled] = useState(code.enabled);
+  const [limits, setLimits] = useState<LimitsDraft>({
+    maxUses: code.maxUses != null ? String(code.maxUses) : "",
+    expiresOn: code.expiresOn ?? "",
+  });
 
   const save = useMutation({
     mutationFn: () =>
-      apiFetch(`/discount-codes/${code.id}`, { method: "PATCH", body: { type, value, enabled } }),
+      apiFetch(`/discount-codes/${code.id}`, {
+        method: "PATCH",
+        body: { type, value, enabled, ...limitsBody(limits) },
+      }),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["admin", "discount-codes"] });
       toast.success("Código actualizado");
@@ -308,6 +353,7 @@ function EditCodeDialog({ code, onClose }: { code: DiscountCode; onClose: () => 
               onChange={(e) => setValue(Math.max(0, Number(e.target.value)))}
             />
           </Field>
+          <LimitsFields limits={limits} onChange={setLimits} usedCount={code.usedCount ?? 0} />
           <Field className="flex items-center justify-between gap-2">
             <Label className="text-sm text-brand-navy">Activo</Label>
             <Switch checked={enabled} onCheckedChange={setEnabled} />
@@ -320,7 +366,7 @@ function EditCodeDialog({ code, onClose }: { code: DiscountCode; onClose: () => 
           </Button>
           <Button
             className="bg-brand-blue text-white hover:bg-brand-blue/90"
-            disabled={save.isPending}
+            disabled={!limitsValid(limits) || save.isPending}
             onClick={() => save.mutate()}
           >
             Guardar cambios
@@ -328,5 +374,68 @@ function EditCodeDialog({ code, onClose }: { code: DiscountCode; onClose: () => 
         </DialogFooter>
       </DialogContent>
     </Dialog>
+  );
+}
+
+/** Form state for the optional limits — empty strings mean "none". */
+interface LimitsDraft {
+  maxUses: string;
+  expiresOn: string;
+}
+
+function limitsValid(limits: LimitsDraft): boolean {
+  return (
+    limits.maxUses === "" ||
+    (Number.isInteger(Number(limits.maxUses)) && Number(limits.maxUses) >= 1)
+  );
+}
+
+/** Empty fields go as null, which clears a limit set before. */
+function limitsBody(limits: LimitsDraft) {
+  return {
+    maxUses: limits.maxUses === "" ? null : Number(limits.maxUses),
+    expiresOn: limits.expiresOn || null,
+  };
+}
+
+function LimitsFields({
+  limits,
+  onChange,
+  usedCount,
+}: {
+  limits: LimitsDraft;
+  onChange: (limits: LimitsDraft) => void;
+  usedCount?: number;
+}) {
+  return (
+    <div className="grid gap-4 sm:grid-cols-2">
+      <Field className="grid gap-1.5">
+        <Label className="text-xs font-medium text-brand-navy">Usos máximos</Label>
+        <Input
+          type="number"
+          inputMode="numeric"
+          min={1}
+          step={1}
+          placeholder="Sin límite"
+          value={limits.maxUses}
+          onChange={(e) => onChange({ ...limits, maxUses: e.target.value })}
+        />
+        <p className="text-xs text-muted-foreground">
+          {usedCount
+            ? `Usado ${usedCount} ${usedCount === 1 ? "vez" : "veces"}`
+            : "Vacío: sin límite"}
+        </p>
+      </Field>
+      <Field className="grid gap-1.5">
+        <Label className="text-xs font-medium text-brand-navy">Válido hasta</Label>
+        <Input
+          type="date"
+          min={todayInVenezuela()}
+          value={limits.expiresOn}
+          onChange={(e) => onChange({ ...limits, expiresOn: e.target.value })}
+        />
+        <p className="text-xs text-muted-foreground">Vacío: no vence</p>
+      </Field>
+    </div>
   );
 }

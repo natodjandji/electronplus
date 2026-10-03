@@ -157,6 +157,9 @@ export class OrdersService {
         dto.items.map((line) => line.productId),
       );
       const reads = dto.items.map((line) => productsById.get(line.productId)!);
+      const redeemDiscount = dto.discountCode
+        ? await this.discountCodesService.beginRedemption(tx, dto.discountCode)
+        : undefined;
 
       // Phase 2 — ALL writes.
       let subtotal = 0;
@@ -191,12 +194,8 @@ export class OrdersService {
 
       let discountCode: string | undefined;
       let discountAmount = 0;
-      if (dto.discountCode) {
-        const result = await this.discountCodesService.validate(dto.discountCode, subtotal);
-        if (!result.valid)
-          throw new BadRequestException(result.message ?? 'Código de descuento inválido');
-        discountCode = result.code;
-        discountAmount = result.discountAmount;
+      if (redeemDiscount) {
+        ({ code: discountCode, discountAmount } = redeemDiscount(subtotal));
       }
 
       const taxableBase = subtotal - discountAmount;
@@ -455,11 +454,15 @@ export class OrdersService {
         order.items.map((item) => item.productId),
       );
       const stockContexts = order.items.map((item) => stockContextsById.get(item.productId)!);
+      const releaseDiscount = order.discountCode
+        ? await this.discountCodesService.beginRelease(tx, order.discountCode)
+        : undefined;
 
       // Phase 2 — ALL writes.
       const changes = stockContexts.map((ctx, idx) =>
         this.productsService.applyStockDelta(tx, ctx, order.items[idx].qty),
       );
+      releaseDiscount?.();
       if (quoteRef) {
         tx.update(quoteRef, { convertedOrderId: FieldValue.delete() });
       }
@@ -580,11 +583,17 @@ export class OrdersService {
         order.items.map((item) => item.productId),
       );
       const stockContexts = order.items.map((item) => stockContextsById.get(item.productId)!);
+      // A cancelled order didn't really use its discount code — a
+      // limited-use code gets that use back.
+      const releaseDiscount = order.discountCode
+        ? await this.discountCodesService.beginRelease(tx, order.discountCode)
+        : undefined;
 
       // Phase 2 — ALL writes.
       const changes = stockContexts.map((ctx, idx) =>
         this.productsService.applyStockDelta(tx, ctx, order.items[idx].qty),
       );
+      releaseDiscount?.();
       tx.update(orderRef, {
         status: OrderStatus.CANCELLED,
         updatedAt: FieldValue.serverTimestamp(),

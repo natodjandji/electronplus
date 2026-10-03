@@ -2,6 +2,7 @@ import { BadRequestException, ConflictException, ForbiddenException } from '@nes
 import { EventEmitter2 } from '@nestjs/event-emitter';
 import { FakeFirestore } from '../../test/fake-firestore';
 import { Collections } from '../../firebase/firestore-collections';
+import { DiscountCodesService } from '../discount-codes/discount-codes.service';
 import { OrdersService } from './orders.service';
 import { OrderStatus, FulfillmentMethod } from './entities/order.entity';
 import { Role } from '../../common/enums/role.enum';
@@ -22,7 +23,7 @@ describe('OrdersService.cancel', () => {
       {} as ConstructorParameters<typeof OrdersService>[2],
       {} as ConstructorParameters<typeof OrdersService>[3],
       {} as ConstructorParameters<typeof OrdersService>[4],
-      {} as ConstructorParameters<typeof OrdersService>[5],
+      new DiscountCodesService(firestore as never),
       {} as ConstructorParameters<typeof OrdersService>[6],
       new EventEmitter2(),
     );
@@ -108,6 +109,21 @@ describe('OrdersService.cancel', () => {
     // before touching stock a second time.
     expect(productsService.applyStockDelta).not.toHaveBeenCalled();
     expect(productsService.stockCommitted).not.toHaveBeenCalled();
+  });
+
+  it('gives the order its discount-code use back', async () => {
+    const firestore = new FakeFirestore();
+    seedPaidOrder(firestore);
+    firestore.seed(Collections.ORDERS, orderId, {
+      ...firestore.read(Collections.ORDERS, orderId),
+      discountCode: 'PROMO',
+    });
+    firestore.seed(Collections.DISCOUNT_CODES, 'PROMO', { code: 'PROMO', usedCount: 3 });
+    const service = buildService(firestore, fakeProductsService());
+
+    await service.cancel(orderId);
+
+    expect(firestore.read(Collections.DISCOUNT_CODES, 'PROMO')?.usedCount).toBe(2);
   });
 
   it('rejects cancelling a fulfilled order', async () => {
