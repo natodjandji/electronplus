@@ -42,8 +42,17 @@ export interface ButtonProps
 const Button = React.forwardRef<HTMLButtonElement, ButtonProps>(
   ({ className, variant, size, asChild = false, ...props }, ref) => {
     const Comp = asChild ? Slot : "button";
+    // A real <button disabled> leaves the tab order and ignores Enter; an
+    // asChild link marked aria-disabled would otherwise stay focusable and
+    // activatable while announcing itself as unavailable.
+    const ariaDisabled = props["aria-disabled"] === true || props["aria-disabled"] === "true";
     return (
-      <Comp className={cn(buttonVariants({ variant, size, className }))} ref={ref} {...props} />
+      <Comp
+        className={cn(buttonVariants({ variant, size, className }))}
+        ref={ref}
+        {...props}
+        tabIndex={asChild && ariaDisabled ? -1 : props.tabIndex}
+      />
     );
   },
 );

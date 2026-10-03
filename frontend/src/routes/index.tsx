@@ -41,6 +41,7 @@ function useRotatingGroups<T>(items: T[], groupSize: number, intervalMs: number,
 
   useEffect(() => {
     const sync = () => setTabHidden(document.visibilityState === "hidden");
+    sync(); // a page opened in a background tab starts hidden
     document.addEventListener("visibilitychange", sync);
     return () => document.removeEventListener("visibilitychange", sync);
   }, []);
@@ -140,12 +141,16 @@ function Home() {
     queryFn: () => apiFetch<ApiProduct[]>("/products/best-sellers?limit=8"),
     select: (data) => data.map(toProduct),
   });
-  const [heroPaused, setHeroPaused] = useState(false);
+  // Tracked separately: one shared flag let a pointer leaving the grid
+  // resume rotation while keyboard focus was still on a card, which then
+  // unmounted and dropped focus to <body>.
+  const [heroHovered, setHeroHovered] = useState(false);
+  const [heroFocused, setHeroFocused] = useState(false);
   const { group: heroProducts } = useRotatingGroups(
     bestSellers,
     HERO_GROUP_SIZE,
     HERO_ROTATE_MS,
-    heroPaused,
+    heroHovered || heroFocused,
   );
   const reduceMotion = useReducedMotion();
   return (
@@ -216,11 +221,11 @@ function Home() {
             ) : (
               <div
                 className="relative grid grid-cols-2 gap-3"
-                onPointerEnter={() => setHeroPaused(true)}
-                onPointerLeave={() => setHeroPaused(false)}
-                onFocus={() => setHeroPaused(true)}
+                onPointerEnter={() => setHeroHovered(true)}
+                onPointerLeave={() => setHeroHovered(false)}
+                onFocus={() => setHeroFocused(true)}
                 onBlur={(e) => {
-                  if (!e.currentTarget.contains(e.relatedTarget)) setHeroPaused(false);
+                  if (!e.currentTarget.contains(e.relatedTarget)) setHeroFocused(false);
                 }}
               >
                 <AnimatePresence mode="popLayout">
