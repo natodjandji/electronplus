@@ -173,10 +173,10 @@ function ClientOrdersPage() {
             initial="hidden"
             animate="show"
           >
-            {visibleOrders.map((order) => {
+            {visibleOrders.map((order, index) => {
               const itemCount = order.items.reduce((s, i) => s + i.qty, 0);
               return (
-                <motion.div key={order.id} variants={staggerItem}>
+                <motion.div key={order.id} variants={staggerItem} custom={index}>
                   <Card
                     onClick={() => setSelectedId(order.id)}
                     className="flex cursor-pointer flex-wrap items-center justify-between gap-4 p-4 transition-colors hover:border-brand-blue/40"

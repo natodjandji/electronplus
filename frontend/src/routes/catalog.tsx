@@ -1,5 +1,5 @@
-import { createFileRoute, useNavigate } from "@tanstack/react-router";
-import { useEffect, useMemo, useState, type KeyboardEvent, type MouseEvent } from "react";
+import { createFileRoute, Link } from "@tanstack/react-router";
+import { useEffect, useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { AnimatePresence, motion } from "motion/react";
 import { ChevronLeft, ChevronRight, Filter, LayoutGrid, List, Search, Tags } from "lucide-react";
@@ -15,6 +15,13 @@ import { Slider } from "@/components/ui/slider";
 import { Badge } from "@/components/ui/badge";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
+import {
+  CARD_FOCUS_RING,
+  CARD_HOVER_FLAT,
+  CARD_IMAGE_ZOOM,
+  CARD_LIFT,
+  STRETCHED_LINK,
+} from "@/components/card-interaction";
 import { PriceTag } from "@/components/price-tag";
 import { ProductImage } from "@/components/product-image";
 import { QuantityStepper } from "@/components/quantity-stepper";
@@ -24,6 +31,7 @@ import { type ApiProduct, toProduct } from "@/lib/product-api";
 import { useElectronStore } from "@/lib/electron-store";
 import { formatBs, useBcvRate } from "@/lib/use-bcv-rate";
 import { absoluteUrl } from "@/lib/site-url";
+import { cn } from "@/lib/utils";
 import { toast } from "sonner";
 
 // Shared queryKey with collections.tsx / quotes.tsx / chat-panel.tsx — all
@@ -296,14 +304,15 @@ function CatalogPage() {
               }
             >
               <AnimatePresence mode="popLayout">
-                {paged.map((p) => {
+                {paged.map((p, index) => {
                   const qty = cart.find((i) => i.product.id === p.id)?.qty ?? 0;
                   return view === "grid" ? (
                     <motion.div
                       key={p.id}
                       layout
                       variants={staggerItem}
-                      exit={{ opacity: 0, scale: 0.96 }}
+                      custom={index}
+                      exit={{ opacity: 0, scale: 0.96, transition: { duration: 0.15 } }}
                     >
                       <ProductCard
                         product={p}
@@ -316,7 +325,8 @@ function CatalogPage() {
                       key={p.id}
                       layout
                       variants={staggerItem}
-                      exit={{ opacity: 0, scale: 0.96 }}
+                      custom={index}
+                      exit={{ opacity: 0, scale: 0.96, transition: { duration: 0.15 } }}
                     >
                       <ProductListRow
                         product={p}
@@ -337,23 +347,6 @@ function CatalogPage() {
       </section>
     </PublicShell>
   );
-}
-
-function useGoToProduct(id: string) {
-  const navigate = useNavigate();
-  const go = () => navigate({ to: "/product/$id", params: { id } });
-  const onClick = () => go();
-  const onKeyDown = (e: KeyboardEvent<HTMLDivElement>) => {
-    if (e.key === "Enter" || e.key === " ") {
-      e.preventDefault();
-      go();
-    }
-  };
-  return { onClick, onKeyDown };
-}
-
-function stopPropagation(e: MouseEvent) {
-  e.stopPropagation();
 }
 
 function CatalogCardSkeleton() {
@@ -384,21 +377,19 @@ function ProductCard({
 }) {
   const low = product.stock > 0 && product.stock <= 10;
   const out = product.stock <= 0;
-  const { onClick, onKeyDown } = useGoToProduct(product.id);
-
   return (
     <Card
-      role="link"
-      tabIndex={0}
-      onClick={onClick}
-      onKeyDown={onKeyDown}
-      className="group flex h-full cursor-pointer flex-col overflow-hidden border-border p-0 shadow-sm transition-all duration-300 hover:-translate-y-1 hover:border-brand-blue/40 hover:shadow-[0_8px_30px_-8px_rgba(0,56,145,0.25)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-blue"
+      className={cn(
+        "group relative flex h-full flex-col overflow-hidden border-border p-0 shadow-sm",
+        CARD_LIFT,
+        CARD_FOCUS_RING,
+      )}
     >
       <div className="relative aspect-square overflow-hidden bg-brand-surface">
         <ProductImage
           src={product.thumbnail}
           alt={product.name}
-          className="h-full w-full transition-transform duration-500 group-hover:scale-[1.04]"
+          className={cn("h-full w-full", CARD_IMAGE_ZOOM)}
         />
         {out && (
           <Badge className="absolute left-2 top-2 bg-destructive text-destructive-foreground">
@@ -416,13 +407,15 @@ function ProductCard({
           {product.sku}
         </div>
         <h3 className="mt-0.5 line-clamp-2 min-h-9 text-xs font-semibold text-brand-navy">
-          {product.name}
+          <Link to="/product/$id" params={{ id: product.id }} className={STRETCHED_LINK}>
+            {product.name}
+          </Link>
         </h3>
         <p className="mt-1 line-clamp-1 text-[11px] text-muted-foreground">{product.specs}</p>
 
         <div className="mt-auto pt-3">
           <PriceTag product={product} size="sm" />
-          <div className="mt-2" onClick={stopPropagation}>
+          <div className="relative z-10 mt-2">
             <QuantityStepper
               qty={qty}
               onChange={onQtyChange}
@@ -449,22 +442,20 @@ function ProductListRow({
 }) {
   const out = product.stock <= 0;
   const low = product.stock > 0 && product.stock <= 10;
-  const { onClick, onKeyDown } = useGoToProduct(product.id);
-
   return (
     <Card
-      role="link"
-      tabIndex={0}
-      onClick={onClick}
-      onKeyDown={onKeyDown}
-      className="group flex cursor-pointer flex-col gap-3 overflow-hidden border-border p-3 shadow-sm transition-all duration-300 hover:border-brand-blue/40 hover:shadow-[0_8px_30px_-8px_rgba(0,56,145,0.25)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-blue sm:flex-row sm:items-center sm:gap-4 sm:p-4"
+      className={cn(
+        "group relative flex flex-col gap-3 overflow-hidden border-border p-3 shadow-sm sm:flex-row sm:items-center sm:gap-4 sm:p-4",
+        CARD_HOVER_FLAT,
+        CARD_FOCUS_RING,
+      )}
     >
       <div className="flex min-w-0 items-center gap-4 sm:flex-1">
         <div className="relative h-20 w-20 shrink-0 overflow-hidden rounded-md bg-brand-surface sm:h-24 sm:w-24">
           <ProductImage
             src={product.thumbnail}
             alt={product.name}
-            className="h-full w-full transition-transform duration-500 group-hover:scale-[1.04]"
+            className={cn("h-full w-full", CARD_IMAGE_ZOOM)}
           />
           {out && (
             <Badge className="absolute left-1 top-1 bg-destructive px-1.5 py-0 text-[9px] text-destructive-foreground">
@@ -482,14 +473,18 @@ function ProductListRow({
           <div className="text-[10px] font-semibold uppercase tracking-widest text-muted-foreground">
             {product.sku}
           </div>
-          <h3 className="line-clamp-1 text-sm font-semibold text-brand-navy">{product.name}</h3>
+          <h3 className="line-clamp-1 text-sm font-semibold text-brand-navy">
+            <Link to="/product/$id" params={{ id: product.id }} className={STRETCHED_LINK}>
+              {product.name}
+            </Link>
+          </h3>
           <p className="line-clamp-1 text-xs text-muted-foreground">{product.specs}</p>
         </div>
       </div>
 
       <div className="flex shrink-0 items-center justify-between gap-2 sm:flex-row sm:items-center sm:gap-4">
         <PriceTag product={product} size="sm" />
-        <div onClick={stopPropagation}>
+        <div className="relative z-10">
           <QuantityStepper
             qty={qty}
             onChange={onQtyChange}

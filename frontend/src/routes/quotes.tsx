@@ -217,11 +217,11 @@ function QuotesPage() {
           <p className="mt-1 text-sm text-muted-foreground">
             Necesitas una cuenta para enviar solicitudes de cotización y ver su estado.
           </p>
-          <Link to="/login" search={{ redirect: "/quotes" }}>
-            <Button className="mt-6 gap-2 bg-brand-blue text-white hover:bg-brand-blue/90">
+          <Button className="mt-6 gap-2 bg-brand-blue text-white hover:bg-brand-blue/90" asChild>
+            <Link to="/login" search={{ redirect: "/quotes" }}>
               Iniciar sesión
-            </Button>
-          </Link>
+            </Link>
+          </Button>
         </section>
       </PublicShell>
     );
@@ -379,8 +379,8 @@ function QuotesPage() {
             initial="hidden"
             animate="show"
           >
-            {visibleQuotes.map((q) => (
-              <motion.div key={q.id} variants={staggerItem}>
+            {visibleQuotes.map((q, index) => (
+              <motion.div key={q.id} variants={staggerItem} custom={index}>
                 <QuoteListCard quote={q} onOpen={() => handleOpen(q)} onDeleted={invalidateMine} />
               </motion.div>
             ))}
@@ -682,18 +682,19 @@ function QuoteBuilder({ id, onBack }: { id: string; onBack: () => void }) {
                     : ". Cuando estés listo, continúa al pago con el precio y descuento acordados."}
                 </p>
                 {quote.convertedOrderId ? (
-                  <Link to="/client/orders" className="print:hidden">
-                    <Button variant="outline" className="shrink-0 gap-2">
-                      Ver mi pedido
-                    </Button>
-                  </Link>
+                  <Button variant="outline" className="shrink-0 gap-2 print:hidden" asChild>
+                    <Link to="/client/orders">Ver mi pedido</Link>
+                  </Button>
                 ) : (
-                  <Link to="/checkout" search={{ quoteId: quote.id }} className="print:hidden">
-                    <Button className="shrink-0 gap-2 bg-brand-blue text-white hover:bg-brand-blue/90">
+                  <Button
+                    className="shrink-0 gap-2 bg-brand-blue text-white hover:bg-brand-blue/90 print:hidden"
+                    asChild
+                  >
+                    <Link to="/checkout" search={{ quoteId: quote.id }}>
                       <ShoppingCart className="h-4 w-4" />
                       Continuar al pago
-                    </Button>
-                  </Link>
+                    </Link>
+                  </Button>
                 )}
               </div>
             )}

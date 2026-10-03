@@ -1,5 +1,5 @@
-import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
-import { useEffect, useState, type KeyboardEvent } from "react";
+import { createFileRoute, Link } from "@tanstack/react-router";
+import { useEffect, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { AnimatePresence, motion, useReducedMotion } from "motion/react";
 import { ArrowRight, Zap, Truck, ShieldCheck, Tag, Search, ShoppingCart } from "lucide-react";
@@ -9,6 +9,7 @@ import { EASE_OUT_QUINT } from "@/components/motion-primitives";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
+import { CARD_IMAGE_ZOOM, CARD_LIFT } from "@/components/card-interaction";
 import { PriceTag } from "@/components/price-tag";
 import { ProductImage } from "@/components/product-image";
 import { apiFetch } from "@/lib/api-client";
@@ -17,6 +18,7 @@ import type { Product } from "@/lib/mock-data";
 import { SITE_URL, absoluteUrl, OG_IMAGE } from "@/lib/site-url";
 import { CONTACT_INFO } from "@/lib/contact-info";
 import { safeJsonLd } from "@/lib/text";
+import { cn } from "@/lib/utils";
 import { BRAND_BLUE_HEX } from "@/lib/brand-colors";
 
 const HERO_GROUP_SIZE = 4;
@@ -24,8 +26,13 @@ const HERO_ROTATE_MS = 5000;
 
 /** Cycles through `items` in fixed-size groups every `intervalMs` — used to rotate the
  * hero showcase through best-sellers instead of freezing on the first four. */
-function useRotatingGroups<T>(items: T[], groupSize: number, intervalMs: number) {
+/** Cycles through `items` in groups. Holds still while `paused` (pointer or
+ * keyboard focus is on the group — a card must not swap out from under the
+ * cursor) and while the tab is hidden, so it never advances unseen. Meets
+ * WCAG 2.2.2: auto-moving content can be paused. */
+function useRotatingGroups<T>(items: T[], groupSize: number, intervalMs: number, paused: boolean) {
   const [index, setIndex] = useState(0);
+  const [tabHidden, setTabHidden] = useState(false);
   const groupCount = Math.max(1, Math.ceil(items.length / groupSize));
 
   useEffect(() => {
@@ -33,10 +40,16 @@ function useRotatingGroups<T>(items: T[], groupSize: number, intervalMs: number)
   }, [items.length]);
 
   useEffect(() => {
-    if (groupCount <= 1) return;
+    const sync = () => setTabHidden(document.visibilityState === "hidden");
+    document.addEventListener("visibilitychange", sync);
+    return () => document.removeEventListener("visibilitychange", sync);
+  }, []);
+
+  useEffect(() => {
+    if (groupCount <= 1 || paused || tabHidden) return;
     const id = setInterval(() => setIndex((i) => (i + 1) % groupCount), intervalMs);
     return () => clearInterval(id);
-  }, [groupCount, intervalMs]);
+  }, [groupCount, intervalMs, paused, tabHidden]);
 
   const start = index * groupSize;
   return { group: items.slice(start, start + groupSize), index };
@@ -127,7 +140,13 @@ function Home() {
     queryFn: () => apiFetch<ApiProduct[]>("/products/best-sellers?limit=8"),
     select: (data) => data.map(toProduct),
   });
-  const { group: heroProducts } = useRotatingGroups(bestSellers, HERO_GROUP_SIZE, HERO_ROTATE_MS);
+  const [heroPaused, setHeroPaused] = useState(false);
+  const { group: heroProducts } = useRotatingGroups(
+    bestSellers,
+    HERO_GROUP_SIZE,
+    HERO_ROTATE_MS,
+    heroPaused,
+  );
   const reduceMotion = useReducedMotion();
   return (
     <PublicShell>
@@ -155,23 +174,23 @@ function Home() {
               nacional.
             </p>
             <div className="mt-8 flex flex-wrap gap-3">
-              <Link to="/catalog">
-                <Button
-                  size="lg"
-                  className="gap-2 bg-brand-yellow text-brand-navy hover:bg-brand-yellow/90"
-                >
+              <Button
+                size="lg"
+                className="gap-2 bg-brand-yellow text-brand-navy hover:bg-brand-yellow/90"
+                asChild
+              >
+                <Link to="/catalog">
                   Ver catálogo <ArrowRight className="h-4 w-4" />
-                </Button>
-              </Link>
-              <Link to="/quotes">
-                <Button
-                  size="lg"
-                  variant="outline"
-                  className="border-white/30 bg-transparent text-white hover:bg-white/10"
-                >
-                  Armar cotización
-                </Button>
-              </Link>
+                </Link>
+              </Button>
+              <Button
+                size="lg"
+                variant="outline"
+                className="border-white/30 bg-transparent text-white hover:bg-white/10"
+                asChild
+              >
+                <Link to="/quotes">Armar cotización</Link>
+              </Button>
             </div>
             <div className="mt-10 grid max-w-md grid-cols-3 gap-4 text-xs text-white/70">
               <HeroStat icon={Truck} label="Despacho nacional" />
@@ -195,7 +214,15 @@ function Home() {
                 ))}
               </div>
             ) : (
-              <div className="relative grid grid-cols-2 gap-3">
+              <div
+                className="relative grid grid-cols-2 gap-3"
+                onPointerEnter={() => setHeroPaused(true)}
+                onPointerLeave={() => setHeroPaused(false)}
+                onFocus={() => setHeroPaused(true)}
+                onBlur={(e) => {
+                  if (!e.currentTarget.contains(e.relatedTarget)) setHeroPaused(false);
+                }}
+              >
                 <AnimatePresence mode="popLayout">
                   {heroProducts.map((p, i) => {
                     const restY = i % 2 === 1 ? 24 : 0;
@@ -208,14 +235,21 @@ function Home() {
                             : { opacity: 0, y: restY + 28, scale: 0.92, filter: "blur(6px)" }
                         }
                         animate={{ opacity: 1, y: restY, scale: 1, filter: "blur(0px)" }}
+                        // Exit faster than entrance: the old group clears
+                        // out of the way, the new one takes its time.
                         exit={
                           reduceMotion
-                            ? { opacity: 0 }
-                            : { opacity: 0, scale: 0.94, filter: "blur(4px)" }
+                            ? { opacity: 0, transition: { duration: 0.15 } }
+                            : {
+                                opacity: 0,
+                                scale: 0.96,
+                                filter: "blur(4px)",
+                                transition: { duration: 0.2, ease: EASE_OUT_QUINT },
+                              }
                         }
                         transition={{
-                          duration: reduceMotion ? 0.2 : 0.55,
-                          delay: reduceMotion ? 0 : i * 0.08,
+                          duration: reduceMotion ? 0.2 : 0.5,
+                          delay: reduceMotion ? 0 : i * 0.06,
                           ease: EASE_OUT_QUINT,
                         }}
                       >
@@ -319,42 +353,33 @@ function FeaturedProductSkeleton() {
 }
 
 function FeaturedProductCard({ product }: { product: Product }) {
-  const navigate = useNavigate();
-  const go = () => navigate({ to: "/product/$id", params: { id: product.id } });
-  const onKeyDown = (e: KeyboardEvent<HTMLDivElement>) => {
-    if (e.key === "Enter" || e.key === " ") {
-      e.preventDefault();
-      go();
-    }
-  };
-
   return (
-    <Card
-      role="link"
-      tabIndex={0}
-      onClick={go}
-      onKeyDown={onKeyDown}
-      className="group cursor-pointer overflow-hidden border-border p-0 shadow-sm transition-all duration-300 hover:-translate-y-1 hover:border-brand-blue/40 hover:shadow-[0_8px_30px_-8px_rgba(0,56,145,0.25)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-blue"
+    <Link
+      to="/product/$id"
+      params={{ id: product.id }}
+      className="group block rounded-xl focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-blue"
     >
-      <div className="aspect-square overflow-hidden bg-brand-surface">
-        <ProductImage
-          src={product.thumbnail}
-          alt={product.name}
-          className="h-full w-full transition-transform duration-500 group-hover:scale-[1.04]"
-        />
-      </div>
-      <div className="p-4">
-        <div className="text-[10px] font-semibold uppercase tracking-widest text-muted-foreground">
-          {product.sku}
+      <Card className={cn("h-full overflow-hidden border-border p-0 shadow-sm", CARD_LIFT)}>
+        <div className="aspect-square overflow-hidden bg-brand-surface">
+          <ProductImage
+            src={product.thumbnail}
+            alt={product.name}
+            className={cn("h-full w-full", CARD_IMAGE_ZOOM)}
+          />
         </div>
-        <div className="mt-1 line-clamp-2 min-h-10 text-sm font-semibold text-brand-navy">
-          {product.name}
+        <div className="p-4">
+          <div className="text-[10px] font-semibold uppercase tracking-widest text-muted-foreground">
+            {product.sku}
+          </div>
+          <div className="mt-1 line-clamp-2 min-h-10 text-sm font-semibold text-brand-navy">
+            {product.name}
+          </div>
+          <div className="mt-3">
+            <PriceTag product={product} size="sm" />
+          </div>
         </div>
-        <div className="mt-3">
-          <PriceTag product={product} size="sm" />
-        </div>
-      </div>
-    </Card>
+      </Card>
+    </Link>
   );
 }
 

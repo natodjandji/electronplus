@@ -399,11 +399,11 @@ function CheckoutPage() {
           <p className="mt-1 text-sm text-muted-foreground">
             Necesitas una cuenta para completar tu compra y dar seguimiento a tu pedido.
           </p>
-          <Link to="/login" search={{ redirect: "/checkout" }}>
-            <Button className="mt-6 gap-2 bg-brand-blue text-white hover:bg-brand-blue/90">
+          <Button className="mt-6 gap-2 bg-brand-blue text-white hover:bg-brand-blue/90" asChild>
+            <Link to="/login" search={{ redirect: "/checkout" }}>
               Iniciar sesión
-            </Button>
-          </Link>
+            </Link>
+          </Button>
         </section>
       </PublicShell>
     );
@@ -438,11 +438,9 @@ function CheckoutPage() {
                 ? "Ya generaste un pedido a partir de esta cotización."
                 : "Solo puedes continuar al pago con una cotización aprobada."}
             </p>
-            <Link to="/quotes">
-              <Button className="mt-6 bg-brand-blue text-white hover:bg-brand-blue/90">
-                Ver mis cotizaciones
-              </Button>
-            </Link>
+            <Button className="mt-6 bg-brand-blue text-white hover:bg-brand-blue/90" asChild>
+              <Link to="/quotes">Ver mis cotizaciones</Link>
+            </Button>
           </section>
         </PublicShell>
       );
@@ -456,11 +454,9 @@ function CheckoutPage() {
           <p className="mt-1 text-sm text-muted-foreground">
             Agrega productos antes de continuar al checkout.
           </p>
-          <Link to="/catalog">
-            <Button className="mt-6 bg-brand-blue text-white hover:bg-brand-blue/90">
-              Ir al catálogo
-            </Button>
-          </Link>
+          <Button className="mt-6 bg-brand-blue text-white hover:bg-brand-blue/90" asChild>
+            <Link to="/catalog">Ir al catálogo</Link>
+          </Button>
         </section>
       </PublicShell>
     );

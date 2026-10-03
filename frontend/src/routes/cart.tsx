@@ -102,11 +102,9 @@ function CartPage() {
             <p className="max-w-sm text-sm text-muted-foreground">
               Agrega productos desde el catálogo para verlos aquí.
             </p>
-            <Link to="/catalog">
-              <Button className="bg-brand-blue text-white hover:bg-brand-blue/90">
-                Ir al catálogo
-              </Button>
-            </Link>
+            <Button className="bg-brand-blue text-white hover:bg-brand-blue/90" asChild>
+              <Link to="/catalog">Ir al catálogo</Link>
+            </Button>
           </Card>
         ) : (
           <div className="mt-8 grid gap-6 lg:grid-cols-[minmax(0,1fr)_360px]">
@@ -117,13 +115,14 @@ function CartPage() {
               animate="show"
             >
               <AnimatePresence mode="popLayout">
-                {cart.map(({ product, qty }) => {
+                {cart.map(({ product, qty }, index) => {
                   const unit = priceFor(product);
                   return (
                     <motion.div
                       key={product.id}
                       layout
                       variants={staggerItem}
+                      custom={index}
                       exit={{ opacity: 0, x: -24, transition: { duration: 0.2 } }}
                     >
                       <Card className="relative flex flex-col gap-4 p-4 sm:flex-row sm:items-center sm:gap-6">
@@ -274,16 +273,15 @@ function CartPage() {
                 <span className="font-semibold tabular-nums">{formatMoney(wholesaleTotal)}</span>
               </div>
 
-              <Link to="/checkout">
-                <Button className="mt-6 w-full bg-brand-blue text-white hover:bg-brand-blue/90">
-                  Ir a checkout
-                </Button>
-              </Link>
-              <Link to="/catalog">
-                <Button variant="outline" className="mt-2 w-full">
-                  Seguir comprando
-                </Button>
-              </Link>
+              <Button
+                className="mt-6 w-full bg-brand-blue text-white hover:bg-brand-blue/90"
+                asChild
+              >
+                <Link to="/checkout">Ir a checkout</Link>
+              </Button>
+              <Button variant="outline" className="mt-2 w-full" asChild>
+                <Link to="/catalog">Seguir comprando</Link>
+              </Button>
             </Card>
           </div>
         )}

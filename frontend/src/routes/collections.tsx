@@ -4,6 +4,8 @@ import { ArrowRight } from "lucide-react";
 import { PublicShell } from "@/components/public-shell";
 import { CircuitBackground } from "@/components/circuit-traces";
 import { Card } from "@/components/ui/card";
+import { CARD_IMAGE_ZOOM, CARD_LIFT } from "@/components/card-interaction";
+import { cn } from "@/lib/utils";
 import { apiFetch } from "@/lib/api-client";
 import { useCategories } from "@/lib/categories";
 import type { ApiProduct } from "@/lib/product-api";
@@ -63,13 +65,26 @@ function CollectionsPage() {
             .map(({ c, items }) => {
               const cover = items[0]?.imageUrl;
               return (
-                <Link key={c.id} to="/catalog" search={{ category: c.code }} className="block">
-                  <Card className="group relative flex h-48 flex-col justify-end overflow-hidden border-border p-5 shadow-sm transition-all duration-300 hover:-translate-y-1 hover:shadow-[0_8px_30px_-8px_rgba(0,56,145,0.25)]">
+                <Link
+                  key={c.id}
+                  to="/catalog"
+                  search={{ category: c.code }}
+                  className="group block rounded-xl focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-blue"
+                >
+                  <Card
+                    className={cn(
+                      "relative flex h-48 flex-col justify-end overflow-hidden border-border p-5 shadow-sm",
+                      CARD_LIFT,
+                    )}
+                  >
                     {cover && (
                       <img
                         src={cover}
                         alt=""
-                        className="absolute inset-0 h-full w-full object-cover opacity-30 transition-transform duration-500 group-hover:scale-105"
+                        className={cn(
+                          "absolute inset-0 h-full w-full object-cover opacity-30",
+                          CARD_IMAGE_ZOOM,
+                        )}
                         loading="lazy"
                       />
                     )}
@@ -77,7 +92,7 @@ function CollectionsPage() {
                     <div className="relative">
                       <h3 className="flex items-center gap-1.5 text-lg font-semibold text-white">
                         {c.label}
-                        <ArrowRight className="h-4 w-4 opacity-0 transition-opacity group-hover:opacity-100" />
+                        <ArrowRight className="h-4 w-4 -translate-x-1 opacity-0 transition-[opacity,transform] duration-200 ease-snappy group-hover:translate-x-0 group-hover:opacity-100 group-focus-visible:translate-x-0 group-focus-visible:opacity-100" />
                       </h3>
                       <p className="text-xs text-white/70">
                         {items.length} producto{items.length === 1 ? "" : "s"}

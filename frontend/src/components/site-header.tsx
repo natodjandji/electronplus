@@ -1,5 +1,5 @@
 import { Link, useRouterState } from "@tanstack/react-router";
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import {
   ShoppingCart,
   FileText,
@@ -13,6 +13,7 @@ import {
 import { ElectronLogo } from "./electron-logo";
 import { useElectronStore, type UserRole } from "@/lib/electron-store";
 import { useAuth } from "@/lib/auth-context";
+import { cn } from "@/lib/utils";
 import { RoleGate } from "@/components/role-gate";
 import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
@@ -34,7 +35,7 @@ const ROLE_LABEL: Record<UserRole, string> = {
 };
 
 export function SiteHeader() {
-  const { cartCount, role } = useElectronStore();
+  const { cartCount, cartHydrated, role } = useElectronStore();
   const { user, profile, loading, signOutUser } = useAuth();
   const pathname = useRouterState({ select: (s) => s.location.pathname });
   const [mobileNavOpen, setMobileNavOpen] = useState(false);
@@ -64,39 +65,37 @@ export function SiteHeader() {
 
         <div className="ml-auto flex items-center gap-1 sm:gap-2">
           <RoleGate allow={["admin", "warehouse_operator"]}>
-            <Link to="/admin" className="hidden md:inline-flex">
-              <Button variant="ghost" size="sm" className="gap-2">
+            <Button variant="ghost" size="sm" className="gap-2 hidden md:inline-flex" asChild>
+              <Link to="/admin">
                 <LayoutDashboard className="h-4 w-4" />
                 Panel
-              </Button>
-            </Link>
+              </Link>
+            </Button>
           </RoleGate>
 
-          <Link to="/quotes" search={{ new: true }} className="hidden sm:inline-flex">
-            <Button
-              variant="ghost"
-              size="sm"
-              className="gap-2 text-brand-blue hover:bg-brand-yellow/15 hover:text-brand-navy"
-            >
+          <Button
+            variant="ghost"
+            size="sm"
+            className="gap-2 text-brand-blue hover:bg-brand-yellow/15 hover:text-brand-navy hidden sm:inline-flex"
+            asChild
+          >
+            <Link to="/quotes" search={{ new: true }}>
               <FileText className="h-4 w-4" />
               Cotizar
-            </Button>
-          </Link>
+            </Link>
+          </Button>
 
-          <Link to="/cart">
-            <Button
-              size="sm"
-              className="relative gap-1 px-2.5 bg-brand-blue text-white hover:bg-brand-blue/90 sm:gap-2 sm:px-3"
-            >
+          <Button
+            size="sm"
+            className="relative gap-1 px-2.5 bg-brand-blue text-white hover:bg-brand-blue/90 sm:gap-2 sm:px-3"
+            asChild
+          >
+            <Link to="/cart">
               <ShoppingCart className="h-4 w-4" />
               <span className="hidden sm:inline">Carrito</span>
-              {cartCount > 0 && (
-                <span className="ml-0.5 inline-flex h-5 min-w-5 items-center justify-center rounded-full bg-brand-yellow px-1.5 text-xs font-bold text-brand-navy sm:ml-1">
-                  {cartCount}
-                </span>
-              )}
-            </Button>
-          </Link>
+              <CartCountBadge count={cartCount} hydrated={cartHydrated} />
+            </Link>
+          </Button>
 
           {user ? (
             <DropdownMenu>
@@ -144,12 +143,18 @@ export function SiteHeader() {
               </DropdownMenuContent>
             </DropdownMenu>
           ) : (
-            <Link to="/login" search={{ redirect: pathname }}>
-              <Button variant="outline" size="sm" className="gap-2" disabled={loading}>
+            <Button
+              variant="outline"
+              size="sm"
+              className="gap-2"
+              aria-disabled={loading || undefined}
+              asChild
+            >
+              <Link to="/login" search={{ redirect: pathname }}>
                 <LogIn className="h-4 w-4" />
                 <span className="hidden sm:inline">Iniciar sesión</span>
-              </Button>
-            </Link>
+              </Link>
+            </Button>
           )}
         </div>
       </div>
@@ -204,12 +209,15 @@ export function SiteHeader() {
           </nav>
           {!user && (
             <div className="border-t border-border p-3">
-              <Link to="/login" search={{ redirect: pathname }} onClick={closeMobileNav}>
-                <Button className="w-full gap-2 bg-brand-blue text-white hover:bg-brand-blue/90">
+              <Button
+                className="w-full gap-2 bg-brand-blue text-white hover:bg-brand-blue/90"
+                asChild
+              >
+                <Link to="/login" search={{ redirect: pathname }} onClick={closeMobileNav}>
                   <LogIn className="h-4 w-4" />
                   Iniciar sesión
-                </Button>
-              </Link>
+                </Link>
+              </Button>
             </div>
           )}
         </SheetContent>
@@ -256,5 +264,36 @@ function NavLink({ to, children }: { to: string; children: React.ReactNode }) {
     >
       {children}
     </Link>
+  );
+}
+
+/** Pops when an item is added, so the action is acknowledged right where
+ * the cart lives (the toast confirms what was added; this confirms where it
+ * went). Ignores the jump from 0 to the stored count when the cart restores
+ * from localStorage on page load — only real additions animate. Re-keying
+ * the span restarts the keyframe on every addition. */
+function CartCountBadge({ count, hydrated }: { count: number; hydrated: boolean }) {
+  const previous = useRef(count);
+  const settled = useRef(false);
+  const [bumps, setBumps] = useState(0);
+
+  useEffect(() => {
+    if (!hydrated) return;
+    if (settled.current && count > previous.current) setBumps((n) => n + 1);
+    settled.current = true;
+    previous.current = count;
+  }, [count, hydrated]);
+
+  if (count <= 0) return null;
+  return (
+    <span
+      key={bumps}
+      className={cn(
+        "ml-0.5 inline-flex h-5 min-w-5 items-center justify-center rounded-full bg-brand-yellow px-1.5 text-xs font-bold tabular-nums text-brand-navy sm:ml-1",
+        bumps > 0 && "motion-safe:animate-cart-bump",
+      )}
+    >
+      {count}
+    </span>
   );
 }

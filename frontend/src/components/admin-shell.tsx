@@ -113,16 +113,17 @@ function SidebarNav({ pathname, onNavigate }: { pathname: string; onNavigate?: (
         ))}
       </nav>
       <div className="border-t border-white/10 p-3">
-        <Link to="/" onClick={onNavigate}>
-          <Button
-            variant="ghost"
-            size="sm"
-            className="w-full justify-start gap-2 text-white/80 hover:bg-white/10 hover:text-white"
-          >
+        <Button
+          variant="ghost"
+          size="sm"
+          className="w-full justify-start gap-2 text-white/80 hover:bg-white/10 hover:text-white"
+          asChild
+        >
+          <Link to="/" onClick={onNavigate}>
             <ArrowLeft className="h-4 w-4" />
             Volver a la tienda
-          </Button>
-        </Link>
+          </Link>
+        </Button>
       </div>
     </>
   );
@@ -140,7 +141,7 @@ export function AdminShell({ title, children }: { title: string; children: React
   const [mobileNavOpen, setMobileNavOpen] = useState(false);
 
   return (
-    <div className="flex min-h-screen bg-brand-surface print:contents">
+    <div className="flex min-h-dvh bg-brand-surface print:contents">
       <aside className="hidden w-64 shrink-0 flex-col bg-brand-blue text-white lg:flex print:hidden">
         <div className="border-b border-white/10 p-4">
           <Link to="/" aria-label="Volver a la tienda" className="inline-block">

@@ -157,11 +157,9 @@ function NotFound() {
         <p className="mt-2 text-sm text-muted-foreground">
           El código QR escaneado no coincide con ningún producto.
         </p>
-        <Link to="/catalog">
-          <Button className="mt-6 bg-brand-blue text-white hover:bg-brand-blue/90">
-            Ir al catálogo
-          </Button>
-        </Link>
+        <Button className="mt-6 bg-brand-blue text-white hover:bg-brand-blue/90" asChild>
+          <Link to="/catalog">Ir al catálogo</Link>
+        </Button>
       </div>
     </PublicShell>
   );
