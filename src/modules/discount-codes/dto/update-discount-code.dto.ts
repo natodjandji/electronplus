@@ -35,4 +35,8 @@ export class UpdateDiscountCodeDto {
   @IsInt()
   @Min(1)
   maxUses?: number | null;
+
+  @IsOptional()
+  @IsBoolean()
+  oncePerCustomer?: boolean;
 }

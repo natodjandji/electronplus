@@ -204,6 +204,10 @@ class FakeTransaction {
     const existing = this.store.get(ref.path) ?? {};
     this.store.set(ref.path, opts?.merge ? { ...existing, ...data } : data);
   }
+
+  delete(ref: FakeDocRef) {
+    this.store.delete(ref.path);
+  }
 }
 
 class FakeWriteBatch {

@@ -158,7 +158,7 @@ export class OrdersService {
       );
       const reads = dto.items.map((line) => productsById.get(line.productId)!);
       const redeemDiscount = dto.discountCode
-        ? await this.discountCodesService.beginRedemption(tx, dto.discountCode)
+        ? await this.discountCodesService.beginRedemption(tx, dto.discountCode, user.id)
         : undefined;
 
       // Phase 2 — ALL writes.
@@ -192,10 +192,11 @@ export class OrdersService {
         });
       });
 
+      const orderRef = this.repo.collection().doc();
       let discountCode: string | undefined;
       let discountAmount = 0;
       if (redeemDiscount) {
-        ({ code: discountCode, discountAmount } = redeemDiscount(subtotal));
+        ({ code: discountCode, discountAmount } = redeemDiscount(subtotal, orderRef.id));
       }
 
       const taxableBase = subtotal - discountAmount;
@@ -205,7 +206,6 @@ export class OrdersService {
       const totalAmount = round2(taxableBase + taxAmount + shippingCost);
       this.assertWithinCreditLine(creditLine, totalAmount);
 
-      const orderRef = this.repo.collection().doc();
       const now = FieldValue.serverTimestamp();
       tx.set(orderRef, {
         userId: user.id,
@@ -455,7 +455,12 @@ export class OrdersService {
       );
       const stockContexts = order.items.map((item) => stockContextsById.get(item.productId)!);
       const releaseDiscount = order.discountCode
-        ? await this.discountCodesService.beginRelease(tx, order.discountCode)
+        ? await this.discountCodesService.beginRelease(
+            tx,
+            order.discountCode,
+            order.userId,
+            order.id,
+          )
         : undefined;
 
       // Phase 2 — ALL writes.
@@ -586,7 +591,12 @@ export class OrdersService {
       // A cancelled order didn't really use its discount code — a
       // limited-use code gets that use back.
       const releaseDiscount = order.discountCode
-        ? await this.discountCodesService.beginRelease(tx, order.discountCode)
+        ? await this.discountCodesService.beginRelease(
+            tx,
+            order.discountCode,
+            order.userId,
+            order.id,
+          )
         : undefined;
 
       // Phase 2 — ALL writes.

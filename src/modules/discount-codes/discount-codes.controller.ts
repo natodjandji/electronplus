@@ -12,10 +12,12 @@ import {
 } from '@nestjs/common';
 import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
 import { Throttle } from '@nestjs/throttler';
+import { CurrentUser } from '../../common/decorators/current-user.decorator';
 import { Roles } from '../../common/decorators/roles.decorator';
 import { Role } from '../../common/enums/role.enum';
 import { FirebaseAuthGuard } from '../../common/guards/firebase-auth.guard';
 import { RolesGuard } from '../../common/guards/roles.guard';
+import { AuthenticatedUser } from '../../common/interfaces/authenticated-user.interface';
 import { CreateDiscountCodeDto } from './dto/create-discount-code.dto';
 import { UpdateDiscountCodeDto } from './dto/update-discount-code.dto';
 import { ValidateDiscountCodeDto } from './dto/validate-discount-code.dto';
@@ -38,8 +40,8 @@ export class DiscountCodesController {
    * script walk through short codes; a customer applies one by hand. */
   @Get('validate')
   @Throttle({ default: { limit: 10, ttl: 60_000 } })
-  validate(@Query() dto: ValidateDiscountCodeDto) {
-    return this.discountCodesService.validate(dto.code, dto.subtotal);
+  validate(@Query() dto: ValidateDiscountCodeDto, @CurrentUser() user: AuthenticatedUser) {
+    return this.discountCodesService.validate(dto.code, dto.subtotal, user.id);
   }
 
   @Post()

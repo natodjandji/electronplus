@@ -18,4 +18,15 @@ export interface DiscountCode extends FirestoreDoc {
   /** Orders placed with it — counted at checkout, given back when the
    * order is cancelled. */
   usedCount?: number;
+  /** Each customer may use it on one order (a cancelled one doesn't count). */
+  oncePerCustomer?: boolean;
 }
+
+/** discountCodes/{code}/redemptions/{userId} — which of that customer's
+ * orders used the code. Written in the order's transaction, so it's what
+ * makes oncePerCustomer hold under concurrent checkouts. */
+export interface DiscountRedemption {
+  orderIds: string[];
+}
+
+export const DISCOUNT_REDEMPTIONS_SUBCOLLECTION = 'redemptions';

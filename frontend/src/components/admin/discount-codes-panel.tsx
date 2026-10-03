@@ -39,6 +39,7 @@ interface DiscountCode {
   expiresOn?: string | null;
   maxUses?: number | null;
   usedCount?: number;
+  oncePerCustomer?: boolean;
 }
 
 /** Today as the API judges expiry: in Venezuela, whatever the browser's zone. */
@@ -146,6 +147,9 @@ export function DiscountCodesPanel() {
                     <td className="px-4 py-3 tabular-nums text-brand-navy">
                       {d.usedCount ?? 0}
                       <span className="text-muted-foreground"> / {d.maxUses ?? "∞"}</span>
+                      {d.oncePerCustomer && (
+                        <div className="text-xs text-muted-foreground">1 por cliente</div>
+                      )}
                     </td>
                     <td className="px-4 py-3 text-brand-navy">
                       {d.expiresOn ? (
@@ -218,7 +222,11 @@ function CreateCodeDialog({ onClose }: { onClose: () => void }) {
   const [code, setCode] = useState("");
   const [type, setType] = useState<DiscountType>("percentage");
   const [value, setValue] = useState(10);
-  const [limits, setLimits] = useState<LimitsDraft>({ maxUses: "", expiresOn: "" });
+  const [limits, setLimits] = useState<LimitsDraft>({
+    maxUses: "",
+    expiresOn: "",
+    oncePerCustomer: false,
+  });
 
   const create = useMutation({
     mutationFn: () =>
@@ -304,6 +312,7 @@ function EditCodeDialog({ code, onClose }: { code: DiscountCode; onClose: () => 
   const [limits, setLimits] = useState<LimitsDraft>({
     maxUses: code.maxUses != null ? String(code.maxUses) : "",
     expiresOn: code.expiresOn ?? "",
+    oncePerCustomer: code.oncePerCustomer ?? false,
   });
 
   const save = useMutation({
@@ -381,6 +390,7 @@ function EditCodeDialog({ code, onClose }: { code: DiscountCode; onClose: () => 
 interface LimitsDraft {
   maxUses: string;
   expiresOn: string;
+  oncePerCustomer: boolean;
 }
 
 function limitsValid(limits: LimitsDraft): boolean {
@@ -395,6 +405,7 @@ function limitsBody(limits: LimitsDraft) {
   return {
     maxUses: limits.maxUses === "" ? null : Number(limits.maxUses),
     expiresOn: limits.expiresOn || null,
+    oncePerCustomer: limits.oncePerCustomer,
   };
 }
 
@@ -435,6 +446,19 @@ function LimitsFields({
           onChange={(e) => onChange({ ...limits, expiresOn: e.target.value })}
         />
         <p className="text-xs text-muted-foreground">Vacío: no vence</p>
+      </Field>
+      <Field className="flex items-start justify-between gap-3 sm:col-span-2">
+        <div className="grid gap-0.5">
+          <Label className="text-sm text-brand-navy">Un uso por cliente</Label>
+          <p className="text-xs text-muted-foreground">
+            Cada cliente puede usarlo en un solo pedido. Si ese pedido se cancela, puede volver a
+            usarlo.
+          </p>
+        </div>
+        <Switch
+          checked={limits.oncePerCustomer}
+          onCheckedChange={(oncePerCustomer) => onChange({ ...limits, oncePerCustomer })}
+        />
       </Field>
     </div>
   );

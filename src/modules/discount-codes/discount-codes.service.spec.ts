@@ -5,6 +5,8 @@ import { DiscountCodesService, todayInVenezuela } from './discount-codes.service
 import { DiscountType } from './entities/discount-code.entity';
 
 describe('DiscountCodesService limits', () => {
+  const redemptions = `${Collections.DISCOUNT_CODES}/PROMO/redemptions`;
+
   function build(code: Record<string, unknown>) {
     const firestore = new FakeFirestore();
     firestore.seed(Collections.DISCOUNT_CODES, 'PROMO', {
@@ -21,13 +23,13 @@ describe('DiscountCodesService limits', () => {
 
   it('works through its last day and not after', async () => {
     const lastDayToday = build({ expiresOn: todayInVenezuela() });
-    await expect(lastDayToday.service.validate('promo', 100)).resolves.toMatchObject({
+    await expect(lastDayToday.service.validate('promo', 100, 'u1')).resolves.toMatchObject({
       valid: true,
       discountAmount: 10,
     });
 
     const expired = build({ expiresOn: '2000-01-31' });
-    await expect(expired.service.validate('PROMO', 100)).resolves.toMatchObject({
+    await expect(expired.service.validate('PROMO', 100, 'u1')).resolves.toMatchObject({
       valid: false,
       message: 'Este código de descuento ya venció',
     });
@@ -41,28 +43,55 @@ describe('DiscountCodesService limits', () => {
   it('counts each checkout and refuses once maxUses is reached', async () => {
     const { firestore, service, tx } = build({ maxUses: 2, usedCount: 1 });
 
-    const redeem = await service.beginRedemption(await tx(), 'PROMO');
-    expect(redeem(50)).toEqual({ code: 'PROMO', discountAmount: 5 });
+    const redeem = await service.beginRedemption(await tx(), 'PROMO', 'u1');
+    expect(redeem(50, 'o1')).toEqual({ code: 'PROMO', discountAmount: 5 });
     expect(firestore.read(Collections.DISCOUNT_CODES, 'PROMO')?.usedCount).toBe(2);
 
-    const redeemAgain = await service.beginRedemption(await tx(), 'PROMO');
-    expect(() => redeemAgain(50)).toThrow('límite de usos');
-    await expect(service.validate('PROMO', 50)).resolves.toMatchObject({ valid: false });
+    const redeemAgain = await service.beginRedemption(await tx(), 'PROMO', 'u2');
+    expect(() => redeemAgain(50, 'o2')).toThrow('límite de usos');
+    await expect(service.validate('PROMO', 50, 'u3')).resolves.toMatchObject({ valid: false });
   });
 
-  it('gives a cancelled order its use back', async () => {
-    const { firestore, service, tx } = build({ maxUses: 1, usedCount: 1 });
+  it('lets each customer use a once-per-customer code on one order only', async () => {
+    const { firestore, service, tx } = build({ oncePerCustomer: true });
 
-    const release = await service.beginRelease(await tx(), 'PROMO');
+    const redeem = await service.beginRedemption(await tx(), 'PROMO', 'u1');
+    redeem(50, 'o1');
+    expect(firestore.read(redemptions, 'u1')).toEqual({ orderIds: ['o1'] });
+
+    const again = await service.beginRedemption(await tx(), 'PROMO', 'u1');
+    expect(() => again(50, 'o2')).toThrow('Ya usaste este código');
+    await expect(service.validate('PROMO', 50, 'u1')).resolves.toMatchObject({ valid: false });
+
+    // Someone else still can.
+    await expect(service.validate('PROMO', 50, 'u2')).resolves.toMatchObject({ valid: true });
+  });
+
+  it('records uses of unrestricted codes too, so switching to once-per-customer counts them', async () => {
+    const { firestore, service, tx } = build({});
+    (await service.beginRedemption(await tx(), 'PROMO', 'u1'))(50, 'o1');
+    (await service.beginRedemption(await tx(), 'PROMO', 'u1'))(50, 'o2');
+    expect(firestore.read(redemptions, 'u1')).toEqual({ orderIds: ['o1', 'o2'] });
+
+    await service.update('PROMO', { oncePerCustomer: true });
+    await expect(service.validate('PROMO', 50, 'u1')).resolves.toMatchObject({ valid: false });
+  });
+
+  it('gives a cancelled order its use back, for the total and for the customer', async () => {
+    const { firestore, service, tx } = build({ maxUses: 1, oncePerCustomer: true });
+    (await service.beginRedemption(await tx(), 'PROMO', 'u1'))(50, 'o1');
+
+    const release = await service.beginRelease(await tx(), 'PROMO', 'u1', 'o1');
     release();
 
     expect(firestore.read(Collections.DISCOUNT_CODES, 'PROMO')?.usedCount).toBe(0);
-    await expect(service.validate('PROMO', 50)).resolves.toMatchObject({ valid: true });
+    expect(firestore.read(redemptions, 'u1')).toBeUndefined();
+    await expect(service.validate('PROMO', 50, 'u1')).resolves.toMatchObject({ valid: true });
   });
 
   it('skips the release for a code deleted since', async () => {
     const { firestore, service, tx } = build({});
-    const release = await service.beginRelease(await tx(), 'GONE');
+    const release = await service.beginRelease(await tx(), 'GONE', 'u1', 'o1');
     release();
     expect(firestore.read(Collections.DISCOUNT_CODES, 'GONE')).toBeUndefined();
   });
