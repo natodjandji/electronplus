@@ -64,7 +64,16 @@ export const Route = createFileRoute("/catalog")({
   component: CatalogPage,
 });
 
-const PAGE_SIZE = 9;
+// Ten per page fills complete rows at 2 columns (phones) and 5 (from lg).
+// Tablets fit 3 per row, so the tenth card is centred under the rest instead
+// of hanging off the left edge — flex-wrap + justify-center, which a CSS
+// grid can't do for its last row.
+const PAGE_SIZE = 10;
+const GRID_CONTAINER = "flex flex-wrap justify-center gap-3";
+// min-w-0: like a grid track, let a card narrow below a long unbreakable SKU
+// instead of growing past its basis and knocking its neighbour to the next row.
+const GRID_ITEM =
+  "min-w-0 shrink-0 basis-[calc((100%-0.75rem)/2)] sm:basis-[calc((100%-1.5rem)/3)] lg:basis-[calc((100%-3rem)/5)]";
 
 /** The slider's selection clamped to the current ceiling (the catalog can
  * shrink under it), and whether it actually narrows anything. */
@@ -293,9 +302,11 @@ function CatalogPage() {
         </div>
 
         {isLoading ? (
-          <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5">
+          <div className={GRID_CONTAINER}>
             {Array.from({ length: PAGE_SIZE }, (_, i) => (
-              <CatalogCardSkeleton key={i} />
+              <div key={i} className={GRID_ITEM}>
+                <CatalogCardSkeleton />
+              </div>
             ))}
           </div>
         ) : isError ? (
@@ -321,11 +332,7 @@ function CatalogPage() {
               variants={staggerContainer}
               initial="hidden"
               animate="show"
-              className={
-                view === "grid"
-                  ? "grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5"
-                  : "flex flex-col gap-3"
-              }
+              className={view === "grid" ? GRID_CONTAINER : "flex flex-col gap-3"}
             >
               <AnimatePresence mode="popLayout">
                 {pagination.pageItems.map((p, index) => {
@@ -337,6 +344,7 @@ function CatalogPage() {
                       variants={staggerItem}
                       custom={index}
                       exit={{ opacity: 0, scale: 0.96, transition: { duration: 0.15 } }}
+                      className={GRID_ITEM}
                     >
                       <ProductCard
                         product={p}

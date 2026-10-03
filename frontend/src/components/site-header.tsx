@@ -63,12 +63,15 @@ export function SiteHeader() {
           <NavLink to="/collections">Colecciones</NavLink>
         </nav>
 
+        {/* Button labels from lg only: at tablet widths, next to the nav links,
+            they pushed the header ~30px past the screen edge. Below lg they
+            stay as sr-only text, so each button keeps its accessible name. */}
         <div className="ml-auto flex items-center gap-1 sm:gap-2">
           <RoleGate allow={["admin", "warehouse_operator"]}>
             <Button variant="ghost" size="sm" className="gap-2 hidden md:inline-flex" asChild>
               <Link to="/admin">
                 <LayoutDashboard className="h-4 w-4" />
-                Panel
+                <span className="sr-only lg:not-sr-only">Panel</span>
               </Link>
             </Button>
           </RoleGate>
@@ -81,7 +84,7 @@ export function SiteHeader() {
           >
             <Link to="/quotes" search={{ new: true }}>
               <FileText className="h-4 w-4" />
-              Cotizar
+              <span className="sr-only lg:not-sr-only">Cotizar</span>
             </Link>
           </Button>
 
@@ -92,7 +95,7 @@ export function SiteHeader() {
           >
             <Link to="/cart">
               <ShoppingCart className="h-4 w-4" />
-              <span className="hidden sm:inline">Carrito</span>
+              <span className="sr-only lg:not-sr-only">Carrito</span>
               <CartCountBadge count={cartCount} hydrated={cartHydrated} />
             </Link>
           </Button>
@@ -112,7 +115,7 @@ export function SiteHeader() {
                         .toUpperCase()}
                     </AvatarFallback>
                   </Avatar>
-                  <span className="hidden sm:inline">
+                  <span className="sr-only lg:not-sr-only">
                     {loading ? "Cargando…" : (profile?.displayName ?? user.displayName ?? "Cuenta")}
                   </span>
                 </Button>
@@ -152,7 +155,7 @@ export function SiteHeader() {
             >
               <Link to="/login" search={{ redirect: pathname }}>
                 <LogIn className="h-4 w-4" />
-                <span className="hidden sm:inline">Iniciar sesión</span>
+                <span className="sr-only lg:not-sr-only">Iniciar sesión</span>
               </Link>
             </Button>
           )}
