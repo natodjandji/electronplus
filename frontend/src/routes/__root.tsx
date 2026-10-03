@@ -8,6 +8,7 @@ import {
   Scripts,
 } from "@tanstack/react-router";
 import { useEffect, type ReactNode } from "react";
+import { MotionConfig } from "motion/react";
 
 import appCss from "../styles.css?url";
 import { reportLovableError } from "../lib/lovable-error-reporting";
@@ -19,7 +20,7 @@ import { Toaster } from "@/components/ui/sonner";
 
 function NotFoundComponent() {
   return (
-    <div className="flex min-h-screen items-center justify-center bg-brand-surface px-4">
+    <div className="flex min-h-dvh items-center justify-center bg-brand-surface px-4">
       <div className="max-w-md text-center">
         <h1 className="text-7xl font-bold text-brand-navy">404</h1>
         <h2 className="mt-4 text-xl font-semibold text-brand-navy">Página no encontrada</h2>
@@ -95,7 +96,7 @@ function ErrorComponent({ error, reset }: { error: Error; reset: () => void }) {
   }, [error]);
 
   return (
-    <div className="flex min-h-screen items-center justify-center bg-brand-surface px-4">
+    <div className="flex min-h-dvh items-center justify-center bg-brand-surface px-4">
       <div className="max-w-md text-center">
         <h1 className="text-xl font-semibold tracking-tight text-brand-navy">
           Esta página no cargó
@@ -220,14 +221,19 @@ function RootComponent() {
   }, []);
 
   return (
-    <QueryClientProvider client={queryClient}>
-      <AuthProvider>
-        <ElectronStoreProvider>
-          <RealtimeOpsSync />
-          <Outlet />
-          <Toaster richColors position="top-right" offset={{ top: "80px", right: "16px" }} />
-        </ElectronStoreProvider>
-      </AuthProvider>
-    </QueryClientProvider>
+    // reducedMotion="user": every motion/react animation in the app drops
+    // its transform/layout movement (keeping opacity) when the visitor has
+    // prefers-reduced-motion set — one switch instead of per-component checks.
+    <MotionConfig reducedMotion="user">
+      <QueryClientProvider client={queryClient}>
+        <AuthProvider>
+          <ElectronStoreProvider>
+            <RealtimeOpsSync />
+            <Outlet />
+            <Toaster richColors position="top-right" offset={{ top: "80px", right: "16px" }} />
+          </ElectronStoreProvider>
+        </AuthProvider>
+      </QueryClientProvider>
+    </MotionConfig>
   );
 }

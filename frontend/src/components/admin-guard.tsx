@@ -30,7 +30,7 @@ export function AdminGuard({ children }: { children: ReactNode }) {
 
   if (loading) {
     return (
-      <div className="grid min-h-screen place-items-center bg-brand-blue">
+      <div className="grid min-h-dvh place-items-center bg-brand-blue">
         <Loader2
           className="h-6 w-6 animate-spin text-brand-yellow"
           aria-label="Verificando sesión"
@@ -45,7 +45,7 @@ export function AdminGuard({ children }: { children: ReactNode }) {
 
   if (sessionError) {
     return (
-      <div className="grid min-h-screen place-items-center bg-brand-blue px-4">
+      <div className="grid min-h-dvh place-items-center bg-brand-blue px-4">
         <div className="flex max-w-sm flex-col items-center gap-3 text-center text-white">
           <p className="text-sm text-white/80">
             No pudimos verificar tu sesión con el servidor. Puede ser un problema de conexión

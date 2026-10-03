@@ -16,7 +16,7 @@ export function ClientGuard({ children }: { children: ReactNode }) {
 
   if (loading) {
     return (
-      <div className="grid min-h-screen place-items-center bg-brand-surface">
+      <div className="grid min-h-dvh place-items-center bg-brand-surface">
         <Loader2 className="h-6 w-6 animate-spin text-brand-blue" aria-label="Verificando sesión" />
       </div>
     );

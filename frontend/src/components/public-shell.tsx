@@ -7,7 +7,7 @@ import { MascotChatWidget } from "./mascot-chat-widget";
 
 export function PublicShell({ children }: { children: ReactNode }) {
   return (
-    <div className="flex min-h-screen flex-col bg-background">
+    <div className="flex min-h-dvh flex-col bg-background">
       <div className="print:hidden">
         <SiteHeader />
       </div>

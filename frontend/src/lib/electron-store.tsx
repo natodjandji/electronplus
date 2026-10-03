@@ -49,6 +49,8 @@ type StoreValue = {
   syncCartWithCatalog: (live: LiveCatalogLookup) => CartSyncResult;
   cartTotal: number;
   cartCount: number;
+  /** False until the cart has been restored from localStorage after mount. */
+  cartHydrated: boolean;
   discount: DiscountInfo | null;
   setDiscount: (d: DiscountInfo) => void;
   clearDiscount: () => void;
@@ -187,6 +189,7 @@ export function ElectronStoreProvider({ children }: { children: ReactNode }) {
       },
       cartTotal,
       cartCount,
+      cartHydrated: hydrated,
       discount,
       setDiscount: setDiscountState,
       clearDiscount: () => setDiscountState(null),
@@ -194,7 +197,7 @@ export function ElectronStoreProvider({ children }: { children: ReactNode }) {
       discountAmount,
       taxAmount,
     };
-  }, [role, cart, discount]);
+  }, [role, cart, discount, hydrated]);
 
   return <StoreContext.Provider value={value}>{children}</StoreContext.Provider>;
 }

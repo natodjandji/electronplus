@@ -7,14 +7,25 @@ const spring = { type: "spring", stiffness: 300, damping: 30 } as const;
  * app's hand-rolled (non-spring) motion so timing feels like one system. */
 export const EASE_OUT_QUINT = [0.22, 1, 0.36, 1] as const;
 
+/** Lists cascade in at STAGGER_STEP per item, capped at STAGGER_MAX_STEPS so
+ * a long list (orders, quotes) never makes its last rows wait — the cascade
+ * tops out at ~0.3s however many items there are. Items pass their index as
+ * `custom`; without it they simply appear together. */
+const STAGGER_STEP = 0.04;
+const STAGGER_MAX_STEPS = 8;
+
 export const staggerContainer: Variants = {
   hidden: {},
-  show: { transition: { staggerChildren: 0.06 } },
+  show: {},
 };
 
 export const staggerItem: Variants = {
   hidden: { opacity: 0, y: 10 },
-  show: { opacity: 1, y: 0, transition: spring },
+  show: (index: number = 0) => ({
+    opacity: 1,
+    y: 0,
+    transition: { ...spring, delay: Math.min(index, STAGGER_MAX_STEPS) * STAGGER_STEP },
+  }),
 };
 
 /** Fade + rise on mount — used for page-level content in the shells.
