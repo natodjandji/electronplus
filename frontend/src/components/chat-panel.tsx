@@ -18,6 +18,7 @@ import {
 } from "@/lib/chat-bot";
 import { cn } from "@/lib/utils";
 import { ProductImage } from "@/components/product-image";
+import { EASE_OUT_QUINT } from "@/components/motion-primitives";
 
 type ChatMessage = BotReplyContent & { id: string; from: "bot" | "user" };
 
@@ -116,15 +117,24 @@ export function ChatPanel({ open, onClose }: { open: boolean; onClose: () => voi
   return (
     <AnimatePresence>
       {open && (
+        // Grows out of the mascot it's anchored to (origin bottom-right), not
+        // from its own center; scale starts at 0.94, never 0. Exit is a
+        // quicker fade so closing never feels like waiting.
         <motion.div
-          initial={{ opacity: 0, y: 16 }}
-          animate={{ opacity: 1, y: 0 }}
-          exit={{ opacity: 0, y: 16 }}
-          transition={{ type: "spring", stiffness: 320, damping: 28 }}
-          className="pointer-events-auto flex h-[min(560px,70vh)] w-[min(360px,90vw)] flex-col overflow-hidden rounded-2xl border border-border bg-white shadow-2xl"
+          initial={{ opacity: 0, scale: 0.94, y: 8 }}
+          animate={{ opacity: 1, scale: 1, y: 0 }}
+          exit={{
+            opacity: 0,
+            scale: 0.96,
+            y: 4,
+            transition: { duration: 0.14, ease: EASE_OUT_QUINT },
+          }}
+          transition={{ type: "spring", duration: 0.32, bounce: 0.12 }}
+          style={{ transformOrigin: "bottom right" }}
+          className="pointer-events-auto flex h-[min(560px,70dvh)] w-[min(360px,90vw)] flex-col overflow-hidden rounded-2xl border border-border bg-white shadow-2xl"
         >
           <div className="flex shrink-0 items-center gap-3 border-b border-border bg-brand-blue px-4 py-3">
-            <img src="/mascot/mascot-idle.png" alt="" className="h-9 w-9 object-contain" />
+            <img src="/mascot/mascot-idle.webp" alt="" className="h-9 w-9 object-contain" />
             <div className="flex-1">
               <div className="text-sm font-semibold text-white">Asistente Electron+</div>
               <div className="text-xs text-white/60">En línea</div>
