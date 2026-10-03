@@ -5,9 +5,12 @@ import { FIRESTORE } from '../../firebase/firebase.constants';
 import { Collections } from '../../firebase/firestore-collections';
 import { FirestoreRepository } from '../../firebase/firestore.repository';
 import { ProductsService } from '../products/products.service';
+import { SECOND_STORE_LOAD, SecondStoreIndex } from './second-store-index';
 import { CreateSecondStoreProductDto } from './dto/create-second-store-product.dto';
 import { UpdateSecondStoreProductDto } from './dto/update-second-store-product.dto';
 import { SecondStoreProduct } from './entities/second-store-product.entity';
+
+const nameCollator = new Intl.Collator('es', { sensitivity: 'base', numeric: true });
 
 export interface SecondStoreProductWithLink extends SecondStoreProduct {
   linkedProduct: { id: string; sku: string; name: string; stock: number } | null;
@@ -28,9 +31,12 @@ export interface SecondStoreProductWithLink extends SecondStoreProduct {
 export class SecondStoreService {
   private readonly repo: FirestoreRepository<SecondStoreProduct>;
 
+  private sorted: { source: SecondStoreProduct[]; byName: SecondStoreProduct[] } | null = null;
+
   constructor(
     @Inject(FIRESTORE) firestore: Firestore,
     private readonly productsService: ProductsService,
+    private readonly index: SecondStoreIndex,
   ) {
     this.repo = new FirestoreRepository<SecondStoreProduct>(
       firestore,
@@ -38,17 +44,21 @@ export class SecondStoreService {
     );
   }
 
+  /** Served from the snapshots on both sides — the ~5.4k rows and the
+   * catalog products they link to — so the whole list costs about two reads
+   * instead of one per row plus one per linked product. */
   async findAll(): Promise<SecondStoreProductWithLink[]> {
-    const items = await this.repo.findAll({ orderBy: { field: 'name' } });
+    const [items, products] = await Promise.all([
+      this.index.load(SECOND_STORE_LOAD),
+      this.productsService.catalogLookup(),
+    ]);
+    if (this.sorted?.source !== items) {
+      const byName = [...items].sort((a, b) => nameCollator.compare(a.name, b.name));
+      this.sorted = { source: items, byName };
+    }
 
-    // Batch-resolve every linked product in one round trip instead of one
-    // findById per row (the naive Promise.all(items.map(...)) approach).
-    const linkedIds = items.flatMap((item) => (item.linkedProductId ? [item.linkedProductId] : []));
-    const linkedProducts = await this.productsService.findByIds(linkedIds);
-    const byId = new Map(linkedProducts.map((p) => [p.id, p]));
-
-    return items.map((item) => {
-      const product = item.linkedProductId ? byId.get(item.linkedProductId) : undefined;
+    return this.sorted.byName.map((item) => {
+      const product = item.linkedProductId ? products.get(item.linkedProductId) : undefined;
       return {
         ...item,
         // Linked product may have been deleted after linking — surface as unlinked rather than failing the list.
@@ -97,27 +107,37 @@ export class SecondStoreService {
     if (dto.linkedProductId) {
       await this.productsService.findById(dto.linkedProductId); // throws if the product doesn't exist
     }
-    return this.repo.create(dto);
+    return this.indexed(await this.repo.create(dto));
   }
 
   async update(id: string, dto: UpdateSecondStoreProductDto): Promise<SecondStoreProduct> {
     await this.repo.getOrThrow(id, 'Second store product not found');
-    return this.repo.update(id, dto);
+    return this.indexed(await this.repo.update(id, dto));
   }
 
   async delete(id: string): Promise<void> {
     await this.repo.getOrThrow(id, 'Second store product not found');
     await this.repo.delete(id);
+    await this.index.apply({ remove: [id] });
   }
 
   async link(id: string, productId: string): Promise<SecondStoreProduct> {
     await this.repo.getOrThrow(id, 'Second store product not found');
     await this.productsService.findById(productId); // throws if the product doesn't exist
-    return this.repo.update(id, { linkedProductId: productId });
+    return this.indexed(await this.repo.update(id, { linkedProductId: productId }));
   }
 
   async unlink(id: string): Promise<SecondStoreProduct> {
     await this.repo.getOrThrow(id, 'Second store product not found');
-    return this.repo.update(id, { linkedProductId: FieldValue.delete() as never });
+    return this.indexed(
+      await this.repo.update(id, { linkedProductId: FieldValue.delete() as never }),
+    );
+  }
+
+  /** Every write re-reads the saved doc already (FirestoreRepository), so
+   * the snapshot gets that exact copy. */
+  private async indexed(saved: SecondStoreProduct): Promise<SecondStoreProduct> {
+    await this.index.apply({ put: [saved] });
+    return saved;
   }
 }

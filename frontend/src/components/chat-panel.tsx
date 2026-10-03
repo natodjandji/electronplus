@@ -5,8 +5,7 @@ import { AnimatePresence, motion } from "motion/react";
 import { Send, X, ShoppingCart } from "lucide-react";
 import { toast } from "sonner";
 import { type Product } from "@/lib/mock-data";
-import { apiFetch } from "@/lib/api-client";
-import { type ApiProduct, toProduct } from "@/lib/product-api";
+import { catalogQuery, toProduct } from "@/lib/product-api";
 import { useCategories } from "@/lib/categories";
 import { useElectronStore, formatMoney } from "@/lib/electron-store";
 import {
@@ -38,15 +37,9 @@ export function ChatPanel({ open, onClose }: { open: boolean; onClose: () => voi
   // Mounted unconditionally in PublicShell (open just toggles visibility),
   // so gate the fetch on `open` — most visitors never open the assistant,
   // and shouldn't cost a products+categories fetch on every page load just
-  // because it's sitting there. Shared queryKey with catalog.tsx /
-  // collections.tsx / quotes.tsx — if the page already loaded the list
+  // because it's sitting there. If the page already loaded the catalog
   // before the widget opens, this reuses that cache instead of refetching.
-  const { data: productsResp } = useQuery({
-    queryKey: ["products", "list"],
-    queryFn: () => apiFetch<{ data: ApiProduct[] }>("/products?limit=100"),
-    staleTime: 5 * 60 * 1000,
-    enabled: open,
-  });
+  const { data: productsResp } = useQuery({ ...catalogQuery, enabled: open });
   const { data: categories } = useCategories({ enabled: open });
   const products = useMemo(() => productsResp?.data.map(toProduct) ?? [], [productsResp]);
   const categoryLabel = useMemo(

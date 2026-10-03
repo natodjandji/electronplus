@@ -22,4 +22,7 @@ export const Collections = {
   SECOND_STORE_PRODUCTS: 'secondStoreProducts',
   SECOND_STORE_SYNC_LOGS: 'secondStoreSyncLogs',
   EXPENSES: 'expenses',
+  /** Server-only read indexes (see CollectionSnapshot) — no client rule
+   * grants access, so firestore.rules' default deny covers them. */
+  SNAPSHOTS: 'snapshots',
 } as const;

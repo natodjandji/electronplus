@@ -5,7 +5,13 @@ import type { DocumentReference, Firestore, Transaction } from 'firebase-admin/f
 import { FieldValue, Timestamp } from 'firebase-admin/firestore';
 import { FIRESTORE } from '../../firebase/firebase.constants';
 import { Collections } from '../../firebase/firestore-collections';
-import { FirestoreRepository, WhereClause } from '../../firebase/firestore.repository';
+import {
+  CollectionSnapshot,
+  LoadOptions,
+  SNAPSHOT_REBUILD_INTERVAL_MS,
+  SnapshotChanges,
+} from '../../firebase/collection-snapshot';
+import { FirestoreRepository } from '../../firebase/firestore.repository';
 import { PaginatedResult } from '../../common/dto/pagination.dto';
 import { slugify } from '../../common/utils/slug';
 import { OrderStatus } from '../orders/entities/order.entity';
@@ -36,6 +42,11 @@ export interface StockChangedEvent {
   minStockThreshold?: number;
 }
 
+/** What one ERP sync run wrote, for a single applyCatalogChanges() call. */
+export type ErpCatalogChanges = Required<
+  Pick<SnapshotChanges<Product>, 'put' | 'merge' | 'remove'>
+>;
+
 export interface StockUpdateContext {
   productId: string;
   productRef: DocumentReference;
@@ -49,6 +60,9 @@ export interface StockUpdateContext {
   minStockThreshold?: number;
 }
 
+/** gRPC status code Firestore returns when update() targets a missing doc. */
+const GRPC_NOT_FOUND = 5;
+
 function generateQrToken(): string {
   return randomBytes(24).toString('base64url');
 }
@@ -56,7 +70,7 @@ function generateQrToken(): string {
 /** `GET products/<segment>` routes declared before `products/:id` in
  * ProductsController — a product slugified to one of these would be
  * unreachable (the static route wins). Keep in sync with that controller. */
-const RESERVED_PRODUCT_IDS = new Set(['admin', 'best-sellers']);
+const RESERVED_PRODUCT_IDS = new Set(['admin', 'best-sellers', 'catalog']);
 
 const PRODUCT_ID_MAX_LENGTH = 80;
 
@@ -66,33 +80,57 @@ function productIdBase(name: string): string {
   return slugify(name).slice(0, PRODUCT_ID_MAX_LENGTH).replace(/-+$/, '') || 'producto';
 }
 
-// topSelling() backs the public homepage and re-scans up to 90 days of
-// orders on every call — cached briefly per `limit` so the busiest
-// unauthenticated route on the site doesn't rescan on every visit.
-const TOP_SELLING_CACHE_TTL_MS = 15 * 60 * 1000;
 const TOP_SELLING_DEFAULT_LIMIT = 8;
-// Caps how many distinct cache keys can ever exist (1..24), since the key
-// comes from an unauthenticated query param — see topSelling()'s doc comment.
+// Caps `limit`, which arrives straight off an unauthenticated query string
+// — see topSelling()'s doc comment.
 const TOP_SELLING_MAX_LIMIT = 24;
 
-// Firestore has no full-text search, so `?search=` scans every active
-// product and filters in Node. That route is UNAUTHENTICATED
-// (OptionalFirebaseAuthGuard) and the global throttle allows 100 req/min
-// per IP — uncached, that let a single client force 100 full-collection
-// scans a minute. Caching the scanned corpus makes the catalog size cost
-// one read-set per TTL window instead of one per request. Kept short (and
-// cleared on every catalog write, see clearCatalogCaches) so a newly
-// added/edited product shows up in search almost immediately.
-const SEARCH_CACHE_TTL_MS = 60 * 1000;
+/** How stale one server instance's copy of the public catalog may get
+ * relative to writes made on another instance (an instance always sees its
+ * own writes at once). Bounds the public catalog's Firestore cost to about
+ * one read per instance per window, however many visitors there are —
+ * listing and searching used to read every product on every request. */
+const PUBLIC_CATALOG_MAX_AGE_MS = 60 * 1000;
+/** Admin screens and the ERP sync always re-check (one read) and keep the
+ * snapshot rebuilt daily — see CollectionSnapshot. */
+const OPS_CATALOG_LOAD: LoadOptions = {
+  maxAgeMs: 0,
+  rebuildIfOlderThanMs: SNAPSHOT_REBUILD_INTERVAL_MS,
+};
+
+/** Best-seller ranking, shared by every instance at snapshots/bestSellers.
+ * Recomputing it scans up to 90 days of orders, so it happens at most every
+ * few hours overall — it used to run per instance every 15 minutes. */
+const BEST_SELLERS_DOC_ID = 'bestSellers';
+const BEST_SELLERS_RECOMPUTE_MS = 6 * 60 * 60 * 1000;
+const BEST_SELLERS_CHECK_MS = 15 * 60 * 1000;
+/** Ranked ids kept — the largest page allowed, with room for products that
+ * turn out inactive or deleted. */
+const BEST_SELLERS_RANKING_SIZE = TOP_SELLING_MAX_LIMIT * 3;
+
+const nameCollator = new Intl.Collator('es', { sensitivity: 'base', numeric: true });
+
+interface CatalogViews {
+  source: Product[];
+  /** Every product, by name. */
+  all: Product[];
+  /** Active products only, by name — what customers can see. */
+  active: Product[];
+  byId: Map<string, Product>;
+}
 
 @Injectable()
 export class ProductsService {
   private readonly repo: FirestoreRepository<Product>;
   private readonly categoriesRepo: FirestoreRepository<Category>;
   private readonly warehousesRepo: FirestoreRepository<Warehouse>;
-  private readonly topSellingCache = new Map<number, { data: Product[]; cachedAt: number }>();
-  /** Backs the public search path in findAll() — see SEARCH_CACHE_TTL_MS. */
-  private searchCorpusCache: { data: Product[]; cachedAt: number } | null = null;
+  /** Every product packed into a few docs — see CollectionSnapshot. Backs
+   * every whole-catalog read: public listing and search, admin lists, ERP
+   * matching, best-seller resolution. */
+  private readonly catalog: CollectionSnapshot<Product>;
+  private catalogViews: CatalogViews | null = null;
+  private bestSellers: { ids: string[]; checkedAt: number } | null = null;
+  private bestSellersInflight: Promise<string[]> | null = null;
 
   constructor(
     @Inject(FIRESTORE) private readonly firestore: Firestore,
@@ -101,63 +139,76 @@ export class ProductsService {
     this.repo = new FirestoreRepository<Product>(firestore, Collections.PRODUCTS);
     this.categoriesRepo = new FirestoreRepository<Category>(firestore, Collections.CATEGORIES);
     this.warehousesRepo = new FirestoreRepository<Warehouse>(firestore, Collections.WAREHOUSES);
+    this.catalog = new CollectionSnapshot<Product>(firestore, Collections.PRODUCTS, () =>
+      this.repo.collection(),
+    );
   }
 
+  /** Public listing — filtered, searched and paged in memory over the
+   * catalog snapshot (Firestore has no full-text search anyway). */
   async findAll(query: QueryProductsDto): Promise<PaginatedResult<Product>> {
     const limit = query.limit ?? 20;
     const page = query.page ?? 1;
     const skip = (page - 1) * limit;
 
+    let products = await this.activeCatalog();
+    if (query.category) {
+      products = products.filter((p) => p.category?.code === query.category);
+    }
     if (query.search) {
-      // Firestore has no full-text search — scan active products and filter
-      // in Node. `page` slices the in-memory filtered array directly (was
-      // previously ignored, always returning page 1's results for every
-      // page). The scan is served from a short-lived cache — see
-      // SEARCH_CACHE_TTL_MS for why that matters on this route.
-      const all = await this.activeProductsForSearch();
       const needle = query.search.toLowerCase();
-      const filtered = all.filter(
+      products = products.filter(
         (p) => p.name.toLowerCase().includes(needle) || p.sku.toLowerCase().includes(needle),
       );
-      const data = filtered.slice(skip, skip + limit);
-      return new PaginatedResult(data, filtered.length, page, limit);
     }
-
-    const where: { field: string; op: '=='; value: unknown }[] = [
-      { field: 'active', op: '==', value: true },
-    ];
-    if (query.category) {
-      const category = await this.categoriesRepo.findOne([
-        { field: 'code', op: '==', value: query.category },
-      ]);
-      where.push({ field: 'categoryId', op: '==', value: category?.id ?? '__none__' });
-    }
-    // `total` is a real count of every matching doc, not `data.length` (was
-    // previously capped at `limit`, so `pageCount` always came out as 1 —
-    // every caller past page 1 got page 1's results back with no error).
-    const [data, total] = await Promise.all([
-      this.repo.findAll({ where, orderBy: { field: 'name' }, limit, offset: skip }),
-      this.repo.count(where),
-    ]);
-    return new PaginatedResult(data, total, page, limit);
+    return new PaginatedResult(products.slice(skip, skip + limit), products.length, page, limit);
   }
 
-  private async activeProductsForSearch(): Promise<Product[]> {
-    const cached = this.searchCorpusCache;
-    if (cached && Date.now() - cached.cachedAt < SEARCH_CACHE_TTL_MS) return cached.data;
-    const data = await this.repo.findAll({
-      where: [{ field: 'active', op: '==', value: true }],
-    });
-    this.searchCorpusCache = { data, cachedAt: Date.now() };
-    return data;
+  /** Every active product, by name — the storefront's whole catalog. */
+  async activeCatalog(): Promise<Product[]> {
+    return this.viewsOf(await this.catalog.load({ maxAgeMs: PUBLIC_CATALOG_MAX_AGE_MS })).active;
   }
 
-  /** Every in-memory catalog cache, dropped together. Called from each write
-   * path so an admin never has to wait out a TTL to see their own change —
-   * clearing is cheap, and the next reader repopulates lazily. */
-  private clearCatalogCaches(): void {
-    this.topSellingCache.clear();
-    this.searchCorpusCache = null;
+  /** Public product page. Served from the snapshot; falls back to the doc
+   * itself for a product created on another instance within the window. */
+  async findPublicById(id: string): Promise<Product> {
+    const views = this.viewsOf(await this.catalog.load({ maxAgeMs: PUBLIC_CATALOG_MAX_AGE_MS }));
+    return views.byId.get(id) ?? this.findById(id);
+  }
+
+  /** Every product (active or not) by id, current as of this call — for ops
+   * screens that resolve links to many products at once. */
+  async catalogLookup(): Promise<Map<string, Product>> {
+    return this.viewsOf(await this.catalog.load(OPS_CATALOG_LOAD)).byId;
+  }
+
+  /** Sorting and indexing thousands of products is redone only when the
+   * snapshot actually changed, not on every request. */
+  private viewsOf(items: Product[]): CatalogViews {
+    if (this.catalogViews?.source !== items) {
+      const all = [...items].sort((a, b) => nameCollator.compare(a.name, b.name));
+      this.catalogViews = {
+        source: items,
+        all,
+        active: all.filter((p) => p.active),
+        byId: new Map(items.map((p) => [p.id, p])),
+      };
+    }
+    return this.catalogViews;
+  }
+
+  /** For bulk writers (ERP sync) that report every change once at the end. */
+  applyCatalogChanges(changes: SnapshotChanges<Product>): Promise<void> {
+    return this.catalog.apply(changes);
+  }
+
+  /** After a committed stock change: notifies listeners (low-stock alerts,
+   * the ops socket) and brings the catalog snapshot up to date. Re-reads the
+   * product docs rather than trusting each event's number, so two orders
+   * committing close together can't leave the older stock in the snapshot. */
+  async stockCommitted(changes: StockChangedEvent[]): Promise<void> {
+    for (const change of changes) this.events.emit(STOCK_CHANGED_EVENT, change);
+    await this.catalog.apply({ refresh: changes.map((c) => c.productId) });
   }
 
   findById(id: string): Promise<Product> {
@@ -170,26 +221,70 @@ export class ProductsService {
 
   /** Best-selling active products by units sold across paid/fulfilled orders in the last 90
    * days — falls back to filling remaining slots with other active products so a fresh store
-   * never looks sparse. Bounded to a recent window (rather than the full order history) since
-   * this backs the public, unauthenticated /products/best-sellers endpoint hit on every
-   * storefront visit — an unbounded scan would grow more expensive with every order ever placed.
+   * never looks sparse. Backs the public, unauthenticated /products/best-sellers endpoint hit
+   * on every storefront visit, so both halves are cheap: the ranking is shared and recomputed
+   * at most every BEST_SELLERS_RECOMPUTE_MS (see bestSellerRanking), and the products
+   * themselves come from the catalog snapshot.
    *
-   * `limit` arrives straight off an unauthenticated query string, and it's also the
-   * topSellingCache key — so it MUST be normalized to a small set of integers before being
-   * used. Unclamped, `?limit=<n>` for arbitrary n gave an attacker two free primitives:
-   * grow the cache Map without bound (one permanent entry per distinct value → OOM), and
-   * force a cache miss on every request (each miss re-runs the 90-day order scan → Firestore
-   * read amplification). Non-numeric input also reached the cache as a NaN key and made
-   * slice(0, NaN) silently return an empty list. */
+   * `limit` arrives straight off an unauthenticated query string, so it's clamped to
+   * 1..TOP_SELLING_MAX_LIMIT — non-numeric input would otherwise make slice(0, NaN) silently
+   * return an empty list. */
   async topSelling(limitInput = TOP_SELLING_DEFAULT_LIMIT): Promise<Product[]> {
     const limit = Number.isFinite(limitInput)
       ? Math.min(Math.max(Math.trunc(limitInput), 1), TOP_SELLING_MAX_LIMIT)
       : TOP_SELLING_DEFAULT_LIMIT;
-    const cached = this.topSellingCache.get(limit);
-    if (cached && Date.now() - cached.cachedAt < TOP_SELLING_CACHE_TTL_MS) {
-      return cached.data;
-    }
 
+    const [rankedIds, items] = await Promise.all([
+      this.bestSellerRanking(),
+      this.catalog.load({ maxAgeMs: PUBLIC_CATALOG_MAX_AGE_MS }),
+    ]);
+    const views = this.viewsOf(items);
+    const ranked = rankedIds
+      .map((id) => views.byId.get(id))
+      .filter((p): p is Product => Boolean(p?.active))
+      .slice(0, limit);
+
+    const seen = new Set(ranked.map((p) => p.id));
+    for (const product of views.active) {
+      if (ranked.length >= limit) break;
+      if (!seen.has(product.id)) ranked.push(product);
+    }
+    return ranked;
+  }
+
+  /** Product ids by units sold, best first. Cached per instance for
+   * BEST_SELLERS_CHECK_MS (then 1 read), and the stored ranking is
+   * recomputed only once it's older than BEST_SELLERS_RECOMPUTE_MS. */
+  private bestSellerRanking(): Promise<string[]> {
+    const cached = this.bestSellers;
+    if (cached && Date.now() - cached.checkedAt < BEST_SELLERS_CHECK_MS) {
+      return Promise.resolve(cached.ids);
+    }
+    this.bestSellersInflight ??= this.loadBestSellerRanking().finally(() => {
+      this.bestSellersInflight = null;
+    });
+    return this.bestSellersInflight;
+  }
+
+  private async loadBestSellerRanking(): Promise<string[]> {
+    const ref = this.firestore.collection(Collections.SNAPSHOTS).doc(BEST_SELLERS_DOC_ID);
+    const snap = await ref.get();
+    const stored = snap.exists
+      ? (snap.data() as { productIds: string[]; computedAtMs: number })
+      : null;
+
+    let ids = stored?.productIds ?? [];
+    if (!stored || Date.now() - stored.computedAtMs > BEST_SELLERS_RECOMPUTE_MS) {
+      ids = await this.computeBestSellerRanking();
+      await ref.set({ productIds: ids, computedAtMs: Date.now() });
+    }
+    this.bestSellers = { ids, checkedAt: Date.now() };
+    return ids;
+  }
+
+  /** Bounded to a recent window rather than the full order history — an
+   * unbounded scan would grow more expensive with every order ever placed. */
+  private async computeBestSellerRanking(): Promise<string[]> {
     const since = new Date();
     since.setDate(since.getDate() - 90);
 
@@ -207,50 +302,20 @@ export class ProductsService {
       }
     }
 
-    const rankedIds = [...unitsSold.entries()]
+    return [...unitsSold.entries()]
       .sort(([, a], [, b]) => b - a)
       .map(([productId]) => productId)
-      .slice(0, limit * 3); // bounded candidate pool — some may turn out inactive
-
-    const candidates = await this.repo.findByIds(rankedIds);
-    const byId = new Map(candidates.map((p) => [p.id, p]));
-    const ranked = rankedIds
-      .map((id) => byId.get(id))
-      .filter((p): p is Product => Boolean(p?.active))
-      .slice(0, limit);
-
-    if (ranked.length < limit) {
-      const filler = await this.repo.findAll({
-        where: [{ field: 'active', op: '==', value: true }],
-        orderBy: { field: 'name' },
-        limit: limit * 2,
-      });
-      const seen = new Set(ranked.map((p) => p.id));
-      for (const product of filler) {
-        if (ranked.length >= limit) break;
-        if (!seen.has(product.id)) ranked.push(product);
-      }
-    }
-
-    this.topSellingCache.set(limit, { data: ranked, cachedAt: Date.now() });
-    return ranked;
+      .slice(0, BEST_SELLERS_RANKING_SIZE);
   }
 
   /** Full-fidelity listing for the admin inventory panel — includes inactive
-   * products and cost/supplier fields. Filtered in Node, same tradeoff as
-   * the public search above: fine at this catalog's scale. */
+   * products and cost/supplier fields. Served from the catalog snapshot (one
+   * read when nothing changed) and filtered in memory. */
   async adminFindAll(query: AdminQueryProductsDto): Promise<Product[]> {
-    // supplierId/categoryId are simple equality filters — pushed down to
-    // Firestore's `where` instead of fetching the whole collection and
-    // filtering in Node, same result with far fewer documents read whenever
-    // either is set. search/lowStockOnly stay Node-side (substring match /
-    // computed threshold, not expressible as a Firestore equality filter).
-    const where: WhereClause[] = [];
-    if (query.supplierId) where.push({ field: 'supplierId', op: '==', value: query.supplierId });
-    if (query.categoryId) where.push({ field: 'categoryId', op: '==', value: query.categoryId });
+    let products = this.viewsOf(await this.catalog.load(OPS_CATALOG_LOAD)).all;
 
-    let products = await this.repo.findAll({ where, orderBy: { field: 'name' } });
-
+    if (query.supplierId) products = products.filter((p) => p.supplierId === query.supplierId);
+    if (query.categoryId) products = products.filter((p) => p.categoryId === query.categoryId);
     if (query.search) {
       const needle = query.search.toLowerCase();
       products = products.filter(
@@ -337,22 +402,21 @@ export class ProductsService {
       active: dto.active ?? true,
       qrToken: generateQrToken(),
     });
-    // After the write, not before: clearing first left a window where a
-    // concurrent search re-warmed the cache without the new product.
-    this.clearCatalogCaches();
+    await this.catalog.apply({ put: [product] });
     return product;
   }
 
   async update(id: string, dto: UpdateProductDto): Promise<Product> {
+    // The repository's update is a set-merge: on an unknown id it would
+    // create a half-formed product (no sku/qrToken) and index it.
+    await this.repo.getOrThrow(id, 'Product not found');
     const patch: Partial<Product> = { ...dto };
     if (dto.categoryId) {
       const category = await this.categoriesRepo.getOrThrow(dto.categoryId, 'Category not found');
       patch.category = { id: category.id, code: category.code, label: category.label };
     }
     const updated = await this.repo.update(id, patch);
-    // Any edit can change what search returns (name/sku/active), so unlike
-    // the previous active-only check this clears unconditionally.
-    this.clearCatalogCaches();
+    await this.catalog.apply({ put: [updated] });
     return updated;
   }
 
@@ -370,11 +434,7 @@ export class ProductsService {
       await batch.commit();
     }
     await this.repo.delete(id);
-    // Without this, a deleted product can keep showing on the public
-    // homepage's "más vendidos" section for up to TOP_SELLING_CACHE_TTL_MS
-    // (15 min), and in search results for up to SEARCH_CACHE_TTL_MS —
-    // both only re-check Firestore on a cache miss.
-    this.clearCatalogCaches();
+    await this.catalog.apply({ remove: [id] });
   }
 
   /** Manual admin stock adjustment (+ restock / - shrinkage), optionally scoped to a warehouse. */
@@ -384,7 +444,7 @@ export class ProductsService {
       return this.applyStockDelta(tx, ctx, dto.delta);
     });
 
-    this.events.emit(STOCK_CHANGED_EVENT, changed);
+    await this.stockCommitted([changed]);
     return this.findById(id);
   }
 
@@ -601,18 +661,13 @@ export class ProductsService {
     return nextStock;
   }
 
-  emitStockChanged(event: StockChangedEvent): void {
-    this.events.emit(STOCK_CHANGED_EVENT, event);
-  }
-
-  /** Inbound ERP sync: create or update a product from a Profit Plus inventory record. */
-  /** One read for the whole sync run instead of 1-2 findOne() queries per
-   * ERP item — every item is matched in memory against these maps. */
+  /** Every product keyed for ERP matching. Served from the catalog snapshot,
+   * so a sync run costs about one read instead of one per product. */
   async findAllForErpMatching(): Promise<{
     byErpExternalId: Map<string, Product>;
     bySku: Map<string, Product>;
   }> {
-    const all = await this.repo.findAll();
+    const all = this.viewsOf(await this.catalog.load(OPS_CATALOG_LOAD)).all;
     const byErpExternalId = new Map<string, Product>();
     const bySku = new Map<string, Product>();
     for (const product of all) {
@@ -640,8 +695,10 @@ export class ProductsService {
   }
 
   /** `existing` must come from findAllForErpMatching() — resolved once per
-   * sync run, not queried per item — so this call does zero Firestore reads
-   * and, when nothing changed since the last sync, zero writes. */
+   * sync run, not queried per item — so updating an existing product costs
+   * no reads, and an unchanged one costs nothing at all. Every write is
+   * recorded in `catalogChanges` for the caller to hand to
+   * applyCatalogChanges() once, after the whole run. */
   async upsertFromErp(
     item: {
       externalId: string;
@@ -656,9 +713,8 @@ export class ProductsService {
       specs?: string;
     },
     existing: Product | undefined,
+    catalogChanges: ErpCatalogChanges,
   ): Promise<{ product: Product; wrote: boolean }> {
-    const stockChanged = !existing || existing.stock !== item.stock;
-
     const patch: Partial<Product> = {
       erpExternalId: item.externalId,
       sku: item.sku,
@@ -667,8 +723,12 @@ export class ProductsService {
       category: item.category,
       retailPrice: item.retailPrice,
       wholesalePrice: item.wholesalePrice,
-      cost: item.cost,
       stock: item.stock,
+      // Optional on the ERP side: a field the bridge doesn't send keeps
+      // whatever the product already has. Comparing against a bare
+      // `undefined` here made every product with a manually entered cost
+      // count as changed — and get rewritten — on every single run.
+      cost: item.cost ?? existing?.cost,
       specs: item.specs ?? existing?.specs,
     };
 
@@ -676,27 +736,49 @@ export class ProductsService {
       return { product: existing, wrote: false };
     }
 
-    const saved = existing
-      ? await this.repo.update(existing.id, { ...patch, erpSyncedAt: new Date() })
-      : await this.createWithSlugId(item.name, {
-          ...patch,
-          erpSyncedAt: new Date(),
-          active: true,
-          qrToken: generateQrToken(),
+    let saved: Product | null = null;
+    let deletedId: string | undefined;
+    if (existing) {
+      const fields: Partial<Product> = { ...patch, erpSyncedAt: new Date() };
+      try {
+        // update() rather than the repository's set-merge: a product deleted
+        // since the snapshot was taken fails here instead of coming back as a
+        // doc holding only the ERP fields.
+        await this.repo
+          .doc(existing.id)
+          .update({ ...fields, updatedAt: FieldValue.serverTimestamp() });
+        saved = { ...existing, ...fields, updatedAt: new Date() };
+        catalogChanges.merge.push({
+          id: existing.id,
+          fields: { ...fields, updatedAt: saved.updatedAt },
         });
+      } catch (error) {
+        if ((error as { code?: number }).code !== GRPC_NOT_FOUND) throw error;
+        deletedId = existing.id;
+      }
+    }
+    const created = !saved;
+    if (!saved) {
+      saved = await this.createWithSlugId(item.name, {
+        ...patch,
+        erpSyncedAt: new Date(),
+        active: true,
+        qrToken: generateQrToken(),
+      });
+      catalogChanges.put.push(saved);
+    }
+    // The recreated product usually gets the freed-up slug back — only a
+    // different id means the old one must leave the snapshot.
+    if (deletedId && deletedId !== saved.id) catalogChanges.remove.push(deletedId);
 
-    // Only reached when something actually changed (the dirty-check above
-    // returns early otherwise), so a no-op sync run leaves the caches warm.
-    this.clearCatalogCaches();
-
-    if (stockChanged) {
-      this.emitStockChanged({
+    if (created || existing?.stock !== item.stock) {
+      this.events.emit(STOCK_CHANGED_EVENT, {
         productId: saved.id,
         sku: saved.sku,
         name: saved.name,
         stock: saved.stock,
         minStockThreshold: saved.minStockThreshold,
-      });
+      } satisfies StockChangedEvent);
     }
 
     return { product: saved, wrote: true };

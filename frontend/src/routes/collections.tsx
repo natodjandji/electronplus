@@ -6,9 +6,8 @@ import { CircuitBackground } from "@/components/circuit-traces";
 import { Card } from "@/components/ui/card";
 import { CARD_IMAGE_ZOOM, CARD_LIFT } from "@/components/card-interaction";
 import { cn } from "@/lib/utils";
-import { apiFetch } from "@/lib/api-client";
 import { useCategories } from "@/lib/categories";
-import type { ApiProduct } from "@/lib/product-api";
+import { catalogQuery } from "@/lib/product-api";
 import { absoluteUrl } from "@/lib/site-url";
 
 export const Route = createFileRoute("/collections")({
@@ -35,12 +34,7 @@ export const Route = createFileRoute("/collections")({
 
 function CollectionsPage() {
   const { data: categories = [] } = useCategories();
-  // Shared queryKey with catalog.tsx / quotes.tsx / chat-panel.tsx.
-  const { data: products = [] } = useQuery({
-    queryKey: ["products", "list"],
-    queryFn: () => apiFetch<{ data: ApiProduct[] }>("/products?limit=100"),
-    select: (res) => res.data,
-  });
+  const { data: products = [] } = useQuery({ ...catalogQuery, select: (res) => res.data });
 
   return (
     <PublicShell>

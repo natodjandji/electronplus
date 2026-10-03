@@ -10,8 +10,12 @@ import { Collections } from '../../firebase/firestore-collections';
 import { FirestoreRepository } from '../../firebase/firestore.repository';
 import { CategoriesService } from '../products/categories.service';
 import { Product } from '../products/entities/product.entity';
-import { ProductsService } from '../products/products.service';
-import { PROFIT_PLUS_ADAPTER, ProfitPlusAdapter } from './adapters/profit-plus-adapter.interface';
+import { ErpCatalogChanges, ProductsService } from '../products/products.service';
+import {
+  ErpNotConfiguredError,
+  PROFIT_PLUS_ADAPTER,
+  ProfitPlusAdapter,
+} from './adapters/profit-plus-adapter.interface';
 import { SyncDirection, SyncLog, SyncStatus, syncLogExpiresAt } from './entities/sync-log.entity';
 
 /**
@@ -55,9 +59,11 @@ export class SyncService implements OnModuleInit {
   onModuleInit(): void {
     const cronExpression = this.config.get('PROFIT_PLUS_SYNC_CRON', { infer: true });
     const job = new CronJob(cronExpression, () => {
-      this.runInboundSync().catch((error) =>
-        this.logger.error('Scheduled inbound sync failed', error as Error),
-      );
+      this.runInboundSync().catch((error) => {
+        // Expected until the bridge is deployed — not worth an error per tick.
+        if (error instanceof ErpNotConfiguredError) this.logger.warn(error.message);
+        else this.logger.error('Scheduled inbound sync failed', error as Error);
+      });
     });
     this.schedulerRegistry.addCronJob(INBOUND_CRON_JOB_NAME, job);
     job.start();
@@ -74,9 +80,10 @@ export class SyncService implements OnModuleInit {
     try {
       const items = await this.adapter.fetchInventory();
 
-      // One read for the whole run — every item below is matched against
-      // these in-memory maps instead of querying Firestore per item.
+      // Matched in memory against the catalog snapshot (about one read for
+      // the whole run) instead of querying Firestore per item.
       const { byErpExternalId, bySku } = await this.productsService.findAllForErpMatching();
+      const catalogChanges: ErpCatalogChanges = { put: [], merge: [], remove: [] };
 
       // Resolve each distinct category code exactly once — sharing the
       // in-flight promise across items with the same code avoids both N
@@ -110,9 +117,12 @@ export class SyncService implements OnModuleInit {
               specs: item.specs,
             },
             existing,
+            catalogChanges,
           );
         }),
       );
+      // One snapshot update for the whole run, not one per product.
+      await this.productsService.applyCatalogChanges(catalogChanges);
 
       const fulfilled = results.filter(
         (r): r is PromiseFulfilledResult<{ product: Product; wrote: boolean }> =>
@@ -144,10 +154,15 @@ export class SyncService implements OnModuleInit {
         error: message,
         finishedAt: new Date(),
       });
-      this.events.emit(ERP_SYNC_ERROR_EVENT, {
-        direction: SyncDirection.INBOUND,
-        message,
-      } satisfies ErpSyncErrorEvent);
+      // A bridge that isn't configured yet is a known state, not an
+      // incident — notifying every admin on each cron tick would bury the
+      // real sync errors under dozens of identical ones a day.
+      if (!(error instanceof ErpNotConfiguredError)) {
+        this.events.emit(ERP_SYNC_ERROR_EVENT, {
+          direction: SyncDirection.INBOUND,
+          message,
+        } satisfies ErpSyncErrorEvent);
+      }
       throw error;
     }
   }

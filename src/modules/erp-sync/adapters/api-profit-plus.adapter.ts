@@ -4,6 +4,7 @@ import { EnvConfig } from '../../../config/env.validation';
 import { slugify } from '../../../common/utils/slug';
 import {
   ErpInventoryItem,
+  ErpNotConfiguredError,
   ErpSaleExport,
   ProfitPlusAdapter,
 } from './profit-plus-adapter.interface';
@@ -43,7 +44,7 @@ export class ApiProfitPlusAdapter implements ProfitPlusAdapter {
   private requireBaseUrl(): string {
     const url = this.config.get('PROFIT_PLUS_API_URL', { infer: true });
     if (!url) {
-      throw new Error(
+      throw new ErpNotConfiguredError(
         'PROFIT_PLUS_API_URL no está configurado — apunta al bridge (profit-plus-bridge-principal) una vez desplegado.',
       );
     }
@@ -53,7 +54,7 @@ export class ApiProfitPlusAdapter implements ProfitPlusAdapter {
   private requireHeaders(): Record<string, string> {
     const apiKey = this.config.get('PROFIT_PLUS_API_KEY', { infer: true });
     if (!apiKey) {
-      throw new Error('PROFIT_PLUS_API_KEY no está configurado.');
+      throw new ErpNotConfiguredError('PROFIT_PLUS_API_KEY no está configurado.');
     }
     return { Authorization: `Bearer ${apiKey}` };
   }

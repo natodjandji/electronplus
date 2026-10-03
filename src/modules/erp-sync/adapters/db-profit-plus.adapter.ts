@@ -1,6 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import {
   ErpInventoryItem,
+  ErpNotConfiguredError,
   ErpSaleExport,
   ProfitPlusAdapter,
 } from './profit-plus-adapter.interface';
@@ -14,7 +15,7 @@ import {
 @Injectable()
 export class DbProfitPlusAdapter implements ProfitPlusAdapter {
   fetchInventory(): Promise<ErpInventoryItem[]> {
-    throw new Error(
+    throw new ErpNotConfiguredError(
       'DbProfitPlusAdapter is not implemented yet — configure Profit Plus DB access first.',
     );
   }

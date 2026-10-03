@@ -16,6 +16,11 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { apiFetch, reportError } from "@/lib/api-client";
+import {
+  SECOND_STORE_PRODUCTS_KEY,
+  type SecondStoreProduct,
+  useSecondStoreProducts,
+} from "@/lib/second-store";
 import { formatMoneyAdmin } from "@/lib/electron-store";
 import { toast } from "sonner";
 
@@ -31,27 +36,6 @@ export const Route = createFileRoute("/admin/second-store-inventory")({
   }),
   component: SecondStoreInventoryPage,
 });
-
-interface SecondStoreProduct {
-  id: string;
-  name: string;
-  code?: string;
-  stock: number;
-  retailPrice?: number;
-  wholesalePrice?: number;
-  linkedProductId?: string;
-  linkedProduct: { id: string; sku: string; name: string; stock: number } | null;
-}
-
-// Shares its queryKey/cache with the "Tienda secundaria" link dialog in
-// admin.inventory.tsx — same GET /second-store-products, one fetch either
-// page loads first primes the other.
-function useSecondStoreProducts() {
-  return useQuery({
-    queryKey: ["admin", "second-store-products"],
-    queryFn: () => apiFetch<SecondStoreProduct[]>("/second-store-products"),
-  });
-}
 
 // The bridge sync keeps this catalog in the thousands of rows — rendering
 // all of them unfiltered would mean thousands of <tr> with no virtualization
@@ -161,8 +145,7 @@ function EditDialog({ item, onClose }: { item: SecondStoreProduct; onClose: () =
   const [retailPrice, setRetailPrice] = useState(item.retailPrice ?? 0);
   const [wholesalePrice, setWholesalePrice] = useState(item.wholesalePrice ?? 0);
 
-  const invalidate = () =>
-    queryClient.invalidateQueries({ queryKey: ["admin", "second-store-products"] });
+  const invalidate = () => queryClient.invalidateQueries({ queryKey: SECOND_STORE_PRODUCTS_KEY });
 
   const dirty =
     name !== item.name ||

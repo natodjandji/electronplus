@@ -49,8 +49,8 @@ function useNotifications() {
     queryFn: () => apiFetch<AppNotification[]>("/notifications"),
     // useRealtimeOpsSync (mounted once at the app root, see __root.tsx)
     // invalidates this on every push over the same socket — this interval
-    // is just a fallback in case a connection ever drops silently.
-    refetchInterval: 60_000,
+    // is just a slow fallback in case a connection ever drops silently.
+    refetchInterval: 5 * 60_000,
   });
 }
 

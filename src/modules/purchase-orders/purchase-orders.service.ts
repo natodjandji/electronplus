@@ -276,7 +276,7 @@ export class PurchaseOrdersService {
       }
     });
 
-    for (const change of stockChanges) this.productsService.emitStockChanged(change);
+    await this.productsService.stockCommitted(stockChanges);
     return this.findById(id);
   }
 

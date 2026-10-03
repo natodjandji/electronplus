@@ -2,6 +2,7 @@ import { ClassSerializerInterceptor, ValidationPipe } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { NestFactory, Reflector } from '@nestjs/core';
 import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
+import compression from 'compression';
 import { json, urlencoded } from 'express';
 import helmet from 'helmet';
 import { AppModule } from './app.module';
@@ -19,6 +20,11 @@ async function bootstrap() {
   // etc.) that Cloud Run/GFE don't add on their own. CSP is left at helmet's
   // default (off) since this is a pure JSON API, not an HTML-serving app.
   app.use(helmet());
+  // Cloud Run serves responses as-is, uncompressed. The storefront catalog
+  // (GET /products/catalog) and the admin inventory lists are thousands of
+  // rows of repetitive JSON — gzip cuts them to a fraction of the bytes
+  // sent, which is both faster on slow mobile data and less billed egress.
+  app.use(compression());
 
   const config = app.get(ConfigService<EnvConfig, true>);
 

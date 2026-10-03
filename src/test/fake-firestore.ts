@@ -1,6 +1,7 @@
 /** Minimal in-memory stand-in for firebase-admin's Firestore, covering just
  * the surface FirestoreRepository and our services touch (collection/doc,
- * get/set/update, and runTransaction). Writes inside a transaction apply
+ * get/set/update/create/delete, getAll, batch, bulkWriter and
+ * runTransaction). Writes inside a transaction apply
  * immediately rather than batching until commit — fine for these tests
  * since nothing here reads its own writes before the transaction returns,
  * but it does NOT model Firestore's real optimistic-concurrency retries.
@@ -10,6 +11,8 @@
  * value, which is the actual bug the fix in orders.service.ts addresses. */
 
 type DocData = Record<string, unknown>;
+
+const readLogs = new WeakMap<Map<string, DocData>, string[]>();
 
 export class FakeDocRef {
   constructor(
@@ -23,6 +26,7 @@ export class FakeDocRef {
   }
 
   private readSnap() {
+    readLogs.get(this.store)?.push(this.path);
     const data = this.store.get(this.path);
     return {
       exists: data !== undefined,
@@ -45,6 +49,16 @@ export class FakeDocRef {
       throw Object.assign(new Error('ALREADY_EXISTS'), { code: 6 });
     }
     this.store.set(this.path, data);
+  }
+
+  /** Mirrors the real SDK: rejects with gRPC code 5 (NOT_FOUND) instead of
+   * creating the doc. */
+  async update(data: DocData) {
+    const existing = this.store.get(this.path);
+    if (existing === undefined) {
+      throw Object.assign(new Error('NOT_FOUND'), { code: 5 });
+    }
+    this.store.set(this.path, { ...existing, ...data });
   }
 
   async delete() {
@@ -114,6 +128,7 @@ class FakeQuery {
     if (this.limitCount !== undefined) {
       docs = docs.slice(0, this.limitCount);
     }
+    readLogs.get(this.store)?.push(...docs.map((d) => `${this.path}/${d.id}`));
 
     return {
       docs: docs.map((d) => ({
@@ -179,8 +194,34 @@ class FakeTransaction {
   }
 }
 
+class FakeWriteBatch {
+  private readonly ops: (() => Promise<void>)[] = [];
+
+  set(ref: FakeDocRef, data: DocData, opts?: { merge?: boolean }) {
+    this.ops.push(() => ref.set(data, opts));
+    return this;
+  }
+
+  delete(ref: FakeDocRef) {
+    this.ops.push(() => ref.delete());
+    return this;
+  }
+
+  async commit() {
+    for (const op of this.ops) await op();
+  }
+}
+
 export class FakeFirestore {
   private readonly store = new Map<string, DocData>();
+  /** Path of every document read — lets tests assert what a code path costs
+   * (Firestore bills per document read). A query counts one read per
+   * returned document, same as the real service. */
+  readonly reads: string[] = [];
+
+  constructor() {
+    readLogs.set(this.store, this.reads);
+  }
 
   collection(path: string) {
     return new FakeCollectionRef(path, this.store);
@@ -188,6 +229,26 @@ export class FakeFirestore {
 
   async runTransaction<T>(fn: (tx: FakeTransaction) => Promise<T>): Promise<T> {
     return fn(new FakeTransaction(this.store));
+  }
+
+  async getAll(...refs: FakeDocRef[]) {
+    return Promise.all(refs.map((ref) => ref.get()));
+  }
+
+  batch() {
+    return new FakeWriteBatch();
+  }
+
+  /** Queues like the real BulkWriter; close() flushes. */
+  bulkWriter() {
+    const batch = new FakeWriteBatch();
+    return {
+      set: (ref: FakeDocRef, data: DocData, opts?: { merge?: boolean }) => {
+        batch.set(ref, data, opts);
+        return Promise.resolve();
+      },
+      close: () => batch.commit(),
+    };
   }
 
   /** Test setup helper — seeds a document directly, bypassing collection/doc. */

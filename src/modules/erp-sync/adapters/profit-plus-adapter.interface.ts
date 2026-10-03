@@ -1,5 +1,9 @@
 export const PROFIT_PLUS_ADAPTER = 'PROFIT_PLUS_ADAPTER';
 
+/** The adapter has no bridge/connection configured yet — an expected state
+ * before go-live, so sync callers log it instead of alerting on it. */
+export class ErpNotConfiguredError extends Error {}
+
 export interface ErpInventoryItem {
   externalId: string;
   sku: string;

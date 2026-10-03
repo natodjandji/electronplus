@@ -2,7 +2,11 @@ export type Product = {
   id: string;
   sku: string;
   name: string;
-  category: "iluminacion" | "cables" | "tableros" | "tomas" | "proteccion";
+  /** Category code — Profit Plus's own categories once the ERP catalog is
+   * live, so not limited to the demo CATEGORIES below. */
+  category: string;
+  /** Display name for `category`, when it came from the API. */
+  categoryLabel?: string;
   retailPrice: number;
   wholesalePrice: number;
   stock: number;

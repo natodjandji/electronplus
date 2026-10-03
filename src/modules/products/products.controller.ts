@@ -8,9 +8,12 @@ import {
   Patch,
   Post,
   Query,
+  Res,
   UseGuards,
 } from '@nestjs/common';
 import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
+import type { Response } from 'express';
+import { cacheIfAnonymous } from '../../common/http/public-cache';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
 import { Roles } from '../../common/decorators/roles.decorator';
 import { Role } from '../../common/enums/role.enum';
@@ -41,7 +44,8 @@ export class ProductsController {
   ) {}
 
   @Get('categories')
-  categories() {
+  categories(@Res({ passthrough: true }) res: Response) {
+    cacheIfAnonymous(res, undefined, 300);
     return this.categoriesService.findAll();
   }
 
@@ -63,12 +67,32 @@ export class ProductsController {
 
   @Get('products')
   @UseGuards(OptionalFirebaseAuthGuard)
-  async findAll(@Query() query: QueryProductsDto, @CurrentUser() user?: AuthenticatedUser) {
+  async findAll(
+    @Query() query: QueryProductsDto,
+    @Res({ passthrough: true }) res: Response,
+    @CurrentUser() user?: AuthenticatedUser,
+  ) {
     const result = await this.productsService.findAll(query);
+    cacheIfAnonymous(res, user);
     return {
       ...result,
       data: result.data.map((p) => toCatalogDto(p, user?.role, this.pricingService)),
     };
+  }
+
+  /** Every active product in one response — the storefront's catalog,
+   * collections, quote builder and chat assistant all filter it in the
+   * browser. Served from memory (ProductsService.activeCatalog), so its
+   * Firestore cost doesn't grow with traffic. */
+  @Get('products/catalog')
+  @UseGuards(OptionalFirebaseAuthGuard)
+  async catalog(
+    @Res({ passthrough: true }) res: Response,
+    @CurrentUser() user?: AuthenticatedUser,
+  ) {
+    const products = await this.productsService.activeCatalog();
+    cacheIfAnonymous(res, user);
+    return { data: products.map((p) => toCatalogDto(p, user?.role, this.pricingService)) };
   }
 
   @Get('products/admin')
@@ -83,16 +107,23 @@ export class ProductsController {
   @UseGuards(OptionalFirebaseAuthGuard)
   async bestSellers(
     @Query('limit') limit: string | undefined,
+    @Res({ passthrough: true }) res: Response,
     @CurrentUser() user?: AuthenticatedUser,
   ) {
     const products = await this.productsService.topSelling(limit ? Number(limit) : undefined);
+    cacheIfAnonymous(res, user);
     return products.map((p) => toCatalogDto(p, user?.role, this.pricingService));
   }
 
   @Get('products/:id')
   @UseGuards(OptionalFirebaseAuthGuard)
-  async findOne(@Param('id') id: string, @CurrentUser() user?: AuthenticatedUser) {
-    const product = await this.productsService.findById(id);
+  async findOne(
+    @Param('id') id: string,
+    @Res({ passthrough: true }) res: Response,
+    @CurrentUser() user?: AuthenticatedUser,
+  ) {
+    const product = await this.productsService.findPublicById(id);
+    cacheIfAnonymous(res, user);
     return toCatalogDto(product, user?.role, this.pricingService);
   }
 

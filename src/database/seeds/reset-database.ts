@@ -11,6 +11,7 @@ import {
   FIRESTORE,
 } from '../../firebase/firebase.constants';
 import { Collections } from '../../firebase/firestore-collections';
+import { SNAPSHOT_SHARDS_SUBCOLLECTION } from '../../firebase/collection-snapshot';
 
 const logger = new Logger('ResetDatabase');
 
@@ -61,6 +62,9 @@ const TRANSACTIONAL_COLLECTIONS = [
   Collections.SALES_DAILY_SUMMARIES,
   Collections.SECOND_STORE_PRODUCTS,
   Collections.EXPENSES,
+  // Derived read indexes (CollectionSnapshot) — always safe to drop, and
+  // must go with the data they index or they'd keep serving deleted rows.
+  Collections.SNAPSHOTS,
 ] as const;
 
 // Subcollections aren't covered by a top-level collection delete — each
@@ -68,6 +72,7 @@ const TRANSACTIONAL_COLLECTIONS = [
 const SUBCOLLECTIONS: { parent: string; sub: string }[] = [
   { parent: Collections.SUPPLIERS_PAYABLES, sub: Collections.SUPPLIER_PAYMENTS },
   { parent: Collections.PURCHASE_ORDERS, sub: Collections.PURCHASE_ORDER_PAYMENTS },
+  { parent: Collections.SNAPSHOTS, sub: SNAPSHOT_SHARDS_SUBCOLLECTION },
 ];
 
 async function deleteCollection(

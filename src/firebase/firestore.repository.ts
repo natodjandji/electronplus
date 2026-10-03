@@ -33,6 +33,20 @@ export interface FindAllOptions {
   offset?: number;
 }
 
+/** Converts every top-level Firestore Timestamp field (createdAt/updatedAt
+ * plus any doc-specific one like paidAt/issuedAt/verifiedAt) to a JS Date —
+ * otherwise it round-trips as a raw {_seconds, _nanoseconds} object. */
+export function snapshotToEntity<T extends FirestoreDoc>(
+  snap: FirebaseFirestore.DocumentSnapshot,
+): T {
+  const data = snap.data()!;
+  const converted: Record<string, unknown> = {};
+  for (const [key, value] of Object.entries(data)) {
+    converted[key] = (value as { toDate?: () => Date })?.toDate?.() ?? value;
+  }
+  return { ...converted, id: snap.id } as T;
+}
+
 /**
  * Thin, typed wrapper over a Firestore collection. Every module service
  * uses this instead of a TypeORM repository — keeps document<->DTO mapping
@@ -58,16 +72,8 @@ export class FirestoreRepository<T extends FirestoreDoc> {
     return this.collection().doc(id);
   }
 
-  /** Converts every top-level Firestore Timestamp field (createdAt/updatedAt
-   * plus any doc-specific one like paidAt/issuedAt/verifiedAt) to a JS Date —
-   * otherwise it round-trips as a raw {_seconds, _nanoseconds} object. */
   private fromSnapshot(snap: FirebaseFirestore.DocumentSnapshot): T {
-    const data = snap.data()!;
-    const converted: Record<string, unknown> = {};
-    for (const [key, value] of Object.entries(data)) {
-      converted[key] = (value as { toDate?: () => Date })?.toDate?.() ?? value;
-    }
-    return { ...converted, id: snap.id } as T;
+    return snapshotToEntity<T>(snap);
   }
 
   async findById(id: string): Promise<T | null> {

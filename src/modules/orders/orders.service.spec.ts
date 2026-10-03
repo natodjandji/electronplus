@@ -60,7 +60,7 @@ describe('OrdersService.cancel', () => {
         name: 'Product 1',
         stock: 12,
       }),
-      emitStockChanged: jest.fn(),
+      stockCommitted: jest.fn().mockResolvedValue(undefined),
     };
   }
 
@@ -79,7 +79,10 @@ describe('OrdersService.cancel', () => {
       expect.objectContaining({ productId: 'p1' }),
       2, // +qty credited back
     );
-    expect(productsService.emitStockChanged).toHaveBeenCalledTimes(1);
+    expect(productsService.stockCommitted).toHaveBeenCalledTimes(1);
+    expect(productsService.stockCommitted).toHaveBeenCalledWith([
+      expect.objectContaining({ productId: 'p1', stock: 12 }),
+    ]);
   });
 
   it('rejects cancelling an order that is already cancelled, without crediting stock again', async () => {
@@ -93,7 +96,7 @@ describe('OrdersService.cancel', () => {
     // requests arriving just after the first one's write landed.
     await service.cancel(orderId);
     productsService.applyStockDelta.mockClear();
-    productsService.emitStockChanged.mockClear();
+    productsService.stockCommitted.mockClear();
 
     await expect(service.cancel(orderId)).rejects.toThrow(BadRequestException);
     await expect(service.cancel(orderId)).rejects.toThrow('This order cannot be cancelled');
@@ -101,7 +104,7 @@ describe('OrdersService.cancel', () => {
     // The guard re-read fresh state from inside the transaction and bailed
     // before touching stock a second time.
     expect(productsService.applyStockDelta).not.toHaveBeenCalled();
-    expect(productsService.emitStockChanged).not.toHaveBeenCalled();
+    expect(productsService.stockCommitted).not.toHaveBeenCalled();
   });
 
   it('rejects cancelling a fulfilled order', async () => {

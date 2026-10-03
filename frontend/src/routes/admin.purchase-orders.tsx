@@ -52,6 +52,7 @@ import {
 import { Separator } from "@/components/ui/separator";
 import { Textarea } from "@/components/ui/textarea";
 import { SupplierPicker, useSuppliers } from "@/components/supplier-picker";
+import { ProductSearchSelect } from "@/components/product-search-select";
 import { apiFetch, ApiError, reportError } from "@/lib/api-client";
 import { formatMoneyAdmin } from "@/lib/electron-store";
 import { formatDate } from "@/lib/format";
@@ -367,26 +368,16 @@ function LineItemsEditor({
   return (
     <>
       <div className="flex flex-wrap items-end gap-3">
-        <div className="grid min-w-64 flex-1 gap-1.5">
-          <Label className="text-xs font-medium text-brand-navy">Agregar producto</Label>
-          <Select value={pick} onValueChange={setPick}>
-            <SelectTrigger>
-              <SelectValue placeholder="Seleccionar producto…" />
-            </SelectTrigger>
-            <SelectContent>
-              {(products?.length ?? 0) === 0 && (
-                <div className="px-2 py-1.5 text-xs text-muted-foreground">
-                  Sin productos para este proveedor
-                </div>
-              )}
-              {products?.map((p) => (
-                <SelectItem key={p.id} value={p.id}>
-                  {p.sku} — {p.name}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        </div>
+        <ProductSearchSelect
+          inputId="po-product-search"
+          label="Agregar producto"
+          products={products ?? []}
+          value={pick}
+          onValueChange={setPick}
+          renderOption={(p) => `${p.sku} — ${p.name}`}
+          emptyHint={products ? "Sin productos para este proveedor" : undefined}
+          className="min-w-64 flex-1"
+        />
         <Button
           type="button"
           onClick={addLine}

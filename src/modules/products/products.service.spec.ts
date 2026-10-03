@@ -244,7 +244,11 @@ describe('ProductsService slug ids', () => {
     const { service, erpItem } = setup();
     const results = await Promise.all(
       ['A', 'B', 'C', 'D'].map((x) =>
-        service.upsertFromErp(erpItem(`ERP-${x}`, 'Tornillo'), undefined),
+        service.upsertFromErp(erpItem(`ERP-${x}`, 'Tornillo'), undefined, {
+          put: [],
+          merge: [],
+          remove: [],
+        }),
       ),
     );
     const ids = results.map((r) => r.product.id).sort();
@@ -276,5 +280,183 @@ describe('ProductsService slug ids', () => {
     const product = await create('Breaker 20A');
     const updated = await service.update(product.id, { name: 'Breaker 20A Bipolar' } as never);
     expect(updated.id).toBe('breaker-20a');
+  });
+});
+
+/** Whole-catalog reads go through the catalog snapshot (CollectionSnapshot)
+ * — these pin down both what they return and what they cost in reads. */
+describe('ProductsService catalog snapshot', () => {
+  const CATEGORY = { id: 'c1', code: 'cables', label: 'Cables' };
+
+  function buildService(firestore: FakeFirestore) {
+    return new ProductsService(
+      firestore as unknown as ConstructorParameters<typeof ProductsService>[0],
+      new EventEmitter2(),
+    );
+  }
+
+  function seedProduct(
+    firestore: FakeFirestore,
+    id: string,
+    overrides: Record<string, unknown> = {},
+  ) {
+    firestore.seed(Collections.PRODUCTS, id, {
+      sku: `SKU-${id}`,
+      name: `Producto ${id}`,
+      stock: 10,
+      active: true,
+      category: CATEGORY,
+      categoryId: CATEGORY.id,
+      retailPrice: 5,
+      wholesalePrice: 4,
+      erpExternalId: `ERP-${id}`,
+      qrToken: `qr-${id}`,
+      ...overrides,
+    });
+  }
+
+  const productReads = (firestore: FakeFirestore) =>
+    firestore.reads.filter((path) => path.startsWith(`${Collections.PRODUCTS}/`));
+
+  it('serves listing, search and product pages from memory once warm', async () => {
+    const firestore = new FakeFirestore();
+    for (let i = 10; i < 40; i++) seedProduct(firestore, `p${i}`);
+    seedProduct(firestore, 'hidden', { active: false });
+    const service = buildService(firestore);
+
+    const page = await service.findAll({ page: 1, limit: 10 } as never);
+    expect(page.total).toBe(30);
+    expect(page.data.map((p) => p.id)).toEqual(Array.from({ length: 10 }, (_, i) => `p${10 + i}`));
+
+    firestore.reads.length = 0;
+    const search = await service.findAll({ page: 1, limit: 10, search: 'p2' } as never);
+    expect(search.total).toBe(10);
+    expect((await service.findPublicById('p33')).name).toBe('Producto p33');
+    expect(await service.activeCatalog()).toHaveLength(30);
+    expect(firestore.reads).toHaveLength(0);
+  });
+
+  it('shows admin writes immediately, on this instance and the next one', async () => {
+    const firestore = new FakeFirestore();
+    firestore.seed(Collections.CATEGORIES, CATEGORY.id, CATEGORY);
+    seedProduct(firestore, 'old');
+    const service = buildService(firestore);
+    await service.activeCatalog();
+
+    const created = await service.create({
+      sku: 'NEW',
+      name: 'Breaker 20A',
+      categoryId: CATEGORY.id,
+      retailPrice: 9,
+      wholesalePrice: 8,
+    } as never);
+    await service.update('old', { name: 'Renombrado' } as never);
+    await service.adjustStock('old', { delta: -4 } as never);
+
+    const names = (await service.activeCatalog()).map((p) => p.name);
+    expect(names).toEqual(['Breaker 20A', 'Renombrado']);
+
+    const otherInstance = buildService(firestore);
+    const admin = await otherInstance.adminFindAll({} as never);
+    expect(admin.find((p) => p.id === 'old')).toMatchObject({ name: 'Renombrado', stock: 6 });
+
+    await service.delete(created.id);
+    expect((await otherInstance.adminFindAll({} as never)).map((p) => p.id)).toEqual(['old']);
+  });
+
+  it('ERP upserts: unchanged items cost nothing, changes reach the snapshot, manual cost survives', async () => {
+    const firestore = new FakeFirestore();
+    seedProduct(firestore, 'cable', { cost: 3, stock: 1 });
+    const service = buildService(firestore);
+    const { byErpExternalId } = await service.findAllForErpMatching();
+    const existing = byErpExternalId.get('ERP-cable')!;
+    const item = {
+      externalId: 'ERP-cable',
+      sku: existing.sku,
+      name: existing.name,
+      categoryId: CATEGORY.id,
+      category: CATEGORY,
+      retailPrice: 5,
+      wholesalePrice: 4,
+      stock: 1,
+    };
+
+    firestore.reads.length = 0;
+    const changes = { put: [], merge: [], remove: [] };
+    const unchanged = await service.upsertFromErp(item, existing, changes);
+    expect(unchanged.wrote).toBe(false);
+
+    const changed = await service.upsertFromErp({ ...item, stock: 7 }, existing, changes);
+    expect(changed.wrote).toBe(true);
+    expect(productReads(firestore)).toHaveLength(0);
+    await service.applyCatalogChanges(changes);
+
+    expect(firestore.read(Collections.PRODUCTS, 'cable')).toMatchObject({ stock: 7, cost: 3 });
+    const fromSnapshot = (await buildService(firestore).adminFindAll({} as never))[0];
+    expect(fromSnapshot).toMatchObject({ stock: 7, cost: 3 });
+  });
+
+  it('ERP upsert of a product deleted since the snapshot recreates it whole', async () => {
+    const firestore = new FakeFirestore();
+    seedProduct(firestore, 'producto-borrado', { name: 'Producto borrado' });
+    const service = buildService(firestore);
+    const { byErpExternalId } = await service.findAllForErpMatching();
+    const existing = byErpExternalId.get('ERP-producto-borrado')!;
+    await firestore.collection(Collections.PRODUCTS).doc('producto-borrado').delete();
+
+    const changes = { put: [], merge: [], remove: [] };
+    const result = await service.upsertFromErp(
+      {
+        externalId: 'ERP-producto-borrado',
+        sku: 'SKU-x',
+        name: 'Producto borrado',
+        categoryId: CATEGORY.id,
+        category: CATEGORY,
+        retailPrice: 6,
+        wholesalePrice: 5,
+        stock: 2,
+      },
+      existing,
+      changes,
+    );
+    await service.applyCatalogChanges(changes);
+
+    expect(result.product.id).toBe('producto-borrado');
+    expect(firestore.read(Collections.PRODUCTS, 'producto-borrado')).toMatchObject({
+      active: true,
+      stock: 2,
+    });
+    const listed = await buildService(firestore).adminFindAll({} as never);
+    expect(listed.map((p) => p.id)).toEqual(['producto-borrado']);
+  });
+
+  it('best sellers: ranks once, shares the ranking, and fills from the catalog', async () => {
+    const firestore = new FakeFirestore();
+    for (const id of ['a', 'b', 'c', 'd']) seedProduct(firestore, id);
+    seedProduct(firestore, 'inactive', { active: false });
+    const recent = new Date();
+    firestore.seed(Collections.ORDERS, 'o1', {
+      status: 'paid',
+      createdAt: recent,
+      items: [
+        { productId: 'c', qty: 5 },
+        { productId: 'inactive', qty: 50 },
+      ],
+    });
+    firestore.seed(Collections.ORDERS, 'o2', {
+      status: 'paid',
+      createdAt: recent,
+      items: [{ productId: 'b', qty: 2 }],
+    });
+
+    const top = await buildService(firestore).topSelling(3);
+    expect(top.map((p) => p.id)).toEqual(['c', 'b', 'a']);
+
+    firestore.reads.length = 0;
+    const again = await buildService(firestore).topSelling(3);
+    expect(again.map((p) => p.id)).toEqual(['c', 'b', 'a']);
+    expect(
+      firestore.reads.filter((path) => path.startsWith(`${Collections.ORDERS}/`)),
+    ).toHaveLength(0);
   });
 });

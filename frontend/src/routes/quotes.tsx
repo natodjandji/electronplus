@@ -47,6 +47,7 @@ import { apiFetch, ApiError, reportError } from "@/lib/api-client";
 import { useAuth } from "@/lib/auth-context";
 import { formatMoney } from "@/lib/electron-store";
 import { formatDate } from "@/lib/format";
+import { catalogQuery } from "@/lib/product-api";
 import {
   paymentMethodLabel,
   usePaymentMethods,
@@ -56,6 +57,7 @@ import { computeTotal, computeWholesaleTotal } from "@/lib/quote-totals";
 import { formatBs, useBcvRate } from "@/lib/use-bcv-rate";
 import { formatTaxId, validateTaxIdNumber, type TaxIdPrefix } from "@/lib/venezuelan-tax-id";
 import { TaxIdField } from "@/components/tax-id-field";
+import { ProductSearchSelect } from "@/components/product-search-select";
 import { toast } from "sonner";
 
 export const Route = createFileRoute("/quotes")({
@@ -135,13 +137,8 @@ function useMyQuotes(enabled: boolean) {
   });
 }
 
-// Shared queryKey with catalog.tsx / collections.tsx / chat-panel.tsx.
 function useProductPicker() {
-  return useQuery({
-    queryKey: ["products", "list"],
-    queryFn: () => apiFetch<{ data: CatalogProduct[] }>("/products?limit=100"),
-    select: (res) => res.data,
-  });
+  return useQuery({ ...catalogQuery, select: (res): CatalogProduct[] => res.data });
 }
 
 function QuotesPage() {
@@ -750,30 +747,16 @@ function QuoteBuilder({ id, onBack }: { id: string; onBack: () => void }) {
               </div>
 
               <div className="mt-4 flex flex-wrap items-end gap-3 print:hidden">
-                <div className="grid flex-1 gap-1.5 min-w-64">
-                  <Label className="text-xs font-medium text-brand-navy">Agregar producto</Label>
-                  <Select
-                    value={pick}
-                    onValueChange={setPick}
-                    disabled={availableProducts.length === 0}
-                  >
-                    <SelectTrigger>
-                      <SelectValue placeholder="Seleccionar producto…" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {availableProducts.map((p) => (
-                        <SelectItem key={p.id} value={p.id}>
-                          {p.name} — {p.sku} · {formatMoney(p.retailPrice)}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                  {products && availableProducts.length === 0 && (
-                    <p className="text-xs text-muted-foreground">
-                      Ya agregaste todos los productos disponibles.
-                    </p>
-                  )}
-                </div>
+                <ProductSearchSelect
+                  inputId="quote-product-search"
+                  label="Agregar producto"
+                  products={availableProducts}
+                  value={pick}
+                  onValueChange={setPick}
+                  renderOption={(p) => `${p.name} — ${p.sku} · ${formatMoney(p.retailPrice)}`}
+                  emptyHint={products ? "Ya agregaste todos los productos disponibles." : undefined}
+                  className="min-w-64 flex-1"
+                />
                 <Button
                   onClick={addLine}
                   disabled={!pick || busy || availableProducts.length === 0}

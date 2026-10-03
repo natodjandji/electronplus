@@ -47,6 +47,11 @@ import {
 import { Switch } from "@/components/ui/switch";
 import { SupplierPicker, useSuppliers } from "@/components/supplier-picker";
 import { apiFetch, ApiError, reportError } from "@/lib/api-client";
+import {
+  SECOND_STORE_PRODUCTS_KEY,
+  type SecondStoreProduct,
+  useSecondStoreProducts,
+} from "@/lib/second-store";
 import { uploadProductImage } from "@/lib/image-compress";
 import { formatMoneyAdmin } from "@/lib/electron-store";
 import { toast } from "sonner";
@@ -81,17 +86,6 @@ interface AdminProduct {
   active: boolean;
 }
 
-interface SecondStoreProduct {
-  id: string;
-  name: string;
-  code?: string;
-  stock: number;
-  retailPrice?: number;
-  wholesalePrice?: number;
-  linkedProductId?: string;
-  linkedProduct: { id: string; sku: string; name: string; stock: number } | null;
-}
-
 // search="" shares its queryKey/cache with admin.index.tsx, admin.stock.tsx,
 // and admin.suppliers.tsx's unfiltered GET /products/admin.
 function useAdminProducts(search: string) {
@@ -101,13 +95,6 @@ function useAdminProducts(search: string) {
       apiFetch<AdminProduct[]>(
         `/products/admin${search ? `?search=${encodeURIComponent(search)}` : ""}`,
       ),
-  });
-}
-
-function useSecondStoreProducts() {
-  return useQuery({
-    queryKey: ["admin", "second-store-products"],
-    queryFn: () => apiFetch<SecondStoreProduct[]>("/second-store-products"),
   });
 }
 
@@ -339,7 +326,7 @@ function SecondStoreLinkDialog({
   const { data: allSecondStore } = useSecondStoreProducts();
 
   const invalidate = () => {
-    queryClient.invalidateQueries({ queryKey: ["admin", "second-store-products"] });
+    queryClient.invalidateQueries({ queryKey: SECOND_STORE_PRODUCTS_KEY });
   };
 
   const unlinked = (allSecondStore ?? [])

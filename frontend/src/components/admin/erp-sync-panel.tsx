@@ -20,6 +20,9 @@ interface SyncLog {
   error?: string;
 }
 
+const RUNNING_POLL_MS = 10_000;
+const IDLE_POLL_MS = 5 * 60_000;
+
 interface SyncStatusResponse {
   lastInbound: SyncLog | null;
   adapterHealthy: boolean;
@@ -73,17 +76,20 @@ function SyncStatusPanel({
 }) {
   const queryClient = useQueryClient();
 
+  // The inbound sync runs on its own cron — poll so a stuck/failed run shows
+  // up without a manual refresh. Closely only while a run is in progress:
+  // a steady 30s poll of both endpoints cost ~1.5k reads an hour per open tab.
   const { data: status, isLoading: statusLoading } = useQuery({
     queryKey: ["admin", queryKeyPrefix, "status"],
     queryFn: () => apiFetch<SyncStatusResponse>(statusPath),
-    // The inbound sync runs on its own cron every ~15 min — poll so a
-    // stuck/failed run shows up here without needing a manual refresh.
-    refetchInterval: 30_000,
+    refetchInterval: (query) =>
+      query.state.data?.lastInbound?.status === "running" ? RUNNING_POLL_MS : IDLE_POLL_MS,
   });
+  const syncRunning = status?.lastInbound?.status === "running";
   const { data: logs, isLoading: logsLoading } = useQuery({
     queryKey: ["admin", queryKeyPrefix, "logs"],
     queryFn: () => apiFetch<SyncLog[]>(logsPath),
-    refetchInterval: 30_000,
+    refetchInterval: syncRunning ? RUNNING_POLL_MS : IDLE_POLL_MS,
   });
 
   const trigger = useMutation({

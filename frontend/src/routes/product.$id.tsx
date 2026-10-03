@@ -26,8 +26,14 @@ import { formatBs, useBcvRate } from "@/lib/use-bcv-rate";
 import { absoluteUrl, OG_IMAGE, SITE_URL } from "@/lib/site-url";
 import { safeJsonLd } from "@/lib/text";
 
-function categoryLabel(category: Product["category"]): string {
-  return CATEGORIES.find((c) => c.id === category)?.label ?? "Material eléctrico";
+/** The API's own label first — Profit Plus categories aren't in the demo
+ * CATEGORIES list. */
+function categoryLabel(product: Pick<Product, "category" | "categoryLabel">): string {
+  return (
+    product.categoryLabel ??
+    CATEGORIES.find((c) => c.id === product.category)?.label ??
+    "Material eléctrico"
+  );
 }
 
 /** Meta/JSON-LD description for a product. `specs` is the ideal source but is
@@ -35,10 +41,12 @@ function categoryLabel(category: Product["category"]): string {
  * Google drops it and picks arbitrary page text instead. Builds a sentence
  * from the fields every product does have, trimmed to the ~155 chars search
  * results actually render. */
-function productDescription(product: Pick<Product, "name" | "specs" | "category">): string {
+function productDescription(
+  product: Pick<Product, "name" | "specs" | "category" | "categoryLabel">,
+): string {
   const base = product.specs?.trim()
     ? product.specs.trim()
-    : `${product.name} — ${categoryLabel(product.category)} disponible en Electron Plus con precio detal y mayorista, cotización en línea y despacho nacional.`;
+    : `${product.name} — ${categoryLabel(product)} disponible en Electron Plus con precio detal y mayorista, cotización en línea y despacho nacional.`;
   return base.length > 155 ? `${base.slice(0, 152).trimEnd()}…` : base;
 }
 
@@ -50,7 +58,7 @@ function buildProductJsonLd(product: Product) {
     sku: product.sku,
     mpn: product.sku,
     description: productDescription(product),
-    category: categoryLabel(product.category),
+    category: categoryLabel(product),
     // Google's Product rich-result guidance wants a brand; the catalog has no
     // per-item manufacturer field, so the seller stands in rather than
     // omitting a recommended property.

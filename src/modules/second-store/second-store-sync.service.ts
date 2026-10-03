@@ -9,6 +9,7 @@ import { FIRESTORE } from '../../firebase/firebase.constants';
 import { Collections } from '../../firebase/firestore-collections';
 import { FirestoreRepository } from '../../firebase/firestore.repository';
 import { SecondStoreProduct } from './entities/second-store-product.entity';
+import { SECOND_STORE_LOAD, SecondStoreIndex } from './second-store-index';
 import {
   SecondStoreSyncLog,
   SecondStoreSyncStatus,
@@ -79,6 +80,7 @@ export class SecondStoreSyncService implements OnModuleInit {
     @Inject(FIRESTORE) private readonly firestore: Firestore,
     private readonly schedulerRegistry: SchedulerRegistry,
     private readonly config: ConfigService<EnvConfig, true>,
+    private readonly index: SecondStoreIndex,
   ) {
     this.repo = new FirestoreRepository<SecondStoreProduct>(
       firestore,
@@ -134,10 +136,9 @@ export class SecondStoreSyncService implements OnModuleInit {
       }
       const data = (await res.json()) as BridgeResponse;
 
-      // Una sola lectura para toda la corrida — cada artículo del bridge se
-      // resuelve en memoria contra estos mapas en vez de una query por
-      // artículo (mismo patrón ya usado en el sync de la tienda principal).
-      const existing = await this.repo.findAll();
+      // Se compara contra el snapshot compacto (SecondStoreIndex) — cerca de
+      // una lectura por corrida, en vez de leer los ~5.4k documentos cada vez.
+      const existing = await this.index.load(SECOND_STORE_LOAD);
       const byCode = new Map(existing.filter((p) => p.code).map((p) => [p.code!, p]));
       const byName = new Map(existing.map((p) => [p.name.trim().toLowerCase(), p]));
 
@@ -150,6 +151,10 @@ export class SecondStoreSyncService implements OnModuleInit {
       const writer = this.firestore.bulkWriter();
       const collection = this.repo.collection();
       const now = FieldValue.serverTimestamp();
+      // Same writes, mirrored into the snapshot once the batch lands.
+      const syncedAt = new Date();
+      const put: SecondStoreProduct[] = [];
+      const merge: { id: string; fields: Partial<SecondStoreProduct> }[] = [];
 
       let created = 0;
       let updated = 0;
@@ -164,7 +169,9 @@ export class SecondStoreSyncService implements OnModuleInit {
         };
 
         if (!match) {
-          void writer.set(collection.doc(), { ...fields, createdAt: now, updatedAt: now });
+          const ref = collection.doc();
+          void writer.set(ref, { ...fields, createdAt: now, updatedAt: now });
+          put.push({ id: ref.id, ...fields, createdAt: syncedAt, updatedAt: syncedAt });
           created++;
           continue;
         }
@@ -182,13 +189,21 @@ export class SecondStoreSyncService implements OnModuleInit {
 
         if (changed) {
           void writer.set(collection.doc(match.id), { ...fields, updatedAt: now }, { merge: true });
+          merge.push({ id: match.id, fields: { ...fields, updatedAt: syncedAt } });
           updated++;
         }
       }
       // Throws if any queued write ultimately failed after BulkWriter's own
       // retries, so a partial sync surfaces as an ERROR log rather than
-      // being silently reported as a success below.
-      await writer.close();
+      // being silently reported as a success below. Which writes landed is
+      // unknown then, so the snapshot is dropped and rebuilt from the docs.
+      try {
+        await writer.close();
+      } catch (error) {
+        await this.index.invalidate();
+        throw error;
+      }
+      await this.index.apply({ put, merge });
 
       const result: SecondStoreSyncResult = {
         fromBridge: data.productos.length,

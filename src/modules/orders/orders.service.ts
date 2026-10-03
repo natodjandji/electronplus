@@ -185,7 +185,7 @@ export class OrdersService {
       return { orderId: orderRef.id, stockChanges };
     });
 
-    for (const change of stockChanges) this.productsService.emitStockChanged(change);
+    await this.productsService.stockCommitted(stockChanges);
     const order = await this.repo.getOrThrow(orderId);
 
     let payment: Payment;
@@ -315,7 +315,7 @@ export class OrdersService {
       return { orderId: orderRef.id, stockChanges };
     });
 
-    for (const change of stockChanges) this.productsService.emitStockChanged(change);
+    await this.productsService.stockCommitted(stockChanges);
     const order = await this.repo.getOrThrow(orderId);
 
     let payment: Payment;
@@ -403,7 +403,7 @@ export class OrdersService {
       tx.delete(orderRef);
       return changes;
     });
-    for (const change of stockChanges) this.productsService.emitStockChanged(change);
+    await this.productsService.stockCommitted(stockChanges);
   }
 
   findMine(user: AuthenticatedUser): Promise<Order[]> {
@@ -504,7 +504,7 @@ export class OrdersService {
       return changes;
     });
 
-    for (const change of stockChanges) this.productsService.emitStockChanged(change);
+    await this.productsService.stockCommitted(stockChanges);
     const order = await this.repo.getOrThrow(orderId);
     this.events.emit(ORDER_STATUS_CHANGED_EVENT, {
       orderId: order.id,

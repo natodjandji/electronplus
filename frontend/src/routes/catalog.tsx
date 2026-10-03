@@ -25,24 +25,16 @@ import {
 import { PriceTag } from "@/components/price-tag";
 import { ProductImage } from "@/components/product-image";
 import { QuantityStepper } from "@/components/quantity-stepper";
-import { CATEGORIES, type Product } from "@/lib/mock-data";
-import { apiFetch } from "@/lib/api-client";
-import { type ApiProduct, toProduct } from "@/lib/product-api";
-import { useElectronStore } from "@/lib/electron-store";
+import type { Product } from "@/lib/mock-data";
+import { catalogQuery, toProduct } from "@/lib/product-api";
+import { formatMoney, useElectronStore } from "@/lib/electron-store";
 import { formatBs, useBcvRate } from "@/lib/use-bcv-rate";
 import { absoluteUrl } from "@/lib/site-url";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
 
-// Shared queryKey with collections.tsx / quotes.tsx / chat-panel.tsx — all
-// hit the same GET /products?limit=100, so they read one cached response
-// (each with its own `select`) instead of one fetch per page.
 function useCatalogProducts() {
-  return useQuery({
-    queryKey: ["products", "list"],
-    queryFn: () => apiFetch<{ data: ApiProduct[] }>("/products?limit=100"),
-    select: (res) => res.data.map(toProduct),
-  });
+  return useQuery({ ...catalogQuery, select: (res) => res.data.map(toProduct) });
 }
 
 export const Route = createFileRoute("/catalog")({
@@ -73,6 +65,17 @@ export const Route = createFileRoute("/catalog")({
 
 const PAGE_SIZE = 9;
 
+/** The slider's selection clamped to the current ceiling (the catalog can
+ * shrink under it), and whether it actually narrows anything. */
+function effectivePriceRange(
+  selected: [number, number] | null,
+  ceiling: number,
+): { range: [number, number]; active: boolean } {
+  if (!selected) return { range: [0, ceiling], active: false };
+  const range: [number, number] = [Math.min(selected[0], ceiling), Math.min(selected[1], ceiling)];
+  return { range, active: range[0] > 0 || range[1] < ceiling };
+}
+
 function CatalogPage() {
   const { q: initialQ, category: initialCategory } = Route.useSearch();
   const { priceFor, cart, addToCart, updateQty, removeFromCart } = useElectronStore();
@@ -81,35 +84,56 @@ function CatalogPage() {
   const [q, setQ] = useState(initialQ ?? "");
   const [cats, setCats] = useState<string[]>(initialCategory ? [initialCategory] : []);
   const [onlyAvailable, setOnlyAvailable] = useState(false);
-  const [range, setRange] = useState<[number, number]>([0, 100]);
+  // null = no price filter. The slider's ceiling follows the catalog's
+  // priciest product — a fixed 0–100 range silently hid everything above
+  // REF 100 even with no filter touched.
+  const [priceRange, setPriceRange] = useState<[number, number] | null>(null);
   const [view, setView] = useState<"grid" | "list">("grid");
   const [page, setPage] = useState(1);
 
+  const priceCeiling = useMemo(
+    () =>
+      Math.max(1, Math.ceil((products ?? []).reduce((max, p) => Math.max(max, priceFor(p)), 0))),
+    [products, priceFor],
+  );
+  const { range, active: priceFiltered } = effectivePriceRange(priceRange, priceCeiling);
+
   const filtered = useMemo(() => {
+    const needle = q.toLowerCase();
+    const price = effectivePriceRange(priceRange, priceCeiling);
     return (products ?? []).filter((p) => {
-      if (q && !`${p.name} ${p.sku}`.toLowerCase().includes(q.toLowerCase())) return false;
+      if (needle && !`${p.name} ${p.sku}`.toLowerCase().includes(needle)) return false;
       if (cats.length && !cats.includes(p.category)) return false;
       if (onlyAvailable && p.stock <= 0) return false;
-      const price = priceFor(p);
-      if (price < range[0] || price > range[1]) return false;
+      if (price.active) {
+        const value = priceFor(p);
+        if (value < price.range[0] || value > price.range[1]) return false;
+      }
       return true;
     });
-  }, [products, q, cats, onlyAvailable, range, priceFor]);
+  }, [products, q, cats, onlyAvailable, priceRange, priceCeiling, priceFor]);
 
+  // Straight from the data: Profit Plus defines its own categories, so a
+  // hardcoded list would leave the real ones without a filter.
   const availableCategories = useMemo(() => {
-    const withProducts = new Set((products ?? []).map((p) => p.category));
-    return CATEGORIES.filter((c) => withProducts.has(c.id));
+    const labels = new Map<string, string>();
+    for (const p of products ?? []) {
+      if (!labels.has(p.category)) labels.set(p.category, p.categoryLabel ?? p.category);
+    }
+    return [...labels]
+      .map(([id, label]) => ({ id, label }))
+      .sort((a, b) => a.label.localeCompare(b.label, "es"));
   }, [products]);
 
   useEffect(() => {
     setPage(1);
-  }, [q, cats, onlyAvailable, range]);
+  }, [q, cats, onlyAvailable, priceRange]);
 
   const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
   const currentPage = Math.min(page, totalPages);
   const paged = filtered.slice((currentPage - 1) * PAGE_SIZE, currentPage * PAGE_SIZE);
 
-  const activeFilterCount = (onlyAvailable ? 1 : 0) + (range[0] > 0 || range[1] < 100 ? 1 : 0);
+  const activeFilterCount = (onlyAvailable ? 1 : 0) + (priceFiltered ? 1 : 0);
 
   const handleQtyChange = (p: Product, currentQty: number, nextQty: number) => {
     if (nextQty <= 0) {
@@ -182,7 +206,7 @@ function CatalogPage() {
                     </button>
                   )}
                 </div>
-                <div className="space-y-2">
+                <div className="-mr-2 max-h-72 space-y-2 overflow-y-auto pr-2">
                   {availableCategories.map((c) => (
                     <label key={c.id} className="flex items-center gap-2 text-sm text-brand-navy">
                       <Checkbox
@@ -217,14 +241,15 @@ function CatalogPage() {
                   </div>
                   <Slider
                     value={range}
-                    onValueChange={(v) => setRange([v[0], v[1]] as [number, number])}
+                    onValueChange={(v) => setPriceRange([v[0], v[1]])}
                     min={0}
-                    max={100}
+                    max={priceCeiling}
                     step={1}
+                    thumbLabels={["Precio mínimo", "Precio máximo"]}
                   />
-                  <div className="mt-2 flex justify-between text-xs text-muted-foreground">
-                    <span>${range[0]}</span>
-                    <span>${range[1]}</span>
+                  <div className="mt-2 flex justify-between text-xs tabular-nums text-muted-foreground">
+                    <span>{formatMoney(range[0])}</span>
+                    <span>{formatMoney(range[1])}</span>
                   </div>
                 </div>
                 <label className="flex items-center gap-2 text-sm text-brand-navy">
@@ -238,7 +263,7 @@ function CatalogPage() {
                   <button
                     onClick={() => {
                       setOnlyAvailable(false);
-                      setRange([0, 100]);
+                      setPriceRange(null);
                     }}
                     className="mt-4 text-xs font-medium text-brand-blue hover:underline"
                   >

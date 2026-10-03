@@ -5,6 +5,9 @@ import { io, type Socket } from "socket.io-client";
 import { API_ORIGIN } from "./api-client";
 import { auth } from "./firebase";
 import { useElectronStore } from "./electron-store";
+import { SECOND_STORE_PRODUCTS_KEY } from "./second-store";
+
+const STOCK_REFRESH_SETTLE_MS = 1500;
 
 export const NOTIFICATIONS_KEY = ["admin", "notifications"];
 
@@ -43,12 +46,22 @@ export function useRealtimeOpsSync() {
       // (admin.inventory/.index/.stock/.suppliers/.labels all share it)
       // and the second-store catalog, wherever either is currently mounted.
       queryClient.invalidateQueries({ queryKey: ["admin", "products"] });
-      queryClient.invalidateQueries({ queryKey: ["admin", "second-store-products"] });
+      queryClient.invalidateQueries({ queryKey: SECOND_STORE_PRODUCTS_KEY });
       // Covers product.$id.tsx: its stock figure comes from the route
       // loader, not a React Query cache, so it needs the router's own
       // invalidation to refetch — same call the root error screen's
       // "Reintentar" button already uses (see __root.tsx).
       void router.invalidate();
+    };
+
+    // One ERP sync run can move stock on hundreds of products, each its own
+    // stock.changed event. Refetching per event re-downloaded both admin
+    // catalogs hundreds of times in a few seconds — wait for the burst to
+    // settle and refetch once.
+    let stockRefreshTimer: ReturnType<typeof setTimeout> | undefined;
+    const scheduleStockRefresh = () => {
+      clearTimeout(stockRefreshTimer);
+      stockRefreshTimer = setTimeout(invalidateStock, STOCK_REFRESH_SETTLE_MS);
     };
 
     void (async () => {
@@ -59,21 +72,22 @@ export function useRealtimeOpsSync() {
         transports: ["websocket"],
       });
       socket.on("notification.created", invalidateNotifications);
-      socket.on("stock.changed", invalidateStock);
+      socket.on("stock.changed", scheduleStockRefresh);
       // Catch-up on reconnect instead of polling on a timer. Socket.IO
       // reconnects on its own, and any stock.changed emitted while the
       // connection was down was missed — one invalidation on `reconnect`
       // closes that gap exactly when it matters.
       //
-      // Deliberately NOT a setInterval: invalidateStock refetches the
-      // second-store catalog (5k+ docs today), so an unconditional timer
-      // would bill a full-collection read per tick for every ops user
-      // with a tab open, whether or not anything actually changed.
+      // Deliberately NOT a setInterval: invalidateStock re-downloads the
+      // admin catalogs (thousands of rows), so an unconditional timer would
+      // cost that per tick for every ops user with a tab open, whether or
+      // not anything actually changed.
       socket.io.on("reconnect", invalidateStock);
     })();
 
     return () => {
       cancelled = true;
+      clearTimeout(stockRefreshTimer);
       socket?.disconnect();
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
