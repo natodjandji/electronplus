@@ -35,10 +35,16 @@ export class NotificationsGateway implements OnGatewayConnection, OnGatewayDisco
       return;
     }
     try {
-      const decoded = await this.auth.verifyIdToken(token);
+      // checkRevoked: once per connection, so a demoted or deactivated
+      // account (UsersService revokes its sessions) can't reconnect on a
+      // token issued before the change.
+      const decoded = await this.auth.verifyIdToken(token, true);
       const userSnap = await this.firestore.collection(Collections.USERS).doc(decoded.uid).get();
       const role = userSnap.data()?.role as Role | undefined;
-      if (role !== Role.ADMIN && role !== Role.WAREHOUSE_OPERATOR) {
+      if (
+        (role !== Role.ADMIN && role !== Role.WAREHOUSE_OPERATOR) ||
+        userSnap.data()?.active === false
+      ) {
         client.disconnect(true);
         return;
       }

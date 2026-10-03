@@ -4,6 +4,7 @@ import {
   Delete,
   Get,
   HttpCode,
+  NotFoundException,
   Param,
   Patch,
   Post,
@@ -123,6 +124,11 @@ export class ProductsController {
     @CurrentUser() user?: AuthenticatedUser,
   ) {
     const product = await this.productsService.findPublicById(id);
+    // An unlisted product is as good as gone to customers — the cart drops
+    // it on this 404, and checkout refuses it (assertPurchasable).
+    if (!product.active && user?.role !== Role.ADMIN && user?.role !== Role.WAREHOUSE_OPERATOR) {
+      throw new NotFoundException('Product not found');
+    }
     cacheIfAnonymous(res, user);
     return toCatalogDto(product, user?.role, this.pricingService);
   }

@@ -35,7 +35,12 @@ import { compressImageToBase64 } from "@/lib/image-compress";
 import { formatMoney } from "@/lib/electron-store";
 import { toast } from "sonner";
 import { formatDate } from "@/lib/format";
-import { PAYMENT_METHOD_LABEL, usePaymentMethods, type PaymentMethod } from "@/lib/payment-methods";
+import {
+  PAYMENT_METHOD_LABEL,
+  useHasCreditLine,
+  usePaymentMethods,
+  type PaymentMethod,
+} from "@/lib/payment-methods";
 
 export const Route = createFileRoute("/client/orders")({
   head: () => ({
@@ -335,7 +340,11 @@ function OrderDetailDialog({ order, onClose }: { order: Order; onClose: () => vo
 function RetryPaymentForm({ order }: { order: Order }) {
   const queryClient = useQueryClient();
   const { data: paymentMethods } = usePaymentMethods();
-  const enabledMethods = paymentMethods?.filter((m) => m.enabled) ?? [];
+  const hasCreditLine = useHasCreditLine();
+  const enabledMethods =
+    paymentMethods?.filter(
+      (m) => m.enabled && (m.backendMethod !== "credit_b2b" || hasCreditLine),
+    ) ?? [];
 
   const [methodId, setMethodId] = useState<string | null>(null);
   const [reference, setReference] = useState("");

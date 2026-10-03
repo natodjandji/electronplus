@@ -1,6 +1,7 @@
 import {
   BadGatewayException,
   BadRequestException,
+  ConflictException,
   ForbiddenException,
   Inject,
   Injectable,
@@ -16,11 +17,11 @@ import { FirestoreRepository, WhereClause } from '../../firebase/firestore.repos
 import { Role } from '../../common/enums/role.enum';
 import { AuthenticatedUser } from '../../common/interfaces/authenticated-user.interface';
 import { DiscountCodesService } from '../discount-codes/discount-codes.service';
-import { Payment, PaymentStatus } from '../payments/entities/payment.entity';
+import { Payment, PaymentMethod, PaymentStatus } from '../payments/entities/payment.entity';
 import { PaymentsService } from '../payments/payments.service';
 import { PricingService } from '../products/pricing.service';
 import { ProductsService, StockChangedEvent } from '../products/products.service';
-import { QuoteStatus } from '../quotes/entities/quote.entity';
+import { Quote, QuoteStatus } from '../quotes/entities/quote.entity';
 import { QuotesService } from '../quotes/quotes.service';
 import { ShippingRatesService } from '../shipping-rates/shipping-rates.service';
 import { CreateOrderFromQuoteDto } from './dto/create-order-from-quote.dto';
@@ -47,6 +48,10 @@ export const ORDER_CREATED_EVENT = 'order.created';
 export const ORDER_STATUS_CHANGED_EVENT = 'order.status_changed';
 /** Venezuela's standard IVA rate — applied to (subtotal - discount). */
 const TAX_RATE = 0.16;
+/** Every order reserves its stock until an admin verifies or cancels it,
+ * and sign-up is open — without a cap, one account could hold the whole
+ * inventory with orders it never pays. */
+const MAX_UNPAID_ORDERS_PER_CLIENT = 5;
 
 function round2(n: number): number {
   return Math.round(n * 100) / 100;
@@ -96,7 +101,46 @@ export class OrdersService {
     return amount;
   }
 
+  private async assertCanOpenOrder(user: AuthenticatedUser): Promise<void> {
+    if (user.role !== Role.CLIENT) return;
+    const unpaid = await this.repo.count([
+      { field: 'userId', op: '==', value: user.id },
+      { field: 'status', op: '==', value: OrderStatus.PENDING_PAYMENT_VERIFICATION },
+    ]);
+    if (unpaid >= MAX_UNPAID_ORDERS_PER_CLIENT) {
+      throw new ConflictException(
+        `Tienes ${unpaid} pedidos esperando verificación de pago. Completa o cancela alguno antes de crear otro.`,
+      );
+    }
+  }
+
+  /** Credit B2B is marked paid on the spot — there's no payment to check —
+   * so it's only for accounts an admin granted a credit line (creditLimit
+   * on PATCH /users/:id), and only up to it. Resolves the line for that
+   * method, undefined for every other. */
+  private async creditLineFor(userId: string, method: PaymentMethod): Promise<number | undefined> {
+    if (method !== PaymentMethod.CREDIT_B2B) return undefined;
+    const snap = await this.firestore.collection(Collections.USERS).doc(userId).get();
+    const creditLimit = Number(snap.data()?.creditLimit ?? 0);
+    if (!(creditLimit > 0)) {
+      throw new ForbiddenException(
+        'Tu cuenta no tiene una línea de crédito aprobada. Elige otro método de pago.',
+      );
+    }
+    return creditLimit;
+  }
+
+  private assertWithinCreditLine(creditLine: number | undefined, totalAmount: number): void {
+    if (creditLine !== undefined && totalAmount > creditLine) {
+      throw new ForbiddenException(
+        'El total del pedido supera tu línea de crédito. Elige otro método de pago.',
+      );
+    }
+  }
+
   async create(user: AuthenticatedUser, dto: CreateOrderDto): Promise<Order> {
+    await this.assertCanOpenOrder(user);
+    const creditLine = await this.creditLineFor(user.id, dto.paymentMethod);
     const productIds = dto.items.map((i) => i.productId);
     if (new Set(productIds).size !== productIds.length) {
       throw new BadRequestException(
@@ -121,6 +165,7 @@ export class OrdersService {
 
       reads.forEach(({ ref, product }, idx) => {
         const line = dto.items[idx];
+        this.productsService.assertPurchasable(product);
         const nextStock = this.productsService.reserveStock(tx, ref, product, line.qty);
         const unitPrice = this.pricingService.priceFor(product);
         const lineTotal = unitPrice * line.qty;
@@ -159,6 +204,7 @@ export class OrdersService {
       const fulfillmentMethod = dto.fulfillmentMethod ?? FulfillmentMethod.DELIVERY;
       const shippingCost = await this.resolveShippingCost(fulfillmentMethod, dto.shipping);
       const totalAmount = round2(taxableBase + taxAmount + shippingCost);
+      this.assertWithinCreditLine(creditLine, totalAmount);
 
       const orderRef = this.repo.collection().doc();
       const now = FieldValue.serverTimestamp();
@@ -230,6 +276,8 @@ export class OrdersService {
     dto: CreateOrderFromQuoteDto,
   ): Promise<Order> {
     const quote = await this.quotesService.findOneForUser(quoteId, user);
+    await this.assertCanOpenOrder(user);
+    const creditLine = await this.creditLineFor(user.id, dto.paymentMethod);
     if (quote.status !== QuoteStatus.APPROVED) {
       throw new BadRequestException('Only an approved quote can be checked out');
     }
@@ -244,13 +292,21 @@ export class OrdersService {
 
     const { orderId, stockChanges } = await this.firestore.runTransaction(async (tx) => {
       // Phase 1 — ALL reads before ANY writes (Firestore transaction rule).
+      // The quote is re-read here, not trusted from the check above: two
+      // concurrent checkouts of one approved quote would otherwise both
+      // pass it and turn the negotiated discount into two orders.
+      const quoteSnap = await tx.get(quoteRef);
+      const current = quoteSnap.data() as Quote | undefined;
+      if (current?.status !== QuoteStatus.APPROVED || current.convertedOrderId) {
+        throw new ConflictException('This quote was already converted to an order');
+      }
       // One getAll() round trip for every line instead of N sequential
       // tx.get() calls.
       const productsById = await this.productsService.getForUpdateMany(
         tx,
-        quote.items.map((line) => line.productId),
+        current.items.map((line) => line.productId),
       );
-      const reads = quote.items.map((line) => productsById.get(line.productId)!);
+      const reads = current.items.map((line) => productsById.get(line.productId)!);
 
       // Phase 2 — ALL writes.
       let subtotal = 0;
@@ -258,10 +314,10 @@ export class OrdersService {
       const stockChanges: StockChangedEvent[] = [];
 
       reads.forEach(({ ref, product }, idx) => {
-        const line = quote.items[idx];
+        const line = current.items[idx];
         const nextStock = this.productsService.reserveStock(tx, ref, product, line.qty);
         const unitPrice = round2(
-          line.unitPrice * (1 - line.discountPct / 100) * (1 - quote.globalDiscountPct / 100),
+          line.unitPrice * (1 - line.discountPct / 100) * (1 - current.globalDiscountPct / 100),
         );
         const lineTotal = round2(unitPrice * line.qty);
         subtotal += lineTotal;
@@ -288,6 +344,7 @@ export class OrdersService {
       const fulfillmentMethod = dto.fulfillmentMethod ?? FulfillmentMethod.DELIVERY;
       const shippingCost = await this.resolveShippingCost(fulfillmentMethod, dto.shipping);
       const totalAmount = round2(subtotal + taxAmount + shippingCost);
+      this.assertWithinCreditLine(creditLine, totalAmount);
 
       const orderRef = this.repo.collection().doc();
       const now = FieldValue.serverTimestamp();
@@ -360,6 +417,10 @@ export class OrdersService {
     if (payments[0]?.status !== PaymentStatus.REJECTED) {
       throw new BadRequestException('Only a rejected payment can be retried');
     }
+    this.assertWithinCreditLine(
+      await this.creditLineFor(order.userId, dto.paymentMethod),
+      order.totalAmount,
+    );
 
     await this.repo.update(orderId, { paymentMethod: dto.paymentMethod });
     const payment = await this.paymentsService.initiate(

@@ -113,6 +113,7 @@ export class QuotesService {
    * clobbered the first with no error to either caller. */
   async addLine(id: string, user: AuthenticatedUser, dto: AddQuoteLineDto): Promise<Quote> {
     const product = await this.productsService.findById(dto.productId);
+    this.productsService.assertPurchasable(product);
     const unitPrice = this.pricingService.priceFor(product);
     const item: QuoteItem = {
       id: randomUUID(),
@@ -122,7 +123,7 @@ export class QuotesService {
       qty: dto.qty,
       unitPrice,
       wholesalePrice: product.wholesalePrice,
-      discountPct: dto.discountPct ?? 0,
+      discountPct: 0,
     };
 
     return this.withEditableQuoteTransaction(id, user, (quote) => ({
@@ -138,9 +139,7 @@ export class QuotesService {
   ): Promise<Quote> {
     return this.withEditableQuoteTransaction(id, user, (quote) => {
       const items = quote.items.map((item) =>
-        item.id === lineId
-          ? { ...item, qty: dto.qty ?? item.qty, discountPct: dto.discountPct ?? item.discountPct }
-          : item,
+        item.id === lineId ? { ...item, qty: dto.qty } : item,
       );
       if (!items.some((i) => i.id === lineId)) {
         throw new NotFoundException('Quote line not found');

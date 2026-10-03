@@ -79,10 +79,18 @@ export class UsersService {
     }
     const updated = await this.repo.update(uid, dto);
     if (dto.role) {
-      // Keeps FirebaseAuthGuard's role custom claim in sync — takes effect
-      // on the user's next ID token refresh (immediately if they're forced
-      // to re-authenticate, within ~1h otherwise via Firebase's own refresh).
+      // Keeps FirebaseAuthGuard's role custom claim in sync.
       await this.auth.setCustomUserClaims(uid, { role: updated.role });
+    }
+    if (dto.active !== undefined) {
+      await this.auth.updateUser(uid, { disabled: !dto.active });
+    }
+    if (dto.role || dto.active === false) {
+      // Ends every session now, so the user signs in again under the new
+      // role (or can't). Until then their current ID token still carries
+      // the old claim — FirebaseAuthGuard rejects it for staff tokens,
+      // the ones that could do harm with it.
+      await this.auth.revokeRefreshTokens(uid);
     }
     return updated;
   }

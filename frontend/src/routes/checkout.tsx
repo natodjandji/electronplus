@@ -89,6 +89,8 @@ interface MyProfile {
   address?: string;
   city?: string;
   state?: string;
+  /** Set by an admin for wholesale accounts — the only ones that may pay on credit. */
+  creditLimit?: number;
 }
 
 interface ShippingQuote {
@@ -204,17 +206,21 @@ function CheckoutPage() {
   // PayPal needs the SDK client id wired in on this build to actually
   // render a working button — if that's not configured yet, hide it from
   // checkout rather than let a customer pick a payment method with no way
-  // to complete it.
+  // to complete it. Credit is likewise only offered to accounts with an
+  // approved credit line — the API refuses it for anyone else.
+  const hasCreditLine = (myProfile?.creditLimit ?? 0) > 0;
   const enabledMethods = (paymentMethods ?? []).filter(
-    (m) => m.enabled && (m.backendMethod !== "paypal" || PAYPAL_CLIENT_ID),
+    (m) =>
+      m.enabled &&
+      (m.backendMethod !== "paypal" || PAYPAL_CLIENT_ID) &&
+      (m.backendMethod !== "credit_b2b" || hasCreditLine),
   );
 
   useEffect(() => {
-    if (!method && paymentMethods) {
-      const first = paymentMethods.find((m) => m.enabled);
-      if (first) setMethod(first.id);
+    if (!enabledMethods.some((m) => m.id === method) && enabledMethods[0]) {
+      setMethod(enabledMethods[0].id);
     }
-  }, [method, paymentMethods]);
+  }, [method, enabledMethods]);
 
   const { data: shippingQuote } = useQuery({
     queryKey: ["shipping-rates", "quote", state, city],

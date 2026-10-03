@@ -11,9 +11,16 @@ import { Separator } from "@/components/ui/separator";
 import { useAuth, authErrorMessage } from "@/lib/auth-context";
 import { useElectronStore } from "@/lib/electron-store";
 
+/** Only a path on this site: `?redirect=` comes from the URL, so anyone can
+ * craft a login link — "//evil.example" or "https://…" must not be where a
+ * freshly signed-in customer lands. */
+function internalPath(value: unknown): string | undefined {
+  return typeof value === "string" && /^\/(?![/\\])/.test(value) ? value : undefined;
+}
+
 export const Route = createFileRoute("/login")({
   validateSearch: (search: Record<string, unknown>): { redirect?: string } => ({
-    redirect: typeof search.redirect === "string" ? search.redirect : undefined,
+    redirect: internalPath(search.redirect),
   }),
   head: () => ({
     meta: [{ title: "Iniciar sesión · Electron Plus" }, { name: "robots", content: "noindex" }],

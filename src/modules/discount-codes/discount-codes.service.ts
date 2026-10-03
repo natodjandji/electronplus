@@ -54,10 +54,14 @@ export class DiscountCodesService {
     if (!found || !found.enabled) {
       return { valid: false, discountAmount: 0, message: 'Código de descuento inválido' };
     }
-    const discountAmount =
+    // Capped at the subtotal either way: a percentage code mistakenly set
+    // above 100 must not turn into a negative total.
+    const discountAmount = Math.min(
+      subtotal,
       found.type === DiscountType.PERCENTAGE
         ? Math.round(((subtotal * found.value) / 100) * 100) / 100
-        : Math.min(found.value, subtotal);
+        : found.value,
+    );
     return { valid: true, code: found.code, type: found.type, value: found.value, discountAmount };
   }
 }

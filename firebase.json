@@ -31,6 +31,14 @@
           {
             "key": "X-Content-Type-Options",
             "value": "nosniff"
+          },
+          {
+            "key": "Referrer-Policy",
+            "value": "strict-origin-when-cross-origin"
+          },
+          {
+            "key": "Permissions-Policy",
+            "value": "camera=(), microphone=(), geolocation=(), usb=()"
           }
         ]
       },
@@ -71,7 +79,7 @@
         ]
       },
       {
-        "source": "/admin",
+        "source": "/@(admin|client|checkout|cart|quotes|login|register)",
         "headers": [
           {
             "key": "X-Frame-Options",
@@ -84,7 +92,7 @@
         ]
       },
       {
-        "source": "/admin/**",
+        "source": "/@(admin|client|quotes)/**",
         "headers": [
           {
             "key": "X-Frame-Options",

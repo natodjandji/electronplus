@@ -1,4 +1,4 @@
-import { IsInt, IsOptional, IsString, Max, Min } from 'class-validator';
+import { IsInt, IsString, Min } from 'class-validator';
 
 export class AddQuoteLineDto {
   @IsString()
@@ -7,10 +7,4 @@ export class AddQuoteLineDto {
   @IsInt()
   @Min(1)
   qty: number;
-
-  @IsOptional()
-  @IsInt()
-  @Min(0)
-  @Max(100)
-  discountPct?: number;
 }

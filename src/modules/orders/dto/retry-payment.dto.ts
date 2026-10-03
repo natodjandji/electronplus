@@ -8,6 +8,7 @@ export class RetryPaymentDto {
 
   @IsOptional()
   @IsString()
+  @MaxLength(200)
   paymentReference?: string;
 
   @IsOptional()

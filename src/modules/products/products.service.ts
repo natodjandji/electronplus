@@ -1,4 +1,10 @@
-import { ConflictException, Inject, Injectable, NotFoundException } from '@nestjs/common';
+import {
+  BadRequestException,
+  ConflictException,
+  Inject,
+  Injectable,
+  NotFoundException,
+} from '@nestjs/common';
 import { EventEmitter2 } from '@nestjs/event-emitter';
 import { randomBytes } from 'crypto';
 import type { DocumentReference, Firestore, Transaction } from 'firebase-admin/firestore';
@@ -648,6 +654,16 @@ export class ProductsService {
         updatedAt: data.updatedAt?.toDate?.() ?? data.updatedAt,
       } as Product,
     };
+  }
+
+  /** A product a customer can put in an order or quote: listed in the
+   * storefront and priced. The API takes product ids from the request, so
+   * without this an inactive (unlisted, maybe not yet priced) product
+   * could be bought by id. */
+  assertPurchasable(product: Product): void {
+    if (!product.active || !(product.retailPrice > 0)) {
+      throw new BadRequestException(`${product.name} no está disponible para la venta`);
+    }
   }
 
   reserveStock(tx: Transaction, ref: DocumentReference, product: Product, qty: number): number {

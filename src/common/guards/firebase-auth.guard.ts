@@ -21,6 +21,15 @@ function extractBearerToken(authHeader?: string): string | undefined {
 
 export const USER_CREATED_EVENT = 'user.created';
 
+/** How long a staff token's revocation check is trusted before asking
+ * Firebase Auth again — a demotion or deactivation locks the account out
+ * within this window instead of when the ID token expires (up to 1h). */
+const STAFF_REVOCATION_CHECK_TTL_MS = 60_000;
+const STAFF_ROLES: readonly string[] = [Role.ADMIN, Role.WAREHOUSE_OPERATOR];
+/** Token → time its revocation check stops counting. Shared by every guard
+ * instance; one admin session fires bursts of requests with one token. */
+const staffTokensCheckedUntil = new Map<string, number>();
+
 export interface UserCreatedEvent {
   uid: string;
   email: string;
@@ -52,12 +61,30 @@ export class FirebaseAuthGuard implements CanActivate {
     let decoded;
     try {
       decoded = await this.auth.verifyIdToken(token);
+      if (STAFF_ROLES.includes(decoded.role)) await this.assertStaffTokenNotRevoked(token);
     } catch {
       throw new UnauthorizedException('Invalid or expired Firebase ID token');
     }
 
     request.user = await this.resolveUser(decoded);
     return true;
+  }
+
+  /** A plain verifyIdToken only checks the signature, so a staff token
+   * keeps its role claim for up to an hour after UsersService demotes or
+   * deactivates the account (and revokes its sessions). Checking that
+   * costs an Auth lookup, so it's done for staff only — whose tokens
+   * unlock the panel — and cached briefly per token. */
+  private async assertStaffTokenNotRevoked(token: string): Promise<void> {
+    const now = Date.now();
+    if ((staffTokensCheckedUntil.get(token) ?? 0) > now) return;
+    await this.auth.verifyIdToken(token, true);
+    if (staffTokensCheckedUntil.size > 1000) {
+      for (const [cached, until] of staffTokensCheckedUntil) {
+        if (until <= now) staffTokensCheckedUntil.delete(cached);
+      }
+    }
+    staffTokensCheckedUntil.set(token, now + STAFF_REVOCATION_CHECK_TTL_MS);
   }
 
   private async resolveUser(decoded: {
@@ -104,6 +131,9 @@ export class FirebaseAuthGuard implements CanActivate {
         } satisfies UserCreatedEvent);
       }
     } else {
+      if (snap.data()!.active === false) {
+        throw new UnauthorizedException('This account is deactivated');
+      }
       role = snap.data()!.role as Role;
     }
 

@@ -1,5 +1,6 @@
 import { Body, Controller, Get, Param, Patch, Post, Query, UseGuards } from '@nestjs/common';
 import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
+import { Throttle } from '@nestjs/throttler';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
 import { Roles } from '../../common/decorators/roles.decorator';
 import { Role } from '../../common/enums/role.enum';
@@ -20,13 +21,17 @@ import { OrdersService } from './orders.service';
 export class OrdersController {
   constructor(private readonly ordersService: OrdersService) {}
 
+  /** Each new order reserves stock and may upload a payment proof — far
+   * more than a customer ever needs in a minute. */
   @Post()
+  @Throttle({ default: { limit: 10, ttl: 60_000 } })
   async create(@CurrentUser() user: AuthenticatedUser, @Body() dto: CreateOrderDto) {
     const order = await this.ordersService.create(user, dto);
     return toOrderDto(order, user.role);
   }
 
   @Post('from-quote/:quoteId')
+  @Throttle({ default: { limit: 10, ttl: 60_000 } })
   async createFromQuote(
     @Param('quoteId') quoteId: string,
     @CurrentUser() user: AuthenticatedUser,
@@ -56,6 +61,7 @@ export class OrdersController {
   }
 
   @Post(':id/retry-payment')
+  @Throttle({ default: { limit: 10, ttl: 60_000 } })
   async retryPayment(
     @Param('id') id: string,
     @CurrentUser() user: AuthenticatedUser,

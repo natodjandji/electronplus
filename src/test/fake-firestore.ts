@@ -107,7 +107,14 @@ class FakeQuery {
     return new FakeQuery(this.path, this.store, this.wheres, this.order, count);
   }
 
-  async get() {
+  /** Like the real aggregation: counts matches without reading (or logging) them. */
+  count() {
+    return {
+      get: async () => ({ data: () => ({ count: this.matching().length }) }),
+    };
+  }
+
+  private matching() {
     const prefix = `${this.path}/`;
     let docs = [...this.store.entries()]
       .filter(([path]) => path.startsWith(prefix) && !path.slice(prefix.length).includes('/'))
@@ -116,6 +123,11 @@ class FakeQuery {
     for (const clause of this.wheres) {
       docs = docs.filter((d) => matchesWhere(d.data[clause.field], clause.op, clause.value));
     }
+    return docs;
+  }
+
+  async get() {
+    let docs = this.matching();
     if (this.order) {
       const { field, direction } = this.order;
       docs = [...docs].sort((a, b) => {

@@ -46,3 +46,14 @@ export function paymentMethodLabel(
   if (!backendMethod) return undefined;
   return methods?.find((m) => m.backendMethod === backendMethod)?.label ?? backendMethod;
 }
+
+/** Whether the signed-in customer may pay on credit: only accounts an admin
+ * granted a credit line (the API refuses credit_b2b for anyone else). */
+export function useHasCreditLine(): boolean {
+  const { data } = useQuery({
+    queryKey: ["users", "me", "credit-line"],
+    queryFn: () => apiFetch<{ creditLimit?: number }>("/users/me"),
+    staleTime: 5 * 60_000,
+  });
+  return (data?.creditLimit ?? 0) > 0;
+}

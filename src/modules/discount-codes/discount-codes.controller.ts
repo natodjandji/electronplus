@@ -11,6 +11,7 @@ import {
   UseGuards,
 } from '@nestjs/common';
 import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
+import { Throttle } from '@nestjs/throttler';
 import { Roles } from '../../common/decorators/roles.decorator';
 import { Role } from '../../common/enums/role.enum';
 import { FirebaseAuthGuard } from '../../common/guards/firebase-auth.guard';
@@ -33,7 +34,10 @@ export class DiscountCodesController {
     return this.discountCodesService.list();
   }
 
+  /** Answers "is this a real code?", so the global 100/min would let a
+   * script walk through short codes; a customer applies one by hand. */
   @Get('validate')
+  @Throttle({ default: { limit: 10, ttl: 60_000 } })
   validate(@Query() dto: ValidateDiscountCodeDto) {
     return this.discountCodesService.validate(dto.code, dto.subtotal);
   }
