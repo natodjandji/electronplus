@@ -21,6 +21,11 @@ import { Toaster } from "@/components/ui/sonner";
 function NotFoundComponent() {
   return (
     <div className="flex min-h-dvh items-center justify-center bg-brand-surface px-4">
+      {/* Hosting answers every unknown URL with 200 (it serves the app
+          shell), so without this a mistyped link would be indexable as a
+          real page. React hoists it into <head>; alongside the root's
+          "index, follow", search engines honour the stricter noindex. */}
+      <meta name="robots" content="noindex" />
       <div className="max-w-md text-center">
         <h1 className="text-7xl font-bold text-brand-navy">404</h1>
         <h2 className="mt-4 text-xl font-semibold text-brand-navy">Página no encontrada</h2>

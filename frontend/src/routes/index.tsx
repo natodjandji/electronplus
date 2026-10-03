@@ -315,30 +315,31 @@ function Home() {
         </div>
       </section>
 
-      {/* Featured products */}
-      <section className="mx-auto max-w-7xl px-4 pb-16 sm:px-6">
-        <div className="mb-6 flex items-end justify-between">
-          <div>
-            <div className="text-xs font-semibold uppercase tracking-widest text-brand-blue">
-              Destacados
+      {/* Featured products — left out entirely while the catalog is empty,
+          instead of a heading over nothing. */}
+      {(bestSellersLoading || bestSellers.length > 0) && (
+        <section className="mx-auto max-w-7xl px-4 pb-16 sm:px-6">
+          <div className="mb-6 flex items-end justify-between">
+            <div>
+              <div className="text-xs font-semibold uppercase tracking-widest text-brand-blue">
+                Destacados
+              </div>
+              <h2 className="text-2xl font-bold text-brand-navy sm:text-3xl">Los más vendidos</h2>
             </div>
-            <h2 className="text-2xl font-bold text-brand-navy sm:text-3xl">
-              Los más vendidos esta semana
-            </h2>
+            <Link
+              to="/catalog"
+              className="hidden text-sm font-medium text-brand-blue hover:underline sm:block"
+            >
+              Ver todo →
+            </Link>
           </div>
-          <Link
-            to="/catalog"
-            className="hidden text-sm font-medium text-brand-blue hover:underline sm:block"
-          >
-            Ver todo →
-          </Link>
-        </div>
-        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-          {bestSellersLoading
-            ? [0, 1, 2, 3].map((i) => <FeaturedProductSkeleton key={i} />)
-            : bestSellers.slice(0, 4).map((p) => <FeaturedProductCard key={p.id} product={p} />)}
-        </div>
-      </section>
+          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+            {bestSellersLoading
+              ? [0, 1, 2, 3].map((i) => <FeaturedProductSkeleton key={i} />)
+              : bestSellers.slice(0, 4).map((p) => <FeaturedProductCard key={p.id} product={p} />)}
+          </div>
+        </section>
+      )}
     </PublicShell>
   );
 }
