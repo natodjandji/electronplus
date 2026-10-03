@@ -8,6 +8,7 @@ import { RolesGuard } from '../../common/guards/roles.guard';
 import { AuthenticatedUser } from '../../common/interfaces/authenticated-user.interface';
 import { CreateOrderFromQuoteDto } from './dto/create-order-from-quote.dto';
 import { CreateOrderDto } from './dto/create-order.dto';
+import { QueryOrdersDto } from './dto/query-orders.dto';
 import { RetryPaymentDto } from './dto/retry-payment.dto';
 import { toOrderDto } from './mappers/order.mapper';
 import { OrdersService } from './orders.service';
@@ -43,8 +44,8 @@ export class OrdersController {
 
   @Get()
   @Roles(Role.ADMIN)
-  async findAll(@CurrentUser() user: AuthenticatedUser, @Query('userId') userId?: string) {
-    const orders = await this.ordersService.findAll(userId);
+  async findAll(@CurrentUser() user: AuthenticatedUser, @Query() query: QueryOrdersDto) {
+    const orders = await this.ordersService.findAll(query);
     return orders.map((o) => toOrderDto(o, user.role));
   }
 

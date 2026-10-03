@@ -19,11 +19,11 @@ import { RolesGuard } from '../../common/guards/roles.guard';
 import { AuthenticatedUser } from '../../common/interfaces/authenticated-user.interface';
 import { CreateInvoiceDto } from './dto/create-invoice.dto';
 import { CreateSupplierDto } from './dto/create-supplier.dto';
+import { QueryInvoicesDto } from './dto/query-invoices.dto';
 import { RegisterPaymentDto } from './dto/register-payment.dto';
 import { UpdateInvoiceDto } from './dto/update-invoice.dto';
 import { UpdatePaymentTermsDto } from './dto/update-payment-terms.dto';
 import { UpdateSupplierDto } from './dto/update-supplier.dto';
-import { SupplierPayableStatus } from './entities/supplier-payable.entity';
 import { FinanceService } from './finance.service';
 
 @ApiTags('finance')
@@ -61,8 +61,13 @@ export class FinanceController {
   }
 
   @Get('invoices')
-  listInvoices(@Query('status') status?: SupplierPayableStatus) {
-    return this.financeService.listInvoices(status);
+  listInvoices(@Query() query: QueryInvoicesDto) {
+    return this.financeService.listInvoices(query);
+  }
+
+  @Get('invoices/:id')
+  findInvoice(@Param('id') id: string) {
+    return this.financeService.findInvoice(id);
   }
 
   @Patch('invoices/:id')

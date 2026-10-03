@@ -19,6 +19,7 @@ import { RolesGuard } from '../../common/guards/roles.guard';
 import { AuthenticatedUser } from '../../common/interfaces/authenticated-user.interface';
 import { AddQuoteLineDto } from './dto/add-quote-line.dto';
 import { CreateQuoteDto } from './dto/create-quote.dto';
+import { QueryQuotesDto } from './dto/query-quotes.dto';
 import { RejectQuoteDto } from './dto/reject-quote.dto';
 import { SetGlobalDiscountDto } from './dto/set-global-discount.dto';
 import { SetPaymentMethodDto } from './dto/set-payment-method.dto';
@@ -45,8 +46,8 @@ export class QuotesController {
 
   @Get()
   @Roles(Role.ADMIN)
-  findAll(@Query('userId') userId?: string) {
-    return this.quotesService.findAll(userId);
+  findAll(@Query() query: QueryQuotesDto) {
+    return this.quotesService.findAll(query);
   }
 
   @Get(':id')

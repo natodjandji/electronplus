@@ -1,8 +1,8 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
-import { useEffect, useMemo, useState } from "react";
+import { useMemo, useRef, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { AnimatePresence, motion } from "motion/react";
-import { ChevronLeft, ChevronRight, Filter, LayoutGrid, List, Search, Tags } from "lucide-react";
+import { Filter, LayoutGrid, List, Search, Tags } from "lucide-react";
 import { PublicShell } from "@/components/public-shell";
 import { CircuitBackground } from "@/components/circuit-traces";
 import { staggerContainer, staggerItem } from "@/components/motion-primitives";
@@ -22,6 +22,7 @@ import {
   CARD_LIFT,
   STRETCHED_LINK,
 } from "@/components/card-interaction";
+import { PaginationBar, usePagination } from "@/components/pagination";
 import { PriceTag } from "@/components/price-tag";
 import { ProductImage } from "@/components/product-image";
 import { QuantityStepper } from "@/components/quantity-stepper";
@@ -89,7 +90,6 @@ function CatalogPage() {
   // REF 100 even with no filter touched.
   const [priceRange, setPriceRange] = useState<[number, number] | null>(null);
   const [view, setView] = useState<"grid" | "list">("grid");
-  const [page, setPage] = useState(1);
 
   const priceCeiling = useMemo(
     () =>
@@ -125,13 +125,12 @@ function CatalogPage() {
       .sort((a, b) => a.label.localeCompare(b.label, "es"));
   }, [products]);
 
-  useEffect(() => {
-    setPage(1);
-  }, [q, cats, onlyAvailable, priceRange]);
-
-  const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
-  const currentPage = Math.min(page, totalPages);
-  const paged = filtered.slice((currentPage - 1) * PAGE_SIZE, currentPage * PAGE_SIZE);
+  const pagination = usePagination(
+    filtered,
+    PAGE_SIZE,
+    JSON.stringify([q, cats, onlyAvailable, priceRange]),
+  );
+  const resultsTop = useRef<HTMLElement>(null);
 
   const activeFilterCount = (onlyAvailable ? 1 : 0) + (priceFiltered ? 1 : 0);
 
@@ -167,7 +166,7 @@ function CatalogPage() {
         </div>
       </section>
 
-      <section className="mx-auto max-w-7xl px-4 py-8 sm:px-6">
+      <section ref={resultsTop} className="mx-auto max-w-7xl scroll-mt-20 px-4 py-8 sm:px-6">
         <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
           <div className="relative flex-1">
             <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
@@ -329,7 +328,7 @@ function CatalogPage() {
               }
             >
               <AnimatePresence mode="popLayout">
-                {paged.map((p, index) => {
+                {pagination.pageItems.map((p, index) => {
                   const qty = cart.find((i) => i.product.id === p.id)?.qty ?? 0;
                   return view === "grid" ? (
                     <motion.div
@@ -364,9 +363,13 @@ function CatalogPage() {
               </AnimatePresence>
             </motion.div>
 
-            {totalPages > 1 && (
-              <Pager page={currentPage} totalPages={totalPages} onChange={setPage} />
-            )}
+            <PaginationBar
+              className="mt-8"
+              page={pagination.page}
+              totalPages={pagination.totalPages}
+              onChange={pagination.setPage}
+              scrollAnchor={resultsTop}
+            />
           </>
         )}
       </section>
@@ -520,51 +523,5 @@ function ProductListRow({
         </div>
       </div>
     </Card>
-  );
-}
-
-function Pager({
-  page,
-  totalPages,
-  onChange,
-}: {
-  page: number;
-  totalPages: number;
-  onChange: (page: number) => void;
-}) {
-  const pages = useMemo(() => Array.from({ length: totalPages }, (_, i) => i + 1), [totalPages]);
-
-  return (
-    <div className="mt-8 flex items-center justify-center gap-1">
-      <Button
-        variant="outline"
-        size="icon"
-        disabled={page <= 1}
-        onClick={() => onChange(page - 1)}
-        aria-label="Página anterior"
-      >
-        <ChevronLeft className="h-4 w-4" />
-      </Button>
-      {pages.map((p) => (
-        <Button
-          key={p}
-          variant={p === page ? "default" : "outline"}
-          size="icon"
-          onClick={() => onChange(p)}
-          className={p === page ? "bg-brand-blue text-white hover:bg-brand-blue/90" : ""}
-        >
-          {p}
-        </Button>
-      ))}
-      <Button
-        variant="outline"
-        size="icon"
-        disabled={page >= totalPages}
-        onClick={() => onChange(page + 1)}
-        aria-label="Página siguiente"
-      >
-        <ChevronRight className="h-4 w-4" />
-      </Button>
-    </div>
   );
 }

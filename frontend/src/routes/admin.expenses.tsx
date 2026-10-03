@@ -1,6 +1,6 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { useState } from "react";
+import { useMemo, useRef, useState } from "react";
 import {
   AlertCircle,
   CheckCircle2,
@@ -13,6 +13,11 @@ import {
   Trash2,
 } from "lucide-react";
 import { AdminShell } from "@/components/admin-shell";
+import { MonthYearPicker, useMonthPeriod } from "@/components/month-pager";
+import { PaginationBar, usePagination } from "@/components/pagination";
+import { PendingToggle } from "@/components/pending-toggle";
+import { periodQuery } from "@/lib/admin-period";
+import { formatCalendarDate } from "@/lib/format";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -100,12 +105,7 @@ const CATEGORY_OPTIONS = [
   "Otros",
 ];
 
-function useExpenses() {
-  return useQuery({
-    queryKey: ["admin", "expenses"],
-    queryFn: () => apiFetch<Expense[]>("/expenses"),
-  });
-}
+const PAGE_SIZE = 25;
 
 function sum(arr: Expense[]) {
   return arr.reduce((s, e) => s + e.amount, 0);
@@ -117,20 +117,55 @@ function ExpensesPage() {
   const [search, setSearch] = useState("");
   const [categoryFilter, setCategoryFilter] = useState("all");
   const [statusFilter, setStatusFilter] = useState<"all" | ExpenseStatus>("all");
-  const { data: expenses, isLoading } = useExpenses();
+  const [showPending, setShowPending] = useState(false);
+  const period = useMonthPeriod({ allowFuture: true });
+  // Every unpaid expense, whatever its due month: feeds the summary cards
+  // and the "pending" view. Bounded — expenses leave it once paid.
+  const pendingExpenses = useQuery({
+    queryKey: ["admin", "expenses", "pending"],
+    queryFn: () => apiFetch<Expense[]>("/expenses?status=pending"),
+  });
+  // The table: expenses due in the chosen month only.
+  const monthExpenses = useQuery({
+    queryKey: ["admin", "expenses", "month", period.key],
+    queryFn: () => apiFetch<Expense[]>(`/expenses?${periodQuery(period, "date")}`),
+  });
+  const source = showPending ? pendingExpenses : monthExpenses;
+  const isLoading = source.isLoading;
+  const loaded = source.data ?? [];
 
-  const all = expenses ?? [];
-  const activePending = all.filter((e) => e.active && e.status === "pending");
+  const activePending = (pendingExpenses.data ?? []).filter((e) => e.active);
   const overdue = activePending.filter((e) => e.dueStatus === "overdue");
   const dueSoon = activePending.filter((e) => e.dueStatus === "due_soon");
   const current = activePending.filter((e) => e.dueStatus === "current");
 
-  const categories = Array.from(new Set(all.map((e) => e.category))).sort();
+  const categories = useMemo(
+    () =>
+      Array.from(
+        new Set(
+          [...(monthExpenses.data ?? []), ...(pendingExpenses.data ?? [])].map((e) => e.category),
+        ),
+      ).sort(),
+    [monthExpenses.data, pendingExpenses.data],
+  );
+  // Status, category and search narrow what's already loaded — no request.
   const needle = search.trim().toLowerCase();
-  const visible = all
-    .filter((e) => statusFilter === "all" || e.status === statusFilter)
-    .filter((e) => categoryFilter === "all" || e.category === categoryFilter)
-    .filter((e) => !needle || e.name.toLowerCase().includes(needle));
+  const visible = useMemo(
+    () =>
+      (source.data ?? []).filter(
+        (e) =>
+          (showPending ? e.active : statusFilter === "all" || e.status === statusFilter) &&
+          (categoryFilter === "all" || e.category === categoryFilter) &&
+          (!needle || e.name.toLowerCase().includes(needle)),
+      ),
+    [source.data, showPending, statusFilter, categoryFilter, needle],
+  );
+  const pagination = usePagination(
+    visible,
+    PAGE_SIZE,
+    `${showPending}|${period.key}|${statusFilter}|${categoryFilter}|${needle}`,
+  );
+  const tableTop = useRef<HTMLDivElement>(null);
 
   return (
     <AdminShell title="Control de gastos del local">
@@ -157,6 +192,7 @@ function ExpensesPage() {
             <Select
               value={statusFilter}
               onValueChange={(v) => setStatusFilter(v as "all" | ExpenseStatus)}
+              disabled={showPending}
             >
               <SelectTrigger className="w-40">
                 <SelectValue />
@@ -181,16 +217,25 @@ function ExpensesPage() {
             </div>
           </div>
         </div>
-        <Button
-          className="gap-2 bg-brand-blue text-white hover:bg-brand-blue/90"
-          onClick={() => setCreating(true)}
-        >
-          <Plus className="h-4 w-4" /> Nuevo gasto
-        </Button>
+        <div className="flex flex-wrap items-center gap-3">
+          <PendingToggle
+            label="Pendientes de pago"
+            count={activePending.length}
+            active={showPending}
+            onToggle={() => setShowPending((v) => !v)}
+          />
+          <MonthYearPicker period={period} disabled={showPending} />
+          <Button
+            className="gap-2 bg-brand-blue text-white hover:bg-brand-blue/90"
+            onClick={() => setCreating(true)}
+          >
+            <Plus className="h-4 w-4" /> Nuevo gasto
+          </Button>
+        </div>
       </div>
       <p className="mt-2 text-xs text-muted-foreground">
-        Los resúmenes de vencidos/por vencer/vigentes consideran solo los gastos activos y
-        pendientes de pago.
+        Los resúmenes de vencidos/por vencer/vigentes consideran todos los gastos activos pendientes
+        de pago, sin importar el mes de vencimiento que estés viendo abajo.
       </p>
 
       <div className="mt-4 grid gap-4 md:grid-cols-3">
@@ -227,20 +272,22 @@ function ExpensesPage() {
         </Card>
       )}
 
-      {!isLoading && all.length === 0 && (
+      {!isLoading && loaded.length === 0 && (
         <Card className="mt-6 p-10 text-center text-muted-foreground">
-          No hay gastos registrados todavía.
+          {showPending
+            ? "No hay gastos pendientes de pago."
+            : `No hay gastos que venzan en ${period.label}.`}
         </Card>
       )}
 
-      {!isLoading && all.length > 0 && visible.length === 0 && (
+      {!isLoading && loaded.length > 0 && visible.length === 0 && (
         <Card className="mt-6 p-10 text-center text-muted-foreground">
           No hay gastos que coincidan con estos filtros.
         </Card>
       )}
 
       {visible.length > 0 && (
-        <Card className="mt-6 overflow-hidden">
+        <Card ref={tableTop} className="mt-6 overflow-hidden">
           <div className="overflow-x-auto">
             <table className="w-full min-w-[680px] text-sm">
               <thead className="bg-brand-surface">
@@ -254,45 +301,54 @@ function ExpensesPage() {
                 </tr>
               </thead>
               <tbody>
-                {[...visible]
-                  .sort((a, b) => new Date(a.dueDate).getTime() - new Date(b.dueDate).getTime())
-                  .map((e) => (
-                    <tr
-                      key={e.id}
-                      className={`cursor-pointer border-t border-border hover:bg-brand-surface ${!e.active ? "opacity-50" : ""}`}
-                      onClick={() => setEditingId(e.id)}
-                    >
-                      <td className="px-4 py-3 font-semibold text-brand-navy">{e.name}</td>
-                      <td className="px-4 py-3 text-muted-foreground">{e.category}</td>
-                      <td className="px-4 py-3 text-right">{formatMoneyAdmin(e.amount)}</td>
-                      <td className="px-4 py-3">
-                        <span className="inline-flex items-center gap-1 text-muted-foreground">
-                          {e.frequency !== "once" && <Repeat className="h-3.5 w-3.5" />}
-                          {FREQUENCY_LABEL[e.frequency]}
-                        </span>
-                      </td>
-                      <td className="px-4 py-3 text-muted-foreground">
-                        {new Date(e.dueDate).toLocaleDateString("es-VE")}
-                      </td>
-                      <td className="px-4 py-3">
-                        {e.status === "paid" ? (
-                          <Badge className="bg-emerald-100 text-emerald-700">Pagado</Badge>
-                        ) : (
-                          <Badge className={DUE_BADGE[e.dueStatus]}>{DUE_LABEL[e.dueStatus]}</Badge>
-                        )}
-                      </td>
-                    </tr>
-                  ))}
+                {pagination.pageItems.map((e) => (
+                  <tr
+                    key={e.id}
+                    className={`cursor-pointer border-t border-border hover:bg-brand-surface ${!e.active ? "opacity-50" : ""}`}
+                    onClick={() => setEditingId(e.id)}
+                  >
+                    <td className="px-4 py-3 font-semibold text-brand-navy">{e.name}</td>
+                    <td className="px-4 py-3 text-muted-foreground">{e.category}</td>
+                    <td className="px-4 py-3 text-right">{formatMoneyAdmin(e.amount)}</td>
+                    <td className="px-4 py-3">
+                      <span className="inline-flex items-center gap-1 text-muted-foreground">
+                        {e.frequency !== "once" && <Repeat className="h-3.5 w-3.5" />}
+                        {FREQUENCY_LABEL[e.frequency]}
+                      </span>
+                    </td>
+                    <td className="px-4 py-3 text-muted-foreground">
+                      {formatCalendarDate(e.dueDate)}
+                    </td>
+                    <td className="px-4 py-3">
+                      {e.status === "paid" ? (
+                        <Badge className="bg-emerald-100 text-emerald-700">Pagado</Badge>
+                      ) : (
+                        <Badge className={DUE_BADGE[e.dueStatus]}>{DUE_LABEL[e.dueStatus]}</Badge>
+                      )}
+                    </td>
+                  </tr>
+                ))}
               </tbody>
             </table>
           </div>
         </Card>
       )}
 
+      <PaginationBar
+        className="mt-4"
+        page={pagination.page}
+        totalPages={pagination.totalPages}
+        onChange={pagination.setPage}
+        from={pagination.from}
+        to={pagination.to}
+        total={pagination.total}
+        scrollAnchor={tableTop}
+      />
+
       {creating && <CreateExpenseDialog onClose={() => setCreating(false)} />}
-      {editingId && (
+      {editingId && loaded.some((e) => e.id === editingId) && (
         <EditExpenseDialog
-          expense={all.find((e) => e.id === editingId)!}
+          expense={loaded.find((e) => e.id === editingId)!}
           onClose={() => setEditingId(null)}
         />
       )}

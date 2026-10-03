@@ -4,10 +4,17 @@ import type { Firestore } from 'firebase-admin/firestore';
 import { Role } from '../../common/enums/role.enum';
 import { FIREBASE_AUTH, FIRESTORE } from '../../firebase/firebase.constants';
 import { Collections } from '../../firebase/firestore-collections';
-import { FirestoreRepository } from '../../firebase/firestore.repository';
+import { FirestoreRepository, snapshotToEntity } from '../../firebase/firestore.repository';
 import { UpdateProfileDto } from './dto/update-profile.dto';
 import { UpdateUserDto } from './dto/update-user.dto';
 import { User } from './entities/user.entity';
+
+export interface UserPage {
+  data: User[];
+  /** Pass as `after` for the next page; null on the last one. */
+  nextCursor: string | null;
+  total: number;
+}
 
 @Injectable()
 export class UsersService {
@@ -22,6 +29,28 @@ export class UsersService {
 
   findAll(): Promise<User[]> {
     return this.repo.findAll({ orderBy: { field: 'createdAt', direction: 'desc' } });
+  }
+
+  /** One page of a role's users, newest first, continuing after the user
+   * with id `after`. The panel used to load every account on each visit —
+   * a list that grows with every customer who ever signs in; this reads one
+   * page plus a count (1 read per 1,000 users). */
+  async findPageByRole(role: Role, pageSize: number, after?: string): Promise<UserPage> {
+    let query = this.repo.collection().where('role', '==', role).orderBy('createdAt', 'desc');
+    if (after) {
+      const cursor = await this.repo.doc(after).get();
+      if (cursor.exists) query = query.startAfter(cursor);
+    }
+    const [snap, total] = await Promise.all([
+      query.limit(pageSize).get(),
+      this.repo.count([{ field: 'role', op: '==', value: role }]),
+    ]);
+    const data = snap.docs.map((doc) => snapshotToEntity<User>(doc));
+    return {
+      data,
+      nextCursor: data.length === pageSize ? data[data.length - 1].id : null,
+      total,
+    };
   }
 
   /** Operational alert emails (low stock, invoice/expense due) go to every

@@ -1,6 +1,6 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { useState, type ChangeEvent } from "react";
+import { useMemo, useRef, useState, type ChangeEvent } from "react";
 import {
   AlertTriangle,
   ImageIcon,
@@ -12,6 +12,7 @@ import {
   Unlink,
 } from "lucide-react";
 import { AdminShell } from "@/components/admin-shell";
+import { PaginationBar, usePagination } from "@/components/pagination";
 import { ProductImage } from "@/components/product-image";
 import { TableRowsSkeleton } from "@/components/table-skeleton";
 import { Card } from "@/components/ui/card";
@@ -48,7 +49,7 @@ import { Switch } from "@/components/ui/switch";
 import { SupplierPicker, useSuppliers } from "@/components/supplier-picker";
 import { apiFetch, ApiError, reportError } from "@/lib/api-client";
 import {
-  SECOND_STORE_PRODUCTS_KEY,
+  applySecondStoreRow,
   type SecondStoreProduct,
   useSecondStoreProducts,
 } from "@/lib/second-store";
@@ -86,31 +87,52 @@ interface AdminProduct {
   active: boolean;
 }
 
-// search="" shares its queryKey/cache with admin.index.tsx, admin.stock.tsx,
-// and admin.suppliers.tsx's unfiltered GET /products/admin.
-function useAdminProducts(search: string) {
+// Shares its queryKey/cache with admin.index.tsx, admin.stock.tsx and
+// admin.suppliers.tsx's GET /products/admin. Search filters this one list in
+// the browser — it used to send a request per keystroke.
+function useAdminProducts() {
   return useQuery({
-    queryKey: ["admin", "products", search],
-    queryFn: () =>
-      apiFetch<AdminProduct[]>(
-        `/products/admin${search ? `?search=${encodeURIComponent(search)}` : ""}`,
-      ),
+    queryKey: ["admin", "products", ""],
+    queryFn: () => apiFetch<AdminProduct[]>("/products/admin"),
   });
 }
+
+const PAGE_SIZE = 25;
+const LINK_PICKER_PAGE_SIZE = 20;
 
 function InventoryPage() {
   const [search, setSearch] = useState("");
   const [creating, setCreating] = useState(false);
   const [editing, setEditing] = useState<AdminProduct | null>(null);
   const [linkingProduct, setLinkingProduct] = useState<AdminProduct | null>(null);
-  const { data: products, isLoading } = useAdminProducts(search);
+  const { data: allProducts, isLoading } = useAdminProducts();
   const { data: suppliers } = useSuppliers();
   const { data: secondStoreProducts } = useSecondStoreProducts();
   const queryClient = useQueryClient();
 
+  const products = useMemo(() => {
+    const needle = search.trim().toLowerCase();
+    if (!needle) return allProducts ?? [];
+    return (allProducts ?? []).filter(
+      (p) => p.name.toLowerCase().includes(needle) || p.sku.toLowerCase().includes(needle),
+    );
+  }, [allProducts, search]);
+  const pagination = usePagination(products, PAGE_SIZE, search);
+  const tableTop = useRef<HTMLDivElement>(null);
+
   const supplierName = (id?: string) => suppliers?.find((s) => s.id === id)?.name;
-  const secondStoreLink = (productId: string) =>
-    secondStoreProducts?.find((s) => s.linkedProduct?.id === productId) ?? null;
+  // One lookup per row instead of scanning the thousands of second-store
+  // rows for each product on every render.
+  const linkByProductId = useMemo(
+    () =>
+      new Map(
+        (secondStoreProducts ?? []).flatMap((s) =>
+          s.linkedProduct ? [[s.linkedProduct.id, s] as const] : [],
+        ),
+      ),
+    [secondStoreProducts],
+  );
+  const secondStoreLink = (productId: string) => linkByProductId.get(productId) ?? null;
 
   const deleteProduct = useMutation({
     mutationFn: (id: string) => apiFetch(`/products/${id}`, { method: "DELETE" }),
@@ -144,7 +166,7 @@ function InventoryPage() {
         </Button>
       </div>
 
-      <Card className="mt-6 overflow-hidden">
+      <Card ref={tableTop} className="mt-6 overflow-hidden">
         <div className="overflow-x-auto">
           <table className="w-full min-w-[960px] text-sm">
             <thead className="bg-brand-surface">
@@ -162,14 +184,14 @@ function InventoryPage() {
             </thead>
             <tbody>
               {isLoading && <TableRowsSkeleton columns={9} />}
-              {!isLoading && (products?.length ?? 0) === 0 && (
+              {!isLoading && products.length === 0 && (
                 <tr>
                   <td colSpan={9} className="py-8 text-center text-muted-foreground">
                     No hay productos con este filtro.
                   </td>
                 </tr>
               )}
-              {products?.map((p) => {
+              {pagination.pageItems.map((p) => {
                 const low = (p.minStockThreshold ?? 0) > 0 && p.stock <= p.minStockThreshold!;
                 const link = secondStoreLink(p.id);
                 return (
@@ -288,6 +310,16 @@ function InventoryPage() {
           </table>
         </div>
       </Card>
+      <PaginationBar
+        className="mt-4"
+        page={pagination.page}
+        totalPages={pagination.totalPages}
+        onChange={pagination.setPage}
+        from={pagination.from}
+        to={pagination.to}
+        total={pagination.total}
+        scrollAnchor={tableTop}
+      />
 
       {creating && <ProductFormDialog onClose={() => setCreating(false)} />}
       {editing && <ProductFormDialog product={editing} onClose={() => setEditing(null)} />}
@@ -325,22 +357,28 @@ function SecondStoreLinkDialog({
   const [wholesalePriceEdit, setWholesalePriceEdit] = useState(link?.wholesalePrice ?? 0);
   const { data: allSecondStore } = useSecondStoreProducts();
 
-  const invalidate = () => {
-    queryClient.invalidateQueries({ queryKey: SECOND_STORE_PRODUCTS_KEY });
-  };
+  const asLink = { id: product.id, sku: product.sku, name: product.name, stock: product.stock };
 
-  const unlinked = (allSecondStore ?? [])
-    .filter((s) => !s.linkedProduct)
-    .filter((s) => !search || s.name.toLowerCase().includes(search.toLowerCase()));
+  const unlinked = useMemo(() => {
+    const needle = search.trim().toLowerCase();
+    return (allSecondStore ?? []).filter(
+      (s) =>
+        !s.linkedProduct &&
+        (!needle ||
+          s.name.toLowerCase().includes(needle) ||
+          (s.code ?? "").toLowerCase().includes(needle)),
+    );
+  }, [allSecondStore, search]);
+  const unlinkedPage = usePagination(unlinked, LINK_PICKER_PAGE_SIZE, search);
 
   const linkExisting = useMutation({
     mutationFn: (id: string) =>
-      apiFetch(`/second-store-products/${id}/link`, {
+      apiFetch<SecondStoreProduct>(`/second-store-products/${id}/link`, {
         method: "POST",
         body: { productId: product.id },
       }),
-    onSuccess: () => {
-      invalidate();
+    onSuccess: (saved) => {
+      applySecondStoreRow(queryClient, saved, asLink);
       toast.success("Producto vinculado");
       onClose();
     },
@@ -349,7 +387,7 @@ function SecondStoreLinkDialog({
 
   const createAndLink = useMutation({
     mutationFn: () =>
-      apiFetch("/second-store-products", {
+      apiFetch<SecondStoreProduct>("/second-store-products", {
         method: "POST",
         body: {
           name: newName,
@@ -360,8 +398,8 @@ function SecondStoreLinkDialog({
           linkedProductId: product.id,
         },
       }),
-    onSuccess: () => {
-      invalidate();
+    onSuccess: (saved) => {
+      applySecondStoreRow(queryClient, saved, asLink);
       toast.success("Producto de tienda secundaria creado y vinculado");
       onClose();
     },
@@ -370,26 +408,29 @@ function SecondStoreLinkDialog({
 
   const saveLink = useMutation({
     mutationFn: () =>
-      apiFetch(`/second-store-products/${link!.id}`, {
+      apiFetch<SecondStoreProduct>(`/second-store-products/${link!.id}`, {
         method: "PATCH",
         body: {
-          code: codeEdit || undefined,
+          code: codeEdit,
           stock: stockEdit,
           retailPrice: retailPriceEdit,
           wholesalePrice: wholesalePriceEdit,
         },
       }),
-    onSuccess: () => {
-      invalidate();
+    onSuccess: (saved) => {
+      applySecondStoreRow(queryClient, saved);
       toast.success("Producto actualizado");
     },
     onError: reportError,
   });
 
   const unlink = useMutation({
-    mutationFn: () => apiFetch(`/second-store-products/${link!.id}/unlink`, { method: "POST" }),
-    onSuccess: () => {
-      invalidate();
+    mutationFn: () =>
+      apiFetch<SecondStoreProduct>(`/second-store-products/${link!.id}/unlink`, {
+        method: "POST",
+      }),
+    onSuccess: (saved) => {
+      applySecondStoreRow(queryClient, { ...saved, linkedProductId: undefined }, null);
       toast.success("Vínculo eliminado");
       onClose();
     },
@@ -478,7 +519,7 @@ function SecondStoreLinkDialog({
               <Input
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
-                placeholder="Buscar producto de tienda secundaria…"
+                placeholder="Buscar por nombre o código…"
                 className="pl-8"
               />
             </div>
@@ -488,7 +529,7 @@ function SecondStoreLinkDialog({
                   No hay productos sin vincular con ese nombre.
                 </div>
               )}
-              {unlinked.map((s) => (
+              {unlinkedPage.pageItems.map((s) => (
                 <button
                   key={s.id}
                   type="button"
@@ -504,6 +545,14 @@ function SecondStoreLinkDialog({
                 </button>
               ))}
             </div>
+            <PaginationBar
+              page={unlinkedPage.page}
+              totalPages={unlinkedPage.totalPages}
+              onChange={unlinkedPage.setPage}
+              from={unlinkedPage.from}
+              to={unlinkedPage.to}
+              total={unlinkedPage.total}
+            />
 
             {!creatingNew ? (
               <Button

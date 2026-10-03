@@ -16,8 +16,8 @@ import { Role } from '../../common/enums/role.enum';
 import { FirebaseAuthGuard } from '../../common/guards/firebase-auth.guard';
 import { RolesGuard } from '../../common/guards/roles.guard';
 import { CreateExpenseDto } from './dto/create-expense.dto';
+import { QueryExpensesDto } from './dto/query-expenses.dto';
 import { UpdateExpenseDto } from './dto/update-expense.dto';
-import { ExpenseStatus } from './entities/expense.entity';
 import { ExpensesService } from './expenses.service';
 
 @ApiTags('expenses')
@@ -34,8 +34,8 @@ export class ExpensesController {
   }
 
   @Get()
-  findAll(@Query('status') status?: ExpenseStatus, @Query('category') category?: string) {
-    return this.expensesService.findAll(status, category);
+  findAll(@Query() query: QueryExpensesDto) {
+    return this.expensesService.findAll(query);
   }
 
   @Patch(':id')

@@ -11,7 +11,8 @@ import type { DocumentReference, Firestore } from 'firebase-admin/firestore';
 import { FieldValue } from 'firebase-admin/firestore';
 import { FIRESTORE } from '../../firebase/firebase.constants';
 import { Collections } from '../../firebase/firestore-collections';
-import { FirestoreRepository } from '../../firebase/firestore.repository';
+import { newestFirst, periodWhere } from '../../common/dto/period-query.dto';
+import { FirestoreRepository, WhereClause } from '../../firebase/firestore.repository';
 import { Role } from '../../common/enums/role.enum';
 import { AuthenticatedUser } from '../../common/interfaces/authenticated-user.interface';
 import { DiscountCodesService } from '../discount-codes/discount-codes.service';
@@ -24,6 +25,7 @@ import { QuotesService } from '../quotes/quotes.service';
 import { ShippingRatesService } from '../shipping-rates/shipping-rates.service';
 import { CreateOrderFromQuoteDto } from './dto/create-order-from-quote.dto';
 import { CreateOrderDto, ShippingInfoDto } from './dto/create-order.dto';
+import { QueryOrdersDto } from './dto/query-orders.dto';
 import { RetryPaymentDto } from './dto/retry-payment.dto';
 import {
   fulfillmentPipeline,
@@ -414,9 +416,34 @@ export class OrdersService {
     });
   }
 
-  findAll(userId?: string): Promise<Order[]> {
+  /** Admin listing. With a period: that period's orders only (the month
+   * view). With statuses and no period: those statuses across all time — the
+   * "pending" view, a small set since orders leave it once handled; sorted
+   * here so the `in` query needs no composite index. Neither: the latest
+   * 500 (a customer's history in the users panel). */
+  async findAll(query: QueryOrdersDto = {}): Promise<Order[]> {
+    const byUser: WhereClause[] = query.userId
+      ? [{ field: 'userId', op: '==', value: query.userId }]
+      : [];
+    const period = periodWhere('createdAt', query, 'timestamp');
+    const statuses = query.status ?? [];
+
+    if (period.length > 0) {
+      const orders = await this.repo.findAll({
+        where: [...byUser, ...period],
+        orderBy: { field: 'createdAt', direction: 'desc' },
+      });
+      return statuses.length > 0 ? orders.filter((o) => statuses.includes(o.status)) : orders;
+    }
+    if (statuses.length > 0) {
+      const orders = await this.repo.findAll({
+        where: [...byUser, { field: 'status', op: 'in', value: statuses }],
+        limit: 500,
+      });
+      return orders.sort(newestFirst);
+    }
     return this.repo.findAll({
-      where: userId ? [{ field: 'userId', op: '==', value: userId }] : [],
+      where: byUser,
       orderBy: { field: 'createdAt', direction: 'desc' },
       limit: 500,
     });

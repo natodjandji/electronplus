@@ -1,8 +1,9 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { useMemo, useState } from "react";
+import { useMemo, useRef, useState } from "react";
 import { Search, Unlink } from "lucide-react";
 import { AdminShell } from "@/components/admin-shell";
+import { PaginationBar, usePagination } from "@/components/pagination";
 import { TableRowsSkeleton } from "@/components/table-skeleton";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -17,7 +18,7 @@ import {
 } from "@/components/ui/dialog";
 import { apiFetch, reportError } from "@/lib/api-client";
 import {
-  SECOND_STORE_PRODUCTS_KEY,
+  applySecondStoreRow,
   type SecondStoreProduct,
   useSecondStoreProducts,
 } from "@/lib/second-store";
@@ -37,11 +38,10 @@ export const Route = createFileRoute("/admin/second-store-inventory")({
   component: SecondStoreInventoryPage,
 });
 
-// The bridge sync keeps this catalog in the thousands of rows — rendering
-// all of them unfiltered would mean thousands of <tr> with no virtualization
-// library in this project. Capping the rendered list keeps the DOM light;
-// searching narrows it down to something worth scrolling through.
-const MAX_RENDERED_ROWS = 200;
+// The bridge sync keeps this catalog in the thousands of rows. The whole list
+// arrives in one request (served from the snapshot, ~1 Firestore read), so
+// paging through it costs nothing more.
+const PAGE_SIZE = 50;
 
 function SecondStoreInventoryPage() {
   const [search, setSearch] = useState("");
@@ -57,7 +57,8 @@ function SecondStoreInventoryPage() {
     );
   }, [items, search]);
 
-  const visible = filtered.slice(0, MAX_RENDERED_ROWS);
+  const pagination = usePagination(filtered, PAGE_SIZE, search);
+  const tableTop = useRef<HTMLDivElement>(null);
   const total = items?.length ?? 0;
   const linkedCount = items?.filter((p) => p.linkedProduct).length ?? 0;
 
@@ -81,7 +82,7 @@ function SecondStoreInventoryPage() {
         </div>
       </Card>
 
-      <Card className="mt-4 overflow-hidden">
+      <Card ref={tableTop} className="mt-4 overflow-hidden">
         <div className="overflow-x-auto">
           <table className="w-full min-w-[720px] text-sm">
             <thead className="bg-brand-surface">
@@ -96,14 +97,14 @@ function SecondStoreInventoryPage() {
             </thead>
             <tbody>
               {isLoading && <TableRowsSkeleton columns={6} />}
-              {!isLoading && visible.length === 0 && (
+              {!isLoading && pagination.total === 0 && (
                 <tr>
                   <td colSpan={6} className="py-8 text-center text-muted-foreground">
                     No hay productos con ese filtro.
                   </td>
                 </tr>
               )}
-              {visible.map((p) => (
+              {pagination.pageItems.map((p) => (
                 <tr
                   key={p.id}
                   className="cursor-pointer border-t border-border hover:bg-brand-surface"
@@ -124,13 +125,17 @@ function SecondStoreInventoryPage() {
             </tbody>
           </table>
         </div>
-        {filtered.length > MAX_RENDERED_ROWS && (
-          <div className="border-t border-border bg-brand-surface px-4 py-2 text-xs text-muted-foreground">
-            Mostrando {MAX_RENDERED_ROWS} de {filtered.length} resultados — refina la búsqueda para
-            ver otros.
-          </div>
-        )}
       </Card>
+      <PaginationBar
+        className="mt-4"
+        page={pagination.page}
+        totalPages={pagination.totalPages}
+        onChange={pagination.setPage}
+        from={pagination.from}
+        to={pagination.to}
+        total={pagination.total}
+        scrollAnchor={tableTop}
+      />
 
       {editing && <EditDialog item={editing} onClose={() => setEditing(null)} />}
     </AdminShell>
@@ -145,8 +150,6 @@ function EditDialog({ item, onClose }: { item: SecondStoreProduct; onClose: () =
   const [retailPrice, setRetailPrice] = useState(item.retailPrice ?? 0);
   const [wholesalePrice, setWholesalePrice] = useState(item.wholesalePrice ?? 0);
 
-  const invalidate = () => queryClient.invalidateQueries({ queryKey: SECOND_STORE_PRODUCTS_KEY });
-
   const dirty =
     name !== item.name ||
     code !== (item.code ?? "") ||
@@ -155,13 +158,23 @@ function EditDialog({ item, onClose }: { item: SecondStoreProduct; onClose: () =
     wholesalePrice !== (item.wholesalePrice ?? 0);
 
   const save = useMutation({
-    mutationFn: () =>
-      apiFetch(`/second-store-products/${item.id}`, {
+    // Only what was edited — sending every field would also overwrite
+    // whatever the bridge sync changed while this dialog was open.
+    mutationFn: () => {
+      const changes: Partial<SecondStoreProduct> = {};
+      if (name !== item.name) changes.name = name;
+      // "" clears it — undefined would be dropped from the JSON body.
+      if (code !== (item.code ?? "")) changes.code = code;
+      if (stock !== item.stock) changes.stock = stock;
+      if (retailPrice !== (item.retailPrice ?? 0)) changes.retailPrice = retailPrice;
+      if (wholesalePrice !== (item.wholesalePrice ?? 0)) changes.wholesalePrice = wholesalePrice;
+      return apiFetch<SecondStoreProduct>(`/second-store-products/${item.id}`, {
         method: "PATCH",
-        body: { name, code: code || undefined, stock, retailPrice, wholesalePrice },
-      }),
-    onSuccess: () => {
-      invalidate();
+        body: changes,
+      });
+    },
+    onSuccess: (saved) => {
+      applySecondStoreRow(queryClient, saved);
       toast.success("Producto actualizado");
       onClose();
     },
@@ -169,9 +182,12 @@ function EditDialog({ item, onClose }: { item: SecondStoreProduct; onClose: () =
   });
 
   const unlink = useMutation({
-    mutationFn: () => apiFetch(`/second-store-products/${item.id}/unlink`, { method: "POST" }),
-    onSuccess: () => {
-      invalidate();
+    mutationFn: () =>
+      apiFetch<SecondStoreProduct>(`/second-store-products/${item.id}/unlink`, {
+        method: "POST",
+      }),
+    onSuccess: (saved) => {
+      applySecondStoreRow(queryClient, { ...saved, linkedProductId: undefined }, null);
       toast.success("Vínculo eliminado");
       onClose();
     },

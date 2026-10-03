@@ -1,10 +1,13 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { useState } from "react";
+import { useMemo, useRef, useState } from "react";
 import { Check, Loader2, Printer, Tag, X } from "lucide-react";
 import { AdminShell } from "@/components/admin-shell";
 import { CardListSkeleton } from "@/components/table-skeleton";
-import { MonthPagerBar, useMonthPager } from "@/components/month-pager";
+import { MonthYearPicker, useMonthPeriod } from "@/components/month-pager";
+import { PaginationBar, usePagination } from "@/components/pagination";
+import { PendingToggle } from "@/components/pending-toggle";
+import { periodQuery } from "@/lib/admin-period";
 import { ElectronLogo } from "@/components/electron-logo";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -84,23 +87,42 @@ const STATUS_BADGE: Record<QuoteStatus, string> = {
   rejected: "border-transparent bg-destructive/10 text-destructive",
 };
 
-function useAllQuotes() {
-  return useQuery({
-    queryKey: ["admin", "quotes"],
-    queryFn: () => apiFetch<Quote[]>("/quotes"),
-  });
-}
+const PAGE_SIZE = 25;
 
 function AdminQuotesPage() {
-  const [statusFilter, setStatusFilter] = useState<string>("sent");
+  const [statusFilter, setStatusFilter] = useState<string>("all");
+  // Opens on the quotes waiting for an answer, whichever month they're from —
+  // falls back to the month view once there are none.
+  const [showPending, setShowPending] = useState(true);
   const [selectedId, setSelectedId] = useState<string | null>(null);
-  const { data: quotes, isLoading } = useAllQuotes();
+  const period = useMonthPeriod();
+  const monthQuotes = useQuery({
+    queryKey: ["admin", "quotes", "month", period.key],
+    queryFn: () => apiFetch<Quote[]>(`/quotes?${periodQuery(period, "timestamp")}`),
+  });
+  const pendingQuotes = useQuery({
+    queryKey: ["admin", "quotes", "pending"],
+    queryFn: () => apiFetch<Quote[]>("/quotes?status=sent"),
+  });
+  const pendingView =
+    showPending && (pendingQuotes.isLoading || (pendingQuotes.data?.length ?? 0) > 0);
+  const source = pendingView ? pendingQuotes : monthQuotes;
+  const isLoading = source.isLoading;
 
-  const filtered = (quotes ?? []).filter(
-    (q) => statusFilter === "all" || q.status === statusFilter,
+  // The status filter narrows the month already loaded — no extra request.
+  const filtered = useMemo(
+    () =>
+      (source.data ?? []).filter(
+        (q) => pendingView || statusFilter === "all" || q.status === statusFilter,
+      ),
+    [source.data, pendingView, statusFilter],
   );
-  const pager = useMonthPager(filtered, (q) => q.createdAt);
-  const visibleQuotes = pager.filtered ?? [];
+  const pagination = usePagination(
+    filtered,
+    PAGE_SIZE,
+    `${pendingView}|${period.key}|${statusFilter}`,
+  );
+  const listTop = useRef<HTMLDivElement>(null);
 
   return (
     <AdminShell title="Solicitudes de cotización">
@@ -108,7 +130,7 @@ function AdminQuotesPage() {
         <div className="mb-4 flex flex-wrap items-end justify-between gap-3">
           <div className="grid gap-1.5">
             <Label className="text-xs font-medium text-brand-navy">Estado</Label>
-            <Select value={statusFilter} onValueChange={setStatusFilter}>
+            <Select value={statusFilter} onValueChange={setStatusFilter} disabled={pendingView}>
               <SelectTrigger className="w-48">
                 <SelectValue />
               </SelectTrigger>
@@ -122,35 +144,35 @@ function AdminQuotesPage() {
               </SelectContent>
             </Select>
           </div>
-          {filtered.length > 0 && (
-            <MonthPagerBar
-              label={pager.label}
-              showAll={pager.showAll}
-              onPrev={pager.goPrev}
-              onNext={pager.goNext}
-              onToggleAll={() => pager.setShowAll((v) => !v)}
-              canGoNext={pager.canGoNext}
+          <div className="flex flex-wrap items-center gap-3">
+            <PendingToggle
+              label="Por revisar"
+              count={pendingQuotes.data?.length}
+              active={pendingView}
+              onToggle={() => setShowPending(!pendingView)}
             />
-          )}
+            <MonthYearPicker period={period} disabled={pendingView} />
+          </div>
         </div>
+        {pendingView && (
+          <p className="-mt-2 mb-4 text-xs text-muted-foreground">
+            Cotizaciones por revisar de todos los meses, de la más reciente a la más antigua.
+          </p>
+        )}
 
         {isLoading && <CardListSkeleton />}
 
-        {!isLoading && filtered.length > 0 && visibleQuotes.length === 0 && (
-          <Card className="p-10 text-center text-muted-foreground">
-            No hay cotizaciones en este período.
-          </Card>
-        )}
-
         {!isLoading && filtered.length === 0 && (
           <Card className="p-10 text-center text-muted-foreground">
-            No hay cotizaciones con este estado.
+            {statusFilter === "all"
+              ? `No hay cotizaciones en ${period.label}.`
+              : `No hay cotizaciones con este estado en ${period.label}.`}
           </Card>
         )}
 
-        {visibleQuotes.length > 0 && (
-          <div className="space-y-3">
-            {visibleQuotes.map((q) => (
+        {filtered.length > 0 && (
+          <div ref={listTop} className="space-y-3">
+            {pagination.pageItems.map((q) => (
               <Card
                 key={q.id}
                 onClick={() => setSelectedId(q.id)}
@@ -179,6 +201,16 @@ function AdminQuotesPage() {
             ))}
           </div>
         )}
+        <PaginationBar
+          className="mt-4"
+          page={pagination.page}
+          totalPages={pagination.totalPages}
+          onChange={pagination.setPage}
+          from={pagination.from}
+          to={pagination.to}
+          total={pagination.total}
+          scrollAnchor={listTop}
+        />
       </div>
 
       {selectedId && <QuoteDetailDialog id={selectedId} onClose={() => setSelectedId(null)} />}

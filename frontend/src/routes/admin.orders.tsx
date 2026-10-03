@@ -1,10 +1,13 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { useState } from "react";
+import { useMemo, useRef, useState } from "react";
 import { AlertCircle, Ban, Check, ChevronRight, FileText, Loader2, X } from "lucide-react";
 import { AdminShell } from "@/components/admin-shell";
 import { CardListSkeleton } from "@/components/table-skeleton";
-import { MonthPagerBar, useMonthPager } from "@/components/month-pager";
+import { MonthYearPicker, useMonthPeriod } from "@/components/month-pager";
+import { PaginationBar, usePagination } from "@/components/pagination";
+import { PendingToggle } from "@/components/pending-toggle";
+import { useOrdersNeedingAction, useOrdersOfMonth } from "@/lib/admin-period";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
@@ -98,27 +101,39 @@ const PAYMENT_STATUS_BADGE: Record<Payment["status"], string> = {
   rejected: "bg-destructive text-white",
 };
 
-function useOrders() {
-  return useQuery({
-    queryKey: ["admin", "orders"],
-    queryFn: () => apiFetch<Order[]>("/orders"),
-  });
-}
+const PAGE_SIZE = 25;
 
 function AdminOrdersPage() {
   const [statusFilter, setStatusFilter] = useState("all");
+  const [showPending, setShowPending] = useState(false);
   const [selectedId, setSelectedId] = useState<string | null>(null);
-  const { data: allOrders, isLoading } = useOrders();
-  const orders = allOrders?.filter((o) => statusFilter === "all" || o.status === statusFilter);
-  const pager = useMonthPager(orders, (o) => o.createdAt);
-  const visibleOrders = pager.filtered;
+  const period = useMonthPeriod();
+  const monthOrders = useOrdersOfMonth<Order>(period);
+  const pendingOrders = useOrdersNeedingAction<Order>();
+  const source = showPending ? pendingOrders : monthOrders;
+  const isLoading = source.isLoading;
+
+  // The status filter narrows the month already loaded — no extra request.
+  const orders = useMemo(
+    () =>
+      (source.data ?? []).filter(
+        (o) => showPending || statusFilter === "all" || o.status === statusFilter,
+      ),
+    [source.data, showPending, statusFilter],
+  );
+  const pagination = usePagination(
+    orders,
+    PAGE_SIZE,
+    `${showPending}|${period.key}|${statusFilter}`,
+  );
+  const listTop = useRef<HTMLDivElement>(null);
 
   return (
     <AdminShell title="Pedidos">
       <div className="flex flex-wrap items-end justify-between gap-3">
         <div className="grid gap-1.5">
           <Label className="text-xs font-medium text-brand-navy">Estado</Label>
-          <Select value={statusFilter} onValueChange={setStatusFilter}>
+          <Select value={statusFilter} onValueChange={setStatusFilter} disabled={showPending}>
             <SelectTrigger className="w-56">
               <SelectValue />
             </SelectTrigger>
@@ -132,35 +147,37 @@ function AdminOrdersPage() {
             </SelectContent>
           </Select>
         </div>
-        {orders && orders.length > 0 && (
-          <MonthPagerBar
-            label={pager.label}
-            showAll={pager.showAll}
-            onPrev={pager.goPrev}
-            onNext={pager.goNext}
-            onToggleAll={() => pager.setShowAll((v) => !v)}
-            canGoNext={pager.canGoNext}
+        <div className="flex flex-wrap items-center gap-3">
+          <PendingToggle
+            label="Pagos por verificar"
+            count={pendingOrders.data?.length}
+            active={showPending}
+            onToggle={() => setShowPending((v) => !v)}
           />
-        )}
+          <MonthYearPicker period={period} disabled={showPending} />
+        </div>
       </div>
+      {showPending && (
+        <p className="mt-3 text-xs text-muted-foreground">
+          Pagos por verificar de todos los meses, del más reciente al más antiguo.
+        </p>
+      )}
 
       {isLoading && <CardListSkeleton />}
 
-      {!isLoading && (orders?.length ?? 0) > 0 && (visibleOrders?.length ?? 0) === 0 && (
+      {!isLoading && orders.length === 0 && (
         <Card className="mt-6 p-10 text-center text-muted-foreground">
-          No hay pedidos en este período.
+          {showPending
+            ? "No quedan pagos por verificar."
+            : statusFilter === "all"
+              ? `No hay pedidos en ${period.label}.`
+              : `No hay pedidos con este estado en ${period.label}.`}
         </Card>
       )}
 
-      {!isLoading && (orders?.length ?? 0) === 0 && (
-        <Card className="mt-6 p-10 text-center text-muted-foreground">
-          No hay pedidos con este filtro.
-        </Card>
-      )}
-
-      {visibleOrders && visibleOrders.length > 0 && (
-        <div className="mt-6 space-y-2">
-          {visibleOrders.map((o) => {
+      {orders.length > 0 && (
+        <div ref={listTop} className="mt-6 space-y-2">
+          {pagination.pageItems.map((o) => {
             const itemCount = o.items.reduce((s, i) => s + i.qty, 0);
             return (
               <Card
@@ -199,6 +216,17 @@ function AdminOrdersPage() {
           })}
         </div>
       )}
+
+      <PaginationBar
+        className="mt-4"
+        page={pagination.page}
+        totalPages={pagination.totalPages}
+        onChange={pagination.setPage}
+        from={pagination.from}
+        to={pagination.to}
+        total={pagination.total}
+        scrollAnchor={listTop}
+      />
 
       {selectedId && <OrderDetailDialog orderId={selectedId} onClose={() => setSelectedId(null)} />}
     </AdminShell>

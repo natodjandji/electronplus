@@ -1,8 +1,9 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { Building2, Loader2, Mail, Pencil, Phone, Plus, Trash2 } from "lucide-react";
 import { AdminShell } from "@/components/admin-shell";
+import { PaginationBar, usePagination } from "@/components/pagination";
 import { Card } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Badge } from "@/components/ui/badge";
@@ -77,8 +78,15 @@ function SuppliersPage() {
   const [creating, setCreating] = useState(false);
   const [selectedId, setSelectedId] = useState<string | null>(null);
 
-  const productsFor = (supplierId: string) =>
-    (products ?? []).filter((p) => p.supplierId === supplierId);
+  // Grouped once per product list, not re-filtered for every supplier card.
+  const productsBySupplier = useMemo(() => {
+    const groups = new Map<string, AdminProduct[]>();
+    for (const p of products ?? []) {
+      if (p.supplierId) groups.set(p.supplierId, [...(groups.get(p.supplierId) ?? []), p]);
+    }
+    return groups;
+  }, [products]);
+  const productsFor = (supplierId: string) => productsBySupplier.get(supplierId) ?? [];
 
   return (
     <AdminShell title="Proveedores">
@@ -162,6 +170,8 @@ function SuppliersPage() {
   );
 }
 
+const SUPPLIER_PRODUCTS_PAGE_SIZE = 10;
+
 function SupplierDetailDialog({
   supplierId,
   products,
@@ -174,6 +184,7 @@ function SupplierDetailDialog({
   const queryClient = useQueryClient();
   const { data: suppliers } = useSuppliers();
   const supplier = suppliers?.find((s) => s.id === supplierId);
+  const productsPage = usePagination(products, SUPPLIER_PRODUCTS_PAGE_SIZE);
 
   const [editing, setEditing] = useState(false);
   const [name, setName] = useState("");
@@ -356,7 +367,7 @@ function SupplierDetailDialog({
             </div>
           ) : (
             <div className="space-y-1.5">
-              {products.map((p) => (
+              {productsPage.pageItems.map((p) => (
                 <div
                   key={p.id}
                   className="flex items-center justify-between rounded-md border border-border p-2 text-sm"
@@ -370,6 +381,15 @@ function SupplierDetailDialog({
               ))}
             </div>
           )}
+          <PaginationBar
+            className="mt-3"
+            page={productsPage.page}
+            totalPages={productsPage.totalPages}
+            onChange={productsPage.setPage}
+            from={productsPage.from}
+            to={productsPage.to}
+            total={productsPage.total}
+          />
         </div>
       </DialogContent>
     </Dialog>

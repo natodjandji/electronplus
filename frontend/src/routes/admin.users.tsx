@@ -1,6 +1,6 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { useState } from "react";
+import { keepPreviousData, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useEffect, useRef, useState } from "react";
 import {
   ChevronRight,
   FileCheck2,
@@ -11,6 +11,7 @@ import {
   Warehouse,
 } from "lucide-react";
 import { AdminShell } from "@/components/admin-shell";
+import { PaginationBar, usePagination } from "@/components/pagination";
 import { CardListSkeleton } from "@/components/table-skeleton";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
@@ -110,11 +111,65 @@ function totalSpent(orders: OrderSummary[]): number {
     .reduce((s, o) => s + o.totalAmount, 0);
 }
 
-function useUsers() {
+interface UserPage {
+  data: AppUser[];
+  nextCursor: string | null;
+  total: number;
+}
+
+const CLIENTS_PAGE_SIZE = 25;
+const HISTORY_PAGE_SIZE = 8;
+
+/** Admins and warehouse operators — a handful of accounts each. */
+function useStaff(role: "admin" | "warehouse_operator") {
   return useQuery({
-    queryKey: ["admin", "users"],
-    queryFn: () => apiFetch<AppUser[]>("/users"),
+    queryKey: ["admin", "users", "role", role],
+    queryFn: () => apiFetch<UserPage>(`/users/by-role/${role}?limit=100`),
+    select: (page) => page.data,
   });
+}
+
+/**
+ * Clients, one server page at a time — the list grows with every customer
+ * who signs in, so each page reads only its own accounts. Pages are fetched
+ * by cursor (the last client of the previous page), so a page can be opened
+ * once the one before it has been seen; going back is served from cache.
+ */
+function useClientPages() {
+  // cursors[i] fetches page i + 1; page 1 needs none.
+  const [cursors, setCursors] = useState<(string | undefined)[]>([undefined]);
+  const [page, setPage] = useState(1);
+  const cursor = cursors[page - 1];
+  const query = useQuery({
+    queryKey: ["admin", "users", "clients", cursor ?? ""],
+    queryFn: () =>
+      apiFetch<UserPage>(
+        `/users/by-role/client?limit=${CLIENTS_PAGE_SIZE}${cursor ? `&after=${encodeURIComponent(cursor)}` : ""}`,
+      ),
+    placeholderData: keepPreviousData,
+  });
+
+  const nextCursor = query.isPlaceholderData ? undefined : query.data?.nextCursor;
+  useEffect(() => {
+    if (!nextCursor) return;
+    setCursors((known) =>
+      known[page] === nextCursor ? known : [...known.slice(0, page), nextCursor],
+    );
+  }, [nextCursor, page]);
+
+  const total = query.data?.total ?? 0;
+  const shown = query.data?.data.length ?? 0;
+  return {
+    clients: query.data?.data ?? [],
+    isLoading: query.isLoading,
+    page,
+    setPage,
+    totalPages: Math.max(1, Math.ceil(total / CLIENTS_PAGE_SIZE)),
+    total,
+    from: shown === 0 ? 0 : (page - 1) * CLIENTS_PAGE_SIZE + 1,
+    to: (page - 1) * CLIENTS_PAGE_SIZE + shown,
+    isPageReachable: (p: number) => p === 1 || cursors[p - 1] !== undefined,
+  };
 }
 
 function UserIdentity({ user }: { user: AppUser }) {
@@ -139,12 +194,13 @@ function UserIdentity({ user }: { user: AppUser }) {
 }
 
 function AdminUsersPage() {
-  const { data: users, isLoading } = useUsers();
   const [selectedClient, setSelectedClient] = useState<AppUser | null>(null);
-
-  const admins = (users ?? []).filter((u) => u.role === "admin");
-  const operators = (users ?? []).filter((u) => u.role === "warehouse_operator");
-  const clients = (users ?? []).filter((u) => u.role === "client");
+  const { data: admins = [], isLoading: adminsLoading } = useStaff("admin");
+  const { data: operators = [], isLoading: operatorsLoading } = useStaff("warehouse_operator");
+  const clientPages = useClientPages();
+  const clients = clientPages.clients;
+  const isLoading = adminsLoading || operatorsLoading || clientPages.isLoading;
+  const clientsTop = useRef<HTMLElement>(null);
 
   return (
     <AdminShell title="Usuarios">
@@ -197,9 +253,14 @@ function AdminUsersPage() {
             )}
           </section>
 
-          <section>
+          <section ref={clientsTop}>
             <div className="mb-2 flex items-center gap-2 text-sm font-semibold text-brand-navy">
               <Users className="h-4 w-4 text-brand-blue" /> Clientes
+              {clientPages.total > 0 && (
+                <span className="font-normal tabular-nums text-muted-foreground">
+                  ({clientPages.total.toLocaleString("es-VE")})
+                </span>
+              )}
             </div>
             {clients.length === 0 ? (
               <Card className="p-6 text-center text-sm text-muted-foreground">
@@ -219,6 +280,17 @@ function AdminUsersPage() {
                 ))}
               </div>
             )}
+            <PaginationBar
+              className="mt-4"
+              page={clientPages.page}
+              totalPages={clientPages.totalPages}
+              onChange={clientPages.setPage}
+              from={clientPages.from}
+              to={clientPages.to}
+              total={clientPages.total}
+              isPageReachable={clientPages.isPageReachable}
+              scrollAnchor={clientsTop}
+            />
           </section>
         </div>
       )}
@@ -284,6 +356,8 @@ function ClientDetailDialog({ user, onClose }: { user: AppUser; onClose: () => v
   });
 
   const spent = totalSpent(orders ?? []);
+  const quotesPage = usePagination(quotes, HISTORY_PAGE_SIZE);
+  const ordersPage = usePagination(orders, HISTORY_PAGE_SIZE);
 
   return (
     <>
@@ -372,7 +446,7 @@ function ClientDetailDialog({ user, onClose }: { user: AppUser; onClose: () => v
           )}
           {quotes && quotes.length > 0 && (
             <div className="space-y-1.5">
-              {quotes.map((q) => (
+              {quotesPage.pageItems.map((q) => (
                 <div
                   key={q.id}
                   className="flex items-center justify-between rounded-md border border-border p-2 text-sm"
@@ -390,6 +464,14 @@ function ClientDetailDialog({ user, onClose }: { user: AppUser; onClose: () => v
               ))}
             </div>
           )}
+          <PaginationBar
+            page={quotesPage.page}
+            totalPages={quotesPage.totalPages}
+            onChange={quotesPage.setPage}
+            from={quotesPage.from}
+            to={quotesPage.to}
+            total={quotesPage.total}
+          />
         </DialogContent>
       </Dialog>
 
@@ -410,7 +492,7 @@ function ClientDetailDialog({ user, onClose }: { user: AppUser; onClose: () => v
           )}
           {orders && orders.length > 0 && (
             <div className="space-y-1.5">
-              {orders.map((o) => (
+              {ordersPage.pageItems.map((o) => (
                 <div
                   key={o.id}
                   className="flex items-center justify-between rounded-md border border-border p-2 text-sm"
@@ -430,6 +512,14 @@ function ClientDetailDialog({ user, onClose }: { user: AppUser; onClose: () => v
               ))}
             </div>
           )}
+          <PaginationBar
+            page={ordersPage.page}
+            totalPages={ordersPage.totalPages}
+            onChange={ordersPage.setPage}
+            from={ordersPage.from}
+            to={ordersPage.to}
+            total={ordersPage.total}
+          />
         </DialogContent>
       </Dialog>
     </>

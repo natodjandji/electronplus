@@ -1,6 +1,6 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { useState, type Dispatch, type SetStateAction } from "react";
+import { useMemo, useRef, useState, type Dispatch, type SetStateAction } from "react";
 import {
   Plus,
   Trash2,
@@ -17,7 +17,10 @@ import {
 import { AdminShell } from "@/components/admin-shell";
 import { ElectronLogo } from "@/components/electron-logo";
 import { TableRowsSkeleton } from "@/components/table-skeleton";
-import { MonthPagerBar, useMonthPager } from "@/components/month-pager";
+import { MonthYearPicker, useMonthPeriod } from "@/components/month-pager";
+import { PaginationBar, usePagination } from "@/components/pagination";
+import { PendingToggle } from "@/components/pending-toggle";
+import { periodQuery } from "@/lib/admin-period";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -136,16 +139,9 @@ function useProductOptions(supplierId?: string) {
   });
 }
 
-function usePurchaseOrders(filters: { status?: string; supplierId?: string }) {
-  const params = new URLSearchParams();
-  if (filters.status) params.set("status", filters.status);
-  if (filters.supplierId) params.set("supplierId", filters.supplierId);
-  const qs = params.toString();
-  return useQuery({
-    queryKey: ["admin", "purchase-orders", filters],
-    queryFn: () => apiFetch<PurchaseOrder[]>(`/purchase-orders${qs ? `?${qs}` : ""}`),
-  });
-}
+/** Issued but not fully paid — shown regardless of month. */
+const AWAITING_PAYMENT: PurchaseOrderStatus[] = ["issued", "partially_paid"];
+const PAGE_SIZE = 25;
 
 type DraftLine = {
   productId: string;
@@ -172,23 +168,46 @@ function PurchaseOrdersPage() {
   const [creating, setCreating] = useState(false);
   const [selectedId, setSelectedId] = useState<string | null>(null);
 
-  const { data: orders, isLoading } = usePurchaseOrders({
-    status: statusFilter === "all" ? undefined : statusFilter,
-    supplierId: supplierFilter || undefined,
+  const [showPending, setShowPending] = useState(false);
+  const period = useMonthPeriod();
+  const monthOrders = useQuery({
+    queryKey: ["admin", "purchase-orders", "month", period.key],
+    queryFn: () =>
+      apiFetch<PurchaseOrder[]>(`/purchase-orders?${periodQuery(period, "timestamp")}`),
+  });
+  const pendingOrders = useQuery({
+    queryKey: ["admin", "purchase-orders", "pending"],
+    queryFn: () =>
+      apiFetch<PurchaseOrder[]>(`/purchase-orders?status=${AWAITING_PAYMENT.join(",")}`),
   });
   const { data: suppliers } = useSuppliers();
-  const pager = useMonthPager(orders, (o) => o.createdAt);
+  const source = showPending ? pendingOrders : monthOrders;
+  const isLoading = source.isLoading;
 
+  // Status, supplier and search narrow what's already loaded — changing them
+  // costs no request (they used to refetch the whole history each time).
   const needle = search.trim().toLowerCase();
-  const visibleOrders = (pager.filtered ?? []).filter(
-    (o) =>
-      !needle ||
-      o.id.toLowerCase().includes(needle) ||
-      o.supplierName.toLowerCase().includes(needle) ||
-      o.items.some(
-        (i) => i.name.toLowerCase().includes(needle) || i.sku.toLowerCase().includes(needle),
+  const visibleOrders = useMemo(
+    () =>
+      (source.data ?? []).filter(
+        (o) =>
+          (showPending || statusFilter === "all" || o.status === statusFilter) &&
+          (!supplierFilter || o.supplierId === supplierFilter) &&
+          (!needle ||
+            o.id.toLowerCase().includes(needle) ||
+            o.supplierName.toLowerCase().includes(needle) ||
+            o.items.some(
+              (i) => i.name.toLowerCase().includes(needle) || i.sku.toLowerCase().includes(needle),
+            )),
       ),
+    [source.data, showPending, statusFilter, supplierFilter, needle],
   );
+  const pagination = usePagination(
+    visibleOrders,
+    PAGE_SIZE,
+    `${showPending}|${period.key}|${statusFilter}|${supplierFilter}|${needle}`,
+  );
+  const tableTop = useRef<HTMLDivElement>(null);
 
   return (
     <AdminShell title="Órdenes de compra">
@@ -197,7 +216,7 @@ function PurchaseOrdersPage() {
           <div className="flex flex-wrap items-end gap-3">
             <div className="grid gap-1.5">
               <Label className="text-xs font-medium text-brand-navy">Estado</Label>
-              <Select value={statusFilter} onValueChange={setStatusFilter}>
+              <Select value={statusFilter} onValueChange={setStatusFilter} disabled={showPending}>
                 <SelectTrigger className="w-48">
                   <SelectValue />
                 </SelectTrigger>
@@ -244,16 +263,13 @@ function PurchaseOrdersPage() {
             </div>
           </div>
           <div className="flex flex-wrap items-center gap-3">
-            {orders && orders.length > 0 && (
-              <MonthPagerBar
-                label={pager.label}
-                showAll={pager.showAll}
-                onPrev={pager.goPrev}
-                onNext={pager.goNext}
-                onToggleAll={() => pager.setShowAll((v) => !v)}
-                canGoNext={pager.canGoNext}
-              />
-            )}
+            <PendingToggle
+              label="Por pagar"
+              count={pendingOrders.data?.length}
+              active={showPending}
+              onToggle={() => setShowPending((v) => !v)}
+            />
+            <MonthYearPicker period={period} disabled={showPending} />
             <Button
               className="gap-2 bg-brand-blue text-white hover:bg-brand-blue/90"
               onClick={() => setCreating(true)}
@@ -277,20 +293,28 @@ function PurchaseOrdersPage() {
             </Card>
           ))}
 
-        {!isLoading && (orders?.length ?? 0) === 0 && (
+        {showPending && (
+          <p className="mt-3 text-xs text-muted-foreground">
+            Órdenes emitidas pendientes de pago, de todos los meses.
+          </p>
+        )}
+
+        {!isLoading && (source.data?.length ?? 0) === 0 && (
           <Card className="mt-6 p-10 text-center text-muted-foreground">
-            No hay órdenes de compra con estos filtros.
+            {showPending
+              ? "No quedan órdenes pendientes de pago."
+              : `No hay órdenes de compra en ${period.label}.`}
           </Card>
         )}
 
-        {!isLoading && (orders?.length ?? 0) > 0 && (visibleOrders?.length ?? 0) === 0 && (
+        {!isLoading && (source.data?.length ?? 0) > 0 && visibleOrders.length === 0 && (
           <Card className="mt-6 p-10 text-center text-muted-foreground">
             No hay órdenes de compra que coincidan con estos filtros.
           </Card>
         )}
 
-        {visibleOrders && visibleOrders.length > 0 && (
-          <Card className="mt-6 overflow-hidden">
+        {visibleOrders.length > 0 && (
+          <Card ref={tableTop} className="mt-6 overflow-hidden">
             <div className="overflow-x-auto">
               <table className="w-full min-w-[600px] text-sm">
                 <thead className="bg-brand-surface">
@@ -303,7 +327,7 @@ function PurchaseOrdersPage() {
                   </tr>
                 </thead>
                 <tbody>
-                  {visibleOrders.map((o) => (
+                  {pagination.pageItems.map((o) => (
                     <tr
                       key={o.id}
                       className="cursor-pointer border-t border-border hover:bg-brand-surface"
@@ -329,6 +353,16 @@ function PurchaseOrdersPage() {
             </div>
           </Card>
         )}
+        <PaginationBar
+          className="mt-4"
+          page={pagination.page}
+          totalPages={pagination.totalPages}
+          onChange={pagination.setPage}
+          from={pagination.from}
+          to={pagination.to}
+          total={pagination.total}
+          scrollAnchor={tableTop}
+        />
       </div>
 
       {creating && <CreateOrderDialog onClose={() => setCreating(false)} />}

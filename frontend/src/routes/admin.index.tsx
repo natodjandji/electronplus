@@ -21,6 +21,8 @@ import { Card } from "@/components/ui/card";
 import { apiFetch } from "@/lib/api-client";
 import { formatMoneyAdmin } from "@/lib/electron-store";
 import { BRAND_BLUE_HEX, BRAND_NAVY_HEX } from "@/lib/brand-colors";
+import { useMonthPeriod } from "@/components/month-pager";
+import { useOrdersNeedingAction, useOrdersOfMonth } from "@/lib/admin-period";
 
 export const Route = createFileRoute("/admin/")({
   head: () => ({
@@ -89,11 +91,11 @@ function AdminDashboard() {
     queryKey: ["reports", "profitability"],
     queryFn: () => apiFetch<ProfitabilityRow[]>("/reports/profitability"),
   });
-  // Shared queryKey with admin.orders.tsx — same GET /orders.
-  const { data: orders = [] } = useQuery({
-    queryKey: ["admin", "orders"],
-    queryFn: () => apiFetch<AdminOrderSummary[]>("/orders"),
-  });
+  // Same cache entries as the orders page: this month's orders, plus the
+  // payments still to verify from any month.
+  const currentMonth = useMonthPeriod();
+  const { data: orders = [] } = useOrdersOfMonth<AdminOrderSummary>(currentMonth);
+  const { data: ordersToVerify = [] } = useOrdersNeedingAction<AdminOrderSummary>();
   // Shared queryKey with admin.stock.tsx / admin.suppliers.tsx / the default
   // (no search) state of admin.inventory.tsx and admin.labels.tsx — all hit
   // the same unfiltered GET /products/admin.
@@ -109,7 +111,7 @@ function AdminDashboard() {
   const salesTrend = trendPct(lastMonth?.ventas, prevMonth?.ventas);
   const purchasesTrend = trendPct(lastMonth?.compras, prevMonth?.compras);
 
-  const pendingOrders = orders.filter((o) => o.status === "pending_payment_verification").length;
+  const pendingOrders = ordersToVerify.length;
   const outOfStock = products.filter((p) => p.stock === 0).length;
   const lowStock = products.filter(
     (p) => (p.minStockThreshold ?? 0) > 0 && p.stock > 0 && p.stock <= p.minStockThreshold!,
@@ -132,7 +134,7 @@ function AdminDashboard() {
         />
         <Kpi
           icon={ShoppingBag}
-          label="Pedidos"
+          label="Pedidos del mes"
           value={orders.length.toString()}
           trend={
             pendingOrders > 0

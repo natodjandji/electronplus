@@ -5,10 +5,12 @@ import type { Firestore, Transaction } from 'firebase-admin/firestore';
 import { FieldValue } from 'firebase-admin/firestore';
 import { FIRESTORE } from '../../firebase/firebase.constants';
 import { Collections } from '../../firebase/firestore-collections';
+import { periodWhere } from '../../common/dto/period-query.dto';
 import { FirestoreRepository } from '../../firebase/firestore.repository';
 import { isStoragePath, UploadsService } from '../uploads/uploads.service';
 import { CreateInvoiceDto } from './dto/create-invoice.dto';
 import { CreateSupplierDto } from './dto/create-supplier.dto';
+import { QueryInvoicesDto } from './dto/query-invoices.dto';
 import { UpdateSupplierDto } from './dto/update-supplier.dto';
 import { RegisterPaymentDto } from './dto/register-payment.dto';
 import { UpdateInvoiceDto } from './dto/update-invoice.dto';
@@ -120,11 +122,18 @@ export class FinanceService {
     return this.payablesRepo.update(id, { paymentTerms: dto.paymentTerms, notes: dto.notes });
   }
 
-  async listInvoices(status?: SupplierPayableStatus): Promise<SupplierPayable[]> {
+  /** Soonest due first. With from/to (due-date bounds), only that period's
+   * invoices — the month view; without, every invoice in `status` (the
+   * pending ones never stop mattering until paid). */
+  async listInvoices(query: QueryInvoicesDto = {}): Promise<SupplierPayable[]> {
+    const period = periodWhere('dueDate', query, 'date');
     return this.payablesRepo.findAll({
-      where: status ? [{ field: 'status', op: '==', value: status }] : [],
+      where: [
+        ...(query.status ? [{ field: 'status', op: '==' as const, value: query.status }] : []),
+        ...period,
+      ],
       orderBy: { field: 'dueDate', direction: 'asc' },
-      limit: 500,
+      limit: period.length > 0 ? undefined : 500,
     });
   }
 

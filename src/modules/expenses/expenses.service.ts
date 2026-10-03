@@ -4,8 +4,10 @@ import { EventEmitter2 } from '@nestjs/event-emitter';
 import type { Firestore } from 'firebase-admin/firestore';
 import { FIRESTORE } from '../../firebase/firebase.constants';
 import { Collections } from '../../firebase/firestore-collections';
-import { FirestoreRepository } from '../../firebase/firestore.repository';
+import { periodWhere } from '../../common/dto/period-query.dto';
+import { FirestoreRepository, WhereClause } from '../../firebase/firestore.repository';
 import { CreateExpenseDto } from './dto/create-expense.dto';
+import { QueryExpensesDto } from './dto/query-expenses.dto';
 import { UpdateExpenseDto } from './dto/update-expense.dto';
 import {
   Expense,
@@ -65,14 +67,17 @@ export class ExpensesService {
     });
   }
 
-  async findAll(status?: ExpenseStatus, category?: string): Promise<Expense[]> {
-    const where: { field: string; op: '=='; value: string }[] = [];
-    if (status) where.push({ field: 'status', op: '==', value: status });
-    if (category) where.push({ field: 'category', op: '==', value: category });
+  /** Soonest due first. With from/to (due-date bounds), only that period's
+   * expenses — the month view; without, the latest 500 matching. */
+  async findAll(query: QueryExpensesDto = {}): Promise<Expense[]> {
+    const where: WhereClause[] = [];
+    if (query.status) where.push({ field: 'status', op: '==', value: query.status });
+    if (query.category) where.push({ field: 'category', op: '==', value: query.category });
+    const period = periodWhere('dueDate', query, 'date');
     return this.repo.findAll({
-      where,
+      where: [...where, ...period],
       orderBy: { field: 'dueDate', direction: 'asc' },
-      limit: 500,
+      limit: period.length > 0 ? undefined : 500,
     });
   }
 

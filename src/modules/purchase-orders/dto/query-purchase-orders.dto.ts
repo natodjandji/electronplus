@@ -1,20 +1,14 @@
-import { IsEnum, IsISO8601, IsOptional, IsString } from 'class-validator';
+import { IsEnum, IsOptional, IsString } from 'class-validator';
+import { CommaSeparated, TimestampPeriodQueryDto } from '../../../common/dto/period-query.dto';
 import { PurchaseOrderStatus } from '../entities/purchase-order.entity';
 
-export class QueryPurchaseOrdersDto {
+export class QueryPurchaseOrdersDto extends TimestampPeriodQueryDto {
   @IsOptional()
-  @IsEnum(PurchaseOrderStatus)
-  status?: PurchaseOrderStatus;
+  @CommaSeparated()
+  @IsEnum(PurchaseOrderStatus, { each: true })
+  status?: PurchaseOrderStatus[];
 
   @IsOptional()
   @IsString()
   supplierId?: string;
-
-  @IsOptional()
-  @IsISO8601()
-  from?: string;
-
-  @IsOptional()
-  @IsISO8601()
-  to?: string;
 }

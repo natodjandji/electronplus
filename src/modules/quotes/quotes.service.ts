@@ -4,7 +4,8 @@ import { EventEmitter2 } from '@nestjs/event-emitter';
 import type { Firestore } from 'firebase-admin/firestore';
 import { FIRESTORE } from '../../firebase/firebase.constants';
 import { Collections } from '../../firebase/firestore-collections';
-import { FirestoreRepository } from '../../firebase/firestore.repository';
+import { newestFirst, periodWhere } from '../../common/dto/period-query.dto';
+import { FirestoreRepository, WhereClause } from '../../firebase/firestore.repository';
 import { Role } from '../../common/enums/role.enum';
 import { AuthenticatedUser } from '../../common/interfaces/authenticated-user.interface';
 import { PaymentMethod } from '../payments/entities/payment.entity';
@@ -12,6 +13,7 @@ import { PricingService } from '../products/pricing.service';
 import { ProductsService } from '../products/products.service';
 import { AddQuoteLineDto } from './dto/add-quote-line.dto';
 import { CreateQuoteDto } from './dto/create-quote.dto';
+import { QueryQuotesDto } from './dto/query-quotes.dto';
 import { UpdateQuoteLineDto } from './dto/update-quote-line.dto';
 import { Quote, QuoteItem, QuoteStatus } from './entities/quote.entity';
 
@@ -58,9 +60,32 @@ export class QuotesService {
     });
   }
 
-  findAll(userId?: string): Promise<Quote[]> {
+  /** Admin listing — same three modes as OrdersService.findAll: a period's
+   * quotes, a set of statuses across all time (the "pending" view), or the
+   * latest 500 (a customer's history). */
+  async findAll(query: QueryQuotesDto = {}): Promise<Quote[]> {
+    const byUser: WhereClause[] = query.userId
+      ? [{ field: 'userId', op: '==', value: query.userId }]
+      : [];
+    const period = periodWhere('createdAt', query, 'timestamp');
+    const statuses = query.status ?? [];
+
+    if (period.length > 0) {
+      const quotes = await this.repo.findAll({
+        where: [...byUser, ...period],
+        orderBy: { field: 'createdAt', direction: 'desc' },
+      });
+      return statuses.length > 0 ? quotes.filter((q) => statuses.includes(q.status)) : quotes;
+    }
+    if (statuses.length > 0) {
+      const quotes = await this.repo.findAll({
+        where: [...byUser, { field: 'status', op: 'in', value: statuses }],
+        limit: 500,
+      });
+      return quotes.sort(newestFirst);
+    }
     return this.repo.findAll({
-      where: userId ? [{ field: 'userId', op: '==', value: userId }] : [],
+      where: byUser,
       orderBy: { field: 'createdAt', direction: 'desc' },
       limit: 500,
     });

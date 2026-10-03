@@ -1,7 +1,9 @@
+import { useRef } from "react";
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { AlertTriangle, Loader2, PackageX, ShoppingCart } from "lucide-react";
 import { AdminShell } from "@/components/admin-shell";
+import { PaginationBar, usePagination } from "@/components/pagination";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -58,7 +60,10 @@ function StockPage() {
     (p) => p.stock > 0 && (p.minStockThreshold ?? 0) > 0 && p.stock <= p.minStockThreshold!,
   );
   const critical = [...outOfStock, ...lowStock].sort((a, b) => a.stock - b.stock);
-  const healthy = all.filter((p) => !critical.includes(p));
+  // A Set, not critical.includes() per product — with the full ERP catalog
+  // (often thousands at stock 0) that was millions of comparisons a render.
+  const criticalIds = new Set(critical.map((p) => p.id));
+  const healthy = all.filter((p) => !criticalIds.has(p.id));
 
   const supplierName = (id?: string) => suppliers?.find((s) => s.id === id)?.name;
 
@@ -164,11 +169,7 @@ function StockPage() {
               <ShoppingCart className="h-4 w-4" /> Generar orden de compra
             </Button>
           </div>
-          <div className="mt-4 space-y-3">
-            {items.map((p) => (
-              <StockRow key={p.id} product={p} />
-            ))}
-          </div>
+          <PagedStockRows items={items} />
         </Card>
       ))}
 
@@ -179,34 +180,79 @@ function StockPage() {
             Asigna un proveedor en Inventario para poder generar una orden de compra
             automáticamente.
           </p>
-          <div className="mt-4 space-y-3">
-            {unassigned.map((p) => (
-              <StockRow key={p.id} product={p} />
-            ))}
-          </div>
+          <PagedStockRows items={unassigned} />
         </Card>
       )}
 
       {healthy.length > 0 && (
         <Card className="mt-6 p-6">
           <h3 className="text-base font-semibold text-brand-navy">Inventario saludable</h3>
-          <div className="mt-3 grid gap-2 text-sm">
-            {healthy.map((p) => (
-              <div
-                key={p.id}
-                className="flex items-center justify-between border-b border-border py-2 last:border-0"
-              >
-                <div>
-                  <div className="font-medium text-brand-navy">{p.name}</div>
-                  <div className="text-xs text-muted-foreground">{p.sku}</div>
-                </div>
-                <div className="text-sm font-semibold text-brand-blue">{p.stock} uds</div>
-              </div>
-            ))}
-          </div>
+          <HealthyList items={healthy} />
         </Card>
       )}
     </AdminShell>
+  );
+}
+
+const ROWS_PAGE_SIZE = 10;
+const HEALTHY_PAGE_SIZE = 25;
+
+/** Each group pages on its own — a reorder can still cover the whole group
+ * (the "Generar orden de compra" button uses every item, not just the page). */
+function PagedStockRows({ items }: { items: AdminProduct[] }) {
+  const pagination = usePagination(items, ROWS_PAGE_SIZE);
+  const top = useRef<HTMLDivElement>(null);
+  return (
+    <>
+      <div ref={top} className="mt-4 space-y-3">
+        {pagination.pageItems.map((p) => (
+          <StockRow key={p.id} product={p} />
+        ))}
+      </div>
+      <PaginationBar
+        className="mt-4"
+        page={pagination.page}
+        totalPages={pagination.totalPages}
+        onChange={pagination.setPage}
+        from={pagination.from}
+        to={pagination.to}
+        total={pagination.total}
+        scrollAnchor={top}
+      />
+    </>
+  );
+}
+
+function HealthyList({ items }: { items: AdminProduct[] }) {
+  const pagination = usePagination(items, HEALTHY_PAGE_SIZE);
+  const top = useRef<HTMLDivElement>(null);
+  return (
+    <>
+      <div ref={top} className="mt-3 grid gap-2 text-sm">
+        {pagination.pageItems.map((p) => (
+          <div
+            key={p.id}
+            className="flex items-center justify-between border-b border-border py-2 last:border-0"
+          >
+            <div>
+              <div className="font-medium text-brand-navy">{p.name}</div>
+              <div className="text-xs text-muted-foreground">{p.sku}</div>
+            </div>
+            <div className="text-sm font-semibold text-brand-blue">{p.stock} uds</div>
+          </div>
+        ))}
+      </div>
+      <PaginationBar
+        className="mt-4"
+        page={pagination.page}
+        totalPages={pagination.totalPages}
+        onChange={pagination.setPage}
+        from={pagination.from}
+        to={pagination.to}
+        total={pagination.total}
+        scrollAnchor={top}
+      />
+    </>
   );
 }
 

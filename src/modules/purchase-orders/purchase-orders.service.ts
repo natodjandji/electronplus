@@ -9,7 +9,8 @@ import type { Firestore } from 'firebase-admin/firestore';
 import { FieldValue } from 'firebase-admin/firestore';
 import { FIRESTORE } from '../../firebase/firebase.constants';
 import { Collections } from '../../firebase/firestore-collections';
-import { FirestoreRepository, WhereClause } from '../../firebase/firestore.repository';
+import { newestFirst, periodWhere } from '../../common/dto/period-query.dto';
+import { FirestoreRepository } from '../../firebase/firestore.repository';
 import { AuthenticatedUser } from '../../common/interfaces/authenticated-user.interface';
 import { FinanceService } from '../finance/finance.service';
 import {
@@ -87,16 +88,28 @@ export class PurchaseOrdersService {
     });
   }
 
-  async findAll(query: QueryPurchaseOrdersDto): Promise<PurchaseOrder[]> {
-    const where: WhereClause[] = [];
-    if (query.status) where.push({ field: 'status', op: '==', value: query.status });
-    if (query.from) where.push({ field: 'createdAt', op: '>=', value: new Date(query.from) });
-    if (query.to) where.push({ field: 'createdAt', op: '<=', value: new Date(query.to) });
+  /** Same modes as OrdersService.findAll: a period's orders (the month
+   * view), a set of statuses across all time (the "pending" view, sorted
+   * here so the `in` query needs no composite index), or everything.
+   * Statuses and supplier narrow a period's result in memory — it's one
+   * month, already loaded. */
+  async findAll(query: QueryPurchaseOrdersDto = {}): Promise<PurchaseOrder[]> {
+    const period = periodWhere('createdAt', query, 'timestamp');
+    const statuses = query.status ?? [];
 
-    const orders = await this.repo.findAll({
-      where,
-      orderBy: { field: 'createdAt', direction: 'desc' },
-    });
+    let orders: PurchaseOrder[];
+    if (period.length > 0) {
+      orders = await this.repo.findAll({
+        where: period,
+        orderBy: { field: 'createdAt', direction: 'desc' },
+      });
+      if (statuses.length > 0) orders = orders.filter((o) => statuses.includes(o.status));
+    } else if (statuses.length > 0) {
+      orders = await this.repo.findAll({ where: [{ field: 'status', op: 'in', value: statuses }] });
+      orders.sort(newestFirst);
+    } else {
+      orders = await this.repo.findAll({ orderBy: { field: 'createdAt', direction: 'desc' } });
+    }
     return query.supplierId ? orders.filter((o) => o.supplierId === query.supplierId) : orders;
   }
 

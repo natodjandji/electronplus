@@ -1,8 +1,9 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { Loader2, Printer, QrCode, Search } from "lucide-react";
 import { AdminShell } from "@/components/admin-shell";
+import { PaginationBar, usePagination } from "@/components/pagination";
 import { ElectronLogo } from "@/components/electron-logo";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -65,17 +66,16 @@ const FORMAT_OPTIONS: { value: LabelFormat; label: string; hint: string }[] = [
   },
 ];
 
-// search="" shares its queryKey/cache with admin.index.tsx, admin.stock.tsx,
-// and admin.suppliers.tsx's unfiltered GET /products/admin.
-function useAdminProducts(search: string) {
+// Shares its queryKey/cache with the other admin pages' GET /products/admin.
+// Search filters it in the browser — it used to send a request per keystroke.
+function useAdminProducts() {
   return useQuery({
-    queryKey: ["admin", "products", search],
-    queryFn: () =>
-      apiFetch<AdminProduct[]>(
-        `/products/admin${search ? `?search=${encodeURIComponent(search)}` : ""}`,
-      ),
+    queryKey: ["admin", "products", ""],
+    queryFn: () => apiFetch<AdminProduct[]>("/products/admin"),
   });
 }
+
+const PICKER_PAGE_SIZE = 15;
 
 function useQrLabels(productIds: string[]) {
   const key = [...productIds].sort().join(",");
@@ -166,7 +166,15 @@ function LabelsPage() {
   const [search, setSearch] = useState("");
   const [quantities, setQuantities] = useState<Record<string, number>>({});
   const [format, setFormat] = useState<LabelFormat>("precio");
-  const { data: products, isLoading } = useAdminProducts(search);
+  const { data: allProducts, isLoading } = useAdminProducts();
+  const products = useMemo(() => {
+    const needle = search.trim().toLowerCase();
+    if (!needle) return allProducts ?? [];
+    return (allProducts ?? []).filter(
+      (p) => p.name.toLowerCase().includes(needle) || p.sku.toLowerCase().includes(needle),
+    );
+  }, [allProducts, search]);
+  const pickerPage = usePagination(products, PICKER_PAGE_SIZE, search);
 
   const selectedIds = Object.entries(quantities)
     .filter(([, qty]) => qty > 0)
@@ -175,7 +183,9 @@ function LabelsPage() {
 
   const { data: labels, isFetching: labelsLoading } = useQrLabels(selectedIds);
 
-  const printItems = (products ?? [])
+  // Every selected product, not only those matching the current search —
+  // searching for the next product mustn't drop earlier picks from the print.
+  const printItems = (allProducts ?? [])
     .filter((p) => (quantities[p.id] ?? 0) > 0)
     .flatMap((p) => {
       const label = labels?.find((l) => l.productId === p.id);
@@ -225,12 +235,12 @@ function LabelsPage() {
                 <Loader2 className="h-4 w-4 animate-spin" /> Cargando…
               </div>
             )}
-            {!isLoading && (products?.length ?? 0) === 0 && (
+            {!isLoading && products.length === 0 && (
               <div className="py-8 text-center text-sm text-muted-foreground">
                 No hay productos con este filtro.
               </div>
             )}
-            {products?.map((p) => (
+            {pickerPage.pageItems.map((p) => (
               <div
                 key={p.id}
                 className="flex items-center gap-3 rounded-md border border-border p-2 hover:bg-brand-surface"
@@ -248,6 +258,15 @@ function LabelsPage() {
               </div>
             ))}
           </div>
+          <PaginationBar
+            className="mt-3"
+            page={pickerPage.page}
+            totalPages={pickerPage.totalPages}
+            onChange={pickerPage.setPage}
+            from={pickerPage.from}
+            to={pickerPage.to}
+            total={pickerPage.total}
+          />
         </Card>
 
         <div className="print:contents">

@@ -1,4 +1,13 @@
-import { Body, Controller, Get, Param, Patch, UseGuards } from '@nestjs/common';
+import {
+  Body,
+  Controller,
+  Get,
+  Param,
+  ParseEnumPipe,
+  Patch,
+  Query,
+  UseGuards,
+} from '@nestjs/common';
 import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
 import { Roles } from '../../common/decorators/roles.decorator';
@@ -6,6 +15,7 @@ import { Role } from '../../common/enums/role.enum';
 import { FirebaseAuthGuard } from '../../common/guards/firebase-auth.guard';
 import { RolesGuard } from '../../common/guards/roles.guard';
 import { AuthenticatedUser } from '../../common/interfaces/authenticated-user.interface';
+import { QueryUsersPageDto } from './dto/query-users-page.dto';
 import { UpdateProfileDto } from './dto/update-profile.dto';
 import { UpdateUserDto } from './dto/update-user.dto';
 import { UsersService } from './users.service';
@@ -31,6 +41,15 @@ export class UsersController {
   @Roles(Role.ADMIN)
   findAll() {
     return this.usersService.findAll();
+  }
+
+  @Get('by-role/:role')
+  @Roles(Role.ADMIN)
+  findPageByRole(
+    @Param('role', new ParseEnumPipe(Role)) role: Role,
+    @Query() query: QueryUsersPageDto,
+  ) {
+    return this.usersService.findPageByRole(role, query.limit, query.after);
   }
 
   @Get(':id')

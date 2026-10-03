@@ -1,6 +1,6 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { useState } from "react";
+import { useMemo, useRef, useState } from "react";
 import {
   AlertCircle,
   CheckCircle2,
@@ -15,7 +15,11 @@ import {
 } from "lucide-react";
 import { AdminShell } from "@/components/admin-shell";
 import { TableRowsSkeleton } from "@/components/table-skeleton";
-import { MonthPagerBar, useMonthPager } from "@/components/month-pager";
+import { MonthYearPicker, useMonthPeriod } from "@/components/month-pager";
+import { PaginationBar, usePagination } from "@/components/pagination";
+import { PendingToggle } from "@/components/pending-toggle";
+import { periodQuery } from "@/lib/admin-period";
+import { formatCalendarDate } from "@/lib/format";
 import { Card } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Badge } from "@/components/ui/badge";
@@ -108,12 +112,7 @@ const PAYMENT_METHOD_OPTIONS = [
   { value: "otro", label: "Otro" },
 ];
 
-function useInvoices() {
-  return useQuery({
-    queryKey: ["admin", "invoices"],
-    queryFn: () => apiFetch<Invoice[]>("/finance/invoices"),
-  });
-}
+const PAGE_SIZE = 25;
 
 function sum(arr: Invoice[]) {
   return arr.reduce((s, i) => s + i.amount, 0);
@@ -125,27 +124,48 @@ function PurchasesPage() {
   const [search, setSearch] = useState("");
   const [supplierFilter, setSupplierFilter] = useState("all");
   const [statusFilter, setStatusFilter] = useState<"all" | PayableStatus>("all");
-  const { data: invoices, isLoading } = useInvoices();
+  const [showPending, setShowPending] = useState(false);
+  const period = useMonthPeriod({ allowFuture: true });
+  // Every unpaid invoice, whatever its due month: feeds the summary cards
+  // and the "pending" view. A bounded set — invoices leave it once paid.
+  const pendingInvoices = useQuery({
+    queryKey: ["admin", "invoices", "pending"],
+    queryFn: () => apiFetch<Invoice[]>("/finance/invoices?status=pending"),
+  });
+  // The table: invoices due in the chosen month only.
+  const monthInvoices = useQuery({
+    queryKey: ["admin", "invoices", "month", period.key],
+    queryFn: () => apiFetch<Invoice[]>(`/finance/invoices?${periodQuery(period, "date")}`),
+  });
   const { data: suppliers } = useSuppliers();
+  const source = showPending ? pendingInvoices : monthInvoices;
+  const isLoading = source.isLoading;
 
-  const all = invoices ?? [];
-  // The overdue/dueSoon/current summary cards above always consider every
-  // invoice regardless of these filters — only the table below is filtered.
-  const overdue = all.filter((f) => f.status === "pending" && f.dueStatus === "overdue");
-  const dueSoon = all.filter((f) => f.status === "pending" && f.dueStatus === "due_soon");
-  const current = all.filter((f) => f.status === "pending" && f.dueStatus === "current");
-  const pager = useMonthPager(all, (f) => f.dueDate, { allowFuture: true });
+  const pending = pendingInvoices.data ?? [];
+  const overdue = pending.filter((f) => f.dueStatus === "overdue");
+  const dueSoon = pending.filter((f) => f.dueStatus === "due_soon");
+  const current = pending.filter((f) => f.dueStatus === "current");
 
+  // Status, supplier and search narrow what's already loaded — no request.
   const needle = search.trim().toLowerCase();
-  const visibleInvoices = (pager.filtered ?? [])
-    .filter((f) => statusFilter === "all" || f.status === statusFilter)
-    .filter((f) => supplierFilter === "all" || f.supplierId === supplierFilter)
-    .filter(
-      (f) =>
-        !needle ||
-        f.invoiceNumber.toLowerCase().includes(needle) ||
-        f.supplierName.toLowerCase().includes(needle),
-    );
+  const visibleInvoices = useMemo(
+    () =>
+      (source.data ?? []).filter(
+        (f) =>
+          (showPending || statusFilter === "all" || f.status === statusFilter) &&
+          (supplierFilter === "all" || f.supplierId === supplierFilter) &&
+          (!needle ||
+            f.invoiceNumber.toLowerCase().includes(needle) ||
+            f.supplierName.toLowerCase().includes(needle)),
+      ),
+    [source.data, showPending, statusFilter, supplierFilter, needle],
+  );
+  const pagination = usePagination(
+    visibleInvoices,
+    PAGE_SIZE,
+    `${showPending}|${period.key}|${statusFilter}|${supplierFilter}|${needle}`,
+  );
+  const tableTop = useRef<HTMLDivElement>(null);
 
   return (
     <AdminShell title="Compras & vencimiento de facturas">
@@ -172,6 +192,7 @@ function PurchasesPage() {
             <Select
               value={statusFilter}
               onValueChange={(v) => setStatusFilter(v as "all" | PayableStatus)}
+              disabled={showPending}
             >
               <SelectTrigger className="w-40">
                 <SelectValue />
@@ -197,16 +218,13 @@ function PurchasesPage() {
           </div>
         </div>
         <div className="flex flex-wrap items-center gap-3">
-          {all.length > 0 && (
-            <MonthPagerBar
-              label={pager.label}
-              showAll={pager.showAll}
-              onPrev={pager.goPrev}
-              onNext={pager.goNext}
-              onToggleAll={() => pager.setShowAll((v) => !v)}
-              canGoNext={pager.canGoNext}
-            />
-          )}
+          <PendingToggle
+            label="Pendientes de pago"
+            count={pendingInvoices.data?.length}
+            active={showPending}
+            onToggle={() => setShowPending((v) => !v)}
+          />
+          <MonthYearPicker period={period} disabled={showPending} />
           <Button
             className="gap-2 bg-brand-blue text-white hover:bg-brand-blue/90"
             onClick={() => setCreating(true)}
@@ -216,8 +234,8 @@ function PurchasesPage() {
         </div>
       </div>
       <p className="mt-2 text-xs text-muted-foreground">
-        Los resúmenes de vencidas/por vencer/vigentes consideran todas las facturas, sin importar el
-        mes que estés viendo abajo.
+        Los resúmenes de vencidas/por vencer/vigentes consideran todas las facturas pendientes, sin
+        importar el mes de vencimiento que estés viendo abajo.
       </p>
 
       <div className="mt-4 grid gap-4 md:grid-cols-3">
@@ -258,23 +276,27 @@ function PurchasesPage() {
           </Card>
         ))}
 
-      {!isLoading && all.length === 0 && (
+      {!isLoading && (source.data?.length ?? 0) === 0 && (
         <Card className="mt-6 p-10 text-center text-muted-foreground">
-          No hay facturas de proveedores registradas.
+          {showPending
+            ? "No hay facturas pendientes de pago."
+            : `No hay facturas que venzan en ${period.label}.`}
         </Card>
       )}
 
-      {!isLoading && all.length > 0 && visibleInvoices.length === 0 && (
+      {!isLoading && (source.data?.length ?? 0) > 0 && visibleInvoices.length === 0 && (
         <Card className="mt-6 p-10 text-center text-muted-foreground">
           No hay facturas que coincidan con estos filtros.
         </Card>
       )}
 
       {visibleInvoices.length > 0 && (
-        <Card className="mt-6 overflow-hidden">
+        <Card ref={tableTop} className="mt-6 overflow-hidden">
           <div className="border-b border-border p-4">
             <p className="text-xs text-muted-foreground">
-              Ordenadas por fecha de vencimiento más próxima.
+              {showPending
+                ? "Todas las facturas pendientes, ordenadas por fecha de vencimiento más próxima."
+                : "Ordenadas por fecha de vencimiento más próxima."}
             </p>
           </div>
           <div className="overflow-x-auto">
@@ -290,37 +312,46 @@ function PurchasesPage() {
                 </tr>
               </thead>
               <tbody>
-                {[...visibleInvoices]
-                  .sort((a, b) => new Date(a.dueDate).getTime() - new Date(b.dueDate).getTime())
-                  .map((f) => (
-                    <tr
-                      key={f.id}
-                      className="cursor-pointer border-t border-border hover:bg-brand-surface"
-                      onClick={() => setSelectedId(f.id)}
-                    >
-                      <td className="px-4 py-3 font-semibold text-brand-navy">{f.invoiceNumber}</td>
-                      <td className="px-4 py-3">{f.supplierName}</td>
-                      <td className="px-4 py-3 text-right">{formatMoneyAdmin(f.amount)}</td>
-                      <td className="px-4 py-3 text-right text-muted-foreground">
-                        {formatMoneyAdmin(f.amountPaid)}
-                      </td>
-                      <td className="px-4 py-3 text-muted-foreground">
-                        {new Date(f.dueDate).toLocaleDateString("es-VE")}
-                      </td>
-                      <td className="px-4 py-3">
-                        {f.status === "paid" ? (
-                          <Badge className="bg-emerald-100 text-emerald-700">Pagada</Badge>
-                        ) : (
-                          <Badge className={DUE_BADGE[f.dueStatus]}>{DUE_LABEL[f.dueStatus]}</Badge>
-                        )}
-                      </td>
-                    </tr>
-                  ))}
+                {pagination.pageItems.map((f) => (
+                  <tr
+                    key={f.id}
+                    className="cursor-pointer border-t border-border hover:bg-brand-surface"
+                    onClick={() => setSelectedId(f.id)}
+                  >
+                    <td className="px-4 py-3 font-semibold text-brand-navy">{f.invoiceNumber}</td>
+                    <td className="px-4 py-3">{f.supplierName}</td>
+                    <td className="px-4 py-3 text-right">{formatMoneyAdmin(f.amount)}</td>
+                    <td className="px-4 py-3 text-right text-muted-foreground">
+                      {formatMoneyAdmin(f.amountPaid)}
+                    </td>
+                    <td className="px-4 py-3 text-muted-foreground">
+                      {formatCalendarDate(f.dueDate)}
+                    </td>
+                    <td className="px-4 py-3">
+                      {f.status === "paid" ? (
+                        <Badge className="bg-emerald-100 text-emerald-700">Pagada</Badge>
+                      ) : (
+                        <Badge className={DUE_BADGE[f.dueStatus]}>{DUE_LABEL[f.dueStatus]}</Badge>
+                      )}
+                    </td>
+                  </tr>
+                ))}
               </tbody>
             </table>
           </div>
         </Card>
       )}
+
+      <PaginationBar
+        className="mt-4"
+        page={pagination.page}
+        totalPages={pagination.totalPages}
+        onChange={pagination.setPage}
+        from={pagination.from}
+        to={pagination.to}
+        total={pagination.total}
+        scrollAnchor={tableTop}
+      />
 
       {creating && <CreateInvoiceDialog onClose={() => setCreating(false)} />}
       {selectedId && (
@@ -498,8 +529,16 @@ function InvoiceDetailDialog({ invoiceId, onClose }: { invoiceId: string; onClos
   const [editIssueDate, setEditIssueDate] = useState("");
   const [editDueDate, setEditDueDate] = useState("");
 
-  const { data: invoices, isLoading, isError } = useInvoices();
-  const invoice = invoices?.find((i) => i.id === invoiceId);
+  // Just this invoice (1 read) — the page only holds one month, or the
+  // pending ones, so it may not be among what's loaded.
+  const {
+    data: invoice,
+    isLoading,
+    isError,
+  } = useQuery({
+    queryKey: ["admin", "invoices", "detail", invoiceId],
+    queryFn: () => apiFetch<Invoice>(`/finance/invoices/${invoiceId}`),
+  });
 
   const { data: payments } = useQuery({
     queryKey: ["admin", "invoices", invoiceId, "payments"],
@@ -644,7 +683,7 @@ function InvoiceDetailDialog({ invoiceId, onClose }: { invoiceId: string; onClos
             </div>
             <div className="flex justify-between text-muted-foreground">
               <span>Vence</span>
-              <span>{new Date(invoice.dueDate).toLocaleDateString("es-VE")}</span>
+              <span>{formatCalendarDate(invoice.dueDate)}</span>
             </div>
             <div className="flex justify-between text-base font-bold text-brand-navy">
               <span>Total</span>
