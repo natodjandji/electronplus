@@ -1,4 +1,4 @@
-import { createContext, useContext, useEffect, useState, type ReactNode } from "react";
+import { createContext, useContext, useEffect, useRef, useState, type ReactNode } from "react";
 import {
   createUserWithEmailAndPassword,
   getRedirectResult,
@@ -109,13 +109,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [sessionError, setSessionError] = useState(false);
   const [redirectError, setRedirectError] = useState<unknown>(null);
 
-  const syncSession = async (firebaseUser: FirebaseUser) => {
+  const syncSession = async (firebaseUser: FirebaseUser, isCurrent: () => boolean = () => true) => {
     try {
       const idToken = await firebaseUser.getIdToken();
       const synced = await apiFetch<UserProfile>("/auth/session", { method: "POST", idToken });
+      if (!isCurrent()) return;
       setProfile(synced);
       setSessionError(false);
     } catch (error) {
+      if (!isCurrent()) return;
       console.error("Failed to sync session with backend", error);
       setProfile(null);
       setSessionError(true);
@@ -129,17 +131,30 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     getRedirectResult(auth).catch((error) => setRedirectError(error));
   }, []);
 
+  // Bumped on every auth change, so a slow sync for a user who has since
+  // signed out (or been replaced) can't overwrite the newer state.
+  const authChange = useRef(0);
+
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, async (firebaseUser) => {
-      setUser(firebaseUser);
+      const change = ++authChange.current;
       if (!firebaseUser) {
+        setUser(null);
         setProfile(null);
         setSessionError(false);
         setLoading(false);
         return;
       }
-      await syncSession(firebaseUser);
-      setLoading(false);
+      // The session isn't resolved until the backend profile — and with it
+      // the role — is in. A user can appear after the first callback already
+      // ended loading (a fresh sign-in, a session restored a beat late); left
+      // at loading=false, the admin guard and the login redirect briefly saw
+      // a signed-in user with no role and sent admins to the storefront.
+      setLoading(true);
+      setUser(firebaseUser);
+      const isCurrent = () => change === authChange.current;
+      await syncSession(firebaseUser, isCurrent);
+      if (isCurrent()) setLoading(false);
     });
     return unsubscribe;
   }, []);
