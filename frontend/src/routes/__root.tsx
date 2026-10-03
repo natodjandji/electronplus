@@ -17,6 +17,7 @@ import { ElectronStoreProvider } from "@/lib/electron-store";
 import { OG_IMAGE, OG_IMAGE_ALT, OG_IMAGE_HEIGHT, OG_IMAGE_WIDTH, SITE_URL } from "@/lib/site-url";
 import { useRealtimeOpsSync } from "@/lib/use-realtime-ops-sync";
 import { Toaster } from "@/components/ui/sonner";
+import { useDropStaleHeadTags } from "@/lib/stale-head-tags";
 
 function NotFoundComponent() {
   return (
@@ -224,6 +225,7 @@ function RootComponent() {
   useEffect(() => {
     sessionStorage.removeItem(STALE_CHUNK_RELOAD_KEY);
   }, []);
+  useDropStaleHeadTags();
 
   return (
     // reducedMotion="user": every motion/react animation in the app drops
