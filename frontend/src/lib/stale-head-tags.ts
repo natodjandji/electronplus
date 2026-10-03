@@ -27,12 +27,12 @@ export function useDropStaleHeadTags() {
   useEffect(() => {
     if (!settled || done.current) return;
     done.current = true;
-    // After this commit's hoisted head tags are in place.
-    requestAnimationFrame(() => {
-      for (const el of document.head.querySelectorAll(ROUTE_HEAD_TAGS)) {
-        const ownedByReact = Object.keys(el).some((key) => key.startsWith("__reactFiber$"));
-        if (!ownedByReact) el.remove();
-      }
-    });
+    // Effects run after the commit, so React's own (hoisted) copies are
+    // already in <head> — no need to wait a frame, which a background tab
+    // would pause indefinitely.
+    for (const el of document.head.querySelectorAll(ROUTE_HEAD_TAGS)) {
+      const ownedByReact = Object.keys(el).some((key) => key.startsWith("__reactFiber$"));
+      if (!ownedByReact) el.remove();
+    }
   }, [settled]);
 }
