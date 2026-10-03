@@ -18,7 +18,7 @@
     "set-user-role": "ts-node -r tsconfig-paths/register src/database/seeds/set-user-role.ts"
   },
   "dependencies": {
-    "@google-cloud/storage": "^7.21.0",
+    "@google-cloud/storage": "^8.2.0",
     "@nestjs/bullmq": "^11.0.4",
     "@nestjs/common": "^11.1.28",
     "@nestjs/config": "^4.0.4",
