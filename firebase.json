@@ -6,7 +6,15 @@
       "**/.*",
       "**/node_modules/**"
     ],
+    "trailingSlash": false,
     "rewrites": [
+      {
+        "source": "/sitemap.xml",
+        "run": {
+          "serviceId": "electronplus-api",
+          "region": "us-central1"
+        }
+      },
       {
         "source": "**",
         "destination": "/_shell.html"

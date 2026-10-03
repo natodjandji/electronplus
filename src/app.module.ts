@@ -28,6 +28,7 @@ import { PaymentMethodsModule } from './modules/payment-methods/payment-methods.
 import { ShippingRatesModule } from './modules/shipping-rates/shipping-rates.module';
 import { DiscountCodesModule } from './modules/discount-codes/discount-codes.module';
 import { SecondStoreModule } from './modules/second-store/second-store.module';
+import { SeoModule } from './modules/seo/seo.module';
 import { UploadsModule } from './modules/uploads/uploads.module';
 import { ClientErrorsModule } from './modules/client-errors/client-errors.module';
 import { EmailModule } from './modules/email/email.module';
@@ -82,6 +83,7 @@ import { EmailModule } from './modules/email/email.module';
     DiscountCodesModule,
     SecondStoreModule,
     CronModule,
+    SeoModule,
     UploadsModule,
     ClientErrorsModule,
     EmailModule,

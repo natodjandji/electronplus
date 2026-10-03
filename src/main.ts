@@ -1,4 +1,4 @@
-import { ClassSerializerInterceptor, ValidationPipe } from '@nestjs/common';
+import { ClassSerializerInterceptor, RequestMethod, ValidationPipe } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { NestFactory, Reflector } from '@nestjs/core';
 import { SchedulerRegistry } from '@nestjs/schedule';
@@ -38,7 +38,11 @@ async function bootstrap() {
   app.getHttpAdapter().getInstance().set('trust proxy', 1);
 
   const apiPrefix = config.get('API_PREFIX', { infer: true });
-  app.setGlobalPrefix(apiPrefix);
+  // /sitemap.xml is fetched through the storefront domain (a Firebase
+  // Hosting rewrite keeps the path as-is), so it lives at the root.
+  app.setGlobalPrefix(apiPrefix, {
+    exclude: [{ path: 'sitemap.xml', method: RequestMethod.GET }],
+  });
 
   // Auth is a Bearer token in the Authorization header, not a cookie, so
   // credentialed CORS isn't needed — and it's invalid alongside a wildcard
