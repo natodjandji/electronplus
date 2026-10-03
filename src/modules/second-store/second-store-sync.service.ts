@@ -10,6 +10,7 @@ import { Collections } from '../../firebase/firestore-collections';
 import { FirestoreRepository } from '../../firebase/firestore.repository';
 import { SecondStoreProduct } from './entities/second-store-product.entity';
 import { SECOND_STORE_LOAD, SecondStoreIndex } from './second-store-index';
+import { BridgeProduct, matchBridgeProducts } from './second-store-matching';
 import {
   SecondStoreSyncLog,
   SecondStoreSyncStatus,
@@ -29,14 +30,6 @@ import {
  */
 const SYNC_JOB_NAME = 'second-store-profit-inbound-sync';
 
-interface BridgeProduct {
-  codigo: string;
-  descripcion: string;
-  precio1: number;
-  precio2: number;
-  stock: number;
-}
-
 interface BridgeResponse {
   total: number;
   productos: BridgeProduct[];
@@ -52,14 +45,12 @@ export interface SecondStoreSyncResult {
 /**
  * Pulls from profit-plus-bridge-secundaria/ (a separate bridge, separate
  * SQL Server, separate small standalone project — see its own README) and
- * keeps secondStoreProducts in sync. Matching against an existing record is
- * by `code` (`art.ref` in the secundaria store's own Profit Plus) when the
- * record has one; a record predating this (created back when the bridge
- * only reported description+stock, or entered manually with no code) falls
- * back to matching by exact `name` text — and gets its `code` backfilled
- * the moment that match succeeds, so every run after the first uses the
- * reliable path. A description with no matching record at all gets a
- * brand-new SecondStoreProduct created, unlinked — linking it to a catalog
+ * keeps secondStoreProducts in sync. Rows are paired with existing records
+ * by code (`art.ref` in the secundaria store's own Profit Plus) and
+ * description — see matchBridgeProducts() for why neither alone is enough —
+ * and a record matched without its code gets it backfilled. A row with no
+ * matching record at all gets a brand-new SecondStoreProduct created,
+ * unlinked — linking it to a catalog
  * Product stays a deliberate admin action via SecondStoreService.link(),
  * same as for a manually-entered record (see that entity's doc comment on
  * why linking isn't automatic).
@@ -146,8 +137,7 @@ export class SecondStoreSyncService implements OnModuleInit {
       // Se compara contra el snapshot compacto (SecondStoreIndex) — cerca de
       // una lectura por corrida, en vez de leer los ~5.4k documentos cada vez.
       const existing = await this.index.load(SECOND_STORE_LOAD);
-      const byCode = new Map(existing.filter((p) => p.code).map((p) => [p.code!, p]));
-      const byName = new Map(existing.map((p) => [p.name.trim().toLowerCase(), p]));
+      const matches = matchBridgeProducts(data.productos, existing);
 
       // BulkWriter instead of per-item repo.create()/update(): those each
       // cost an extra read, because both re-read the doc afterwards to
@@ -165,8 +155,8 @@ export class SecondStoreSyncService implements OnModuleInit {
 
       let created = 0;
       let updated = 0;
-      for (const item of data.productos) {
-        const match = byCode.get(item.codigo) ?? byName.get(item.descripcion.trim().toLowerCase());
+      for (const [i, item] of data.productos.entries()) {
+        const match = matches[i];
         const fields = {
           name: item.descripcion,
           code: item.codigo,
@@ -183,11 +173,11 @@ export class SecondStoreSyncService implements OnModuleInit {
           continue;
         }
 
-        // Dirty-check — no reescribe el documento si nada cambió. Un match
-        // encontrado solo por nombre (sin `code` propio todavía) siempre
-        // cuenta como cambio, porque necesita el backfill de `code`.
+        // Dirty-check — no reescribe el documento si nada cambió. Comparar
+        // `code` directamente ya cubre el backfill de un registro sin código;
+        // tratar todo código vacío como "falta backfill" reescribía en cada
+        // corrida los ~100 artículos que en Profit Plus no tienen `ref`.
         const changed =
-          !match.code ||
           match.code !== item.codigo ||
           match.name !== item.descripcion ||
           match.stock !== item.stock ||

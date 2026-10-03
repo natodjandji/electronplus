@@ -6,6 +6,8 @@ import { ProductsService } from '../products/products.service';
 import { SecondStoreIndex } from './second-store-index';
 import { SecondStoreService } from './second-store.service';
 import { SecondStoreSyncService } from './second-store-sync.service';
+import { SecondStoreProduct } from './entities/second-store-product.entity';
+import { matchBridgeProducts } from './second-store-matching';
 
 const BRIDGE_ENV: Record<string, string> = {
   SECOND_STORE_PROFIT_API_URL: 'http://bridge.test',
@@ -109,5 +111,77 @@ describe('Second store sync + listing over the snapshot', () => {
     await admin.service.update('a', { stock: 9, notes: 'contado a mano' } as never);
     const list = await instance(firestore).service.findAll();
     expect(list[0]).toMatchObject({ stock: 9, notes: 'contado a mano' });
+  });
+});
+
+describe('matchBridgeProducts', () => {
+  const record = (id: string, code: string | undefined, name: string, stock = 1, price = 1) =>
+    ({ id, code, name, stock, retailPrice: price, wholesalePrice: price }) as SecondStoreProduct;
+  const row = (codigo: string, descripcion: string, stock = 1, price = 1) => ({
+    codigo,
+    descripcion,
+    stock,
+    precio1: price,
+    precio2: price,
+  });
+
+  it('gives rows sharing a code but not a description their own records', () => {
+    const existing = [record('a', '16523', 'PILOTO VERDE'), record('b', '16523', 'PILOTO ROJO')];
+    const matches = matchBridgeProducts(
+      [row('16523', 'PILOTO ROJO', 5), row('16523', 'PILOTO VERDE', 9)],
+      existing,
+    );
+    expect(matches.map((m) => m?.id)).toEqual(['b', 'a']);
+  });
+
+  it('keeps identical code+description rows on the same records whatever order they arrive in', () => {
+    const existing = [record('a', 'X', 'PANEL 24W', 3, 10), record('b', 'X', 'PANEL 24W', 8, 12)];
+    const rows = [row('X', 'PANEL 24W', 8, 12), row('X', 'PANEL 24W', 3, 10)];
+    expect(matchBridgeProducts(rows, existing).map((m) => m?.id)).toEqual(['b', 'a']);
+    expect(matchBridgeProducts([...rows].reverse(), existing).map((m) => m?.id)).toEqual([
+      'a',
+      'b',
+    ]);
+  });
+
+  it('matches blank-code rows by description, one record each, and leaves extras as new', () => {
+    const existing = [record('a', '', 'TOMA SENCILLA'), record('b', undefined, 'CABLE 12')];
+    const matches = matchBridgeProducts(
+      [row('', 'TOMA SENCILLA'), row('C12', 'Cable 12'), row('', 'TOMA SENCILLA')],
+      existing,
+    );
+    expect(matches.map((m) => m?.id)).toEqual(['a', 'b', undefined]);
+  });
+});
+
+describe('Second store sync with non-unique Profit Plus codes', () => {
+  afterEach(() => jest.restoreAllMocks());
+
+  it('settles after one run: nothing is rewritten on the next', async () => {
+    const firestore = new FakeFirestore();
+    const rows = [
+      { codigo: '16523', descripcion: 'PILOTO VERDE', stock: 2, precio1: 3, precio2: 2 },
+      { codigo: '16523', descripcion: 'PILOTO ROJO', stock: 7, precio1: 3, precio2: 2 },
+      { codigo: '', descripcion: 'TOMA SENCILLA', stock: 0, precio1: 2, precio2: 1.6 },
+      { codigo: '', descripcion: 'TOMA DOBLE', stock: 4, precio1: 3, precio2: 2.4 },
+    ];
+
+    bridgeReturns(rows);
+    expect(await instance(firestore).sync.runInboundSync()).toMatchObject({ created: 4 });
+
+    bridgeReturns([...rows].reverse());
+    expect(await instance(firestore).sync.runInboundSync()).toMatchObject({
+      created: 0,
+      updated: 0,
+      unchanged: 4,
+    });
+
+    const list = await instance(firestore).service.findAll();
+    expect(list.map((r) => [r.name, r.stock])).toEqual([
+      ['PILOTO ROJO', 7],
+      ['PILOTO VERDE', 2],
+      ['TOMA DOBLE', 4],
+      ['TOMA SENCILLA', 0],
+    ]);
   });
 });
