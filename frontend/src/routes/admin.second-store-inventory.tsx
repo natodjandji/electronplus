@@ -9,6 +9,7 @@ import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Field } from "@/components/ui/field";
 import {
   Dialog,
   DialogContent,
@@ -201,16 +202,16 @@ function EditDialog({ item, onClose }: { item: SecondStoreProduct; onClose: () =
           <DialogTitle>Editar producto de tienda secundaria</DialogTitle>
         </DialogHeader>
         <div className="grid gap-3">
-          <div className="grid gap-1.5">
+          <Field className="grid gap-1.5">
             <Label className="text-xs font-medium text-brand-navy">Descripción</Label>
             <Input value={name} onChange={(e) => setName(e.target.value)} />
-          </div>
+          </Field>
           <div className="grid grid-cols-2 gap-2">
-            <div className="grid gap-1.5">
+            <Field className="grid gap-1.5">
               <Label className="text-xs font-medium text-brand-navy">Código</Label>
               <Input value={code} onChange={(e) => setCode(e.target.value)} />
-            </div>
-            <div className="grid gap-1.5">
+            </Field>
+            <Field className="grid gap-1.5">
               <Label className="text-xs font-medium text-brand-navy">Stock</Label>
               <Input
                 type="number"
@@ -218,8 +219,8 @@ function EditDialog({ item, onClose }: { item: SecondStoreProduct; onClose: () =
                 value={stock}
                 onChange={(e) => setStock(Math.max(0, Number(e.target.value)))}
               />
-            </div>
-            <div className="grid gap-1.5">
+            </Field>
+            <Field className="grid gap-1.5">
               <Label className="text-xs font-medium text-brand-navy">Precio al detal</Label>
               <Input
                 type="number"
@@ -228,8 +229,8 @@ function EditDialog({ item, onClose }: { item: SecondStoreProduct; onClose: () =
                 value={retailPrice}
                 onChange={(e) => setRetailPrice(Math.max(0, Number(e.target.value)))}
               />
-            </div>
-            <div className="grid gap-1.5">
+            </Field>
+            <Field className="grid gap-1.5">
               <Label className="text-xs font-medium text-brand-navy">Precio al mayor</Label>
               <Input
                 type="number"
@@ -238,7 +239,7 @@ function EditDialog({ item, onClose }: { item: SecondStoreProduct; onClose: () =
                 value={wholesalePrice}
                 onChange={(e) => setWholesalePrice(Math.max(0, Number(e.target.value)))}
               />
-            </div>
+            </Field>
           </div>
           {item.linkedProduct && (
             <p className="text-xs text-muted-foreground">

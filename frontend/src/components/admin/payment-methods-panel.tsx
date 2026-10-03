@@ -13,6 +13,7 @@ import {
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Field } from "@/components/ui/field";
 import { Switch } from "@/components/ui/switch";
 import { Textarea } from "@/components/ui/textarea";
 import { apiFetch, ApiError, reportError } from "@/lib/api-client";
@@ -189,11 +190,11 @@ function EditMethodDialog({
         </DialogHeader>
 
         <div className="grid gap-4">
-          <div className="grid gap-1.5">
+          <Field className="grid gap-1.5">
             <Label className="text-xs font-medium text-brand-navy">Nombre visible</Label>
             <Input value={label} onChange={(e) => setLabel(e.target.value)} />
-          </div>
-          <div className="grid gap-1.5">
+          </Field>
+          <Field className="grid gap-1.5">
             <Label className="text-xs font-medium text-brand-navy">
               Datos mostrados al cliente (una línea por dato)
             </Label>
@@ -203,15 +204,15 @@ function EditMethodDialog({
               onChange={(e) => setDetailsText(e.target.value)}
               placeholder={"Banco: Banesco\nCuenta: 0134-...\nRIF: J-000000000"}
             />
-          </div>
-          <div className="flex items-center justify-between gap-2">
+          </Field>
+          <Field className="flex items-center justify-between gap-2">
             <Label className="text-sm text-brand-navy">Pide número de referencia</Label>
             <Switch checked={needsReference} onCheckedChange={setNeedsReference} />
-          </div>
-          <div className="flex items-center justify-between gap-2">
+          </Field>
+          <Field className="flex items-center justify-between gap-2">
             <Label className="text-sm text-brand-navy">Pide comprobante de pago</Label>
             <Switch checked={needsProof} onCheckedChange={setNeedsProof} />
-          </div>
+          </Field>
         </div>
 
         <DialogFooter>
@@ -270,15 +271,15 @@ function CreateMethodDialog({ onClose }: { onClose: () => void }) {
         </DialogHeader>
 
         <div className="grid gap-4">
-          <div className="grid gap-1.5">
+          <Field className="grid gap-1.5">
             <Label className="text-xs font-medium text-brand-navy">Nombre visible</Label>
             <Input
               value={label}
               onChange={(e) => setLabel(e.target.value)}
               placeholder="Ej. Zelle empresarial"
             />
-          </div>
-          <div className="grid gap-1.5">
+          </Field>
+          <Field className="grid gap-1.5">
             <Label className="text-xs font-medium text-brand-navy">
               Datos mostrados al cliente (una línea por dato)
             </Label>
@@ -288,15 +289,15 @@ function CreateMethodDialog({ onClose }: { onClose: () => void }) {
               onChange={(e) => setDetailsText(e.target.value)}
               placeholder={"Banco: Banesco\nCuenta: 0134-...\nRIF: J-000000000"}
             />
-          </div>
-          <div className="flex items-center justify-between gap-2">
+          </Field>
+          <Field className="flex items-center justify-between gap-2">
             <Label className="text-sm text-brand-navy">Pide número de referencia</Label>
             <Switch checked={needsReference} onCheckedChange={setNeedsReference} />
-          </div>
-          <div className="flex items-center justify-between gap-2">
+          </Field>
+          <Field className="flex items-center justify-between gap-2">
             <Label className="text-sm text-brand-navy">Pide comprobante de pago</Label>
             <Switch checked={needsProof} onCheckedChange={setNeedsProof} />
-          </div>
+          </Field>
         </div>
 
         <DialogFooter>

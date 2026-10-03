@@ -32,6 +32,7 @@ import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Field } from "@/components/ui/field";
 import { Separator } from "@/components/ui/separator";
 import { Skeleton } from "@/components/ui/skeleton";
 import { staggerContainer, staggerItem } from "@/components/motion-primitives";
@@ -245,14 +246,14 @@ function QuotesPage() {
 
           <Card className="mt-6 p-6">
             <div className="grid gap-4">
-              <div className="grid gap-1.5">
+              <Field className="grid gap-1.5">
                 <Label className="text-xs font-medium text-brand-navy">Cliente</Label>
                 <Input
                   placeholder="Razón social o nombre"
                   value={customerName}
                   onChange={(e) => setCustomerName(e.target.value)}
                 />
-              </div>
+              </Field>
               <TaxIdField
                 prefix={taxIdPrefix}
                 onPrefixChange={setTaxIdPrefix}
@@ -721,7 +722,7 @@ function QuoteBuilder({ id, onBack }: { id: string; onBack: () => void }) {
 
           {isDraft && (
             <>
-              <div className="mt-6 grid gap-1.5 print:hidden sm:max-w-xs">
+              <Field className="mt-6 grid gap-1.5 print:hidden sm:max-w-xs">
                 <Label className="text-xs font-medium text-brand-navy">
                   Método de pago que planeas usar
                 </Label>
@@ -744,7 +745,7 @@ function QuoteBuilder({ id, onBack }: { id: string; onBack: () => void }) {
                 <p className="text-xs text-muted-foreground">
                   Nos ayuda a decidir mejor el precio y descuento a ofrecerte.
                 </p>
-              </div>
+              </Field>
 
               <div className="mt-4 flex flex-wrap items-end gap-3 print:hidden">
                 <ProductSearchSelect

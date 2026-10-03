@@ -6,6 +6,7 @@ import { GoogleIcon } from "@/components/google-icon";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Field } from "@/components/ui/field";
 import { Separator } from "@/components/ui/separator";
 import { useAuth, authErrorMessage } from "@/lib/auth-context";
 import { useElectronStore } from "@/lib/electron-store";
@@ -112,7 +113,7 @@ function RegisterPage() {
       </div>
 
       <form onSubmit={handleRegister} className="space-y-4">
-        <div className="grid gap-1.5">
+        <Field className="grid gap-1.5">
           <Label htmlFor="name" className="text-xs font-medium text-brand-navy">
             Nombre completo
           </Label>
@@ -128,9 +129,9 @@ function RegisterPage() {
               className="pl-9"
             />
           </div>
-        </div>
+        </Field>
 
-        <div className="grid gap-1.5">
+        <Field className="grid gap-1.5">
           <Label htmlFor="email" className="text-xs font-medium text-brand-navy">
             Correo
           </Label>
@@ -147,10 +148,10 @@ function RegisterPage() {
               className="pl-9"
             />
           </div>
-        </div>
+        </Field>
 
         <div className="grid gap-3 sm:grid-cols-2">
-          <div className="grid gap-1.5">
+          <Field className="grid gap-1.5">
             <Label htmlFor="password" className="text-xs font-medium text-brand-navy">
               Contraseña
             </Label>
@@ -168,8 +169,8 @@ function RegisterPage() {
                 className="pl-9"
               />
             </div>
-          </div>
-          <div className="grid gap-1.5">
+          </Field>
+          <Field className="grid gap-1.5">
             <Label htmlFor="confirmPassword" className="text-xs font-medium text-brand-navy">
               Confirmar
             </Label>
@@ -187,7 +188,7 @@ function RegisterPage() {
                 className="pl-9"
               />
             </div>
-          </div>
+          </Field>
         </div>
 
         <Button

@@ -15,6 +15,7 @@ import { Card } from "@/components/ui/card";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Field } from "@/components/ui/field";
 import {
   Select,
   SelectContent,
@@ -128,7 +129,7 @@ function AdminQuotesPage() {
     <AdminShell title="Solicitudes de cotización">
       <div className="print:hidden">
         <div className="mb-4 flex flex-wrap items-end justify-between gap-3">
-          <div className="grid gap-1.5">
+          <Field className="grid gap-1.5">
             <Label className="text-xs font-medium text-brand-navy">Estado</Label>
             <Select value={statusFilter} onValueChange={setStatusFilter} disabled={pendingView}>
               <SelectTrigger className="w-48">
@@ -143,7 +144,7 @@ function AdminQuotesPage() {
                 ))}
               </SelectContent>
             </Select>
-          </div>
+          </Field>
           <div className="flex flex-wrap items-center gap-3">
             <PendingToggle
               label="Por revisar"
@@ -364,7 +365,7 @@ function QuoteDetailDialog({ id, onClose }: { id: string; onClose: () => void })
                 que definas aquí es el final — el cliente lo verá reflejado al pasar la cotización
                 aprobada a pago.
               </p>
-              <div className="flex items-center justify-between gap-3 rounded-md border border-border p-3">
+              <Field className="flex items-center justify-between gap-3 rounded-md border border-border p-3">
                 <div>
                   <Label className="text-sm font-medium text-brand-navy">
                     Aprobar con precio al mayor
@@ -374,8 +375,8 @@ function QuoteDetailDialog({ id, onClose }: { id: string; onClose: () => void })
                   </p>
                 </div>
                 <Switch checked={useWholesale} onCheckedChange={setUseWholesale} />
-              </div>
-              <div className="grid gap-1.5">
+              </Field>
+              <Field className="grid gap-1.5">
                 <Label className="text-xs font-medium text-brand-navy">
                   Descuento especial % (opcional, al aprobar)
                 </Label>
@@ -390,8 +391,8 @@ function QuoteDetailDialog({ id, onClose }: { id: string; onClose: () => void })
                     setDiscountPct(Math.min(100, Math.max(0, Number(e.target.value))));
                   }}
                 />
-              </div>
-              <div className="grid gap-1.5">
+              </Field>
+              <Field className="grid gap-1.5">
                 <Label className="text-xs font-medium text-brand-navy">
                   Motivo de rechazo (opcional)
                 </Label>
@@ -401,7 +402,7 @@ function QuoteDetailDialog({ id, onClose }: { id: string; onClose: () => void })
                   placeholder="Explica por qué se rechaza, si aplica…"
                   rows={2}
                 />
-              </div>
+              </Field>
               <div className="flex gap-2">
                 <Button
                   onClick={() => reject.mutate()}

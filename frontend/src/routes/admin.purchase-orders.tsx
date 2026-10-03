@@ -45,6 +45,7 @@ import {
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Field } from "@/components/ui/field";
 import {
   Select,
   SelectContent,
@@ -214,7 +215,7 @@ function PurchaseOrdersPage() {
       <div className="print:hidden">
         <div className="flex flex-wrap items-end justify-between gap-3">
           <div className="flex flex-wrap items-end gap-3">
-            <div className="grid gap-1.5">
+            <Field className="grid gap-1.5">
               <Label className="text-xs font-medium text-brand-navy">Estado</Label>
               <Select value={statusFilter} onValueChange={setStatusFilter} disabled={showPending}>
                 <SelectTrigger className="w-48">
@@ -229,8 +230,8 @@ function PurchaseOrdersPage() {
                   ))}
                 </SelectContent>
               </Select>
-            </div>
-            <div className="grid gap-1.5">
+            </Field>
+            <Field className="grid gap-1.5">
               <Label className="text-xs font-medium text-brand-navy">Proveedor</Label>
               <Select
                 value={supplierFilter || "all"}
@@ -248,8 +249,8 @@ function PurchaseOrdersPage() {
                   ))}
                 </SelectContent>
               </Select>
-            </div>
-            <div className="grid gap-1.5">
+            </Field>
+            <Field className="grid gap-1.5">
               <Label className="text-xs font-medium text-brand-navy">Buscar</Label>
               <div className="relative">
                 <Search className="pointer-events-none absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
@@ -260,7 +261,7 @@ function PurchaseOrdersPage() {
                   className="w-56 pl-8"
                 />
               </div>
-            </div>
+            </Field>
           </div>
           <div className="flex flex-wrap items-center gap-3">
             <PendingToggle
@@ -573,7 +574,7 @@ function CreateOrderDialog({ onClose }: { onClose: () => void }) {
         </DialogHeader>
 
         <div className="grid gap-4 sm:grid-cols-2">
-          <div className="grid gap-1.5">
+          <Field className="grid gap-1.5">
             <Label className="text-xs font-medium text-brand-navy">Proveedor</Label>
             <SupplierPicker
               value={supplierId}
@@ -583,32 +584,32 @@ function CreateOrderDialog({ onClose }: { onClose: () => void }) {
                 setLines([]);
               }}
             />
-          </div>
-          <div className="grid gap-1.5">
+          </Field>
+          <Field className="grid gap-1.5">
             <Label className="text-xs font-medium text-brand-navy">Condiciones de pago</Label>
             <Input
               placeholder="Ej. 30 días, contado…"
               value={paymentTerms}
               onChange={(e) => setPaymentTerms(e.target.value)}
             />
-          </div>
+          </Field>
         </div>
 
-        <div className="grid gap-1.5">
+        <Field className="grid gap-1.5">
           <Label className="text-xs font-medium text-brand-navy">Notas</Label>
           <Textarea
             placeholder="Notas especiales para esta orden…"
             value={notes}
             onChange={(e) => setNotes(e.target.value)}
           />
-        </div>
+        </Field>
 
         <Separator />
 
         <LineItemsEditor products={products} lines={lines} setLines={setLines} />
 
         <div className="flex flex-col items-end gap-2">
-          <div className="flex items-center gap-2">
+          <Field className="flex items-center gap-2">
             <Label className="text-xs text-muted-foreground">Descuento global %</Label>
             <Input
               type="number"
@@ -620,7 +621,7 @@ function CreateOrderDialog({ onClose }: { onClose: () => void }) {
               }
               className="h-8 w-20 text-right"
             />
-          </div>
+          </Field>
           <div className="w-full max-w-xs space-y-1 text-sm">
             <div className="flex justify-between text-lg font-bold text-brand-navy">
               <span>Total</span>
@@ -866,7 +867,7 @@ function OrderDetailDialog({ orderId, onClose }: { orderId: string; onClose: () 
 
           {editingItems && (
             <div className="space-y-3">
-              <div className="grid gap-1.5">
+              <Field className="grid gap-1.5">
                 <Label className="text-xs font-medium text-brand-navy">Proveedor</Label>
                 <SupplierPicker
                   value={editSupplierId}
@@ -876,9 +877,9 @@ function OrderDetailDialog({ orderId, onClose }: { orderId: string; onClose: () 
                     setEditLines([]);
                   }}
                 />
-              </div>
+              </Field>
               <LineItemsEditor products={editProducts} lines={editLines} setLines={setEditLines} />
-              <div className="flex items-center justify-end gap-2">
+              <Field className="flex items-center justify-end gap-2">
                 <Label className="text-xs text-muted-foreground">Descuento global %</Label>
                 <Input
                   type="number"
@@ -890,7 +891,7 @@ function OrderDetailDialog({ orderId, onClose }: { orderId: string; onClose: () 
                   }
                   className="h-8 w-20 text-right"
                 />
-              </div>
+              </Field>
               <div className="flex justify-between text-base font-bold text-brand-navy">
                 <span>Total (nuevo)</span>
                 <span>{formatMoneyAdmin(computeDraftTotal(editLines, editGlobalDiscount))}</span>
@@ -941,7 +942,7 @@ function OrderDetailDialog({ orderId, onClose }: { orderId: string; onClose: () 
           <Separator />
 
           <div className="grid gap-3">
-            <div className="grid gap-1.5">
+            <Field className="grid gap-1.5">
               <Label className="text-xs font-medium text-brand-navy">Condiciones de pago</Label>
               <Input
                 disabled={!canEditTerms}
@@ -949,15 +950,15 @@ function OrderDetailDialog({ orderId, onClose }: { orderId: string; onClose: () 
                 onChange={(e) => setTerms(e.target.value)}
                 placeholder="Ej. 30 días"
               />
-            </div>
-            <div className="grid gap-1.5">
+            </Field>
+            <Field className="grid gap-1.5">
               <Label className="text-xs font-medium text-brand-navy">Notas</Label>
               <Textarea
                 disabled={!canEditTerms}
                 defaultValue={order.notes ?? ""}
                 onChange={(e) => setNotes(e.target.value)}
               />
-            </div>
+            </Field>
             {canEditTerms && (terms !== null || notes !== null) && (
               <Button
                 size="sm"
@@ -1081,7 +1082,7 @@ function OrderDetailDialog({ orderId, onClose }: { orderId: string; onClose: () 
               <DialogTitle>Registrar pago</DialogTitle>
             </DialogHeader>
             <div className="grid gap-3">
-              <div className="grid gap-1.5">
+              <Field className="grid gap-1.5">
                 <Label className="text-xs font-medium text-brand-navy">Monto</Label>
                 <Input
                   type="number"
@@ -1090,23 +1091,23 @@ function OrderDetailDialog({ orderId, onClose }: { orderId: string; onClose: () 
                   value={payAmount}
                   onChange={(e) => setPayAmount(Number(e.target.value))}
                 />
-              </div>
-              <div className="grid gap-1.5">
+              </Field>
+              <Field className="grid gap-1.5">
                 <Label className="text-xs font-medium text-brand-navy">Método</Label>
                 <Input
                   value={payMethod}
                   onChange={(e) => setPayMethod(e.target.value)}
                   placeholder="transferencia, efectivo…"
                 />
-              </div>
-              <div className="grid gap-1.5">
+              </Field>
+              <Field className="grid gap-1.5">
                 <Label className="text-xs font-medium text-brand-navy">Referencia</Label>
                 <Input
                   value={payReference}
                   onChange={(e) => setPayReference(e.target.value)}
                   placeholder="Opcional"
                 />
-              </div>
+              </Field>
             </div>
             <DialogFooter>
               <Button variant="outline" onClick={() => setPayOpen(false)}>

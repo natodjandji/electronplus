@@ -21,6 +21,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Field } from "@/components/ui/field";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Separator } from "@/components/ui/separator";
 import {
@@ -421,7 +422,7 @@ function RetryPaymentForm({ order }: { order: Order }) {
       )}
 
       {selected?.needsReference && (
-        <div className="mt-3 grid gap-1.5">
+        <Field className="mt-3 grid gap-1.5">
           <Label className="text-xs font-medium text-brand-navy">
             Número de referencia / confirmación
           </Label>
@@ -430,11 +431,11 @@ function RetryPaymentForm({ order }: { order: Order }) {
             value={reference}
             onChange={(e) => setReference(e.target.value)}
           />
-        </div>
+        </Field>
       )}
 
       {selected?.needsProof && (
-        <div className="mt-3 grid gap-1.5">
+        <Field className="mt-3 grid gap-1.5">
           <Label className="text-xs font-medium text-brand-navy">
             Comprobante de pago (opcional)
           </Label>
@@ -475,7 +476,7 @@ function RetryPaymentForm({ order }: { order: Order }) {
               />
             </label>
           )}
-        </div>
+        </Field>
       )}
 
       <Button

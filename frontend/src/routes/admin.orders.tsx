@@ -20,6 +20,7 @@ import {
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Field } from "@/components/ui/field";
 import {
   Select,
   SelectContent,
@@ -131,7 +132,7 @@ function AdminOrdersPage() {
   return (
     <AdminShell title="Pedidos">
       <div className="flex flex-wrap items-end justify-between gap-3">
-        <div className="grid gap-1.5">
+        <Field className="grid gap-1.5">
           <Label className="text-xs font-medium text-brand-navy">Estado</Label>
           <Select value={statusFilter} onValueChange={setStatusFilter} disabled={showPending}>
             <SelectTrigger className="w-56">
@@ -146,7 +147,7 @@ function AdminOrdersPage() {
               ))}
             </SelectContent>
           </Select>
-        </div>
+        </Field>
         <div className="flex flex-wrap items-center gap-3">
           <PendingToggle
             label="Pagos por verificar"

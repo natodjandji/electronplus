@@ -6,6 +6,7 @@ import { GoogleIcon } from "@/components/google-icon";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Field } from "@/components/ui/field";
 import { Separator } from "@/components/ui/separator";
 import { useAuth, authErrorMessage } from "@/lib/auth-context";
 import { useElectronStore } from "@/lib/electron-store";
@@ -117,7 +118,7 @@ function LoginPage() {
       </div>
 
       <form onSubmit={handleEmailLogin} className="space-y-4">
-        <div className="grid gap-1.5">
+        <Field className="grid gap-1.5">
           <Label htmlFor="email" className="text-xs font-medium text-brand-navy">
             Correo
           </Label>
@@ -134,9 +135,9 @@ function LoginPage() {
               className="pl-9"
             />
           </div>
-        </div>
+        </Field>
 
-        <div className="grid gap-1.5">
+        <Field className="grid gap-1.5">
           <Label htmlFor="password" className="text-xs font-medium text-brand-navy">
             Contraseña
           </Label>
@@ -153,7 +154,7 @@ function LoginPage() {
               className="pl-9"
             />
           </div>
-        </div>
+        </Field>
 
         <Button
           type="submit"

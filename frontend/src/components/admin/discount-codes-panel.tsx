@@ -13,6 +13,7 @@ import {
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Field } from "@/components/ui/field";
 import {
   Select,
   SelectContent,
@@ -204,7 +205,7 @@ function CreateCodeDialog({ onClose }: { onClose: () => void }) {
         </DialogHeader>
 
         <div className="grid gap-4">
-          <div className="grid gap-1.5">
+          <Field className="grid gap-1.5">
             <Label className="text-xs font-medium text-brand-navy">Código</Label>
             <Input
               value={code}
@@ -212,8 +213,8 @@ function CreateCodeDialog({ onClose }: { onClose: () => void }) {
               placeholder="BIENVENIDA10"
               className="font-mono"
             />
-          </div>
-          <div className="grid gap-1.5">
+          </Field>
+          <Field className="grid gap-1.5">
             <Label className="text-xs font-medium text-brand-navy">Tipo</Label>
             <Select value={type} onValueChange={(v) => setType(v as DiscountType)}>
               <SelectTrigger>
@@ -224,8 +225,8 @@ function CreateCodeDialog({ onClose }: { onClose: () => void }) {
                 <SelectItem value="fixed">Monto fijo ($)</SelectItem>
               </SelectContent>
             </Select>
-          </div>
-          <div className="grid gap-1.5">
+          </Field>
+          <Field className="grid gap-1.5">
             <Label className="text-xs font-medium text-brand-navy">
               Valor {type === "percentage" ? "(%)" : "($)"}
             </Label>
@@ -237,7 +238,7 @@ function CreateCodeDialog({ onClose }: { onClose: () => void }) {
               value={value}
               onChange={(e) => setValue(Math.max(0, Number(e.target.value)))}
             />
-          </div>
+          </Field>
         </div>
 
         <DialogFooter>
@@ -282,7 +283,7 @@ function EditCodeDialog({ code, onClose }: { code: DiscountCode; onClose: () => 
         </DialogHeader>
 
         <div className="grid gap-4">
-          <div className="grid gap-1.5">
+          <Field className="grid gap-1.5">
             <Label className="text-xs font-medium text-brand-navy">Tipo</Label>
             <Select value={type} onValueChange={(v) => setType(v as DiscountType)}>
               <SelectTrigger>
@@ -293,8 +294,8 @@ function EditCodeDialog({ code, onClose }: { code: DiscountCode; onClose: () => 
                 <SelectItem value="fixed">Monto fijo ($)</SelectItem>
               </SelectContent>
             </Select>
-          </div>
-          <div className="grid gap-1.5">
+          </Field>
+          <Field className="grid gap-1.5">
             <Label className="text-xs font-medium text-brand-navy">
               Valor {type === "percentage" ? "(%)" : "($)"}
             </Label>
@@ -306,11 +307,11 @@ function EditCodeDialog({ code, onClose }: { code: DiscountCode; onClose: () => 
               value={value}
               onChange={(e) => setValue(Math.max(0, Number(e.target.value)))}
             />
-          </div>
-          <div className="flex items-center justify-between gap-2">
+          </Field>
+          <Field className="flex items-center justify-between gap-2">
             <Label className="text-sm text-brand-navy">Activo</Label>
             <Switch checked={enabled} onCheckedChange={setEnabled} />
-          </div>
+          </Field>
         </div>
 
         <DialogFooter>

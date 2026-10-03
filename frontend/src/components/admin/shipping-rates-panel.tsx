@@ -13,6 +13,7 @@ import {
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Field } from "@/components/ui/field";
 import {
   Select,
   SelectContent,
@@ -196,7 +197,7 @@ function CreateRateDialog({ onClose }: { onClose: () => void }) {
         </DialogHeader>
 
         <div className="grid gap-4">
-          <div className="grid gap-1.5">
+          <Field className="grid gap-1.5">
             <Label className="text-xs font-medium text-brand-navy">Estado</Label>
             <Select
               value={state}
@@ -216,8 +217,8 @@ function CreateRateDialog({ onClose }: { onClose: () => void }) {
                 ))}
               </SelectContent>
             </Select>
-          </div>
-          <div className="grid gap-1.5">
+          </Field>
+          <Field className="grid gap-1.5">
             <Label className="text-xs font-medium text-brand-navy">Municipio</Label>
             <Select value={city} onValueChange={setCity} disabled={!state}>
               <SelectTrigger>
@@ -234,8 +235,8 @@ function CreateRateDialog({ onClose }: { onClose: () => void }) {
                 ))}
               </SelectContent>
             </Select>
-          </div>
-          <div className="grid gap-1.5">
+          </Field>
+          <Field className="grid gap-1.5">
             <Label className="text-xs font-medium text-brand-navy">Monto ($)</Label>
             <Input
               type="number"
@@ -244,7 +245,7 @@ function CreateRateDialog({ onClose }: { onClose: () => void }) {
               value={amount}
               onChange={(e) => setAmount(Math.max(0, Number(e.target.value)))}
             />
-          </div>
+          </Field>
         </div>
 
         <DialogFooter>
@@ -287,7 +288,7 @@ function EditRateDialog({ rate, onClose }: { rate: ShippingRate; onClose: () => 
           </DialogTitle>
         </DialogHeader>
 
-        <div className="grid gap-1.5">
+        <Field className="grid gap-1.5">
           <Label className="text-xs font-medium text-brand-navy">Monto ($)</Label>
           <Input
             type="number"
@@ -296,7 +297,7 @@ function EditRateDialog({ rate, onClose }: { rate: ShippingRate; onClose: () => 
             value={amount}
             onChange={(e) => setAmount(Math.max(0, Number(e.target.value)))}
           />
-        </div>
+        </Field>
 
         <DialogFooter>
           <Button variant="outline" onClick={onClose}>

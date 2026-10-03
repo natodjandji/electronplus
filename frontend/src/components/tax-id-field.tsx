@@ -1,4 +1,5 @@
 import { Label } from "@/components/ui/label";
+import { Field } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
 import {
   Select,
@@ -25,7 +26,7 @@ export function TaxIdField({
   const validation = validateTaxIdNumber(prefix, number);
 
   return (
-    <div className="grid gap-1.5">
+    <Field className="grid gap-1.5">
       <Label className="text-xs font-medium text-brand-navy">{label}</Label>
       <div className="flex gap-2">
         <Select value={prefix} onValueChange={(v) => onPrefixChange(v as TaxIdPrefix)}>
@@ -48,6 +49,6 @@ export function TaxIdField({
         />
       </div>
       {!validation.valid && <p className="text-xs text-destructive">{validation.message}</p>}
-    </div>
+    </Field>
   );
 }

@@ -33,6 +33,7 @@ import {
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Field } from "@/components/ui/field";
 import {
   Select,
   SelectContent,
@@ -171,7 +172,7 @@ function PurchasesPage() {
     <AdminShell title="Compras & vencimiento de facturas">
       <div className="flex flex-wrap items-end justify-between gap-3">
         <div className="flex flex-wrap items-end gap-3">
-          <div className="grid gap-1.5">
+          <Field className="grid gap-1.5">
             <Label className="text-xs font-medium text-brand-navy">Proveedor</Label>
             <Select value={supplierFilter} onValueChange={setSupplierFilter}>
               <SelectTrigger className="w-48">
@@ -186,8 +187,8 @@ function PurchasesPage() {
                 ))}
               </SelectContent>
             </Select>
-          </div>
-          <div className="grid gap-1.5">
+          </Field>
+          <Field className="grid gap-1.5">
             <Label className="text-xs font-medium text-brand-navy">Estado</Label>
             <Select
               value={statusFilter}
@@ -203,8 +204,8 @@ function PurchasesPage() {
                 <SelectItem value="paid">Pagada</SelectItem>
               </SelectContent>
             </Select>
-          </div>
-          <div className="grid gap-1.5">
+          </Field>
+          <Field className="grid gap-1.5">
             <Label className="text-xs font-medium text-brand-navy">Buscar</Label>
             <div className="relative">
               <Search className="pointer-events-none absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
@@ -215,7 +216,7 @@ function PurchasesPage() {
                 className="w-56 pl-8"
               />
             </div>
-          </div>
+          </Field>
         </div>
         <div className="flex flex-wrap items-center gap-3">
           <PendingToggle
@@ -439,7 +440,7 @@ function CreateInvoiceDialog({ onClose }: { onClose: () => void }) {
         </DialogHeader>
 
         <div className="grid gap-4 sm:grid-cols-2">
-          <div className="grid gap-1.5">
+          <Field className="grid gap-1.5">
             <Label className="text-xs font-medium text-brand-navy">Proveedor</Label>
             <SupplierPicker
               value={supplierId}
@@ -448,16 +449,16 @@ function CreateInvoiceDialog({ onClose }: { onClose: () => void }) {
                 setSupplierName(name);
               }}
             />
-          </div>
-          <div className="grid gap-1.5">
+          </Field>
+          <Field className="grid gap-1.5">
             <Label className="text-xs font-medium text-brand-navy">N° de factura</Label>
             <Input
               value={invoiceNumber}
               onChange={(e) => setInvoiceNumber(e.target.value)}
               placeholder="Ej. FAC-00123"
             />
-          </div>
-          <div className="grid gap-1.5">
+          </Field>
+          <Field className="grid gap-1.5">
             <Label className="text-xs font-medium text-brand-navy">Monto ($)</Label>
             <Input
               type="number"
@@ -466,33 +467,33 @@ function CreateInvoiceDialog({ onClose }: { onClose: () => void }) {
               value={amount}
               onChange={(e) => setAmount(Math.max(0, Number(e.target.value)))}
             />
-          </div>
-          <div className="grid gap-1.5">
+          </Field>
+          <Field className="grid gap-1.5">
             <Label className="text-xs font-medium text-brand-navy">Condiciones de pago</Label>
             <Input
               value={paymentTerms}
               onChange={(e) => setPaymentTerms(e.target.value)}
               placeholder="Ej. 30 días, contado…"
             />
-          </div>
-          <div className="grid gap-1.5">
+          </Field>
+          <Field className="grid gap-1.5">
             <Label className="text-xs font-medium text-brand-navy">Fecha de emisión</Label>
             <Input type="date" value={issueDate} onChange={(e) => setIssueDate(e.target.value)} />
-          </div>
-          <div className="grid gap-1.5">
+          </Field>
+          <Field className="grid gap-1.5">
             <Label className="text-xs font-medium text-brand-navy">Fecha de vencimiento</Label>
             <Input type="date" value={dueDate} onChange={(e) => setDueDate(e.target.value)} />
-          </div>
+          </Field>
         </div>
 
-        <div className="grid gap-1.5">
+        <Field className="grid gap-1.5">
           <Label className="text-xs font-medium text-brand-navy">Notas</Label>
           <Textarea
             value={notes}
             onChange={(e) => setNotes(e.target.value)}
             placeholder="Notas especiales para esta factura…"
           />
-        </div>
+        </Field>
 
         <DialogFooter>
           <Button variant="outline" onClick={onClose}>
@@ -704,7 +705,7 @@ function InvoiceDetailDialog({ invoiceId, onClose }: { invoiceId: string; onClos
 
         {editingInvoice && (
           <div className="grid gap-3">
-            <div className="grid gap-1.5">
+            <Field className="grid gap-1.5">
               <Label className="text-xs font-medium text-brand-navy">Proveedor</Label>
               <SupplierPicker
                 value={editSupplierId}
@@ -713,16 +714,16 @@ function InvoiceDetailDialog({ invoiceId, onClose }: { invoiceId: string; onClos
                   setEditSupplierName(name);
                 }}
               />
-            </div>
+            </Field>
             <div className="grid gap-4 sm:grid-cols-2">
-              <div className="grid gap-1.5">
+              <Field className="grid gap-1.5">
                 <Label className="text-xs font-medium text-brand-navy">N° de factura</Label>
                 <Input
                   value={editInvoiceNumber}
                   onChange={(e) => setEditInvoiceNumber(e.target.value)}
                 />
-              </div>
-              <div className="grid gap-1.5">
+              </Field>
+              <Field className="grid gap-1.5">
                 <Label className="text-xs font-medium text-brand-navy">Monto ($)</Label>
                 <Input
                   type="number"
@@ -731,23 +732,23 @@ function InvoiceDetailDialog({ invoiceId, onClose }: { invoiceId: string; onClos
                   value={editAmount}
                   onChange={(e) => setEditAmount(Math.max(0, Number(e.target.value)))}
                 />
-              </div>
-              <div className="grid gap-1.5">
+              </Field>
+              <Field className="grid gap-1.5">
                 <Label className="text-xs font-medium text-brand-navy">Fecha de emisión</Label>
                 <Input
                   type="date"
                   value={editIssueDate}
                   onChange={(e) => setEditIssueDate(e.target.value)}
                 />
-              </div>
-              <div className="grid gap-1.5">
+              </Field>
+              <Field className="grid gap-1.5">
                 <Label className="text-xs font-medium text-brand-navy">Fecha de vencimiento</Label>
                 <Input
                   type="date"
                   value={editDueDate}
                   onChange={(e) => setEditDueDate(e.target.value)}
                 />
-              </div>
+              </Field>
             </div>
             <div className="flex justify-end gap-2">
               <Button variant="outline" size="sm" onClick={() => setEditingInvoice(false)}>
@@ -775,7 +776,7 @@ function InvoiceDetailDialog({ invoiceId, onClose }: { invoiceId: string; onClos
         <Separator />
 
         <div className="grid gap-3">
-          <div className="grid gap-1.5">
+          <Field className="grid gap-1.5">
             <Label className="text-xs font-medium text-brand-navy">Condiciones de pago</Label>
             <Input
               disabled={!canEditTerms}
@@ -783,15 +784,15 @@ function InvoiceDetailDialog({ invoiceId, onClose }: { invoiceId: string; onClos
               onChange={(e) => setTerms(e.target.value)}
               placeholder="Ej. 30 días"
             />
-          </div>
-          <div className="grid gap-1.5">
+          </Field>
+          <Field className="grid gap-1.5">
             <Label className="text-xs font-medium text-brand-navy">Notas</Label>
             <Textarea
               disabled={!canEditTerms}
               defaultValue={invoice.notes ?? ""}
               onChange={(e) => setNotes(e.target.value)}
             />
-          </div>
+          </Field>
           {canEditTerms && (terms !== null || notes !== null) && (
             <Button
               size="sm"
@@ -864,7 +865,7 @@ function InvoiceDetailDialog({ invoiceId, onClose }: { invoiceId: string; onClos
             <DialogTitle>Registrar pago</DialogTitle>
           </DialogHeader>
           <div className="grid gap-3">
-            <div className="grid gap-1.5">
+            <Field className="grid gap-1.5">
               <Label className="text-xs font-medium text-brand-navy">Monto</Label>
               <Input
                 type="number"
@@ -873,8 +874,8 @@ function InvoiceDetailDialog({ invoiceId, onClose }: { invoiceId: string; onClos
                 value={payAmount}
                 onChange={(e) => setPayAmount(Number(e.target.value))}
               />
-            </div>
-            <div className="grid gap-1.5">
+            </Field>
+            <Field className="grid gap-1.5">
               <Label className="text-xs font-medium text-brand-navy">Método</Label>
               <Select value={payMethod} onValueChange={setPayMethod}>
                 <SelectTrigger>
@@ -888,16 +889,16 @@ function InvoiceDetailDialog({ invoiceId, onClose }: { invoiceId: string; onClos
                   ))}
                 </SelectContent>
               </Select>
-            </div>
-            <div className="grid gap-1.5">
+            </Field>
+            <Field className="grid gap-1.5">
               <Label className="text-xs font-medium text-brand-navy">Referencia</Label>
               <Input
                 value={payReference}
                 onChange={(e) => setPayReference(e.target.value)}
                 placeholder="Opcional"
               />
-            </div>
-            <div className="grid gap-1.5">
+            </Field>
+            <Field className="grid gap-1.5">
               <Label className="text-xs font-medium text-brand-navy">Comprobante de pago</Label>
               <label className="flex cursor-pointer items-center gap-2 rounded-md border border-dashed border-border p-3 text-sm text-muted-foreground hover:border-brand-blue/40">
                 <ImageIcon className="h-4 w-4" />
@@ -909,7 +910,7 @@ function InvoiceDetailDialog({ invoiceId, onClose }: { invoiceId: string; onClos
                   onChange={(e) => setProofFile(e.target.files?.[0] ?? null)}
                 />
               </label>
-            </div>
+            </Field>
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setPayOpen(false)}>

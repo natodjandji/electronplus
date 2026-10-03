@@ -11,6 +11,7 @@ import {
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Field } from "@/components/ui/field";
 import {
   Select,
   SelectContent,
@@ -147,14 +148,14 @@ export function CreateSupplierDialog({
           <DialogTitle>Nuevo proveedor</DialogTitle>
         </DialogHeader>
         <div className="grid gap-3">
-          <div className="grid gap-1.5">
+          <Field className="grid gap-1.5">
             <Label className="text-xs font-medium text-brand-navy">Nombre</Label>
             <Input
               value={name}
               onChange={(e) => setName(e.target.value)}
               placeholder="Nombre del proveedor"
             />
-          </div>
+          </Field>
           <TaxIdField
             label="RIF (opcional)"
             prefix={taxIdPrefix}
@@ -162,7 +163,7 @@ export function CreateSupplierDialog({
             number={taxIdNumber}
             onNumberChange={setTaxIdNumber}
           />
-          <div className="grid gap-1.5">
+          <Field className="grid gap-1.5">
             <Label className="text-xs font-medium text-brand-navy">
               Correo de contacto (opcional)
             </Label>
@@ -174,7 +175,7 @@ export function CreateSupplierDialog({
               aria-invalid={!emailValid}
             />
             {!emailValid && <p className="text-xs text-destructive">Correo inválido.</p>}
-          </div>
+          </Field>
           <PhoneField
             label="Teléfono de contacto (opcional)"
             prefix={phonePrefix}

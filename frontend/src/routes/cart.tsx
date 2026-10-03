@@ -9,6 +9,7 @@ import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Field } from "@/components/ui/field";
 import { Separator } from "@/components/ui/separator";
 import { PriceTag } from "@/components/price-tag";
 import { ProductImage } from "@/components/product-image";
@@ -182,7 +183,7 @@ function CartPage() {
             <Card className="h-fit p-6">
               <h2 className="text-lg font-semibold text-brand-navy">Resumen</h2>
 
-              <div className="mt-4 grid gap-1.5">
+              <Field className="mt-4 grid gap-1.5">
                 <Label className="text-xs font-medium text-brand-navy">
                   ¿Tienes un código de descuento?
                 </Label>
@@ -237,7 +238,7 @@ function CartPage() {
                     </motion.div>
                   )}
                 </AnimatePresence>
-              </div>
+              </Field>
 
               <div className="mt-4 space-y-2 text-sm">
                 <Row label="Subtotal" value={formatMoney(cartTotal)} />

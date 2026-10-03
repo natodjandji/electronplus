@@ -38,6 +38,7 @@ import {
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Field } from "@/components/ui/field";
 import {
   Select,
   SelectContent,
@@ -146,7 +147,7 @@ function InventoryPage() {
   return (
     <AdminShell title="Inventario">
       <div className="flex flex-wrap items-end justify-between gap-3">
-        <div className="grid gap-1.5">
+        <Field className="grid gap-1.5">
           <Label className="text-xs font-medium text-brand-navy">Buscar</Label>
           <div className="relative">
             <Search className="pointer-events-none absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
@@ -157,7 +158,7 @@ function InventoryPage() {
               className="w-64 pl-8"
             />
           </div>
-        </div>
+        </Field>
         <Button
           className="gap-2 bg-brand-blue text-white hover:bg-brand-blue/90"
           onClick={() => setCreating(true)}
@@ -450,11 +451,11 @@ function SecondStoreLinkDialog({
               <div className="font-semibold text-brand-navy">{link.name}</div>
             </div>
             <div className="grid grid-cols-2 gap-2">
-              <div className="grid gap-1.5">
+              <Field className="grid gap-1.5">
                 <Label className="text-xs font-medium text-brand-navy">Código</Label>
                 <Input value={codeEdit} onChange={(e) => setCodeEdit(e.target.value)} />
-              </div>
-              <div className="grid gap-1.5">
+              </Field>
+              <Field className="grid gap-1.5">
                 <Label className="text-xs font-medium text-brand-navy">Stock</Label>
                 <Input
                   type="number"
@@ -462,8 +463,8 @@ function SecondStoreLinkDialog({
                   value={stockEdit}
                   onChange={(e) => setStockEdit(Math.max(0, Number(e.target.value)))}
                 />
-              </div>
-              <div className="grid gap-1.5">
+              </Field>
+              <Field className="grid gap-1.5">
                 <Label className="text-xs font-medium text-brand-navy">Precio al detal</Label>
                 <Input
                   type="number"
@@ -472,8 +473,8 @@ function SecondStoreLinkDialog({
                   value={retailPriceEdit}
                   onChange={(e) => setRetailPriceEdit(Math.max(0, Number(e.target.value)))}
                 />
-              </div>
-              <div className="grid gap-1.5">
+              </Field>
+              <Field className="grid gap-1.5">
                 <Label className="text-xs font-medium text-brand-navy">Precio al mayor</Label>
                 <Input
                   type="number"
@@ -482,7 +483,7 @@ function SecondStoreLinkDialog({
                   value={wholesalePriceEdit}
                   onChange={(e) => setWholesalePriceEdit(Math.max(0, Number(e.target.value)))}
                 />
-              </div>
+              </Field>
             </div>
             <Button
               type="button"
@@ -568,18 +569,18 @@ function SecondStoreLinkDialog({
               </Button>
             ) : (
               <div className="grid gap-2 rounded-md border border-border p-3">
-                <div className="grid gap-1.5">
+                <Field className="grid gap-1.5">
                   <Label className="text-xs font-medium text-brand-navy">
                     Nombre (como está en la otra tienda)
                   </Label>
                   <Input value={newName} onChange={(e) => setNewName(e.target.value)} />
-                </div>
+                </Field>
                 <div className="grid grid-cols-2 gap-2">
-                  <div className="grid gap-1.5">
+                  <Field className="grid gap-1.5">
                     <Label className="text-xs font-medium text-brand-navy">Código (opcional)</Label>
                     <Input value={newCode} onChange={(e) => setNewCode(e.target.value)} />
-                  </div>
-                  <div className="grid gap-1.5">
+                  </Field>
+                  <Field className="grid gap-1.5">
                     <Label className="text-xs font-medium text-brand-navy">Stock</Label>
                     <Input
                       type="number"
@@ -587,8 +588,8 @@ function SecondStoreLinkDialog({
                       value={newStock}
                       onChange={(e) => setNewStock(Math.max(0, Number(e.target.value)))}
                     />
-                  </div>
-                  <div className="grid gap-1.5">
+                  </Field>
+                  <Field className="grid gap-1.5">
                     <Label className="text-xs font-medium text-brand-navy">Precio al detal</Label>
                     <Input
                       type="number"
@@ -597,8 +598,8 @@ function SecondStoreLinkDialog({
                       value={newRetailPrice}
                       onChange={(e) => setNewRetailPrice(Math.max(0, Number(e.target.value)))}
                     />
-                  </div>
-                  <div className="grid gap-1.5">
+                  </Field>
+                  <Field className="grid gap-1.5">
                     <Label className="text-xs font-medium text-brand-navy">Precio al mayor</Label>
                     <Input
                       type="number"
@@ -607,7 +608,7 @@ function SecondStoreLinkDialog({
                       value={newWholesalePrice}
                       onChange={(e) => setNewWholesalePrice(Math.max(0, Number(e.target.value)))}
                     />
-                  </div>
+                  </Field>
                 </div>
                 <Button
                   type="button"
@@ -720,23 +721,23 @@ function ProductFormDialog({ product, onClose }: { product?: AdminProduct; onClo
         </DialogHeader>
 
         <div className="grid gap-4 sm:grid-cols-2">
-          <div className="grid gap-1.5">
+          <Field className="grid gap-1.5">
             <Label className="text-xs font-medium text-brand-navy">SKU</Label>
             <Input value={sku} onChange={(e) => setSku(e.target.value)} />
-          </div>
-          <div className="grid gap-1.5">
+          </Field>
+          <Field className="grid gap-1.5">
             <Label className="text-xs font-medium text-brand-navy">Nombre</Label>
             <Input value={name} onChange={(e) => setName(e.target.value)} />
-          </div>
-          <div className="grid gap-1.5 sm:col-span-2">
+          </Field>
+          <Field className="grid gap-1.5 sm:col-span-2">
             <Label className="text-xs font-medium text-brand-navy">Especificaciones</Label>
             <Input
               value={specs}
               onChange={(e) => setSpecs(e.target.value)}
               placeholder="Opcional"
             />
-          </div>
-          <div className="grid min-w-0 gap-1.5">
+          </Field>
+          <Field className="grid min-w-0 gap-1.5">
             <Label className="text-xs font-medium text-brand-navy">Categoría</Label>
             <div className="flex min-w-0 gap-2">
               <Select value={categoryId} onValueChange={setCategoryId}>
@@ -761,12 +762,12 @@ function ProductFormDialog({ product, onClose }: { product?: AdminProduct; onClo
                 <Plus className="h-4 w-4" />
               </Button>
             </div>
-          </div>
-          <div className="grid min-w-0 gap-1.5">
+          </Field>
+          <Field className="grid min-w-0 gap-1.5">
             <Label className="text-xs font-medium text-brand-navy">Proveedor</Label>
             <SupplierPicker value={supplierId} onChange={(id) => setSupplierId(id)} />
-          </div>
-          <div className="grid gap-1.5">
+          </Field>
+          <Field className="grid gap-1.5">
             <Label className="text-xs font-medium text-brand-navy">Precio detal ($)</Label>
             <Input
               type="number"
@@ -775,8 +776,8 @@ function ProductFormDialog({ product, onClose }: { product?: AdminProduct; onClo
               value={retailPrice}
               onChange={(e) => setRetailPrice(Math.max(0, Number(e.target.value)))}
             />
-          </div>
-          <div className="grid gap-1.5">
+          </Field>
+          <Field className="grid gap-1.5">
             <Label className="text-xs font-medium text-brand-navy">Precio mayor ($)</Label>
             <Input
               type="number"
@@ -785,8 +786,8 @@ function ProductFormDialog({ product, onClose }: { product?: AdminProduct; onClo
               value={wholesalePrice}
               onChange={(e) => setWholesalePrice(Math.max(0, Number(e.target.value)))}
             />
-          </div>
-          <div className="grid gap-1.5">
+          </Field>
+          <Field className="grid gap-1.5">
             <Label className="text-xs font-medium text-brand-navy">Costo ($, opcional)</Label>
             <Input
               type="number"
@@ -795,8 +796,8 @@ function ProductFormDialog({ product, onClose }: { product?: AdminProduct; onClo
               value={cost}
               onChange={(e) => setCost(Math.max(0, Number(e.target.value)))}
             />
-          </div>
-          <div className="grid gap-1.5">
+          </Field>
+          <Field className="grid gap-1.5">
             <Label className="text-xs font-medium text-brand-navy">Stock seguro (mínimo)</Label>
             <Input
               type="number"
@@ -804,9 +805,9 @@ function ProductFormDialog({ product, onClose }: { product?: AdminProduct; onClo
               value={minStockThreshold}
               onChange={(e) => setMinStockThreshold(Math.max(0, Number(e.target.value)))}
             />
-          </div>
+          </Field>
           {isEdit && (
-            <div className="grid gap-1.5 sm:col-span-2">
+            <Field className="grid gap-1.5 sm:col-span-2">
               <Label className="text-xs font-medium text-brand-navy">
                 Stock real (unidades en existencia)
               </Label>
@@ -831,9 +832,9 @@ function ProductFormDialog({ product, onClose }: { product?: AdminProduct; onClo
               <p className="text-xs text-muted-foreground">
                 Stock actualmente registrado: {product!.stock} uds.
               </p>
-            </div>
+            </Field>
           )}
-          <div className="grid gap-1.5 sm:col-span-2">
+          <Field className="grid gap-1.5 sm:col-span-2">
             <Label className="text-xs font-medium text-brand-navy">Imagen del producto</Label>
             <div className="flex items-center gap-3">
               <div className="grid h-16 w-16 shrink-0 place-items-center overflow-hidden rounded-md border border-border bg-brand-surface">
@@ -869,13 +870,13 @@ function ProductFormDialog({ product, onClose }: { product?: AdminProduct; onClo
                 )}
               </div>
             </div>
-          </div>
-          <div className="flex items-center gap-2 sm:col-span-2">
+          </Field>
+          <Field className="flex items-center gap-2 sm:col-span-2">
             <Switch checked={active} onCheckedChange={setActive} />
             <Label className="text-sm text-brand-navy">
               Producto activo (visible en el catálogo)
             </Label>
-          </div>
+          </Field>
         </div>
 
         <DialogFooter>
@@ -937,14 +938,14 @@ function CreateCategoryDialog({
         <DialogHeader>
           <DialogTitle>Nueva categoría</DialogTitle>
         </DialogHeader>
-        <div className="grid gap-1.5">
+        <Field className="grid gap-1.5">
           <Label className="text-xs font-medium text-brand-navy">Nombre</Label>
           <Input
             value={label}
             onChange={(e) => setLabel(e.target.value)}
             placeholder="Ej. Iluminación"
           />
-        </div>
+        </Field>
         <DialogFooter>
           <Button variant="outline" onClick={onClose}>
             Cancelar

@@ -30,6 +30,7 @@ import {
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Field } from "@/components/ui/field";
 import {
   Select,
   SelectContent,
@@ -171,7 +172,7 @@ function ExpensesPage() {
     <AdminShell title="Control de gastos del local">
       <div className="flex flex-wrap items-end justify-between gap-3">
         <div className="flex flex-wrap items-end gap-3">
-          <div className="grid gap-1.5">
+          <Field className="grid gap-1.5">
             <Label className="text-xs font-medium text-brand-navy">Categoría</Label>
             <Select value={categoryFilter} onValueChange={setCategoryFilter}>
               <SelectTrigger className="w-48">
@@ -186,8 +187,8 @@ function ExpensesPage() {
                 ))}
               </SelectContent>
             </Select>
-          </div>
-          <div className="grid gap-1.5">
+          </Field>
+          <Field className="grid gap-1.5">
             <Label className="text-xs font-medium text-brand-navy">Estado</Label>
             <Select
               value={statusFilter}
@@ -203,8 +204,8 @@ function ExpensesPage() {
                 <SelectItem value="paid">Pagado</SelectItem>
               </SelectContent>
             </Select>
-          </div>
-          <div className="grid gap-1.5">
+          </Field>
+          <Field className="grid gap-1.5">
             <Label className="text-xs font-medium text-brand-navy">Buscar</Label>
             <div className="relative">
               <Search className="pointer-events-none absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
@@ -215,7 +216,7 @@ function ExpensesPage() {
                 className="w-56 pl-8"
               />
             </div>
-          </div>
+          </Field>
         </div>
         <div className="flex flex-wrap items-center gap-3">
           <PendingToggle
@@ -423,15 +424,15 @@ function CreateExpenseDialog({ onClose }: { onClose: () => void }) {
         </DialogHeader>
 
         <div className="grid gap-4 sm:grid-cols-2">
-          <div className="grid gap-1.5 sm:col-span-2">
+          <Field className="grid gap-1.5 sm:col-span-2">
             <Label className="text-xs font-medium text-brand-navy">Nombre del gasto</Label>
             <Input
               value={name}
               onChange={(e) => setName(e.target.value)}
               placeholder="Ej. Alquiler del local"
             />
-          </div>
-          <div className="grid gap-1.5">
+          </Field>
+          <Field className="grid gap-1.5">
             <Label className="text-xs font-medium text-brand-navy">Categoría</Label>
             <Select value={category} onValueChange={setCategory}>
               <SelectTrigger>
@@ -445,8 +446,8 @@ function CreateExpenseDialog({ onClose }: { onClose: () => void }) {
                 ))}
               </SelectContent>
             </Select>
-          </div>
-          <div className="grid gap-1.5">
+          </Field>
+          <Field className="grid gap-1.5">
             <Label className="text-xs font-medium text-brand-navy">Monto ($)</Label>
             <Input
               type="number"
@@ -455,8 +456,8 @@ function CreateExpenseDialog({ onClose }: { onClose: () => void }) {
               value={amount}
               onChange={(e) => setAmount(Math.max(0, Number(e.target.value)))}
             />
-          </div>
-          <div className="grid gap-1.5">
+          </Field>
+          <Field className="grid gap-1.5">
             <Label className="text-xs font-medium text-brand-navy">Frecuencia</Label>
             <Select value={frequency} onValueChange={(v) => setFrequency(v as ExpenseFrequency)}>
               <SelectTrigger>
@@ -468,23 +469,23 @@ function CreateExpenseDialog({ onClose }: { onClose: () => void }) {
                 <SelectItem value="annual">Anual</SelectItem>
               </SelectContent>
             </Select>
-          </div>
-          <div className="grid gap-1.5">
+          </Field>
+          <Field className="grid gap-1.5">
             <Label className="text-xs font-medium text-brand-navy">
               {frequency === "once" ? "Fecha de pago" : "Próximo vencimiento"}
             </Label>
             <Input type="date" value={dueDate} onChange={(e) => setDueDate(e.target.value)} />
-          </div>
+          </Field>
         </div>
 
-        <div className="grid gap-1.5">
+        <Field className="grid gap-1.5">
           <Label className="text-xs font-medium text-brand-navy">Notas</Label>
           <Textarea
             value={notes}
             onChange={(e) => setNotes(e.target.value)}
             placeholder="Notas adicionales…"
           />
-        </div>
+        </Field>
 
         <DialogFooter>
           <Button variant="outline" onClick={onClose}>
@@ -563,11 +564,11 @@ function EditExpenseDialog({ expense, onClose }: { expense: Expense; onClose: ()
         </DialogHeader>
 
         <div className="grid gap-4 sm:grid-cols-2">
-          <div className="grid gap-1.5 sm:col-span-2">
+          <Field className="grid gap-1.5 sm:col-span-2">
             <Label className="text-xs font-medium text-brand-navy">Nombre del gasto</Label>
             <Input value={name} onChange={(e) => setName(e.target.value)} />
-          </div>
-          <div className="grid gap-1.5">
+          </Field>
+          <Field className="grid gap-1.5">
             <Label className="text-xs font-medium text-brand-navy">Categoría</Label>
             <Select value={category} onValueChange={setCategory}>
               <SelectTrigger>
@@ -581,8 +582,8 @@ function EditExpenseDialog({ expense, onClose }: { expense: Expense; onClose: ()
                 ))}
               </SelectContent>
             </Select>
-          </div>
-          <div className="grid gap-1.5">
+          </Field>
+          <Field className="grid gap-1.5">
             <Label className="text-xs font-medium text-brand-navy">Monto ($)</Label>
             <Input
               type="number"
@@ -591,8 +592,8 @@ function EditExpenseDialog({ expense, onClose }: { expense: Expense; onClose: ()
               value={amount}
               onChange={(e) => setAmount(Math.max(0, Number(e.target.value)))}
             />
-          </div>
-          <div className="grid gap-1.5">
+          </Field>
+          <Field className="grid gap-1.5">
             <Label className="text-xs font-medium text-brand-navy">Frecuencia</Label>
             <Select value={frequency} onValueChange={(v) => setFrequency(v as ExpenseFrequency)}>
               <SelectTrigger>
@@ -604,17 +605,17 @@ function EditExpenseDialog({ expense, onClose }: { expense: Expense; onClose: ()
                 <SelectItem value="annual">Anual</SelectItem>
               </SelectContent>
             </Select>
-          </div>
-          <div className="grid gap-1.5">
+          </Field>
+          <Field className="grid gap-1.5">
             <Label className="text-xs font-medium text-brand-navy">Próximo vencimiento</Label>
             <Input type="date" value={dueDate} onChange={(e) => setDueDate(e.target.value)} />
-          </div>
+          </Field>
         </div>
 
-        <div className="grid gap-1.5">
+        <Field className="grid gap-1.5">
           <Label className="text-xs font-medium text-brand-navy">Notas</Label>
           <Textarea value={notes} onChange={(e) => setNotes(e.target.value)} />
-        </div>
+        </Field>
 
         <label className="flex items-center gap-2 text-sm text-brand-navy">
           <input

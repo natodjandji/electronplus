@@ -22,6 +22,7 @@ import {
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Field } from "@/components/ui/field";
 import { TaxIdField } from "@/components/tax-id-field";
 import { PhoneField } from "@/components/phone-field";
 import { CreateSupplierDialog, useSuppliers } from "@/components/supplier-picker";
@@ -311,10 +312,10 @@ function SupplierDetailDialog({
 
         {editing && (
           <div className="grid gap-3">
-            <div className="grid gap-1.5">
+            <Field className="grid gap-1.5">
               <Label className="text-xs font-medium text-brand-navy">Nombre</Label>
               <Input value={name} onChange={(e) => setName(e.target.value)} />
-            </div>
+            </Field>
             <TaxIdField
               label="RIF (opcional)"
               prefix={taxIdPrefix}
@@ -322,7 +323,7 @@ function SupplierDetailDialog({
               number={taxIdNumber}
               onNumberChange={setTaxIdNumber}
             />
-            <div className="grid gap-1.5">
+            <Field className="grid gap-1.5">
               <Label className="text-xs font-medium text-brand-navy">
                 Correo de contacto (opcional)
               </Label>
@@ -333,7 +334,7 @@ function SupplierDetailDialog({
                 aria-invalid={!emailValid}
               />
               {!emailValid && <p className="text-xs text-destructive">Correo inválido.</p>}
-            </div>
+            </Field>
             <PhoneField
               label="Teléfono de contacto (opcional)"
               prefix={phonePrefix}

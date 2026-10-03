@@ -19,6 +19,7 @@ import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Field } from "@/components/ui/field";
 import { Separator } from "@/components/ui/separator";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import {
@@ -554,7 +555,7 @@ function CheckoutPage() {
                     </RadioGroup>
 
                     <div className="grid gap-4 sm:grid-cols-2">
-                      <div className="grid gap-1.5">
+                      <Field className="grid gap-1.5">
                         <Label className="text-xs font-medium text-brand-navy">
                           Nombre completo
                         </Label>
@@ -563,7 +564,7 @@ function CheckoutPage() {
                           value={fullName}
                           onChange={(e) => setFullName(e.target.value)}
                         />
-                      </div>
+                      </Field>
                       <TaxIdField
                         label="Cédula / RIF"
                         prefix={taxIdPrefix}
@@ -577,13 +578,13 @@ function CheckoutPage() {
                         number={phoneNumber}
                         onNumberChange={setPhoneNumber}
                       />
-                      <div className="grid gap-1.5">
+                      <Field className="grid gap-1.5">
                         <Label className="text-xs font-medium text-brand-navy">Correo</Label>
                         <Input value={email} disabled className="bg-brand-surface" />
-                      </div>
+                      </Field>
                       {!isPickup && (
                         <>
-                          <div className="grid gap-1.5">
+                          <Field className="grid gap-1.5">
                             <Label className="text-xs font-medium text-brand-navy">Estado</Label>
                             <Select
                               value={state}
@@ -603,8 +604,8 @@ function CheckoutPage() {
                                 ))}
                               </SelectContent>
                             </Select>
-                          </div>
-                          <div className="grid gap-1.5">
+                          </Field>
+                          <Field className="grid gap-1.5">
                             <Label className="text-xs font-medium text-brand-navy">Ciudad</Label>
                             <Select value={city} onValueChange={setCity} disabled={!state}>
                               <SelectTrigger>
@@ -622,9 +623,9 @@ function CheckoutPage() {
                                 ))}
                               </SelectContent>
                             </Select>
-                          </div>
+                          </Field>
                           <div className="sm:col-span-2">
-                            <div className="grid gap-1.5">
+                            <Field className="grid gap-1.5">
                               <Label className="text-xs font-medium text-brand-navy">
                                 Dirección
                               </Label>
@@ -633,7 +634,7 @@ function CheckoutPage() {
                                 value={address}
                                 onChange={(e) => setAddress(e.target.value)}
                               />
-                            </div>
+                            </Field>
                           </div>
                         </>
                       )}
@@ -713,7 +714,7 @@ function CheckoutPage() {
                     )}
 
                     {info?.needsReference && (
-                      <div className="grid gap-1.5">
+                      <Field className="grid gap-1.5">
                         <Label className="text-xs font-medium text-brand-navy">
                           Número de referencia / confirmación
                         </Label>
@@ -722,11 +723,11 @@ function CheckoutPage() {
                           value={paymentReference}
                           onChange={(e) => setPaymentReference(e.target.value)}
                         />
-                      </div>
+                      </Field>
                     )}
 
                     {info?.needsProof && (
-                      <div className="grid gap-1.5">
+                      <Field className="grid gap-1.5">
                         <Label className="text-xs font-medium text-brand-navy">
                           Comprobante de pago (opcional)
                         </Label>
@@ -767,7 +768,7 @@ function CheckoutPage() {
                             />
                           </label>
                         )}
-                      </div>
+                      </Field>
                     )}
                   </div>
                 )}
