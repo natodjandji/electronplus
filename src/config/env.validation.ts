@@ -27,6 +27,9 @@ export const envSchema = z.object({
   // kept resurrecting products an admin had just deleted from the real
   // database — see erp-sync.module.ts.
   PROFIT_PLUS_ADAPTER: z.enum(['db', 'api']).default('api'),
+  // In-process schedule — only used when Cloud Scheduler isn't configured
+  // (see SCHEDULER_INVOKER_EMAIL below); otherwise the Scheduler job's own
+  // schedule is the one that runs.
   PROFIT_PLUS_SYNC_CRON: z.string().default('*/15 * * * *'),
   PROFIT_PLUS_DB_URL: z.string().optional(),
   PROFIT_PLUS_API_URL: z.string().optional(),
@@ -43,11 +46,20 @@ export const envSchema = z.object({
   // scheduled run and logs a warning until both are set.
   SECOND_STORE_PROFIT_API_URL: z.string().optional(),
   SECOND_STORE_PROFIT_API_KEY: z.string().optional(),
-  // 30 min, not 15 like the principal store above: this catalog is ~5.4k
-  // products and each run re-reads all of them to diff, so the interval is
-  // the main lever on its Firestore read bill. Matches what production is
-  // actually set to — keep the two in step.
+  // In-process schedule, same caveat as PROFIT_PLUS_SYNC_CRON. 30 min, not
+  // 15: this catalog is ~5.4k products and changes slowly.
   SECOND_STORE_SYNC_CRON: z.string().default('*/30 * * * *'),
+
+  // Cloud Scheduler drives the periodic jobs (ERP syncs, nightly rollup,
+  // due-date checks) through POST /internal/cron/* — see CronController.
+  // Cloud Run only gives an instance CPU while it serves a request, so
+  // in-process timers fire only when an instance happens to be awake.
+  // Setting both turns those endpoints on (requests must carry a Google
+  // OIDC token for this service account, issued for this audience) and
+  // stops the in-process timers so nothing runs twice. Unset (local dev):
+  // the in-process timers run as before.
+  SCHEDULER_INVOKER_EMAIL: z.string().email().optional(),
+  SCHEDULER_AUDIENCE: z.string().url().optional(),
 
   LOW_STOCK_DEFAULT_THRESHOLD: z.coerce.number().default(10),
 

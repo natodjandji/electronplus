@@ -69,6 +69,10 @@ export class SyncService implements OnModuleInit {
     job.start();
   }
 
+  isConfigured(): boolean {
+    return this.adapter.isConfigured();
+  }
+
   async runInboundSync(): Promise<SyncLog> {
     let log = await this.repo.create({
       direction: SyncDirection.INBOUND,

@@ -103,6 +103,13 @@ export class SecondStoreSyncService implements OnModuleInit {
     job.start();
   }
 
+  isConfigured(): boolean {
+    return Boolean(
+      this.config.get('SECOND_STORE_PROFIT_API_URL', { infer: true }) &&
+      this.config.get('SECOND_STORE_PROFIT_API_KEY', { infer: true }),
+    );
+  }
+
   async runInboundSync(): Promise<SecondStoreSyncResult> {
     const log = await this.logsRepo.create({
       status: SecondStoreSyncStatus.RUNNING,

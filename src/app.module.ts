@@ -14,6 +14,7 @@ import { ProductsModule } from './modules/products/products.module';
 import { QuotesModule } from './modules/quotes/quotes.module';
 import { OrdersModule } from './modules/orders/orders.module';
 import { PaymentsModule } from './modules/payments/payments.module';
+import { CronModule } from './modules/cron/cron.module';
 import { ErpSyncModule } from './modules/erp-sync/erp-sync.module';
 import { InventoryModule } from './modules/inventory/inventory.module';
 import { FinanceModule } from './modules/finance/finance.module';
@@ -80,6 +81,7 @@ import { EmailModule } from './modules/email/email.module';
     ShippingRatesModule,
     DiscountCodesModule,
     SecondStoreModule,
+    CronModule,
     UploadsModule,
     ClientErrorsModule,
     EmailModule,

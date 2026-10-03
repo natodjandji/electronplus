@@ -41,6 +41,13 @@ export class ApiProfitPlusAdapter implements ProfitPlusAdapter {
 
   constructor(private readonly config: ConfigService<EnvConfig, true>) {}
 
+  isConfigured(): boolean {
+    return Boolean(
+      this.config.get('PROFIT_PLUS_API_URL', { infer: true }) &&
+      this.config.get('PROFIT_PLUS_API_KEY', { infer: true }),
+    );
+  }
+
   private requireBaseUrl(): string {
     const url = this.config.get('PROFIT_PLUS_API_URL', { infer: true });
     if (!url) {

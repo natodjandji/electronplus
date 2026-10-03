@@ -38,6 +38,9 @@ export interface ErpSaleExport {
  * erp-sync.module.ts once the mechanism is known, nothing else changes.
  */
 export interface ProfitPlusAdapter {
+  /** False until the connection details exist — scheduled runs skip quietly
+   * instead of logging a failed sync every tick before go-live. */
+  isConfigured(): boolean;
   fetchInventory(): Promise<ErpInventoryItem[]>;
   reportSale(sale: ErpSaleExport): Promise<void>;
   healthCheck(): Promise<boolean>;

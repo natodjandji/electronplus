@@ -14,6 +14,10 @@ import {
  */
 @Injectable()
 export class DbProfitPlusAdapter implements ProfitPlusAdapter {
+  isConfigured(): boolean {
+    return false;
+  }
+
   fetchInventory(): Promise<ErpInventoryItem[]> {
     throw new ErpNotConfiguredError(
       'DbProfitPlusAdapter is not implemented yet — configure Profit Plus DB access first.',

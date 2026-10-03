@@ -9,6 +9,6 @@ import { SecondStoreSyncService } from './second-store-sync.service';
   imports: [ProductsModule],
   controllers: [SecondStoreController],
   providers: [SecondStoreIndex, SecondStoreService, SecondStoreSyncService],
-  exports: [SecondStoreService],
+  exports: [SecondStoreService, SecondStoreSyncService],
 })
 export class SecondStoreModule {}

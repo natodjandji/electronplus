@@ -1,6 +1,7 @@
 import { ClassSerializerInterceptor, ValidationPipe } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { NestFactory, Reflector } from '@nestjs/core';
+import { SchedulerRegistry } from '@nestjs/schedule';
 import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
 import compression from 'compression';
 import { json, urlencoded } from 'express';
@@ -8,6 +9,7 @@ import helmet from 'helmet';
 import { AppModule } from './app.module';
 import { EnvConfig } from './config/env.validation';
 import { GlobalExceptionFilter } from './common/filters/global-exception.filter';
+import { cloudSchedulerEnabled } from './common/guards/scheduler-auth.guard';
 
 async function bootstrap() {
   // bodyParser disabled here so the larger limits below (needed for a
@@ -73,6 +75,14 @@ async function bootstrap() {
       .build();
     const document = SwaggerModule.createDocument(app, swaggerConfig);
     SwaggerModule.setup(`${apiPrefix}/docs`, app, document);
+  }
+
+  // init() mounts every timer (@Cron methods and the ERP syncs' CronJobs) —
+  // with Cloud Scheduler driving those jobs through CronController, stop
+  // them before serving so nothing runs twice.
+  await app.init();
+  if (cloudSchedulerEnabled(config)) {
+    for (const job of app.get(SchedulerRegistry).getCronJobs().values()) job.stop();
   }
 
   const port = config.get('PORT', { infer: true });
