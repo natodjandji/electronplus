@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { buildReply, type ChatCtx } from "./chat-bot";
 import { CONTACT_INFO } from "./contact-info";
-import type { Product } from "./mock-data";
+import type { Product } from "./product";
 
 const product = (id: string, name: string, stock = 10, category = "cables"): Product =>
   ({

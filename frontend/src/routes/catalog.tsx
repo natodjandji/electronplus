@@ -26,7 +26,7 @@ import { PaginationBar, usePagination } from "@/components/pagination";
 import { PriceTag } from "@/components/price-tag";
 import { ProductImage } from "@/components/product-image";
 import { QuantityStepper } from "@/components/quantity-stepper";
-import type { Product } from "@/lib/mock-data";
+import type { Product } from "@/lib/product";
 import { catalogQuery, toProduct } from "@/lib/product-api";
 import { formatMoney, useElectronStore } from "@/lib/electron-store";
 import { formatBs, useBcvRate } from "@/lib/use-bcv-rate";

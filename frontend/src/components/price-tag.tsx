@@ -1,7 +1,7 @@
 import { Tag } from "lucide-react";
 import { formatMoney } from "@/lib/electron-store";
 import { formatBs, useBcvRate } from "@/lib/use-bcv-rate";
-import type { Product } from "@/lib/mock-data";
+import type { Product } from "@/lib/product";
 
 const RETAIL_TEXT = {
   sm: "text-lg",

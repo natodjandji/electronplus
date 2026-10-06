@@ -1,4 +1,4 @@
-import type { Product } from "./mock-data";
+import type { Product } from "./product";
 
 export type CartItem = { product: Product; qty: number };
 

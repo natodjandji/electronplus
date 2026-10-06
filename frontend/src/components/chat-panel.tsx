@@ -4,7 +4,7 @@ import { useQuery } from "@tanstack/react-query";
 import { AnimatePresence, motion } from "motion/react";
 import { Send, X, ShoppingCart } from "lucide-react";
 import { toast } from "sonner";
-import { type Product } from "@/lib/mock-data";
+import { type Product } from "@/lib/product";
 import { catalogQuery, toProduct } from "@/lib/product-api";
 import { useCategories } from "@/lib/categories";
 import { useElectronStore, formatMoney } from "@/lib/electron-store";

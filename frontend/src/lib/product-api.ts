@@ -1,5 +1,5 @@
 import { apiFetch } from "./api-client";
-import type { Product } from "./mock-data";
+import type { Product } from "./product";
 
 export interface ApiProduct {
   id: string;

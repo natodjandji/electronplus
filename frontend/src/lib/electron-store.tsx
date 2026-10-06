@@ -7,7 +7,7 @@ import {
   useState,
   type ReactNode,
 } from "react";
-import type { Product } from "./mock-data";
+import type { Product } from "./product";
 import { useAuth, type BackendRole } from "./auth-context";
 import {
   reconcileCart,

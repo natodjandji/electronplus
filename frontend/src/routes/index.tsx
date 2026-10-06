@@ -14,7 +14,7 @@ import { PriceTag } from "@/components/price-tag";
 import { ProductImage } from "@/components/product-image";
 import { apiFetch } from "@/lib/api-client";
 import { type ApiProduct, toProduct } from "@/lib/product-api";
-import type { Product } from "@/lib/mock-data";
+import type { Product } from "@/lib/product";
 import { SITE_URL, absoluteUrl, OG_IMAGE } from "@/lib/site-url";
 import { CONTACT_INFO } from "@/lib/contact-info";
 import { safeJsonLd } from "@/lib/text";

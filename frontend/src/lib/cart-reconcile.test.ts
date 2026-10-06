@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { reconcileCart, type CartItem, type LiveCatalogLookup } from "./cart-reconcile";
-import type { Product } from "./mock-data";
+import type { Product } from "./product";
 
 function product(overrides: Partial<Product> = {}): Product {
   return {

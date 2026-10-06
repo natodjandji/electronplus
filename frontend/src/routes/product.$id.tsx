@@ -20,20 +20,16 @@ import { PriceTag } from "@/components/price-tag";
 import { ProductImage } from "@/components/product-image";
 import { apiFetch } from "@/lib/api-client";
 import { type ApiProduct, toProduct } from "@/lib/product-api";
-import { CATEGORIES, type Product } from "@/lib/mock-data";
+import type { Product } from "@/lib/product";
 import { useElectronStore } from "@/lib/electron-store";
 import { formatBs, useBcvRate } from "@/lib/use-bcv-rate";
 import { absoluteUrl, OG_IMAGE, SITE_URL } from "@/lib/site-url";
 import { safeJsonLd } from "@/lib/text";
 
-/** The API's own label first — Profit Plus categories aren't in the demo
- * CATEGORIES list. */
-function categoryLabel(product: Pick<Product, "category" | "categoryLabel">): string {
-  return (
-    product.categoryLabel ??
-    CATEGORIES.find((c) => c.id === product.category)?.label ??
-    "Material eléctrico"
-  );
+/** The category's name as the API sends it; a generic fallback for a cart
+ * item saved before labels existed. */
+function categoryLabel(product: Pick<Product, "categoryLabel">): string {
+  return product.categoryLabel ?? "Material eléctrico";
 }
 
 /** Meta/JSON-LD description for a product. `specs` is the ideal source but is
@@ -163,7 +159,7 @@ function NotFound() {
       <div className="mx-auto max-w-2xl px-4 py-20 text-center">
         <h1 className="text-2xl font-bold text-brand-navy">Producto no encontrado</h1>
         <p className="mt-2 text-sm text-muted-foreground">
-          El código QR escaneado no coincide con ningún producto.
+          Este producto no existe o ya no está disponible.
         </p>
         <Button className="mt-6 bg-brand-blue text-white hover:bg-brand-blue/90" asChild>
           <Link to="/catalog">Ir al catálogo</Link>

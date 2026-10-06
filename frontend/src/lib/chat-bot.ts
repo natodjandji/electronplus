@@ -1,4 +1,4 @@
-import { type Product } from "@/lib/mock-data";
+import { type Product } from "@/lib/product";
 import { CONTACT_INFO } from "@/lib/contact-info";
 import { type UserRole } from "@/lib/electron-store";
 
