@@ -1,4 +1,5 @@
 import { Inject, Injectable, Logger, OnModuleInit } from '@nestjs/common';
+import { fetchBridge } from '../../common/http/fetch-bridge';
 import { SchedulerRegistry } from '@nestjs/schedule';
 import { CronJob } from 'cron';
 import { ConfigService } from '@nestjs/config';
@@ -124,14 +125,11 @@ export class SecondStoreSyncService implements OnModuleInit {
     }
 
     try {
-      const res = await fetch(`${url.replace(/\/+$/, '')}/api/productos-sincronizacion`, {
-        headers: { Authorization: `Bearer ${apiKey}` },
-      });
-      if (!res.ok) {
-        throw new Error(
-          `El bridge de la tienda secundaria respondió ${res.status}: ${await res.text()}`,
-        );
-      }
+      const res = await fetchBridge(
+        `${url.replace(/\/+$/, '')}/api/productos-sincronizacion`,
+        { headers: { Authorization: `Bearer ${apiKey}` } },
+        'El bridge de la tienda secundaria',
+      );
       const data = (await res.json()) as BridgeResponse;
 
       // Se compara contra el snapshot compacto (SecondStoreIndex) — cerca de

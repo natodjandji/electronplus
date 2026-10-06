@@ -17,19 +17,13 @@ export const envSchema = z.object({
   PUBLIC_SITE_URL: z.string().default('https://electronplus.com.ve'),
 
   // Principal store's Profit Plus install (full 6-field catalog sync into
-  // `products`, via profit-plus-bridge-principal). 'api' is the default —
-  // ApiProfitPlusAdapter no-ops-with-a-logged-error until
-  // PROFIT_PLUS_API_URL/KEY are set, same graceful-degradation as every
-  // other optional integration below. There is deliberately no 'mock'
-  // option: it used to seed a fake demo catalog on every cron tick, which
-  // kept resurrecting products an admin had just deleted from the real
-  // database — see erp-sync.module.ts.
-  PROFIT_PLUS_ADAPTER: z.enum(['db', 'api']).default('api'),
+  // `products`, via profit-plus-bridge-principal). The sync skips quietly
+  // until PROFIT_PLUS_API_URL/KEY are set, same graceful degradation as
+  // every other optional integration below.
   // In-process schedule — only used when Cloud Scheduler isn't configured
   // (see SCHEDULER_INVOKER_EMAIL below); otherwise the Scheduler job's own
   // schedule is the one that runs.
   PROFIT_PLUS_SYNC_CRON: z.string().default('*/15 * * * *'),
-  PROFIT_PLUS_DB_URL: z.string().optional(),
   PROFIT_PLUS_API_URL: z.string().optional(),
   PROFIT_PLUS_API_KEY: z.string().optional(),
 

@@ -1,4 +1,5 @@
 import { Injectable, Logger } from '@nestjs/common';
+import { fetchBridge } from '../../../common/http/fetch-bridge';
 import { ConfigService } from '@nestjs/config';
 import { EnvConfig } from '../../../config/env.validation';
 import { slugify } from '../../../common/utils/slug';
@@ -32,8 +33,7 @@ interface BridgeResponse {
  *
  * Both env vars are optional so the app boots fine before the bridge
  * exists — fetchInventory() throws a clear "not configured" error instead
- * of a confusing fetch failure if PROFIT_PLUS_ADAPTER=api gets set before
- * the URL/key are filled in.
+ * of a confusing fetch failure while the URL/key are still empty.
  */
 @Injectable()
 export class ApiProfitPlusAdapter implements ProfitPlusAdapter {
@@ -67,12 +67,11 @@ export class ApiProfitPlusAdapter implements ProfitPlusAdapter {
   }
 
   async fetchInventory(): Promise<ErpInventoryItem[]> {
-    const res = await fetch(`${this.requireBaseUrl()}/api/productos-sincronizacion`, {
-      headers: this.requireHeaders(),
-    });
-    if (!res.ok) {
-      throw new Error(`El bridge de Profit Plus respondió ${res.status}: ${await res.text()}`);
-    }
+    const res = await fetchBridge(
+      `${this.requireBaseUrl()}/api/productos-sincronizacion`,
+      { headers: this.requireHeaders() },
+      'El bridge de Profit Plus',
+    );
     const data = (await res.json()) as BridgeResponse;
 
     return data.productos.map((p) => {
@@ -104,7 +103,7 @@ export class ApiProfitPlusAdapter implements ProfitPlusAdapter {
     // (numeración de factura, movimientos de inventario, impuestos), y eso
     // hay que definirlo junto con quien administra Profit Plus antes de
     // automatizarlo — no es algo para improvisar acá. Se deja como no-op
-    // (loggeado, no lanza error) para que activar PROFIT_PLUS_ADAPTER=api
+    // (loggeado, no lanza error) para que configurar el bridge principal
     // no dispare 5 reintentos + una notificación de error por cada venta
     // pagada mientras esa mitad de la integración no exista.
     this.logger.warn(
