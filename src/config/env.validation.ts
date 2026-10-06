@@ -5,8 +5,6 @@ export const envSchema = z.object({
   PORT: z.coerce.number().default(3000),
   API_PREFIX: z.string().default('api'),
 
-  REDIS_URL: z.string().min(1, 'REDIS_URL is required'),
-
   FIREBASE_PROJECT_ID: z.string().min(1, 'FIREBASE_PROJECT_ID is required'),
   // Base64-encoded service-account JSON. If omitted, falls back to
   // GOOGLE_APPLICATION_CREDENTIALS (a key file path) or the ambient

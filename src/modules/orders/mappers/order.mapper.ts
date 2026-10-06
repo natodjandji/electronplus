@@ -11,6 +11,14 @@ export function toOrderDto(order: Order, role: Role | undefined) {
     return isAdmin ? item : rest;
   });
 
-  const { erpExportedAt: _erpExportedAt, erpExportError: _erpExportError, ...rest } = order;
+  const {
+    erpExportedAt: _erpExportedAt,
+    erpExportError: _erpExportError,
+    erpExportPending: _erpExportPending,
+    erpExportAttempts: _erpExportAttempts,
+    erpExportNextAttemptAt: _erpExportNextAttemptAt,
+    erpExportClaimedUntil: _erpExportClaimedUntil,
+    ...rest
+  } = order;
   return isAdmin ? { ...order, items } : { ...rest, items };
 }

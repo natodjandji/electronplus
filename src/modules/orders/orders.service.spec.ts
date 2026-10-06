@@ -3,7 +3,7 @@ import { EventEmitter2 } from '@nestjs/event-emitter';
 import { FakeFirestore } from '../../test/fake-firestore';
 import { Collections } from '../../firebase/firestore-collections';
 import { DiscountCodesService } from '../discount-codes/discount-codes.service';
-import { OrdersService } from './orders.service';
+import { ORDER_PAID_EVENT, OrdersService } from './orders.service';
 import { OrderStatus, FulfillmentMethod } from './entities/order.entity';
 import { Role } from '../../common/enums/role.enum';
 import { PaymentMethod } from '../payments/entities/payment.entity';
@@ -278,5 +278,60 @@ describe('OrdersService checkout guards', () => {
       }),
     ).rejects.toThrow(ConflictException);
     expect(productsService.reserveStock).not.toHaveBeenCalled();
+  });
+});
+
+/** A payment can be confirmed twice (credit B2B is verified at checkout and
+ * its payment.verified event arrives as well). Only the first confirmation
+ * may flag the sale for the ERP and fire the paid events. */
+describe('OrdersService.markPaid', () => {
+  function build(status: OrderStatus, extra: Record<string, unknown> = {}) {
+    const firestore = new FakeFirestore();
+    firestore.seed(Collections.ORDERS, 'order-1', {
+      userId: 'user-1',
+      status,
+      items: [],
+      createdAt: new Date(),
+      updatedAt: new Date(),
+      ...extra,
+    });
+    const events = new EventEmitter2();
+    const paid = jest.fn();
+    events.on(ORDER_PAID_EVENT, paid);
+    const service = new OrdersService(
+      firestore as never,
+      {} as never,
+      {} as never,
+      {} as never,
+      {} as never,
+      new DiscountCodesService(firestore as never),
+      {} as never,
+      events,
+    );
+    return { service, paid, read: () => firestore.read(Collections.ORDERS, 'order-1')! };
+  }
+
+  it('marks a pending order paid and flags the sale for the ERP', async () => {
+    const { service, paid, read } = build(OrderStatus.PENDING_PAYMENT_VERIFICATION);
+    expect((await service.markPaid('order-1')).status).toBe(OrderStatus.PAID);
+    expect(read()).toMatchObject({ status: OrderStatus.PAID, erpExportPending: true });
+    expect(paid).toHaveBeenCalledTimes(1);
+  });
+
+  it('does nothing the second time, so the sale is not reported twice', async () => {
+    const { service, paid, read } = build(OrderStatus.PENDING_PAYMENT_VERIFICATION);
+    await service.markPaid('order-1');
+    // The ERP export ran in between and cleared the flag.
+    read().erpExportPending = false;
+    await service.markPaid('order-1');
+    expect(paid).toHaveBeenCalledTimes(1);
+    expect(read().erpExportPending).toBe(false);
+  });
+
+  it('leaves an order further down the pipeline untouched', async () => {
+    const { service, paid, read } = build(OrderStatus.SHIPPED, { erpExportPending: false });
+    expect((await service.markPaid('order-1')).status).toBe(OrderStatus.SHIPPED);
+    expect(read()).toMatchObject({ status: OrderStatus.SHIPPED, erpExportPending: false });
+    expect(paid).not.toHaveBeenCalled();
   });
 });

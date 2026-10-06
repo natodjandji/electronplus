@@ -37,6 +37,15 @@ import {
 } from './entities/order.entity';
 
 export const ORDER_PAID_EVENT = 'order.paid';
+
+/** Statuses an order reaches only after its payment was confirmed. */
+const PAID_OR_LATER = new Set<OrderStatus>([
+  OrderStatus.PAID,
+  OrderStatus.PREPARING,
+  OrderStatus.SHIPPED,
+  OrderStatus.READY_FOR_PICKUP,
+  OrderStatus.FULFILLED,
+]);
 /** Fires once an order survives payment initiation (see create()/
  * createFromQuote()) — not at the top of the transaction, so a payment
  * failure that triggers compensate() never emails a customer about an
@@ -526,25 +535,34 @@ export class OrdersService {
     return order;
   }
 
+  /** Idempotent: a payment can be confirmed twice (credit B2B is verified
+   * at checkout and its payment.verified event arrives as well). Only the
+   * first call moves the order to paid, flags the sale for the ERP and fires
+   * the events, so the sale is reported and the customer notified once. */
   async markPaid(orderId: string): Promise<Order> {
-    const order = await this.repo.update(orderId, { status: OrderStatus.PAID });
-    this.events.emit(ORDER_PAID_EVENT, { orderId: order.id } satisfies OrderPaidEvent);
-    this.events.emit(ORDER_STATUS_CHANGED_EVENT, {
-      orderId: order.id,
-      status: order.status,
-    } satisfies OrderStatusChangedEvent);
-    return order;
-  }
-
-  async markErpExported(orderId: string, error?: string): Promise<void> {
-    if (error) {
-      await this.repo.update(orderId, { erpExportError: error });
-    } else {
-      await this.repo.update(orderId, {
-        erpExportedAt: new Date(),
-        erpExportError: FieldValue.delete() as never,
+    const ref = this.repo.doc(orderId);
+    const changed = await this.firestore.runTransaction(async (tx) => {
+      const snap = await tx.get(ref);
+      if (!snap.exists) throw new NotFoundException('Order not found');
+      if (PAID_OR_LATER.has(snap.data()?.status as OrderStatus)) return false;
+      // The ERP pending flag rides the same write as the status, so a paid
+      // sale can't miss being reported (see ErpExportService).
+      tx.update(ref, {
+        status: OrderStatus.PAID,
+        erpExportPending: true,
+        updatedAt: FieldValue.serverTimestamp(),
       });
+      return true;
+    });
+    const order = await this.repo.getOrThrow(orderId, 'Order not found');
+    if (changed) {
+      this.events.emit(ORDER_PAID_EVENT, { orderId: order.id } satisfies OrderPaidEvent);
+      this.events.emit(ORDER_STATUS_CHANGED_EVENT, {
+        orderId: order.id,
+        status: order.status,
+      } satisfies OrderStatusChangedEvent);
     }
+    return order;
   }
 
   /** Steps a paid order forward one stage in the fulfillment pipeline

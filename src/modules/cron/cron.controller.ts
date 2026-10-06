@@ -8,6 +8,7 @@ import {
 import { ApiExcludeController } from '@nestjs/swagger';
 import { SkipThrottle } from '@nestjs/throttler';
 import { SchedulerAuthGuard } from '../../common/guards/scheduler-auth.guard';
+import { ErpExportService } from '../erp-sync/erp-export.service';
 import { SyncService } from '../erp-sync/sync.service';
 import { ExpensesService } from '../expenses/expenses.service';
 import { FinanceService } from '../finance/finance.service';
@@ -28,20 +29,28 @@ import { SecondStoreSyncService } from '../second-store/second-store-sync.servic
 export class CronController {
   constructor(
     private readonly erpSync: SyncService,
+    private readonly erpExport: ErpExportService,
     private readonly secondStoreSync: SecondStoreSyncService,
     private readonly reports: ReportsService,
     private readonly expenses: ExpensesService,
     private readonly finance: FinanceService,
   ) {}
 
+  /** Retries pending sale reports first (they don't need the inbound
+   * bridge), then pulls the catalog once the principal bridge is set up. */
   @Post('erp-sync')
   @HttpCode(200)
   async runErpSync() {
+    const exports = await this.erpExport.exportPending();
     if (!this.erpSync.isConfigured()) {
-      return { status: 'skipped', reason: 'Bridge principal de Profit Plus no configurado' };
+      return {
+        status: 'skipped',
+        reason: 'Bridge principal de Profit Plus no configurado',
+        exports,
+      };
     }
     const log = await this.erpSync.runInboundSync();
-    return { status: log.status, itemsProcessed: log.itemsProcessed };
+    return { status: log.status, itemsProcessed: log.itemsProcessed, exports };
   }
 
   @Post('second-store-sync')

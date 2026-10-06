@@ -68,4 +68,11 @@ export interface Order extends FirestoreDoc {
 
   erpExportedAt?: Date;
   erpExportError?: string;
+  /** Set with the paid status; cleared once the sale reaches the ERP or
+   * after the last failed attempt (see ErpExportService). */
+  erpExportPending?: boolean;
+  erpExportAttempts?: number;
+  erpExportNextAttemptAt?: Date | null;
+  /** Held by the attempt in progress, so two callers never report the same sale. */
+  erpExportClaimedUntil?: Date | null;
 }

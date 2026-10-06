@@ -1,12 +1,10 @@
-import { BullModule } from '@nestjs/bullmq';
 import { Module } from '@nestjs/common';
 import { APP_GUARD } from '@nestjs/core';
-import { ConfigModule, ConfigService } from '@nestjs/config';
+import { ConfigModule } from '@nestjs/config';
 import { EventEmitterModule } from '@nestjs/event-emitter';
 import { ScheduleModule } from '@nestjs/schedule';
 import { ThrottlerGuard, ThrottlerModule } from '@nestjs/throttler';
-import { EnvConfig, validateEnv } from './config/env.validation';
-import { parseRedisUrl } from './config/redis.config';
+import { validateEnv } from './config/env.validation';
 import { FirebaseModule } from './firebase/firebase.module';
 import { AuthModule } from './modules/auth/auth.module';
 import { UsersModule } from './modules/users/users.module';
@@ -41,26 +39,6 @@ import { EmailModule } from './modules/email/email.module';
     // with their own @Throttle(...) override.
     ThrottlerModule.forRoot([{ ttl: 60_000, limit: 100 }]),
     FirebaseModule,
-    BullModule.forRootAsync({
-      inject: [ConfigService],
-      useFactory: (config: ConfigService<EnvConfig, true>) => ({
-        connection: {
-          ...parseRedisUrl(config.get('REDIS_URL', { infer: true })),
-          // BullMQ's own requirement (throws on boot without this — blocking
-          // commands need unlimited retries, not ioredis's default of 20).
-          maxRetriesPerRequest: null,
-          // Cloud Run only allocates CPU to a request-handling instance, not
-          // continuously — an idle connection's keepalive can silently die
-          // between requests, then time out reconnecting on the next one.
-          // A shorter connect timeout plus indefinite retry (default
-          // retryStrategy: exponential backoff, capped at 2s) means a
-          // dropped connection recovers in well under a request's timeout
-          // instead of hanging on the default 10s connect attempt.
-          connectTimeout: 5_000,
-          enableOfflineQueue: true,
-        },
-      }),
-    }),
     EventEmitterModule.forRoot(),
     ScheduleModule.forRoot(),
     AuthModule,

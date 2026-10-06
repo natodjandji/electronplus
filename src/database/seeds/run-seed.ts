@@ -160,8 +160,8 @@ async function run() {
       'Sign in once through the frontend, then run `npm run set-user-role -- <email> admin` to promote that account.',
   );
   await app.close();
-  // BullMQ worker connections can keep the event loop alive past close() —
-  // this is a one-shot script, so force the exit instead of hanging.
+  // One-shot script: force the exit so a lingering handle can't keep it
+  // hanging after close().
   process.exit(0);
 }
 

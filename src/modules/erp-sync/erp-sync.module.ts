@@ -1,4 +1,3 @@
-import { BullModule } from '@nestjs/bullmq';
 import { Module, Provider } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { EnvConfig } from '../../config/env.validation';
@@ -7,7 +6,7 @@ import { ProductsModule } from '../products/products.module';
 import { ApiProfitPlusAdapter } from './adapters/api-profit-plus.adapter';
 import { DbProfitPlusAdapter } from './adapters/db-profit-plus.adapter';
 import { PROFIT_PLUS_ADAPTER, ProfitPlusAdapter } from './adapters/profit-plus-adapter.interface';
-import { ERP_EXPORT_QUEUE, ErpExportProcessor } from './erp-export.processor';
+import { ErpExportService } from './erp-export.service';
 import { ErpSyncController } from './erp-sync.controller';
 import { ErpSyncEventsListener } from './erp-sync-events.listener';
 import { SyncService } from './sync.service';
@@ -46,16 +45,16 @@ const adapterProvider: Provider = {
 };
 
 @Module({
-  imports: [BullModule.registerQueue({ name: ERP_EXPORT_QUEUE }), ProductsModule, OrdersModule],
+  imports: [ProductsModule, OrdersModule],
   controllers: [ErpSyncController],
   providers: [
     DbProfitPlusAdapter,
     ApiProfitPlusAdapter,
     adapterProvider,
     SyncService,
-    ErpExportProcessor,
+    ErpExportService,
     ErpSyncEventsListener,
   ],
-  exports: [SyncService],
+  exports: [SyncService, ErpExportService],
 })
 export class ErpSyncModule {}

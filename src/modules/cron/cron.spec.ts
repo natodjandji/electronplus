@@ -81,10 +81,15 @@ describe('CronController', () => {
         .mockResolvedValue('rollup' in overrides ? overrides.rollup : { date: '2026-10-02' }),
     };
     const dueChecks = { recomputeDueStatuses: jest.fn().mockResolvedValue(undefined) };
+    const erpExport = {
+      exportPending: jest.fn().mockResolvedValue({ exported: 1, failed: 0, waiting: 0 }),
+    };
     return {
       erpSync,
+      erpExport,
       cron: new CronController(
         erpSync as never,
+        erpExport as never,
         secondStoreSync as never,
         reports as never,
         dueChecks as never,
@@ -99,9 +104,19 @@ describe('CronController', () => {
     expect(erpSync.runInboundSync).not.toHaveBeenCalled();
   });
 
+  it('retries pending sale reports on every tick, bridge configured or not', async () => {
+    const { cron, erpExport } = controller();
+    expect(await cron.runErpSync()).toMatchObject({ exports: { exported: 1 } });
+    expect(erpExport.exportPending).toHaveBeenCalledTimes(1);
+  });
+
   it('runs the principal sync once configured', async () => {
     const { cron } = controller({ erpConfigured: true });
-    expect(await cron.runErpSync()).toEqual({ status: 'success', itemsProcessed: 3 });
+    expect(await cron.runErpSync()).toEqual({
+      status: 'success',
+      itemsProcessed: 3,
+      exports: { exported: 1, failed: 0, waiting: 0 },
+    });
   });
 
   it('reports the second-store sync result', async () => {
