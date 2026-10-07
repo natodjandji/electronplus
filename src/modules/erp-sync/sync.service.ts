@@ -1,4 +1,5 @@
 import { Inject, Injectable, Logger, OnModuleInit } from '@nestjs/common';
+import { removalAllowed } from '../../common/utils/removal-guard';
 import { SchedulerRegistry } from '@nestjs/schedule';
 import { CronJob } from 'cron';
 import { ConfigService } from '@nestjs/config';
@@ -125,13 +126,40 @@ export class SyncService implements OnModuleInit {
           );
         }),
       );
-      // One snapshot update for the whole run, not one per product.
-      await this.productsService.applyCatalogChanges(catalogChanges);
-
       const fulfilled = results.filter(
         (r): r is PromiseFulfilledResult<{ product: Product; wrote: boolean }> =>
           r.status === 'fulfilled',
       );
+
+      // Products that came from Profit Plus and weren't in this feed were
+      // deleted or deactivated there: take them off the store. A run where
+      // an item failed to save is skipped, so its product isn't mistaken for
+      // a missing one.
+      const seen = new Set(fulfilled.map((r) => r.value.product.id));
+      const fromErp = [...byErpExternalId.values()];
+      const missing = fromErp.filter((p) => !seen.has(p.id) && p.active && !p.erpRemovedAt);
+      let hidden = 0;
+      const allSaved = fulfilled.length === items.length;
+      if (
+        missing.length > 0 &&
+        allSaved &&
+        removalAllowed(missing.length, fromErp.length, items.length)
+      ) {
+        hidden = await this.productsService.hideRemovedFromErp(missing, catalogChanges);
+      } else if (missing.length > 0) {
+        const message = allSaved
+          ? `${missing.length} productos ya no vienen de Profit Plus (el bridge envió ${items.length}) — demasiados para una sola corrida, no se oculta ninguno. Revisa el bridge.`
+          : `${missing.length} productos no vinieron en esta corrida, pero algunos artículos fallaron al guardarse — no se oculta ninguno hasta una corrida completa.`;
+        this.logger.warn(`Inbound sync: ${message}`);
+        this.events.emit(ERP_SYNC_ERROR_EVENT, {
+          direction: SyncDirection.INBOUND,
+          message,
+        } satisfies ErpSyncErrorEvent);
+      }
+
+      // One snapshot update for the whole run, not one per product.
+      await this.productsService.applyCatalogChanges(catalogChanges);
+
       const processed = fulfilled.length;
       const written = fulfilled.filter((r) => r.value.wrote).length;
       const failed = results.filter((r): r is PromiseRejectedResult => r.status === 'rejected');
@@ -142,12 +170,13 @@ export class SyncService implements OnModuleInit {
         );
       }
       this.logger.log(
-        `Inbound sync: ${processed}/${items.length} matched, ${written} written, ${processed - written} unchanged (skipped)`,
+        `Inbound sync: ${processed}/${items.length} matched, ${written} written, ${processed - written} unchanged (skipped), ${hidden} hidden (no longer in Profit Plus)`,
       );
 
       log = await this.repo.update(log.id, {
         status: SyncStatus.SUCCESS,
         itemsProcessed: processed,
+        itemsHidden: hidden,
         finishedAt: new Date(),
       });
       return log;

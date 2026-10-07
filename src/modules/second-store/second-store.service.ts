@@ -107,7 +107,7 @@ export class SecondStoreService {
     if (dto.linkedProductId) {
       await this.productsService.findById(dto.linkedProductId); // throws if the product doesn't exist
     }
-    return this.indexed(await this.repo.create(dto));
+    return this.indexed(await this.repo.create({ ...dto, source: 'manual' }));
   }
 
   async update(id: string, dto: UpdateSecondStoreProductDto): Promise<SecondStoreProduct> {

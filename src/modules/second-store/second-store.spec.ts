@@ -79,6 +79,8 @@ describe('Second store sync + listing over the snapshot', () => {
       created: 1,
       updated: 1,
       unchanged: 1,
+      removed: 0,
+      flagged: 0,
     });
 
     // A later run on another instance: no per-product reads at all.
@@ -183,5 +185,88 @@ describe('Second store sync with non-unique Profit Plus codes', () => {
       ['TOMA DOBLE', 4],
       ['TOMA SENCILLA', 0],
     ]);
+  });
+});
+
+describe('Second store sync and records removed in Profit Plus', () => {
+  afterEach(() => jest.restoreAllMocks());
+
+  const row = (codigo: string, descripcion: string) => ({
+    codigo,
+    descripcion,
+    stock: 1,
+    precio1: 2,
+    precio2: 1,
+  });
+
+  function seeded(records: Record<string, Record<string, unknown>>) {
+    const firestore = new FakeFirestore();
+    for (const [id, data] of Object.entries(records)) {
+      firestore.seed(Collections.SECOND_STORE_PRODUCTS, id, {
+        stock: 1,
+        retailPrice: 2,
+        wholesalePrice: 1,
+        ...data,
+      });
+    }
+    return firestore;
+  }
+
+  it('deletes unlinked records Profit Plus stopped sending, flags linked ones, keeps manual ones', async () => {
+    const firestore = seeded({
+      keep: { name: 'Sigue', code: 'K1' },
+      gone: { name: 'Borrado en Profit', code: 'G1' },
+      linked: { name: 'Vinculado', code: 'L1', linkedProductId: 'p1' },
+      manual: { name: 'Creado a mano', code: 'M1', source: 'manual' },
+    });
+    bridgeReturns([row('K1', 'Sigue')]);
+    const result = await instance(firestore).sync.runInboundSync();
+    expect(result).toMatchObject({ removed: 1, flagged: 1 });
+
+    expect(firestore.read(Collections.SECOND_STORE_PRODUCTS, 'gone')).toBeUndefined();
+    expect(
+      firestore.read(Collections.SECOND_STORE_PRODUCTS, 'linked')?.missingFromErpSince,
+    ).toBeInstanceOf(Date);
+    expect(firestore.read(Collections.SECOND_STORE_PRODUCTS, 'manual')).toBeDefined();
+
+    // The list another instance serves agrees.
+    const names = (await instance(firestore).service.findAll()).map((r) => r.name);
+    expect(names.sort()).toEqual(['Creado a mano', 'Sigue', 'Vinculado']);
+  });
+
+  it('clears the flag when the record comes back', async () => {
+    const firestore = seeded({
+      linked: {
+        name: 'Vinculado',
+        code: 'L1',
+        linkedProductId: 'p1',
+        missingFromErpSince: new Date('2026-10-01'),
+      },
+    });
+    bridgeReturns([row('L1', 'Vinculado')]);
+    expect(await instance(firestore).sync.runInboundSync()).toMatchObject({ updated: 1 });
+    expect(firestore.read(Collections.SECOND_STORE_PRODUCTS, 'linked')).toMatchObject({
+      missingFromErpSince: null,
+    });
+  });
+
+  it('removes nothing when the bridge sends far fewer rows than usual', async () => {
+    const records: Record<string, Record<string, unknown>> = {};
+    for (let i = 0; i < 20; i++) records[`r${i}`] = { name: `Artículo ${i}`, code: `C${i}` };
+    const firestore = seeded(records);
+    bridgeReturns([row('C0', 'Artículo 0')]);
+    expect(await instance(firestore).sync.runInboundSync()).toMatchObject({
+      removed: 0,
+      flagged: 0,
+    });
+    expect(firestore.read(Collections.SECOND_STORE_PRODUCTS, 'r7')).toBeDefined();
+  });
+
+  it('marks records an admin creates as manual', async () => {
+    const firestore = new FakeFirestore();
+    const created = await instance(firestore).service.create({ name: 'Nuevo', stock: 2 } as never);
+    expect(firestore.read(Collections.SECOND_STORE_PRODUCTS, created.id)).toMatchObject({
+      source: 'manual',
+    });
   });
 });

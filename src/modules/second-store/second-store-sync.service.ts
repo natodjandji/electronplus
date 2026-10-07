@@ -1,5 +1,6 @@
 import { Inject, Injectable, Logger, OnModuleInit } from '@nestjs/common';
 import { fetchBridge } from '../../common/http/fetch-bridge';
+import { removalAllowed } from '../../common/utils/removal-guard';
 import { SchedulerRegistry } from '@nestjs/schedule';
 import { CronJob } from 'cron';
 import { ConfigService } from '@nestjs/config';
@@ -41,6 +42,10 @@ export interface SecondStoreSyncResult {
   created: number;
   updated: number;
   unchanged: number;
+  /** Records Profit Plus no longer sends, deleted (unlinked ones). */
+  removed: number;
+  /** Same, but linked to a catalog product: kept and flagged instead. */
+  flagged: number;
 }
 
 /**
@@ -121,7 +126,7 @@ export class SecondStoreSyncService implements OnModuleInit {
         error: message,
         finishedAt: new Date(),
       });
-      return { fromBridge: 0, created: 0, updated: 0, unchanged: 0 };
+      return { fromBridge: 0, created: 0, updated: 0, unchanged: 0, removed: 0, flagged: 0 };
     }
 
     try {
@@ -165,8 +170,14 @@ export class SecondStoreSyncService implements OnModuleInit {
 
         if (!match) {
           const ref = collection.doc();
-          void writer.set(ref, { ...fields, createdAt: now, updatedAt: now });
-          put.push({ id: ref.id, ...fields, createdAt: syncedAt, updatedAt: syncedAt });
+          void writer.set(ref, { ...fields, source: 'erp', createdAt: now, updatedAt: now });
+          put.push({
+            id: ref.id,
+            ...fields,
+            source: 'erp',
+            createdAt: syncedAt,
+            updatedAt: syncedAt,
+          });
           created++;
           continue;
         }
@@ -175,7 +186,11 @@ export class SecondStoreSyncService implements OnModuleInit {
         // `code` directamente ya cubre el backfill de un registro sin código;
         // tratar todo código vacío como "falta backfill" reescribía en cada
         // corrida los ~100 artículos que en Profit Plus no tienen `ref`.
+        // A record flagged as gone from Profit Plus that comes back loses
+        // the flag.
+        const back = Boolean(match.missingFromErpSince);
         const changed =
+          back ||
           match.code !== item.codigo ||
           match.name !== item.descripcion ||
           match.stock !== item.stock ||
@@ -183,10 +198,46 @@ export class SecondStoreSyncService implements OnModuleInit {
           match.wholesalePrice !== item.precio2;
 
         if (changed) {
-          void writer.set(collection.doc(match.id), { ...fields, updatedAt: now }, { merge: true });
-          merge.push({ id: match.id, fields: { ...fields, updatedAt: syncedAt } });
+          const write = back ? { ...fields, missingFromErpSince: null } : fields;
+          void writer.set(collection.doc(match.id), { ...write, updatedAt: now }, { merge: true });
+          merge.push({ id: match.id, fields: { ...write, updatedAt: syncedAt } });
           updated++;
         }
+      }
+
+      // Records Profit Plus no longer sends (deleted there, or recoded and
+      // renamed at once). An unlinked one is only a copy of that catalog, so
+      // it goes. A linked one keeps the admin's link and is flagged. A record
+      // an admin created by hand is never touched.
+      const claimed = new Set(matches.flatMap((m) => (m ? [m.id] : [])));
+      const gone = existing.filter((r) => !claimed.has(r.id) && r.source !== 'manual');
+      const toDelete = gone.filter((r) => !r.linkedProductId);
+      const toFlag = gone.filter((r) => r.linkedProductId && !r.missingFromErpSince);
+      const remove: string[] = [];
+      let removed = 0;
+      let flagged = 0;
+      if (removalAllowed(toDelete.length + toFlag.length, existing.length, data.productos.length)) {
+        for (const record of toDelete) {
+          void writer.delete(collection.doc(record.id));
+          remove.push(record.id);
+          removed++;
+        }
+        for (const record of toFlag) {
+          void writer.set(
+            collection.doc(record.id),
+            { missingFromErpSince: syncedAt, updatedAt: now },
+            { merge: true },
+          );
+          merge.push({
+            id: record.id,
+            fields: { missingFromErpSince: syncedAt, updatedAt: syncedAt },
+          });
+          flagged++;
+        }
+      } else if (toDelete.length + toFlag.length > 0) {
+        this.logger.warn(
+          `Second-store sync: ${toDelete.length + toFlag.length} registros ya no vienen del bridge (que envió ${data.productos.length}) — demasiados para una sola corrida, no se retira ninguno. Revisa el bridge antes de que la próxima corrida lo intente de nuevo.`,
+        );
       }
       // Throws if any queued write ultimately failed after BulkWriter's own
       // retries, so a partial sync surfaces as an ERROR log rather than
@@ -198,16 +249,18 @@ export class SecondStoreSyncService implements OnModuleInit {
         await this.index.invalidate();
         throw error;
       }
-      await this.index.apply({ put, merge });
+      await this.index.apply({ put, merge, remove });
 
       const result: SecondStoreSyncResult = {
         fromBridge: data.productos.length,
         created,
         updated,
         unchanged: data.productos.length - created - updated,
+        removed,
+        flagged,
       };
       this.logger.log(
-        `Second-store sync: ${result.fromBridge} artículos del bridge, ${result.created} creados, ${result.updated} actualizados, ${result.unchanged} sin cambios.`,
+        `Second-store sync: ${result.fromBridge} artículos del bridge, ${result.created} creados, ${result.updated} actualizados, ${result.unchanged} sin cambios, ${result.removed} eliminados, ${result.flagged} marcados como fuera de Profit.`,
       );
       await this.logsRepo.update(log.id, {
         status: SecondStoreSyncStatus.SUCCESS,

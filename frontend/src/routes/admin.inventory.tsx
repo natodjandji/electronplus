@@ -86,6 +86,8 @@ interface AdminProduct {
   imageUrl?: string;
   thumbnailUrl?: string;
   active: boolean;
+  /** Set when the Profit Plus sync hid it: Profit Plus stopped sending it. */
+  erpRemovedAt?: string | null;
 }
 
 // Shares its queryKey/cache with admin.index.tsx, admin.stock.tsx and
@@ -267,9 +269,14 @@ function InventoryPage() {
                             <AlertTriangle className="h-3 w-3" /> Bajo
                           </Badge>
                         )}
-                        {!p.active && (
-                          <Badge className="bg-muted text-muted-foreground">Inactivo</Badge>
-                        )}
+                        {!p.active &&
+                          (p.erpRemovedAt ? (
+                            <Badge className="bg-muted text-muted-foreground">
+                              Ya no está en Profit
+                            </Badge>
+                          ) : (
+                            <Badge className="bg-muted text-muted-foreground">Inactivo</Badge>
+                          ))}
                       </div>
                     </td>
                     <td className="px-4 py-3 text-right">

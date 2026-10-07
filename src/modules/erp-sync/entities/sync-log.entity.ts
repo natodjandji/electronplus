@@ -17,6 +17,8 @@ export interface SyncLog extends FirestoreDoc {
   startedAt: Date;
   finishedAt?: Date;
   itemsProcessed: number;
+  /** Inbound only: products hidden because Profit Plus stopped sending them. */
+  itemsHidden?: number;
   reference?: string; // e.g. orderId for outbound sync
   error?: string;
   /** Firestore TTL policy field (see firestore.indexes.json /

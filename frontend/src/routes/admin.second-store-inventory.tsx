@@ -5,6 +5,7 @@ import { Search, Unlink } from "lucide-react";
 import { AdminShell } from "@/components/admin-shell";
 import { PaginationBar, usePagination } from "@/components/pagination";
 import { TableRowsSkeleton } from "@/components/table-skeleton";
+import { Badge } from "@/components/ui/badge";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -112,7 +113,14 @@ function SecondStoreInventoryPage() {
                   onClick={() => setEditing(p)}
                 >
                   <td className="px-4 py-3 text-muted-foreground">{p.code || "—"}</td>
-                  <td className="px-4 py-3 font-medium text-brand-navy">{p.name}</td>
+                  <td className="px-4 py-3 font-medium text-brand-navy">
+                    {p.name}
+                    {p.missingFromErpSince && (
+                      <Badge className="ml-2 bg-muted text-muted-foreground">
+                        Ya no está en Profit
+                      </Badge>
+                    )}
+                  </td>
                   <td className="px-4 py-3 text-right">{p.stock}</td>
                   <td className="px-4 py-3 text-right">{formatMoneyAdmin(p.retailPrice ?? 0)}</td>
                   <td className="px-4 py-3 text-right">

@@ -23,4 +23,10 @@ export interface SecondStoreProduct extends FirestoreDoc {
   price?: number;
   notes?: string;
   linkedProductId?: string;
+  /** 'manual' for a record an admin created; the sync never retires those.
+   * Absent on records that predate this field. */
+  source?: 'erp' | 'manual';
+  /** Set when Profit Plus stopped sending this linked record (deleted
+   * there); cleared if it comes back. Unlinked records are deleted instead. */
+  missingFromErpSince?: Date | null;
 }

@@ -29,6 +29,7 @@ export function toCatalogDto(product: Product, role: Role | undefined, pricing: 
           cost: product.cost,
           minStockThreshold: product.minStockThreshold,
           erpSyncedAt: product.erpSyncedAt,
+          erpRemovedAt: product.erpRemovedAt ?? null,
         }
       : {}),
   };

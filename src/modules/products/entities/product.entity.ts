@@ -34,4 +34,8 @@ export interface Product extends FirestoreDoc {
 
   erpExternalId?: string;
   erpSyncedAt?: Date;
+  /** Set when the ERP sync deactivated this product because Profit Plus
+   * stopped sending it (deleted or deactivated there). The sync reactivates
+   * it if it comes back; a product an admin deactivated has no such mark. */
+  erpRemovedAt?: Date | null;
 }

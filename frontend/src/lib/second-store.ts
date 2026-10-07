@@ -10,6 +10,8 @@ export interface SecondStoreProduct {
   wholesalePrice?: number;
   linkedProductId?: string;
   linkedProduct: { id: string; sku: string; name: string; stock: number } | null;
+  /** Set when Profit Plus stopped sending this (linked) record. */
+  missingFromErpSince?: string | null;
 }
 
 export const SECOND_STORE_PRODUCTS_KEY = ["admin", "second-store-products"] as const;

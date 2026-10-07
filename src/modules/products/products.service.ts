@@ -698,6 +698,7 @@ export class ProductsService {
    * of rewriting every product on every 15-minute cron tick regardless. */
   private erpFieldsChanged(existing: Product, patch: Partial<Product>): boolean {
     return (
+      Boolean(existing.erpRemovedAt) ||
       existing.erpExternalId !== patch.erpExternalId ||
       existing.sku !== patch.sku ||
       existing.name !== patch.name ||
@@ -708,6 +709,31 @@ export class ProductsService {
       existing.stock !== patch.stock ||
       existing.specs !== patch.specs
     );
+  }
+
+  /** Deactivates products Profit Plus stopped sending, marking them as hidden
+   * by the sync (erpRemovedAt) so a later run can bring them back. Each
+   * write lands in `catalogChanges`, like upsertFromErp(). */
+  async hideRemovedFromErp(
+    products: Product[],
+    catalogChanges: ErpCatalogChanges,
+  ): Promise<number> {
+    let hidden = 0;
+    for (const product of products) {
+      const fields: Partial<Product> = { active: false, erpRemovedAt: new Date() };
+      try {
+        await this.repo
+          .doc(product.id)
+          .update({ ...fields, updatedAt: FieldValue.serverTimestamp() });
+      } catch (error) {
+        // Deleted since the snapshot was taken: nothing left to hide.
+        if ((error as { code?: number }).code === GRPC_NOT_FOUND) continue;
+        throw error;
+      }
+      catalogChanges.merge.push({ id: product.id, fields: { ...fields, updatedAt: new Date() } });
+      hidden++;
+    }
+    return hidden;
   }
 
   /** `existing` must come from findAllForErpMatching() — resolved once per
@@ -747,6 +773,11 @@ export class ProductsService {
       cost: item.cost ?? existing?.cost,
       specs: item.specs ?? existing?.specs,
     };
+    // Back in Profit Plus after the sync had hidden it: show it again.
+    if (existing?.erpRemovedAt) {
+      patch.erpRemovedAt = null;
+      patch.active = true;
+    }
 
     if (existing && !this.erpFieldsChanged(existing, patch)) {
       return { product: existing, wrote: false };

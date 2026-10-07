@@ -263,6 +263,10 @@ export class FakeFirestore {
         batch.set(ref, data, opts);
         return Promise.resolve();
       },
+      delete: (ref: FakeDocRef) => {
+        batch.delete(ref);
+        return Promise.resolve();
+      },
       close: () => batch.commit(),
     };
   }
