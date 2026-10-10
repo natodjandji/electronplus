@@ -294,6 +294,17 @@ describe('CollectionSnapshot', () => {
     expect(sourceReads(firestore)).toHaveLength(0);
   });
 
+  it('removing an id the snapshot does not hold writes nothing', async () => {
+    const firestore = new FakeFirestore();
+    seedItems(firestore, 3);
+    const snapshot = snapshotOn(firestore);
+    await snapshot.load({ maxAgeMs: 0 });
+    const before = JSON.stringify(firestore.read('snapshots', 'items'));
+
+    await snapshot.apply({ remove: ['nope'] });
+    expect(JSON.stringify(firestore.read('snapshots', 'items'))).toBe(before);
+  });
+
   it('apply() before any snapshot exists is a no-op, not a partial snapshot', async () => {
     const firestore = new FakeFirestore();
     seedItems(firestore, 2);

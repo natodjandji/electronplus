@@ -364,6 +364,25 @@ describe('ProductsService catalog snapshot', () => {
     expect((await otherInstance.adminFindAll({} as never)).map((p) => p.id)).toEqual(['old']);
   });
 
+  it('a product deleted from the console leaves the list once the admin deletes or edits it', async () => {
+    const firestore = new FakeFirestore();
+    seedProduct(firestore, 'fantasma');
+    seedProduct(firestore, 'otro');
+    const service = buildService(firestore);
+    await service.adminFindAll({} as never);
+    await firestore.collection(Collections.PRODUCTS).doc('fantasma').delete();
+    await firestore.collection(Collections.PRODUCTS).doc('otro').delete();
+    expect((await service.adminFindAll({} as never)).map((p) => p.id).sort()).toEqual([
+      'fantasma',
+      'otro',
+    ]);
+
+    await expect(service.delete('fantasma')).resolves.toBeUndefined();
+    await expect(service.update('otro', { name: 'x' } as never)).rejects.toThrow(NotFoundException);
+    expect(await buildService(firestore).adminFindAll({} as never)).toEqual([]);
+    expect(firestore.read(Collections.PRODUCTS, 'otro')).toBeUndefined();
+  });
+
   it('ERP upserts: unchanged items cost nothing, changes reach the snapshot, manual cost survives', async () => {
     const firestore = new FakeFirestore();
     seedProduct(firestore, 'cable', { cost: 3, stock: 1 });

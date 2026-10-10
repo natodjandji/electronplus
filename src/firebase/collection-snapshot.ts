@@ -477,22 +477,29 @@ export class CollectionSnapshot<T extends FirestoreDoc> {
     );
 
     let itemDelta = 0;
+    const touched = new Set<number>();
     for (const id of ids) {
-      const shard = shards.get(shardOf(id, meta.shardCount))!;
+      const index = shardOf(id, meta.shardCount);
+      const shard = shards.get(index)!;
       const op = ops.get(id)!;
       let next: T | null;
       if (fromSource.has(id)) next = fromSource.get(id)!;
       else if (op.kind === 'put') next = op.item;
       else if (op.kind === 'merge') next = { ...shard.get(id)!, ...op.fields };
       else next = null;
+      // Removing what the snapshot doesn't hold changes nothing — no write.
+      if (!next && !shard.has(id)) continue;
       itemDelta += (next ? 1 : 0) - (shard.has(id) ? 1 : 0);
       if (next) shard.set(id, next);
       else shard.delete(id);
+      touched.add(index);
     }
+    if (touched.size === 0) return { kind: 'written', meta, written: [] };
 
     const shardVersions = [...meta.shardVersions];
     const written: { index: number; items: T[] }[] = [];
     for (const [index, shard] of shards) {
+      if (!touched.has(index)) continue;
       const items = [...shard.values()];
       const data = encodeItems(items);
       if (Buffer.byteLength(data, 'utf8') > MAX_SHARD_BYTES) return { kind: 'overflow' };

@@ -1,4 +1,4 @@
-import { Inject, Injectable } from '@nestjs/common';
+import { Inject, Injectable, NotFoundException } from '@nestjs/common';
 import { FieldValue } from 'firebase-admin/firestore';
 import type { Firestore } from 'firebase-admin/firestore';
 import { FIRESTORE } from '../../firebase/firebase.constants';
@@ -111,27 +111,38 @@ export class SecondStoreService {
   }
 
   async update(id: string, dto: UpdateSecondStoreProductDto): Promise<SecondStoreProduct> {
-    await this.repo.getOrThrow(id, 'Second store product not found');
+    await this.getOrForget(id);
     return this.indexed(await this.repo.update(id, dto));
   }
 
+  /** Succeeds when the doc is already gone: one deleted behind the app's
+   * back (the Firebase console, a script) is still listed from the
+   * snapshot, and deleting it again is how it leaves the list. */
   async delete(id: string): Promise<void> {
-    await this.repo.getOrThrow(id, 'Second store product not found');
     await this.repo.delete(id);
     await this.index.apply({ remove: [id] });
   }
 
   async link(id: string, productId: string): Promise<SecondStoreProduct> {
-    await this.repo.getOrThrow(id, 'Second store product not found');
+    await this.getOrForget(id);
     await this.productsService.findById(productId); // throws if the product doesn't exist
     return this.indexed(await this.repo.update(id, { linkedProductId: productId }));
   }
 
   async unlink(id: string): Promise<SecondStoreProduct> {
-    await this.repo.getOrThrow(id, 'Second store product not found');
+    await this.getOrForget(id);
     return this.indexed(
       await this.repo.update(id, { linkedProductId: FieldValue.delete() as never }),
     );
+  }
+
+  /** getOrThrow() that also drops a missing record from the snapshot — it
+   * can only still be listed there if it was deleted behind the app's back. */
+  private async getOrForget(id: string): Promise<SecondStoreProduct> {
+    const found = await this.repo.findById(id);
+    if (found) return found;
+    await this.index.apply({ remove: [id] });
+    throw new NotFoundException('Second store product not found');
   }
 
   /** Every write re-reads the saved doc already (FirestoreRepository), so

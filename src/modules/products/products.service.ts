@@ -422,7 +422,7 @@ export class ProductsService {
   async update(id: string, dto: UpdateProductDto): Promise<Product> {
     // The repository's update is a set-merge: on an unknown id it would
     // create a half-formed product (no sku/qrToken) and index it.
-    const existing = await this.repo.getOrThrow(id, 'Product not found');
+    const existing = await this.getOrForget(id);
     const patch: Partial<Product> = { ...dto };
     if (dto.categoryId) {
       const category = await this.categoriesRepo.getOrThrow(dto.categoryId, 'Category not found');
@@ -451,9 +451,12 @@ export class ProductsService {
    * price into their own line items at the time a product is added, so
    * they don't need the product doc to still exist. Second-store links
    * already handle a since-deleted product gracefully (surfaced as
-   * unlinked, see SecondStoreService.findAll/findById). */
+   * unlinked, see SecondStoreService.findAll/findById).
+   *
+   * Succeeds when the doc is already gone: a product deleted behind the
+   * app's back (the Firebase console, a script) is still listed from the
+   * catalog snapshot, and deleting it again is how it leaves the list. */
   async delete(id: string): Promise<void> {
-    await this.repo.getOrThrow(id, 'Product not found');
     const stockLevels = await this.firestore.collection(`products/${id}/stockLevels`).get();
     if (!stockLevels.empty) {
       const batch = this.firestore.batch();
@@ -462,6 +465,16 @@ export class ProductsService {
     }
     await this.repo.delete(id);
     await this.catalog.apply({ remove: [id] });
+  }
+
+  /** getOrThrow() that also drops a missing product from the catalog
+   * snapshot — it can only still be listed there if it was deleted behind
+   * the app's back. */
+  private async getOrForget(id: string): Promise<Product> {
+    const product = await this.repo.findById(id);
+    if (product) return product;
+    await this.catalog.apply({ remove: [id] });
+    throw new NotFoundException('Product not found');
   }
 
   /** Manual admin stock adjustment (+ restock / - shrinkage), optionally scoped to a warehouse. */
