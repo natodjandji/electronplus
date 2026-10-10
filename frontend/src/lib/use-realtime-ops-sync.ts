@@ -11,6 +11,9 @@ const STOCK_REFRESH_SETTLE_MS = 1500;
 
 export const NOTIFICATIONS_KEY = ["admin", "notifications"];
 
+/** Matches the backend's list limit (notifications.service.ts). */
+const NOTIFICATIONS_LIST_LIMIT = 50;
+
 /**
  * One Socket.IO connection to the backend's `/realtime` namespace
  * (notifications.gateway.ts), shared by every ops-role page — not just
@@ -41,6 +44,18 @@ export function useRealtimeOpsSync() {
     const invalidateNotifications = () =>
       queryClient.invalidateQueries({ queryKey: NOTIFICATIONS_KEY });
 
+    // The push carries the whole notification, so it goes straight into the
+    // bell's list — refetching would re-read every listed doc for one new one.
+    const addNotification = (notification: { id: string }) =>
+      queryClient.setQueryData<{ id: string }[]>(NOTIFICATIONS_KEY, (current) =>
+        current
+          ? [notification, ...current.filter((n) => n.id !== notification.id)].slice(
+              0,
+              NOTIFICATIONS_LIST_LIMIT,
+            )
+          : current,
+      );
+
     const invalidateStock = () => {
       // Prefix match — covers every ["admin","products",search] variant
       // (admin.inventory/.index/.stock/.suppliers/.labels all share it)
@@ -68,10 +83,15 @@ export function useRealtimeOpsSync() {
       const token = await auth.currentUser?.getIdToken();
       if (!token || cancelled) return;
       socket = io(`${API_ORIGIN}/realtime`, {
-        auth: { token },
+        // A function, so every reconnect sends a current token — the one
+        // from page load expires after an hour and the server would turn
+        // the reconnect away, leaving the tab without live updates.
+        auth: (cb) => {
+          void auth.currentUser?.getIdToken().then((fresh) => cb({ token: fresh ?? token }));
+        },
         transports: ["websocket"],
       });
-      socket.on("notification.created", invalidateNotifications);
+      socket.on("notification.created", addNotification);
       socket.on("stock.changed", scheduleStockRefresh);
       // Catch-up on reconnect instead of polling on a timer. Socket.IO
       // reconnects on its own, and any stock.changed emitted while the
@@ -82,7 +102,10 @@ export function useRealtimeOpsSync() {
       // admin catalogs (thousands of rows), so an unconditional timer would
       // cost that per tick for every ops user with a tab open, whether or
       // not anything actually changed.
-      socket.io.on("reconnect", invalidateStock);
+      socket.io.on("reconnect", () => {
+        invalidateStock();
+        void invalidateNotifications();
+      });
     })();
 
     return () => {

@@ -47,10 +47,11 @@ function useNotifications() {
   return useQuery({
     queryKey: NOTIFICATIONS_KEY,
     queryFn: () => apiFetch<AppNotification[]>("/notifications"),
-    // useRealtimeOpsSync (mounted once at the app root, see __root.tsx)
-    // invalidates this on every push over the same socket — this interval
-    // is just a slow fallback in case a connection ever drops silently.
-    refetchInterval: 5 * 60_000,
+    // useRealtimeOpsSync (mounted once at the app root, see __root.tsx) adds
+    // each pushed notification to this list and refetches after a
+    // reconnect — this interval is just a slow fallback in case a
+    // connection ever drops silently. Each fetch reads every listed doc.
+    refetchInterval: 15 * 60_000,
   });
 }
 

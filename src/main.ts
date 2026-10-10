@@ -52,7 +52,12 @@ async function bootstrap() {
   // matched exactly instead of accepting any origin, which `*` did in
   // production despite this API requiring a real user's Bearer token.
   const corsOrigin = config.get('CORS_ORIGIN', { infer: true });
-  app.enableCors({ origin: corsOrigin === '*' ? '*' : corsOrigin.split(',').map((o) => o.trim()) });
+  app.enableCors({
+    origin: corsOrigin === '*' ? '*' : corsOrigin.split(',').map((o) => o.trim()),
+    // Lets the browser reuse a preflight answer instead of sending one
+    // before every signed-in request (Chrome caps this at 2 hours).
+    maxAge: 2 * 60 * 60,
+  });
 
   app.useGlobalPipes(
     new ValidationPipe({

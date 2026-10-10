@@ -30,8 +30,11 @@ export async function apiFetch<T>(
 
   const res = await fetch(`${API_BASE_URL}${path}`, {
     method: options.method ?? "GET",
+    // Content-Type only with a body: on a GET it is what made the browser
+    // send a CORS preflight (an extra round trip and API request) before
+    // every anonymous catalog, best-seller and exchange-rate read.
     headers: {
-      "Content-Type": "application/json",
+      ...(options.body !== undefined ? { "Content-Type": "application/json" } : {}),
       ...(token ? { Authorization: `Bearer ${token}` } : {}),
     },
     body: options.body !== undefined ? JSON.stringify(options.body) : undefined,
