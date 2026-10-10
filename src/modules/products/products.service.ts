@@ -15,6 +15,7 @@ import {
   CollectionSnapshot,
   LoadOptions,
   SNAPSHOT_REBUILD_INTERVAL_MS,
+  SNAPSHOT_VERIFY_INTERVAL_MS,
   SnapshotChanges,
 } from '../../firebase/collection-snapshot';
 import { FirestoreRepository } from '../../firebase/firestore.repository';
@@ -46,6 +47,11 @@ export interface StockChangedEvent {
   name: string;
   stock: number;
   minStockThreshold?: number;
+  /** Stock before this change, when the emitter knows it (ERP sync). */
+  previousStock?: number;
+  /** First seen in this ERP run: a new or re-created product, not a sale or
+   * restock — no alert can be open for it yet. */
+  imported?: boolean;
 }
 
 /** What one ERP sync run wrote, for a single applyCatalogChanges() call. */
@@ -98,10 +104,11 @@ const TOP_SELLING_MAX_LIMIT = 24;
  * listing and searching used to read every product on every request. */
 const PUBLIC_CATALOG_MAX_AGE_MS = 60 * 1000;
 /** Admin screens and the ERP sync always re-check (one read) and keep the
- * snapshot rebuilt daily — see CollectionSnapshot. */
+ * snapshot rebuilt weekly and count-checked daily — see CollectionSnapshot. */
 const OPS_CATALOG_LOAD: LoadOptions = {
   maxAgeMs: 0,
   rebuildIfOlderThanMs: SNAPSHOT_REBUILD_INTERVAL_MS,
+  verifyIfOlderThanMs: SNAPSHOT_VERIFY_INTERVAL_MS,
 };
 
 /** Best-seller ranking, shared by every instance at snapshots/bestSellers.
@@ -415,7 +422,7 @@ export class ProductsService {
   async update(id: string, dto: UpdateProductDto): Promise<Product> {
     // The repository's update is a set-merge: on an unknown id it would
     // create a half-formed product (no sku/qrToken) and index it.
-    await this.repo.getOrThrow(id, 'Product not found');
+    const existing = await this.repo.getOrThrow(id, 'Product not found');
     const patch: Partial<Product> = { ...dto };
     if (dto.categoryId) {
       const category = await this.categoriesRepo.getOrThrow(dto.categoryId, 'Category not found');
@@ -423,6 +430,20 @@ export class ProductsService {
     }
     const updated = await this.repo.update(id, patch);
     await this.catalog.apply({ put: [updated] });
+    // A new threshold can open or close the low-stock alert with no stock
+    // movement — have the alerts look at this product again.
+    if (
+      dto.minStockThreshold !== undefined &&
+      dto.minStockThreshold !== existing.minStockThreshold
+    ) {
+      this.events.emit(STOCK_CHANGED_EVENT, {
+        productId: updated.id,
+        sku: updated.sku,
+        name: updated.name,
+        stock: updated.stock,
+        minStockThreshold: updated.minStockThreshold,
+      } satisfies StockChangedEvent);
+    }
     return updated;
   }
 
@@ -825,6 +846,8 @@ export class ProductsService {
         name: saved.name,
         stock: saved.stock,
         minStockThreshold: saved.minStockThreshold,
+        previousStock: created ? undefined : existing?.stock,
+        imported: created,
       } satisfies StockChangedEvent);
     }
 

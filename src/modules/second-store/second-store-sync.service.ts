@@ -108,7 +108,8 @@ export class SecondStoreSyncService implements OnModuleInit {
   }
 
   async runInboundSync(): Promise<SecondStoreSyncResult> {
-    const log = await this.logsRepo.create({
+    // insert()/patch(): the log is only written here, never read back.
+    const logId = await this.logsRepo.insert({
       status: SecondStoreSyncStatus.RUNNING,
       startedAt: new Date(),
       itemsProcessed: 0,
@@ -121,7 +122,7 @@ export class SecondStoreSyncService implements OnModuleInit {
       const message =
         'SECOND_STORE_PROFIT_API_URL/SECOND_STORE_PROFIT_API_KEY no configurados todavía — se salta este ciclo de sincronización.';
       this.logger.warn(message);
-      await this.logsRepo.update(log.id, {
+      await this.logsRepo.patch(logId, {
         status: SecondStoreSyncStatus.ERROR,
         error: message,
         finishedAt: new Date(),
@@ -262,14 +263,14 @@ export class SecondStoreSyncService implements OnModuleInit {
       this.logger.log(
         `Second-store sync: ${result.fromBridge} artículos del bridge, ${result.created} creados, ${result.updated} actualizados, ${result.unchanged} sin cambios, ${result.removed} eliminados, ${result.flagged} marcados como fuera de Profit.`,
       );
-      await this.logsRepo.update(log.id, {
+      await this.logsRepo.patch(logId, {
         status: SecondStoreSyncStatus.SUCCESS,
         itemsProcessed: result.fromBridge,
         finishedAt: new Date(),
       });
       return result;
     } catch (error) {
-      await this.logsRepo.update(log.id, {
+      await this.logsRepo.patch(logId, {
         status: SecondStoreSyncStatus.ERROR,
         error: (error as Error).message,
         finishedAt: new Date(),

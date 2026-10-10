@@ -75,7 +75,7 @@ export class SyncService implements OnModuleInit {
   }
 
   async runInboundSync(): Promise<SyncLog> {
-    let log = await this.repo.create({
+    const log = await this.repo.create({
       direction: SyncDirection.INBOUND,
       status: SyncStatus.RUNNING,
       startedAt: new Date(),
@@ -173,16 +173,17 @@ export class SyncService implements OnModuleInit {
         `Inbound sync: ${processed}/${items.length} matched, ${written} written, ${processed - written} unchanged (skipped), ${hidden} hidden (no longer in Profit Plus)`,
       );
 
-      log = await this.repo.update(log.id, {
+      const finished: Partial<SyncLog> = {
         status: SyncStatus.SUCCESS,
         itemsProcessed: processed,
         itemsHidden: hidden,
         finishedAt: new Date(),
-      });
-      return log;
+      };
+      await this.repo.patch(log.id, finished);
+      return { ...log, ...finished };
     } catch (error) {
       const message = (error as Error).message;
-      await this.repo.update(log.id, {
+      await this.repo.patch(log.id, {
         status: SyncStatus.ERROR,
         error: message,
         finishedAt: new Date(),

@@ -4,16 +4,18 @@ import {
   CollectionSnapshot,
   LoadOptions,
   SNAPSHOT_REBUILD_INTERVAL_MS,
+  SNAPSHOT_VERIFY_INTERVAL_MS,
 } from '../../firebase/collection-snapshot';
 import { FIRESTORE } from '../../firebase/firebase.constants';
 import { Collections } from '../../firebase/firestore-collections';
 import { SecondStoreProduct } from './entities/second-store-product.entity';
 
 /** Every reader here is an admin screen or the sync job: always re-check
- * (one read) and keep the snapshot rebuilt daily. */
+ * (one read) and keep the snapshot rebuilt weekly and count-checked daily. */
 export const SECOND_STORE_LOAD: LoadOptions = {
   maxAgeMs: 0,
   rebuildIfOlderThanMs: SNAPSHOT_REBUILD_INTERVAL_MS,
+  verifyIfOlderThanMs: SNAPSHOT_VERIFY_INTERVAL_MS,
 };
 
 /**

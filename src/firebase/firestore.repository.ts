@@ -108,6 +108,15 @@ export class FirestoreRepository<T extends FirestoreDoc> {
     return this.getOrThrow(ref.id);
   }
 
+  /** create() without reading the doc back — returns just the new id, for
+   * callers that already hold everything they need from it. */
+  async insert(data: Omit<Partial<T>, 'id' | 'createdAt' | 'updatedAt'>): Promise<string> {
+    const ref = this.collection().doc();
+    const now = FieldValue.serverTimestamp();
+    await ref.set({ ...data, createdAt: now, updatedAt: now });
+    return ref.id;
+  }
+
   /** Atomic create at a caller-chosen id: returns null instead of overwriting
    * when the id is already taken. Unlike create(data, id) — which uses set()
    * and silently replaces an existing doc — this is safe against concurrent
@@ -127,8 +136,14 @@ export class FirestoreRepository<T extends FirestoreDoc> {
   }
 
   async update(id: string, data: Partial<Omit<T, 'id' | 'createdAt'>>): Promise<T> {
-    await this.doc(id).set({ ...data, updatedAt: FieldValue.serverTimestamp() }, { merge: true });
+    await this.patch(id, data);
     return this.getOrThrow(id);
+  }
+
+  /** update() without reading the doc back — one write instead of a write
+   * plus a read, for callers that don't use the result. */
+  async patch(id: string, data: Partial<Omit<T, 'id' | 'createdAt'>>): Promise<void> {
+    await this.doc(id).set({ ...data, updatedAt: FieldValue.serverTimestamp() }, { merge: true });
   }
 
   async delete(id: string): Promise<void> {

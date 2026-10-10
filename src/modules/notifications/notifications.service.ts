@@ -18,6 +18,8 @@ import { NotificationsGateway } from './notifications.gateway';
 
 const OPS_ROLES = [Role.ADMIN, Role.WAREHOUSE_OPERATOR];
 
+const NOTIFICATIONS_LIST_LIMIT = 50;
+
 @Injectable()
 export class NotificationsService {
   private readonly logger = new Logger(NotificationsService.name);
@@ -30,11 +32,13 @@ export class NotificationsService {
     this.repo = new FirestoreRepository<Notification>(firestore, Collections.NOTIFICATIONS);
   }
 
+  /** The bell's list. Every fetch reads each returned doc, so it stays
+   * short — new ones arrive over the socket without a refetch. */
   findForRole(role: Role): Promise<Notification[]> {
     return this.repo.findAll({
       where: [{ field: 'targetRoles', op: 'array-contains', value: role }],
       orderBy: { field: 'createdAt', direction: 'desc' },
-      limit: 100,
+      limit: NOTIFICATIONS_LIST_LIMIT,
     });
   }
 
@@ -52,7 +56,7 @@ export class NotificationsService {
   }
 
   /** One batched write instead of one repo.update() per unread notification —
-   * bounded by findForRole's own limit: 100, so this stays a single batch. */
+   * bounded by findForRole's own limit, so this stays a single batch. */
   async markAllRead(role: Role): Promise<void> {
     const unread = (await this.findForRole(role)).filter((n) => !n.read);
     if (unread.length === 0) return;

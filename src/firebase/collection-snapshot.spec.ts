@@ -220,6 +220,80 @@ describe('CollectionSnapshot', () => {
     expect(sourceReads(firestore)).toHaveLength(0);
   });
 
+  it('counts the source between rebuilds and rebuilds only when the count is off', async () => {
+    const firestore = new FakeFirestore();
+    seedItems(firestore, 6);
+    const snapshot = snapshotOn(firestore);
+    await snapshot.load({ maxAgeMs: 0 });
+    const dayAgo = Date.now() - 25 * 60 * 60 * 1000;
+    firestore.seed('snapshots', 'items', {
+      ...firestore.read('snapshots', 'items'),
+      rebuiltAtMs: dayAgo,
+    });
+    const options = {
+      maxAgeMs: 0,
+      rebuildIfOlderThanMs: 7 * 24 * 60 * 60 * 1000,
+      verifyIfOlderThanMs: 24 * 60 * 60 * 1000,
+    };
+
+    // Count matches: no source reads, and the check is recorded for a day.
+    firestore.reads.length = 0;
+    await snapshot.load(options);
+    expect(sourceReads(firestore)).toHaveLength(0);
+    const verifiedAtMs = (firestore.read('snapshots', 'items') as { verifiedAtMs?: number })
+      .verifiedAtMs;
+    expect(verifiedAtMs).toBeGreaterThan(dayAgo);
+
+    // A doc added behind apply()'s back is caught by the next due check.
+    firestore.seed(SOURCE, 'item-extra', {
+      name: 'extra',
+      stock: 1,
+      createdAt: new Date(),
+      updatedAt: new Date(),
+    });
+    firestore.seed('snapshots', 'items', {
+      ...firestore.read('snapshots', 'items'),
+      verifiedAtMs: dayAgo,
+    });
+    const items = await snapshotOn(firestore).load(options);
+    expect(items.map((i) => i.id)).toContain('item-extra');
+  });
+
+  it('retries an apply() that failed for a passing reason instead of dropping the snapshot', async () => {
+    const firestore = new FakeFirestore();
+    seedItems(firestore, 3);
+    const fs = firestore as unknown as Firestore;
+    const snapshot = new CollectionSnapshot<Item>(fs, 'items', () => fs.collection(SOURCE), {
+      applyRetryDelayMs: 0,
+    });
+    await snapshot.load({ maxAgeMs: 0 });
+
+    const runTransaction = firestore.runTransaction.bind(firestore);
+    let failures = 1;
+    jest.spyOn(firestore, 'runTransaction').mockImplementation((fn) => {
+      if (failures-- > 0) {
+        return Promise.reject(
+          Object.assign(
+            new Error(
+              '3 INVALID_ARGUMENT: The referenced transaction has expired or is no longer valid.',
+            ),
+            { code: 3 },
+          ),
+        );
+      }
+      return runTransaction(fn);
+    });
+
+    await snapshot.apply({ merge: [{ id: 'item-1', fields: { stock: 99 } }] });
+
+    const meta = firestore.read('snapshots', 'items') as { invalid?: boolean };
+    expect(meta.invalid).toBeUndefined();
+    firestore.reads.length = 0;
+    const items = await snapshotOn(firestore).load({ maxAgeMs: 0 });
+    expect(byId(items).get('item-1')?.stock).toBe(99);
+    expect(sourceReads(firestore)).toHaveLength(0);
+  });
+
   it('apply() before any snapshot exists is a no-op, not a partial snapshot', async () => {
     const firestore = new FakeFirestore();
     seedItems(firestore, 2);

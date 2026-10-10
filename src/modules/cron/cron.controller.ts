@@ -36,19 +36,16 @@ export class CronController {
     private readonly finance: FinanceService,
   ) {}
 
-  /** Retries pending sale reports first (they don't need the inbound
-   * bridge), then pulls the catalog once the principal bridge is set up. */
+  /** Retries pending sale reports, then pulls the catalog. Both go through
+   * the principal bridge, so until it is set up the tick touches nothing —
+   * not even the query for pending sales. */
   @Post('erp-sync')
   @HttpCode(200)
   async runErpSync() {
-    const exports = await this.erpExport.exportPending();
     if (!this.erpSync.isConfigured()) {
-      return {
-        status: 'skipped',
-        reason: 'Bridge principal de Profit Plus no configurado',
-        exports,
-      };
+      return { status: 'skipped', reason: 'Bridge principal de Profit Plus no configurado' };
     }
+    const exports = await this.erpExport.exportPending();
     const log = await this.erpSync.runInboundSync();
     return { status: log.status, itemsProcessed: log.itemsProcessed, exports };
   }

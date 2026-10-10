@@ -58,28 +58,44 @@ export class InventoryService {
       payload.minStockThreshold ??
       this.config.get('LOW_STOCK_DEFAULT_THRESHOLD', { infer: true }) ??
       10;
-    const existingActive = await this.repo.findOne([
-      { field: 'productId', op: '==', value: payload.productId },
-      { field: 'active', op: '==', value: true },
-    ]);
+
+    // An ERP run reports every product whose stock moved — hundreds at once
+    // with the principal catalog. An alert can only be open for a product
+    // that was at or below its threshold, so one that stays above it needs
+    // no lookup (a query read each).
+    if (
+      payload.previousStock !== undefined &&
+      payload.previousStock > threshold &&
+      payload.stock > threshold
+    ) {
+      return;
+    }
+    if (payload.imported && payload.stock > threshold) return;
+
+    const existingActive = payload.imported
+      ? null
+      : await this.repo.findOne([
+          { field: 'productId', op: '==', value: payload.productId },
+          { field: 'active', op: '==', value: true },
+        ]);
 
     if (payload.stock > threshold) {
       if (existingActive) {
-        await this.repo.update(existingActive.id, { active: false, resolvedAt: new Date() });
+        await this.repo.patch(existingActive.id, { active: false, resolvedAt: new Date() });
       }
       return;
     }
 
     const level = payload.stock === 0 ? StockAlertLevel.OUT : StockAlertLevel.LOW;
     if (existingActive && existingActive.level === level) {
-      await this.repo.update(existingActive.id, { stockAtTrigger: payload.stock });
+      await this.repo.patch(existingActive.id, { stockAtTrigger: payload.stock });
       return;
     }
     if (existingActive) {
-      await this.repo.update(existingActive.id, { active: false, resolvedAt: new Date() });
+      await this.repo.patch(existingActive.id, { active: false, resolvedAt: new Date() });
     }
 
-    const alert = await this.repo.create({
+    await this.repo.insert({
       productId: payload.productId,
       sku: payload.sku,
       name: payload.name,
@@ -89,14 +105,20 @@ export class InventoryService {
       active: true,
     });
 
+    // A product that arrives already low (the first import of a catalog,
+    // a new item not stocked yet) is listed with the other alerts, but
+    // nothing ran out: no notification or email per product — the first
+    // principal sync would otherwise send one for every empty item.
+    if (payload.imported) return;
+
     this.logger.warn(
       `Stock alert [${level}] for ${payload.sku}: ${payload.stock} units (threshold ${threshold})`,
     );
     this.events.emit(STOCK_ALERT_RAISED_EVENT, {
-      productId: alert.productId,
-      sku: alert.sku,
-      name: alert.name,
-      level: alert.level,
+      productId: payload.productId,
+      sku: payload.sku,
+      name: payload.name,
+      level,
       stock: payload.stock,
     } satisfies StockAlertRaisedEvent);
   }

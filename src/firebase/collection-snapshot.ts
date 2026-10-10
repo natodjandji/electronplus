@@ -6,9 +6,15 @@ import { FirestoreDoc, snapshotToEntity } from './firestore.repository';
 
 /** How often a snapshot is rebuilt from its source collection, which also
  * heals any drift (a crash between a write and its apply(), an edit made
- * from the Firebase console, a seed script). Only enforced for callers that
- * opt in through LoadOptions.rebuildIfOlderThanMs. */
-export const SNAPSHOT_REBUILD_INTERVAL_MS = 24 * 60 * 60 * 1000;
+ * from the Firebase console, a seed script). A rebuild reads every source
+ * doc — 5.4k reads for the second store's catalog — so it runs weekly, with
+ * a cheap count check in between (SNAPSHOT_VERIFY_INTERVAL_MS). Only
+ * enforced for callers that opt in through LoadOptions.rebuildIfOlderThanMs. */
+export const SNAPSHOT_REBUILD_INTERVAL_MS = 7 * 24 * 60 * 60 * 1000;
+
+/** How often the source's doc count is checked against the snapshot between
+ * rebuilds (LoadOptions.verifyIfOlderThanMs). */
+export const SNAPSHOT_VERIFY_INTERVAL_MS = 24 * 60 * 60 * 1000;
 
 export const SNAPSHOT_SHARDS_SUBCOLLECTION = 'shards';
 
@@ -23,6 +29,27 @@ const MAX_SHARDS_PER_COMMIT = 8;
 const READ_ATTEMPTS = 3;
 const APPLY_ATTEMPTS = 3;
 const REBUILD_ATTEMPTS = 3;
+/** Tries of a whole apply() when Firestore fails it for a passing reason. */
+const APPLY_TRANSIENT_ATTEMPTS = 3;
+const APPLY_RETRY_DELAY_MS = 1_000;
+
+/** gRPC codes for failures that say nothing about the snapshot itself:
+ * DEADLINE_EXCEEDED, ABORTED, INTERNAL, UNAVAILABLE. */
+const TRANSIENT_GRPC_CODES = new Set([4, 10, 13, 14]);
+const GRPC_INVALID_ARGUMENT = 3;
+
+/** Whether a failed apply() is worth another try on a fresh transaction.
+ * On Cloud Run, a call that stalls while the instance has no CPU is retried
+ * by the client library against a transaction the server already dropped,
+ * which comes back as INVALID_ARGUMENT "transaction has expired". */
+function isTransient(error: unknown): boolean {
+  const { code, message } = error as { code?: unknown; message?: unknown };
+  if (typeof code !== 'number') return false;
+  if (TRANSIENT_GRPC_CODES.has(code)) return true;
+  return (
+    code === GRPC_INVALID_ARGUMENT && typeof message === 'string' && /transaction/i.test(message)
+  );
+}
 
 interface SnapshotMeta {
   generation: string;
@@ -33,6 +60,8 @@ interface SnapshotMeta {
   seq: number;
   itemCount: number;
   rebuiltAtMs: number;
+  /** Last time the source's doc count matched itemCount (see verify()). */
+  verifiedAtMs?: number;
   /** Set by invalidate(): readers rebuild instead of trusting the shards. */
   invalid?: boolean;
 }
@@ -71,8 +100,16 @@ export interface LoadOptions {
   maxAgeMs: number;
   /** Rebuild from the source collection first when the last full rebuild is
    * older than this. Only for callers that can absorb a full scan's latency
-   * once a day (admin screens, sync jobs) — public requests leave it unset. */
+   * now and then (admin screens, sync jobs) — public requests leave it unset. */
   rebuildIfOlderThanMs?: number;
+  /** Count the source's docs (one read per 1,000) when the last check or
+   * rebuild is older than this, and rebuild if the count disagrees. */
+  verifyIfOlderThanMs?: number;
+}
+
+export interface SnapshotOptions {
+  /** Wait before retrying an apply() that failed for a passing reason. */
+  applyRetryDelayMs?: number;
 }
 
 type Op<T> =
@@ -98,7 +135,8 @@ type ChunkOutcome<T> =
  * The source collection stays the source of truth. Every write path calls
  * apply() after its own write commits; the snapshot is rebuilt from the
  * source when it's missing, can't be patched, or is older than
- * SNAPSHOT_REBUILD_INTERVAL_MS (for opted-in callers).
+ * SNAPSHOT_REBUILD_INTERVAL_MS, or when the daily count check finds the
+ * source's doc count changed behind its back (for opted-in callers).
  *
  * Layout under snapshots/{name}: the meta doc itself, plus
  * shards/{generation}-{index} holding the items whose id hashes to that
@@ -111,6 +149,7 @@ export class CollectionSnapshot<T extends FirestoreDoc> {
   private cache: CacheEntry<T> | null = null;
   private inflightRead: Promise<T[]> | null = null;
   private inflightRebuild: Promise<T[]> | null = null;
+  private inflightVerify: Promise<T[]> | null = null;
   /** Serializes this instance's writes so they don't contend with each
    * other on the meta doc (other instances are handled by transactions). */
   private writeQueue: Promise<unknown> = Promise.resolve();
@@ -119,6 +158,7 @@ export class CollectionSnapshot<T extends FirestoreDoc> {
     private readonly firestore: Firestore,
     private readonly name: string,
     private readonly source: () => CollectionReference,
+    private readonly options: SnapshotOptions = {},
   ) {
     this.logger = new Logger(`CollectionSnapshot:${name}`);
   }
@@ -128,11 +168,17 @@ export class CollectionSnapshot<T extends FirestoreDoc> {
     let items =
       cached && Date.now() - cached.checkedAt < options.maxAgeMs ? cached.items : await this.read();
     const rebuiltAtMs = this.cache?.meta.rebuiltAtMs ?? 0;
+    const verifiedAtMs = Math.max(rebuiltAtMs, this.cache?.meta.verifiedAtMs ?? 0);
     if (
       options.rebuildIfOlderThanMs !== undefined &&
       Date.now() - rebuiltAtMs > options.rebuildIfOlderThanMs
     ) {
       items = await this.rebuild();
+    } else if (
+      options.verifyIfOlderThanMs !== undefined &&
+      Date.now() - verifiedAtMs > options.verifyIfOlderThanMs
+    ) {
+      items = await this.verify();
     }
     return items;
   }
@@ -144,7 +190,7 @@ export class CollectionSnapshot<T extends FirestoreDoc> {
   async apply(changes: SnapshotChanges<T>): Promise<void> {
     const ops = collectOps(changes);
     if (ops.size === 0) return;
-    const run = this.writeQueue.then(() => this.applyOps(ops));
+    const run = this.writeQueue.then(() => this.applyWithRetry(ops));
     this.writeQueue = run.catch(() => undefined);
     try {
       await run;
@@ -180,6 +226,41 @@ export class CollectionSnapshot<T extends FirestoreDoc> {
       this.inflightRebuild = null;
     });
     return this.inflightRebuild;
+  }
+
+  /** The check between weekly rebuilds: count() bills one read per 1,000
+   * source docs, a rebuild one per doc. A count that disagrees means docs
+   * were added or deleted behind apply()'s back (the console, a script, a
+   * crash between a write and its apply), so that rebuilds at once; an edit
+   * in place made that way waits for the weekly rebuild. */
+  private verify(): Promise<T[]> {
+    this.inflightVerify ??= this.verifyAgainstSource().finally(() => {
+      this.inflightVerify = null;
+    });
+    return this.inflightVerify;
+  }
+
+  private async verifyAgainstSource(): Promise<T[]> {
+    const count = (await this.source().count().get()).data().count;
+    // Read after counting: an apply() that lands in between then shows up
+    // in both numbers, not just the count.
+    const items = await this.read();
+    const meta = this.cache?.meta;
+    if (!meta || meta.itemCount !== count) {
+      this.logger.warn(
+        `Source has ${count} docs, snapshot has ${meta?.itemCount ?? 'none'} — rebuilding`,
+      );
+      return this.rebuild();
+    }
+    const verifiedAtMs = Date.now();
+    try {
+      await this.metaRef().update({ verifiedAtMs });
+      meta.verifiedAtMs = verifiedAtMs;
+    } catch (error) {
+      // Only costs another count on the next load.
+      this.logger.warn(`Could not record the count check: ${(error as Error).message}`);
+    }
+    return items;
   }
 
   private metaRef() {
@@ -262,7 +343,7 @@ export class CollectionSnapshot<T extends FirestoreDoc> {
 
       // Switch the meta to the new generation only if nothing was written
       // since the scan began — otherwise the scan may predate that write.
-      // The last attempt switches regardless (the daily rebuild heals it)
+      // The last attempt switches regardless (the next rebuild heals it)
       // so a steady stream of writes can't keep the snapshot missing.
       const force = attempt >= REBUILD_ATTEMPTS;
       const outcome = await this.firestore.runTransaction(async (tx) => {
@@ -297,6 +378,22 @@ export class CollectionSnapshot<T extends FirestoreDoc> {
       }
       this.logger.log(`Rebuilt from ${items.length} docs into ${shards.length} shard(s)`);
       return this.setCache(meta, shards).items;
+    }
+  }
+
+  /** Every op is idempotent, so a failure that says nothing about the
+   * snapshot is retried on a fresh transaction — giving up drops the
+   * snapshot, and the rebuild that follows reads every source doc. */
+  private async applyWithRetry(ops: Map<string, Op<T>>): Promise<void> {
+    for (let attempt = 1; ; attempt++) {
+      try {
+        return await this.applyOps(ops);
+      } catch (error) {
+        if (attempt >= APPLY_TRANSIENT_ATTEMPTS || !isTransient(error)) throw error;
+        this.logger.warn(`Patch attempt ${attempt} failed, retrying: ${(error as Error).message}`);
+        const delayMs = this.options.applyRetryDelayMs ?? APPLY_RETRY_DELAY_MS;
+        await new Promise((resolve) => setTimeout(resolve, delayMs * attempt));
+      }
     }
   }
 

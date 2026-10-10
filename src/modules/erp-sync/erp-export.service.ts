@@ -57,6 +57,7 @@ export class ErpExportService {
   async exportPending(
     now = new Date(),
   ): Promise<{ exported: number; failed: number; waiting: number }> {
+    if (!this.adapter.isConfigured()) return { exported: 0, failed: 0, waiting: 0 };
     const pending = await this.orders.findAll({
       where: [{ field: 'erpExportPending', op: '==', value: true }],
     });
@@ -78,12 +79,16 @@ export class ErpExportService {
   }
 
   /** One attempt at reporting a paid order. Safe to run from the listener
-   * and the cron at once: only the caller that claims the order reports it. */
+   * and the cron at once: only the caller that claims the order reports it.
+   * Until the bridge is set up the order just stays pending: an attempt
+   * would only fail, alert every admin, and use up the retries, so the sale
+   * would never reach Profit Plus once the bridge goes live. */
   async exportOrder(orderId: string): Promise<ErpExportResult> {
+    if (!this.adapter.isConfigured()) return 'skipped';
     const claimedUntil = await this.claim(orderId);
     if (!claimedUntil) return 'skipped';
 
-    const log = await this.logs.create({
+    const logId = await this.logs.insert({
       direction: SyncDirection.OUTBOUND,
       status: SyncStatus.RUNNING,
       startedAt: new Date(),
@@ -98,7 +103,7 @@ export class ErpExportService {
       // and wake up after its claim lapsed and another run took the order
       // over. Never report the same sale twice.
       if (Date.now() > claimedUntil.getTime()) {
-        await this.logs.update(log.id, {
+        await this.logs.patch(logId, {
           status: SyncStatus.ERROR,
           error: 'Claim expired before the sale was reported; left to the next run',
           finishedAt: new Date(),
@@ -118,14 +123,14 @@ export class ErpExportService {
         soldAt: order.createdAt,
       });
 
-      await this.orders.update(orderId, {
+      await this.orders.patch(orderId, {
         erpExportPending: false,
         erpExportedAt: new Date(),
         erpExportError: FieldValue.delete() as never,
         erpExportNextAttemptAt: null,
         erpExportClaimedUntil: null,
       });
-      await this.logs.update(log.id, {
+      await this.logs.patch(logId, {
         status: SyncStatus.SUCCESS,
         itemsProcessed: order.items.length,
         finishedAt: new Date(),
@@ -138,7 +143,7 @@ export class ErpExportService {
       if (order) {
         const attempts = (order.erpExportAttempts ?? 0) + 1;
         const giveUp = attempts >= ERP_EXPORT_MAX_ATTEMPTS;
-        await this.orders.update(orderId, {
+        await this.orders.patch(orderId, {
           erpExportAttempts: attempts,
           erpExportError: message,
           erpExportPending: !giveUp,
@@ -148,7 +153,7 @@ export class ErpExportService {
           erpExportClaimedUntil: null,
         });
       }
-      await this.logs.update(log.id, {
+      await this.logs.patch(logId, {
         status: SyncStatus.ERROR,
         error: message,
         finishedAt: new Date(),

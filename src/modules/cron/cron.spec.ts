@@ -98,14 +98,15 @@ describe('CronController', () => {
     };
   }
 
-  it('skips the principal sync quietly until its bridge is configured', async () => {
-    const { cron, erpSync } = controller();
+  it('touches nothing until the principal bridge is configured', async () => {
+    const { cron, erpSync, erpExport } = controller();
     expect(await cron.runErpSync()).toMatchObject({ status: 'skipped' });
     expect(erpSync.runInboundSync).not.toHaveBeenCalled();
+    expect(erpExport.exportPending).not.toHaveBeenCalled();
   });
 
-  it('retries pending sale reports on every tick, bridge configured or not', async () => {
-    const { cron, erpExport } = controller();
+  it('retries pending sale reports on every tick once configured', async () => {
+    const { cron, erpExport } = controller({ erpConfigured: true });
     expect(await cron.runErpSync()).toMatchObject({ exports: { exported: 1 } });
     expect(erpExport.exportPending).toHaveBeenCalledTimes(1);
   });
