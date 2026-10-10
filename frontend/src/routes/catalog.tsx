@@ -2,7 +2,7 @@ import { createFileRoute, Link } from "@tanstack/react-router";
 import { useMemo, useRef, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { AnimatePresence, motion } from "motion/react";
-import { Filter, LayoutGrid, List, Search, Tags } from "lucide-react";
+import { ArrowUpDown, Filter, LayoutGrid, List, Search, Tags } from "lucide-react";
 import { PublicShell } from "@/components/public-shell";
 import { CircuitBackground } from "@/components/circuit-traces";
 import { staggerContainer, staggerItem } from "@/components/motion-primitives";
@@ -14,6 +14,13 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Slider } from "@/components/ui/slider";
 import { Badge } from "@/components/ui/badge";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import {
   CARD_FOCUS_RING,
@@ -27,6 +34,13 @@ import { PriceTag } from "@/components/price-tag";
 import { ProductImage } from "@/components/product-image";
 import { QuantityStepper } from "@/components/quantity-stepper";
 import type { Product } from "@/lib/product";
+import {
+  CATALOG_SORTS,
+  DEFAULT_CATALOG_SORT,
+  isCatalogSort,
+  sortCatalog,
+  type CatalogSort,
+} from "@/lib/catalog-sort";
 import { catalogQuery, toProduct } from "@/lib/product-api";
 import { formatMoney, useElectronStore } from "@/lib/electron-store";
 import { formatBs, useBcvRate } from "@/lib/use-bcv-rate";
@@ -39,9 +53,12 @@ function useCatalogProducts() {
 }
 
 export const Route = createFileRoute("/catalog")({
-  validateSearch: (search: Record<string, unknown>): { q?: string; category?: string } => ({
+  validateSearch: (
+    search: Record<string, unknown>,
+  ): { q?: string; category?: string; sort?: CatalogSort } => ({
     q: typeof search.q === "string" ? search.q : undefined,
     category: typeof search.category === "string" ? search.category : undefined,
+    sort: isCatalogSort(search.sort) ? search.sort : undefined,
   }),
   head: () => ({
     meta: [
@@ -87,7 +104,7 @@ function effectivePriceRange(
 }
 
 function CatalogPage() {
-  const { q: initialQ, category: initialCategory } = Route.useSearch();
+  const { q: initialQ, category: initialCategory, sort: initialSort } = Route.useSearch();
   const { priceFor, cart, addToCart, updateQty, removeFromCart } = useElectronStore();
   const { data: products, isLoading, isError } = useCatalogProducts();
   const { data: bcv } = useBcvRate();
@@ -99,6 +116,7 @@ function CatalogPage() {
   // REF 100 even with no filter touched.
   const [priceRange, setPriceRange] = useState<[number, number] | null>(null);
   const [view, setView] = useState<"grid" | "list">("grid");
+  const [sort, setSort] = useState<CatalogSort>(initialSort ?? DEFAULT_CATALOG_SORT);
 
   const priceCeiling = useMemo(
     () =>
@@ -110,7 +128,7 @@ function CatalogPage() {
   const filtered = useMemo(() => {
     const needle = q.toLowerCase();
     const price = effectivePriceRange(priceRange, priceCeiling);
-    return (products ?? []).filter((p) => {
+    const matches = (products ?? []).filter((p) => {
       if (needle && !`${p.name} ${p.sku}`.toLowerCase().includes(needle)) return false;
       if (cats.length && !cats.includes(p.category)) return false;
       if (onlyAvailable && p.stock <= 0) return false;
@@ -120,7 +138,8 @@ function CatalogPage() {
       }
       return true;
     });
-  }, [products, q, cats, onlyAvailable, priceRange, priceCeiling, priceFor]);
+    return sortCatalog(matches, sort, priceFor, q);
+  }, [products, q, cats, onlyAvailable, priceRange, priceCeiling, priceFor, sort]);
 
   // Straight from the data: Profit Plus defines its own categories, so a
   // hardcoded list would leave the real ones without a filter.
@@ -137,7 +156,7 @@ function CatalogPage() {
   const pagination = usePagination(
     filtered,
     PAGE_SIZE,
-    JSON.stringify([q, cats, onlyAvailable, priceRange]),
+    JSON.stringify([q, cats, onlyAvailable, priceRange, sort]),
   );
   const resultsTop = useRef<HTMLElement>(null);
 
@@ -298,8 +317,26 @@ function CatalogPage() {
           </div>
         </div>
 
-        <div className="mb-4 mt-4 text-sm text-muted-foreground">
-          {filtered.length} producto{filtered.length === 1 ? "" : "s"}
+        <div className="mb-4 mt-4 flex items-center justify-between gap-3">
+          <div className="text-sm text-muted-foreground">
+            {filtered.length} producto{filtered.length === 1 ? "" : "s"}
+          </div>
+          <div className="flex items-center gap-2">
+            <span className="hidden text-sm text-muted-foreground sm:inline">Ordenar por</span>
+            <Select value={sort} onValueChange={(v) => isCatalogSort(v) && setSort(v)}>
+              <SelectTrigger aria-label="Ordenar por" className="h-9 w-auto gap-2">
+                <ArrowUpDown className="h-4 w-4 shrink-0 text-muted-foreground" />
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent align="end">
+                {CATALOG_SORTS.map((s) => (
+                  <SelectItem key={s.id} value={s.id}>
+                    {s.label}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
         </div>
 
         {isLoading ? (
