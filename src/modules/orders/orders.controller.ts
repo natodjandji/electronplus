@@ -72,7 +72,7 @@ export class OrdersController {
   }
 
   @Patch(':id/advance')
-  @Roles(Role.ADMIN, Role.WAREHOUSE_OPERATOR)
+  @Roles(Role.ADMIN)
   async advance(@Param('id') id: string, @CurrentUser() user: AuthenticatedUser) {
     const order = await this.ordersService.advanceStatus(id);
     return toOrderDto(order, user.role);

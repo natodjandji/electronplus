@@ -60,7 +60,7 @@ export class ProductsController {
 
   @Get('warehouses')
   @UseGuards(FirebaseAuthGuard, RolesGuard)
-  @Roles(Role.ADMIN, Role.WAREHOUSE_OPERATOR)
+  @Roles(Role.ADMIN)
   @ApiBearerAuth()
   warehouses() {
     return this.warehousesService.findAll();
@@ -160,7 +160,7 @@ export class ProductsController {
 
   @Patch('products/:id/stock')
   @UseGuards(FirebaseAuthGuard, RolesGuard)
-  @Roles(Role.ADMIN, Role.WAREHOUSE_OPERATOR)
+  @Roles(Role.ADMIN)
   @ApiBearerAuth()
   adjustStock(@Param('id') id: string, @Body() dto: AdjustStockDto) {
     return this.productsService.adjustStock(id, dto);
@@ -168,7 +168,7 @@ export class ProductsController {
 
   @Get('products/:id/stock-by-warehouse')
   @UseGuards(FirebaseAuthGuard, RolesGuard)
-  @Roles(Role.ADMIN, Role.WAREHOUSE_OPERATOR)
+  @Roles(Role.ADMIN)
   @ApiBearerAuth()
   stockByWarehouse(@Param('id') id: string) {
     return this.productsService.stockByWarehouse(id);

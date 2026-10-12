@@ -24,7 +24,7 @@ export const Route = createFileRoute("/register")({
 function RegisterPage() {
   const navigate = useNavigate();
   const { user, loading, redirectError, signInWithGoogle, registerWithEmail } = useAuth();
-  const { isOps } = useElectronStore();
+  const { isAdmin } = useElectronStore();
 
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
@@ -36,8 +36,8 @@ function RegisterPage() {
 
   useEffect(() => {
     if (loading || !user) return;
-    navigate({ to: isOps ? "/admin" : "/", replace: true });
-  }, [loading, user, isOps, navigate]);
+    navigate({ to: isAdmin ? "/admin" : "/", replace: true });
+  }, [loading, user, isAdmin, navigate]);
 
   // Surfaces a failure from a completed signInWithRedirect() (the
   // popup-blocked fallback) once the page reloads after the round trip.

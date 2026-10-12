@@ -12,7 +12,7 @@ import { NotificationsService } from './notifications.service';
 @ApiBearerAuth()
 @Controller('notifications')
 @UseGuards(FirebaseAuthGuard, RolesGuard)
-@Roles(Role.ADMIN, Role.WAREHOUSE_OPERATOR)
+@Roles(Role.ADMIN)
 export class NotificationsController {
   constructor(private readonly notificationsService: NotificationsService) {}
 

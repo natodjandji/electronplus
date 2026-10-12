@@ -5,7 +5,7 @@ import { FIRESTORE } from '../../firebase/firebase.constants';
 import { Collections } from '../../firebase/firestore-collections';
 import { FirestoreRepository } from '../../firebase/firestore.repository';
 import { ProductsService } from '../products/products.service';
-import { SECOND_STORE_LOAD, SecondStoreIndex } from './second-store-index';
+import { SECOND_STORE_LOAD, SecondStoreIndex, SECOND_STORE_STOCK_LOAD } from './second-store-index';
 import { CreateSecondStoreProductDto } from './dto/create-second-store-product.dto';
 import { UpdateSecondStoreProductDto } from './dto/update-second-store-product.dto';
 import { SecondStoreProduct } from './entities/second-store-product.entity';
@@ -32,6 +32,7 @@ export class SecondStoreService {
   private readonly repo: FirestoreRepository<SecondStoreProduct>;
 
   private sorted: { source: SecondStoreProduct[]; byName: SecondStoreProduct[] } | null = null;
+  private stockView: { source: SecondStoreProduct[]; stock: Record<string, number> } | null = null;
 
   constructor(
     @Inject(FIRESTORE) firestore: Firestore,
@@ -67,6 +68,26 @@ export class SecondStoreService {
           : null,
       };
     });
+  }
+
+  /**
+   * This store's stock per linked catalog product, for sellers building a
+   * sale at the main store. Only linked records count (the two stores' codes
+   * differ, see the entity); several linked to one product add up, and a
+   * record Profit Plus no longer sends doesn't count.
+   */
+  async stockByLinkedProduct(): Promise<Record<string, number>> {
+    const items = await this.index.load(SECOND_STORE_STOCK_LOAD);
+    if (this.stockView?.source !== items) {
+      const stock: Record<string, number> = {};
+      for (const item of items) {
+        if (!item.linkedProductId || item.missingFromErpSince) continue;
+        stock[item.linkedProductId] =
+          (stock[item.linkedProductId] ?? 0) + Math.max(0, item.stock ?? 0);
+      }
+      this.stockView = { source: items, stock };
+    }
+    return this.stockView.stock;
   }
 
   /**

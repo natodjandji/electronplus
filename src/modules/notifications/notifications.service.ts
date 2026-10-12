@@ -43,11 +43,9 @@ export class NotificationsService {
   }
 
   async markRead(id: string, role: Role): Promise<void> {
-    // ADMIN and WAREHOUSE_OPERATOR share this endpoint, but a notification
-    // can target just one of them (e.g. invoice-due alerts are ADMIN-only) —
-    // without this check either role could mark the other's notification
-    // read, mirroring the same restriction firestore.rules already applies
-    // to direct client access.
+    // A notification names the roles it's for — only one of them may mark
+    // it read, mirroring the same restriction firestore.rules already
+    // applies to direct client access.
     const notification = await this.repo.getOrThrow(id, 'Notification not found');
     if (!notification.targetRoles.includes(role)) {
       throw new ForbiddenException('This notification is not addressed to your role');

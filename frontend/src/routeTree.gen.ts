@@ -19,6 +19,7 @@ import { Route as CollectionsRouteImport } from './routes/collections'
 import { Route as LoginRouteImport } from './routes/login'
 import { Route as QuotesRouteImport } from './routes/quotes'
 import { Route as RegisterRouteImport } from './routes/register'
+import { Route as VendedorRouteImport } from './routes/vendedor'
 import { Route as AdminIndexRouteImport } from './routes/admin.index'
 import { Route as AdminExpensesRouteImport } from './routes/admin.expenses'
 import { Route as AdminInventoryRouteImport } from './routes/admin.inventory'
@@ -33,8 +34,11 @@ import { Route as AdminStockRouteImport } from './routes/admin.stock'
 import { Route as AdminSuppliersRouteImport } from './routes/admin.suppliers'
 import { Route as AdminUsersRouteImport } from './routes/admin.users'
 import { Route as ClientOrdersRouteImport } from './routes/client.orders'
+import { Route as CotizacionTokenRouteImport } from './routes/cotizacion.$token'
 import { Route as ProductIdRouteImport } from './routes/product.$id'
+import { Route as VendedorIndexRouteImport } from './routes/vendedor.index'
 import { Route as ProductQrIdRouteImport } from './routes/product.qr.$id'
+import { Route as VendedorCarritoIdRouteImport } from './routes/vendedor.carrito.$id'
 
 const IndexRoute = IndexRouteImport.update({
   id: '/',
@@ -84,6 +88,11 @@ const QuotesRoute = QuotesRouteImport.update({
 const RegisterRoute = RegisterRouteImport.update({
   id: '/register',
   path: '/register',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const VendedorRoute = VendedorRouteImport.update({
+  id: '/vendedor',
+  path: '/vendedor',
   getParentRoute: () => rootRouteImport,
 } as any)
 const AdminIndexRoute = AdminIndexRouteImport.update({
@@ -157,15 +166,30 @@ const ClientOrdersRoute = ClientOrdersRouteImport.update({
   path: '/orders',
   getParentRoute: () => ClientRoute,
 } as any)
+const CotizacionTokenRoute = CotizacionTokenRouteImport.update({
+  id: '/cotizacion/$token',
+  path: '/cotizacion/$token',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ProductIdRoute = ProductIdRouteImport.update({
   id: '/product/$id',
   path: '/product/$id',
   getParentRoute: () => rootRouteImport,
 } as any)
+const VendedorIndexRoute = VendedorIndexRouteImport.update({
+  id: '/',
+  path: '/',
+  getParentRoute: () => VendedorRoute,
+} as any)
 const ProductQrIdRoute = ProductQrIdRouteImport.update({
   id: '/product/qr/$id',
   path: '/product/qr/$id',
   getParentRoute: () => rootRouteImport,
+} as any)
+const VendedorCarritoIdRoute = VendedorCarritoIdRouteImport.update({
+  id: '/carrito/$id',
+  path: '/carrito/$id',
+  getParentRoute: () => VendedorRoute,
 } as any)
 
 export interface FileRoutesByFullPath {
@@ -179,6 +203,7 @@ export interface FileRoutesByFullPath {
   '/login': typeof LoginRoute
   '/quotes': typeof QuotesRoute
   '/register': typeof RegisterRoute
+  '/vendedor': typeof VendedorRouteWithChildren
   '/admin/expenses': typeof AdminExpensesRoute
   '/admin/inventory': typeof AdminInventoryRoute
   '/admin/labels': typeof AdminLabelsRoute
@@ -192,9 +217,12 @@ export interface FileRoutesByFullPath {
   '/admin/suppliers': typeof AdminSuppliersRoute
   '/admin/users': typeof AdminUsersRoute
   '/client/orders': typeof ClientOrdersRoute
+  '/cotizacion/$token': typeof CotizacionTokenRoute
   '/product/$id': typeof ProductIdRoute
   '/admin/': typeof AdminIndexRoute
+  '/vendedor/': typeof VendedorIndexRoute
   '/product/qr/$id': typeof ProductQrIdRoute
+  '/vendedor/carrito/$id': typeof VendedorCarritoIdRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
@@ -219,9 +247,12 @@ export interface FileRoutesByTo {
   '/admin/suppliers': typeof AdminSuppliersRoute
   '/admin/users': typeof AdminUsersRoute
   '/client/orders': typeof ClientOrdersRoute
+  '/cotizacion/$token': typeof CotizacionTokenRoute
   '/product/$id': typeof ProductIdRoute
   '/admin': typeof AdminIndexRoute
+  '/vendedor': typeof VendedorIndexRoute
   '/product/qr/$id': typeof ProductQrIdRoute
+  '/vendedor/carrito/$id': typeof VendedorCarritoIdRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
@@ -235,6 +266,7 @@ export interface FileRoutesById {
   '/login': typeof LoginRoute
   '/quotes': typeof QuotesRoute
   '/register': typeof RegisterRoute
+  '/vendedor': typeof VendedorRouteWithChildren
   '/admin/expenses': typeof AdminExpensesRoute
   '/admin/inventory': typeof AdminInventoryRoute
   '/admin/labels': typeof AdminLabelsRoute
@@ -248,9 +280,12 @@ export interface FileRoutesById {
   '/admin/suppliers': typeof AdminSuppliersRoute
   '/admin/users': typeof AdminUsersRoute
   '/client/orders': typeof ClientOrdersRoute
+  '/cotizacion/$token': typeof CotizacionTokenRoute
   '/product/$id': typeof ProductIdRoute
   '/admin/': typeof AdminIndexRoute
+  '/vendedor/': typeof VendedorIndexRoute
   '/product/qr/$id': typeof ProductQrIdRoute
+  '/vendedor/carrito/$id': typeof VendedorCarritoIdRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
@@ -265,6 +300,7 @@ export interface FileRouteTypes {
     | '/login'
     | '/quotes'
     | '/register'
+    | '/vendedor'
     | '/admin/expenses'
     | '/admin/inventory'
     | '/admin/labels'
@@ -278,9 +314,12 @@ export interface FileRouteTypes {
     | '/admin/suppliers'
     | '/admin/users'
     | '/client/orders'
+    | '/cotizacion/$token'
     | '/product/$id'
     | '/admin/'
+    | '/vendedor/'
     | '/product/qr/$id'
+    | '/vendedor/carrito/$id'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
@@ -305,9 +344,12 @@ export interface FileRouteTypes {
     | '/admin/suppliers'
     | '/admin/users'
     | '/client/orders'
+    | '/cotizacion/$token'
     | '/product/$id'
     | '/admin'
+    | '/vendedor'
     | '/product/qr/$id'
+    | '/vendedor/carrito/$id'
   id:
     | '__root__'
     | '/'
@@ -320,6 +362,7 @@ export interface FileRouteTypes {
     | '/login'
     | '/quotes'
     | '/register'
+    | '/vendedor'
     | '/admin/expenses'
     | '/admin/inventory'
     | '/admin/labels'
@@ -333,9 +376,12 @@ export interface FileRouteTypes {
     | '/admin/suppliers'
     | '/admin/users'
     | '/client/orders'
+    | '/cotizacion/$token'
     | '/product/$id'
     | '/admin/'
+    | '/vendedor/'
     | '/product/qr/$id'
+    | '/vendedor/carrito/$id'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
@@ -349,6 +395,8 @@ export interface RootRouteChildren {
   LoginRoute: typeof LoginRoute
   QuotesRoute: typeof QuotesRoute
   RegisterRoute: typeof RegisterRoute
+  VendedorRoute: typeof VendedorRouteWithChildren
+  CotizacionTokenRoute: typeof CotizacionTokenRoute
   ProductIdRoute: typeof ProductIdRoute
   ProductQrIdRoute: typeof ProductQrIdRoute
 }
@@ -423,6 +471,13 @@ declare module '@tanstack/react-router' {
       path: '/register'
       fullPath: '/register'
       preLoaderRoute: typeof RegisterRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/vendedor': {
+      id: '/vendedor'
+      path: '/vendedor'
+      fullPath: '/vendedor'
+      preLoaderRoute: typeof VendedorRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/admin/': {
@@ -523,6 +578,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ClientOrdersRouteImport
       parentRoute: typeof ClientRoute
     }
+    '/cotizacion/$token': {
+      id: '/cotizacion/$token'
+      path: '/cotizacion/$token'
+      fullPath: '/cotizacion/$token'
+      preLoaderRoute: typeof CotizacionTokenRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/product/$id': {
       id: '/product/$id'
       path: '/product/$id'
@@ -530,12 +592,26 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ProductIdRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/vendedor/': {
+      id: '/vendedor/'
+      path: '/'
+      fullPath: '/vendedor/'
+      preLoaderRoute: typeof VendedorIndexRouteImport
+      parentRoute: typeof VendedorRoute
+    }
     '/product/qr/$id': {
       id: '/product/qr/$id'
       path: '/product/qr/$id'
       fullPath: '/product/qr/$id'
       preLoaderRoute: typeof ProductQrIdRouteImport
       parentRoute: typeof rootRouteImport
+    }
+    '/vendedor/carrito/$id': {
+      id: '/vendedor/carrito/$id'
+      path: '/carrito/$id'
+      fullPath: '/vendedor/carrito/$id'
+      preLoaderRoute: typeof VendedorCarritoIdRouteImport
+      parentRoute: typeof VendedorRoute
     }
   }
 }
@@ -585,6 +661,20 @@ const ClientRouteChildren: ClientRouteChildren = {
 const ClientRouteWithChildren =
   ClientRoute._addFileChildren(ClientRouteChildren)
 
+interface VendedorRouteChildren {
+  VendedorIndexRoute: typeof VendedorIndexRoute
+  VendedorCarritoIdRoute: typeof VendedorCarritoIdRoute
+}
+
+const VendedorRouteChildren: VendedorRouteChildren = {
+  VendedorIndexRoute: VendedorIndexRoute,
+  VendedorCarritoIdRoute: VendedorCarritoIdRoute,
+}
+
+const VendedorRouteWithChildren = VendedorRoute._addFileChildren(
+  VendedorRouteChildren,
+)
+
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   AdminRoute: AdminRouteWithChildren,
@@ -596,6 +686,8 @@ const rootRouteChildren: RootRouteChildren = {
   LoginRoute: LoginRoute,
   QuotesRoute: QuotesRoute,
   RegisterRoute: RegisterRoute,
+  VendedorRoute: VendedorRouteWithChildren,
+  CotizacionTokenRoute: CotizacionTokenRoute,
   ProductIdRoute: ProductIdRoute,
   ProductQrIdRoute: ProductQrIdRoute,
 }

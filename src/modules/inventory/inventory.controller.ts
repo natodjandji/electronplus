@@ -10,7 +10,7 @@ import { InventoryService } from './inventory.service';
 @ApiBearerAuth()
 @Controller('inventory')
 @UseGuards(FirebaseAuthGuard, RolesGuard)
-@Roles(Role.ADMIN, Role.WAREHOUSE_OPERATOR)
+@Roles(Role.ADMIN)
 export class InventoryController {
   constructor(private readonly inventoryService: InventoryService) {}
 

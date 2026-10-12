@@ -26,6 +26,7 @@ import { QuotesService } from '../quotes/quotes.service';
 import { ShippingRatesService } from '../shipping-rates/shipping-rates.service';
 import { CreateOrderFromQuoteDto } from './dto/create-order-from-quote.dto';
 import { CreateOrderDto, ShippingInfoDto } from './dto/create-order.dto';
+import { round2, TAX_RATE } from '../../common/utils/money';
 import { QueryOrdersDto } from './dto/query-orders.dto';
 import { RetryPaymentDto } from './dto/retry-payment.dto';
 import {
@@ -55,16 +56,10 @@ export const ORDER_CREATED_EVENT = 'order.created';
  * so email/notifications can react without those methods knowing about
  * either concern. */
 export const ORDER_STATUS_CHANGED_EVENT = 'order.status_changed';
-/** Venezuela's standard IVA rate — applied to (subtotal - discount). */
-const TAX_RATE = 0.16;
 /** Every order reserves its stock until an admin verifies or cancels it,
  * and sign-up is open — without a cap, one account could hold the whole
  * inventory with orders it never pays. */
 const MAX_UNPAID_ORDERS_PER_CLIENT = 5;
-
-function round2(n: number): number {
-  return Math.round(n * 100) / 100;
-}
 
 export interface OrderPaidEvent {
   orderId: string;

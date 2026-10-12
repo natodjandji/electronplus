@@ -1,16 +1,7 @@
 import { useState } from "react";
 import { createFileRoute, Link, notFound } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
-import {
-  ArrowLeft,
-  Loader2,
-  Minus,
-  Package,
-  Plus,
-  ShieldCheck,
-  ShoppingCart,
-  Store,
-} from "lucide-react";
+import { ArrowLeft, Minus, Package, Plus, ShieldCheck, ShoppingCart, Store } from "lucide-react";
 import { toast } from "sonner";
 import { PublicShell } from "@/components/public-shell";
 import { Card } from "@/components/ui/card";
@@ -19,6 +10,7 @@ import { Button } from "@/components/ui/button";
 import { PriceTag } from "@/components/price-tag";
 import { ProductImage } from "@/components/product-image";
 import { apiFetch } from "@/lib/api-client";
+import { useSecondStoreStock } from "@/lib/use-sales-carts";
 import { type ApiProduct, toProduct } from "@/lib/product-api";
 import type { Product } from "@/lib/product";
 import { useElectronStore } from "@/lib/electron-store";
@@ -172,13 +164,12 @@ function NotFound() {
 function ProductPage() {
   const { product } = Route.useLoaderData();
   const { isOps, role, addToCart } = useElectronStore();
+  const isSeller = role === "seller";
+  // Sellers see both stores' stock too (they quote from it), but not the
+  // rest of the panel: their second-store figure comes from the stock-only
+  // endpoint, not the full second-store record.
+  const seesStock = isOps || isSeller;
   const { data: bcv } = useBcvRate();
-  const { data: qrLabel } = useQuery({
-    queryKey: ["qr", "token", product.id],
-    queryFn: () =>
-      apiFetch<{ qrImageDataUrl: string }>(`/qr/tokens/${product.id}`, { method: "POST" }),
-    enabled: isOps,
-  });
   // Single-product lookup, NOT the full catalog. Fetching every
   // second-store row here and .find()-ing in memory cost ~5.4k Firestore
   // reads per page view just to show one stock number.
@@ -188,6 +179,10 @@ function ProductPage() {
       apiFetch<SecondStoreProduct | null>(`/second-store-products/by-product/${product.id}`),
     enabled: isOps,
   });
+  const { data: sellerSecondStock } = useSecondStoreStock(isSeller);
+  const secondStoreStock = isSeller
+    ? sellerSecondStock && (sellerSecondStock[product.id] ?? null)
+    : secondStoreLink && secondStoreLink.stock;
   const out = product.stock === 0;
   const low = product.stock > 0 && product.stock <= 10;
   const [qty, setQty] = useState(1);
@@ -210,7 +205,7 @@ function ProductPage() {
         </Link>
 
         <div className="mt-4 grid gap-8 md:grid-cols-2">
-          <Card className="overflow-hidden p-0">
+          <Card className="self-start overflow-hidden p-0">
             <div className="aspect-square bg-brand-surface">
               <ProductImage
                 src={product.image}
@@ -223,11 +218,15 @@ function ProductPage() {
           </Card>
 
           <div>
-            {isOps && (
+            {seesStock && (
               <div className="flex items-center gap-2">
                 <Badge className="bg-brand-blue text-white">
                   <ShieldCheck className="mr-1 h-3 w-3" />
-                  {role === "admin" ? "Vista administrador" : "Vista almacén"}
+                  {role === "admin"
+                    ? "Vista administrador"
+                    : isSeller
+                      ? "Vista vendedor"
+                      : "Vista almacén"}
                 </Badge>
               </div>
             )}
@@ -281,7 +280,7 @@ function ProductPage() {
               <p className="mt-1 text-sm text-brand-navy">{product.specs}</p>
             </Card>
 
-            {isOps ? (
+            {seesStock ? (
               <Card className="mt-4 border-brand-blue/20 bg-brand-blue p-5 text-white">
                 <div className="text-[10px] font-semibold uppercase tracking-widest text-brand-yellow">
                   Información interna
@@ -295,7 +294,11 @@ function ProductPage() {
                   <InfoRow
                     icon={Store}
                     label="Stock tienda secundaria"
-                    value={secondStoreLink ? `${secondStoreLink.stock} uds` : "Sin vincular"}
+                    value={
+                      typeof secondStoreStock === "number"
+                        ? `${secondStoreStock} uds`
+                        : "Sin vincular"
+                    }
                   />
                 </div>
               </Card>
@@ -314,27 +317,6 @@ function ProductPage() {
                   )}
                 </div>
               </Card>
-            )}
-
-            {isOps && (
-              <div className="mt-6 flex items-center gap-4">
-                <div className="grid h-[104px] w-[104px] shrink-0 place-items-center rounded-md border border-border bg-white p-2">
-                  {qrLabel ? (
-                    <img
-                      src={qrLabel.qrImageDataUrl}
-                      alt=""
-                      className="h-full w-full object-contain"
-                    />
-                  ) : (
-                    <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
-                  )}
-                </div>
-                <div className="min-w-0 text-xs text-muted-foreground">
-                  Mismo código QR que se imprime en la etiqueta del producto.
-                  <br />
-                  Ruta: <code className="break-all text-brand-navy">/product/qr/{product.id}</code>
-                </div>
-              </div>
             )}
           </div>
         </div>

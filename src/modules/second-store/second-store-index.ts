@@ -18,6 +18,10 @@ export const SECOND_STORE_LOAD: LoadOptions = {
   verifyIfOlderThanMs: SNAPSHOT_VERIFY_INTERVAL_MS,
 };
 
+/** Sellers' stock lookups: this instance's copy may be a minute old (the
+ * sync itself only runs every 30), so a busy counter costs no extra reads. */
+export const SECOND_STORE_STOCK_LOAD: LoadOptions = { maxAgeMs: 60 * 1000 };
+
 /**
  * The whole secondStoreProducts collection (~5.4k docs) packed into a few
  * docs — see CollectionSnapshot. Listing it in the admin and matching it in

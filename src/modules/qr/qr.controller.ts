@@ -17,7 +17,7 @@ export class QrController {
 
   @Post('tokens/:productId')
   @UseGuards(FirebaseAuthGuard, RolesGuard)
-  @Roles(Role.ADMIN, Role.WAREHOUSE_OPERATOR)
+  @Roles(Role.ADMIN)
   @ApiBearerAuth()
   issueToken(@Param('productId') productId: string) {
     return this.qrService.issueLabel(productId);
@@ -25,7 +25,7 @@ export class QrController {
 
   @Post('labels')
   @UseGuards(FirebaseAuthGuard, RolesGuard)
-  @Roles(Role.ADMIN, Role.WAREHOUSE_OPERATOR)
+  @Roles(Role.ADMIN)
   @ApiBearerAuth()
   bulkLabels(@Body() dto: BulkLabelsDto) {
     return this.qrService.issueLabels(dto.productIds);

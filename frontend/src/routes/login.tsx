@@ -32,7 +32,7 @@ function LoginPage() {
   const { redirect } = Route.useSearch();
   const navigate = useNavigate();
   const { user, loading, redirectError, signInWithGoogle, signInWithEmail } = useAuth();
-  const { isOps } = useElectronStore();
+  const { isAdmin, canSell } = useElectronStore();
 
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -48,18 +48,23 @@ function LoginPage() {
 
   // Fires once the Firebase session AND the backend profile are both ready —
   // covers both the Google popup and the email/password form the same way.
-  // Admin/warehouse accounts land in the panel; clients go back to where
-  // they came from (or the storefront).
+  // Admins land in the panel and sellers in their sales screen; everyone
+  // else (clients, warehouse operators) goes back to where they came from
+  // (or the storefront).
   useEffect(() => {
     if (loading || !user) return;
-    if (isOps) {
+    if (isAdmin) {
       navigate({ to: "/admin", replace: true });
       return;
     }
-    // Don't send a non-ops account back into /admin — it would just bounce
+    if (canSell) {
+      navigate({ to: "/vendedor", replace: true });
+      return;
+    }
+    // Don't send a non-admin account back into /admin — it would just bounce
     // off the guard again.
     navigate({ to: redirect && !redirect.startsWith("/admin") ? redirect : "/", replace: true });
-  }, [loading, user, isOps, redirect, navigate]);
+  }, [loading, user, isAdmin, canSell, redirect, navigate]);
 
   const handleGoogle = async () => {
     setError(null);

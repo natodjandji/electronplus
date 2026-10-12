@@ -9,6 +9,7 @@ import {
   PackageSearch,
   Menu,
   Boxes,
+  ScanLine,
 } from "lucide-react";
 import { ElectronLogo } from "./electron-logo";
 import { useElectronStore, type UserRole } from "@/lib/electron-store";
@@ -32,6 +33,7 @@ const ROLE_LABEL: Record<UserRole, string> = {
   client: "Cliente",
   admin: "Administrador",
   warehouse_operator: "Operador de almacén",
+  seller: "Vendedor",
 };
 
 export function SiteHeader() {
@@ -67,7 +69,15 @@ export function SiteHeader() {
             they pushed the header ~30px past the screen edge. Below lg they
             stay as sr-only text, so each button keeps its accessible name. */}
         <div className="ml-auto flex items-center gap-1 sm:gap-2">
-          <RoleGate allow={["admin", "warehouse_operator"]}>
+          <RoleGate allow={["seller"]}>
+            <Button variant="ghost" size="sm" className="gap-2 hidden md:inline-flex" asChild>
+              <Link to="/vendedor">
+                <ScanLine className="h-4 w-4" />
+                <span className="sr-only lg:not-sr-only">Ventas</span>
+              </Link>
+            </Button>
+          </RoleGate>
+          <RoleGate allow={["admin"]}>
             <Button variant="ghost" size="sm" className="gap-2 hidden md:inline-flex" asChild>
               <Link to="/admin">
                 <LayoutDashboard className="h-4 w-4" />
@@ -183,7 +193,12 @@ export function SiteHeader() {
             >
               Cotizar
             </MobileNavLink>
-            <RoleGate allow={["admin", "warehouse_operator"]}>
+            <RoleGate allow={["seller", "admin"]}>
+              <MobileNavLink to="/vendedor" icon={ScanLine} onNavigate={closeMobileNav}>
+                Ventas en tienda
+              </MobileNavLink>
+            </RoleGate>
+            <RoleGate allow={["admin"]}>
               <MobileNavLink to="/admin" icon={LayoutDashboard} onNavigate={closeMobileNav}>
                 Panel
               </MobileNavLink>

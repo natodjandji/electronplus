@@ -17,6 +17,7 @@ import {
   Menu,
   Wallet,
   Store,
+  ScanLine,
 } from "lucide-react";
 import { ElectronLogo } from "./electron-logo";
 import { PageTransition } from "./motion-primitives";
@@ -30,9 +31,18 @@ const ROLE_LABEL: Record<UserRole, string> = {
   client: "Cliente",
   admin: "Administrador",
   warehouse_operator: "Operador de almacén",
+  seller: "Vendedor",
 };
 
-const NAV_GROUPS = [
+const NAV_GROUPS: {
+  label: string;
+  items: {
+    to: string;
+    label: string;
+    icon: typeof LayoutDashboard;
+    exact: boolean;
+  }[];
+}[] = [
   {
     label: "General",
     items: [
@@ -45,6 +55,7 @@ const NAV_GROUPS = [
     items: [
       { to: "/admin/orders", label: "Pedidos", icon: Truck, exact: false },
       { to: "/admin/quotes", label: "Cotizaciones", icon: FileCheck2, exact: false },
+      { to: "/vendedor", label: "Ventas en tienda", icon: ScanLine, exact: false },
       { to: "/admin/users", label: "Usuarios", icon: Users, exact: false },
     ],
   },
@@ -132,8 +143,7 @@ function SidebarNav({ pathname, onNavigate }: { pathname: string; onNavigate?: (
 /**
  * Presentational layout for the admin panel. Access control lives one level
  * up, in the /admin layout route (see components/admin-guard.tsx) — by the
- * time this renders, the session is guaranteed to be an authorized
- * admin/warehouse operator.
+ * time this renders, the session is guaranteed to be an admin.
  */
 export function AdminShell({ title, children }: { title: string; children: ReactNode }) {
   const pathname = useRouterState({ select: (s) => s.location.pathname });

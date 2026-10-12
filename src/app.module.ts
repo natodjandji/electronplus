@@ -10,6 +10,7 @@ import { AuthModule } from './modules/auth/auth.module';
 import { UsersModule } from './modules/users/users.module';
 import { ProductsModule } from './modules/products/products.module';
 import { QuotesModule } from './modules/quotes/quotes.module';
+import { SalesCartsModule } from './modules/sales-carts/sales-carts.module';
 import { OrdersModule } from './modules/orders/orders.module';
 import { PaymentsModule } from './modules/payments/payments.module';
 import { CronModule } from './modules/cron/cron.module';
@@ -45,6 +46,7 @@ import { EmailModule } from './modules/email/email.module';
     UsersModule,
     ProductsModule,
     QuotesModule,
+    SalesCartsModule,
     OrdersModule,
     PaymentsModule,
     ErpSyncModule,

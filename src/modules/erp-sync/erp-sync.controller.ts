@@ -11,7 +11,7 @@ import { SyncService } from './sync.service';
 @ApiBearerAuth()
 @Controller('erp-sync')
 @UseGuards(FirebaseAuthGuard, RolesGuard)
-@Roles(Role.ADMIN, Role.WAREHOUSE_OPERATOR)
+@Roles(Role.ADMIN)
 export class ErpSyncController {
   constructor(private readonly syncService: SyncService) {}
 

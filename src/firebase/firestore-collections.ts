@@ -22,6 +22,12 @@ export const Collections = {
   SECOND_STORE_PRODUCTS: 'secondStoreProducts',
   SECOND_STORE_SYNC_LOGS: 'secondStoreSyncLogs',
   EXPENSES: 'expenses',
+  /** Carts sellers build for in-store customers (see SalesCartsService). */
+  SALES_CARTS: 'salesCarts',
+  /** Frozen copies of shared sales carts, keyed by their public link token. */
+  SHARED_QUOTES: 'sharedQuotes',
+  /** Sequential numbers (e.g. quote numbers), one doc per sequence. */
+  COUNTERS: 'counters',
   /** Server-only read indexes (see CollectionSnapshot) — no client rule
    * grants access, so firestore.rules' default deny covers them. */
   SNAPSHOTS: 'snapshots',

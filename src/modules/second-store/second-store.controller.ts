@@ -25,7 +25,7 @@ import { SecondStoreSyncService } from './second-store-sync.service';
 @ApiBearerAuth()
 @Controller('second-store-products')
 @UseGuards(FirebaseAuthGuard, RolesGuard)
-@Roles(Role.ADMIN, Role.WAREHOUSE_OPERATOR)
+@Roles(Role.ADMIN)
 export class SecondStoreController {
   constructor(
     private readonly secondStoreService: SecondStoreService,
@@ -48,8 +48,10 @@ export class SecondStoreController {
 
   // Single-product link lookup — 1 indexed read, vs. the ~5.4k the full
   // findAll() above costs. Declared before any ':id' route so it isn't
-  // swallowed as an id.
+  // swallowed as an id. The one route warehouse operators keep: the product
+  // page's internal stock panel reads it (the admin panel is admin-only).
   @Get('by-product/:productId')
+  @Roles(Role.ADMIN, Role.WAREHOUSE_OPERATOR)
   findByLinkedProduct(@Param('productId') productId: string) {
     return this.secondStoreService.findByLinkedProductId(productId);
   }

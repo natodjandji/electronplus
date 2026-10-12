@@ -6,6 +6,7 @@ import {
   FileCheck2,
   Loader2,
   PackageSearch,
+  ScanLine,
   ShieldCheck,
   Users,
   Warehouse,
@@ -81,6 +82,7 @@ const ROLE_BADGE: Record<BackendRole, string> = {
   client: "border-transparent bg-muted text-muted-foreground",
   admin: "border-transparent bg-brand-blue/10 text-brand-blue",
   warehouse_operator: "border-transparent bg-brand-yellow/25 text-brand-navy",
+  seller: "border-transparent bg-emerald-100 text-emerald-700",
 };
 
 const QUOTE_STATUS_LABEL: Record<QuoteStatus, string> = {
@@ -120,8 +122,8 @@ interface UserPage {
 const CLIENTS_PAGE_SIZE = 25;
 const HISTORY_PAGE_SIZE = 8;
 
-/** Admins and warehouse operators — a handful of accounts each. */
-function useStaff(role: "admin" | "warehouse_operator") {
+/** Admins, warehouse operators and sellers — a handful of accounts each. */
+function useStaff(role: "admin" | "warehouse_operator" | "seller") {
   return useQuery({
     queryKey: ["admin", "users", "role", role],
     queryFn: () => apiFetch<UserPage>(`/users/by-role/${role}?limit=100`),
@@ -197,9 +199,10 @@ function AdminUsersPage() {
   const [selectedClient, setSelectedClient] = useState<AppUser | null>(null);
   const { data: admins = [], isLoading: adminsLoading } = useStaff("admin");
   const { data: operators = [], isLoading: operatorsLoading } = useStaff("warehouse_operator");
+  const { data: sellers = [], isLoading: sellersLoading } = useStaff("seller");
   const clientPages = useClientPages();
   const clients = clientPages.clients;
-  const isLoading = adminsLoading || operatorsLoading || clientPages.isLoading;
+  const isLoading = adminsLoading || operatorsLoading || sellersLoading || clientPages.isLoading;
   const clientsTop = useRef<HTMLElement>(null);
 
   return (
@@ -247,7 +250,24 @@ function AdminUsersPage() {
             ) : (
               <div className="space-y-2">
                 {operators.map((u) => (
-                  <OperatorCard key={u.id} user={u} />
+                  <StaffCard key={u.id} user={u} />
+                ))}
+              </div>
+            )}
+          </section>
+
+          <section>
+            <div className="mb-2 flex items-center gap-2 text-sm font-semibold text-brand-navy">
+              <ScanLine className="h-4 w-4 text-brand-blue" /> Vendedores
+            </div>
+            {sellers.length === 0 ? (
+              <Card className="p-6 text-center text-sm text-muted-foreground">
+                No hay vendedores. Abre un cliente para convertirlo en vendedor.
+              </Card>
+            ) : (
+              <div className="space-y-2">
+                {sellers.map((u) => (
+                  <StaffCard key={u.id} user={u} />
                 ))}
               </div>
             )}
@@ -302,7 +322,8 @@ function AdminUsersPage() {
   );
 }
 
-function OperatorCard({ user }: { user: AppUser }) {
+/** A warehouse operator or seller, with the way back to a client account. */
+function StaffCard({ user }: { user: AppUser }) {
   const queryClient = useQueryClient();
 
   const demote = useMutation({
@@ -345,8 +366,8 @@ function ClientDetailDialog({ user, onClose }: { user: AppUser; onClose: () => v
   });
 
   const promote = useMutation({
-    mutationFn: () =>
-      apiFetch(`/users/${user.id}`, { method: "PATCH", body: { role: "warehouse_operator" } }),
+    mutationFn: (role: "warehouse_operator" | "seller") =>
+      apiFetch(`/users/${user.id}`, { method: "PATCH", body: { role } }),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["admin", "users"] });
       toast.success("Rol actualizado");
@@ -421,9 +442,18 @@ function ClientDetailDialog({ user, onClose }: { user: AppUser; onClose: () => v
               variant="outline"
               className="justify-self-start gap-2"
               disabled={promote.isPending}
-              onClick={() => promote.mutate()}
+              onClick={() => promote.mutate("warehouse_operator")}
             >
               <Warehouse className="h-3.5 w-3.5" /> Convertir en operador de almacén
+            </Button>
+            <Button
+              size="sm"
+              variant="outline"
+              className="justify-self-start gap-2"
+              disabled={promote.isPending}
+              onClick={() => promote.mutate("seller")}
+            >
+              <ScanLine className="h-3.5 w-3.5" /> Convertir en vendedor
             </Button>
           </div>
         </DialogContent>

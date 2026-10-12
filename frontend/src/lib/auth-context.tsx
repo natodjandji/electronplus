@@ -38,7 +38,7 @@ const POPUP_FALLBACK_CODES = new Set([
   "auth/web-storage-unsupported",
 ]);
 
-export type BackendRole = "client" | "admin" | "warehouse_operator";
+export type BackendRole = "client" | "admin" | "warehouse_operator" | "seller";
 
 export interface UserProfile {
   id: string;

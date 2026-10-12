@@ -15,11 +15,24 @@ import { useAuth } from "@/lib/auth-context";
  * - backend sync failed    → retry screen — a transient /auth/session
  *                             failure must not look identical to "not an
  *                             admin" (see sessionError's doc comment)
- * - signed in, not ops     → automatic redirect to the shop
- * - admin / warehouse op   → renders the panel
+ * - signed in, not admin   → automatic redirect to the shop (warehouse
+ *                             operators included: their internal stock view
+ *                             lives on the product page, not in the panel)
+ * - admin                  → renders the panel
  */
 export function AdminGuard({ children }: { children: ReactNode }) {
-  const { isOps } = useElectronStore();
+  const { isAdmin } = useElectronStore();
+  return <StaffGuard allowed={isAdmin}>{children}</StaffGuard>;
+}
+
+/** The same checks for the in-store sales screens (/vendedor): sellers and
+ * admins get in. */
+export function SellerGuard({ children }: { children: ReactNode }) {
+  const { canSell } = useElectronStore();
+  return <StaffGuard allowed={canSell}>{children}</StaffGuard>;
+}
+
+function StaffGuard({ allowed, children }: { allowed: boolean; children: ReactNode }) {
   const { user, loading, sessionError, retrySession } = useAuth();
   const livePathname = useRouterState({ select: (s) => s.location.pathname });
   // Snapshotted once on mount (lazy initializer runs only on first render) —
@@ -64,7 +77,7 @@ export function AdminGuard({ children }: { children: ReactNode }) {
     );
   }
 
-  if (!isOps) {
+  if (!allowed) {
     return <Navigate to="/" replace />;
   }
 

@@ -25,7 +25,7 @@ export const USER_CREATED_EVENT = 'user.created';
  * Firebase Auth again — a demotion or deactivation locks the account out
  * within this window instead of when the ID token expires (up to 1h). */
 const STAFF_REVOCATION_CHECK_TTL_MS = 60_000;
-const STAFF_ROLES: readonly string[] = [Role.ADMIN, Role.WAREHOUSE_OPERATOR];
+const STAFF_ROLES: readonly string[] = [Role.ADMIN, Role.WAREHOUSE_OPERATOR, Role.SELLER];
 /** Token → time its revocation check stops counting. Shared by every guard
  * instance; one admin session fires bursts of requests with one token. */
 const staffTokensCheckedUntil = new Map<string, number>();

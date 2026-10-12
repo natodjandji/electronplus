@@ -175,11 +175,13 @@ function matchesWhere(actual: unknown, op: WhereOp, expected: unknown): boolean 
   }
 }
 
-export class FakeCollectionRef extends FakeQuery {
-  private counter = 0;
+/** Shared by every collection ref, like the real auto-ids: services build
+ * a fresh ref per call, and a per-ref counter handed out the same id twice. */
+let autoIdCounter = 0;
 
+export class FakeCollectionRef extends FakeQuery {
   doc(id?: string) {
-    const docId = id ?? `auto_${this.counter++}`;
+    const docId = id ?? `auto_${autoIdCounter++}`;
     return new FakeDocRef(`${this.path}/${docId}`, docId, this.store);
   }
 }

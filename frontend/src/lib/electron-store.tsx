@@ -16,7 +16,7 @@ import {
   type LiveCatalogLookup,
 } from "./cart-reconcile";
 
-export type UserRole = "guest" | "client" | "admin" | "warehouse_operator";
+export type UserRole = "guest" | "client" | "admin" | "warehouse_operator" | "seller";
 
 /** Venezuela's standard IVA rate. */
 export const TAX_RATE = 0.16;
@@ -32,6 +32,8 @@ type StoreValue = {
   isAdmin: boolean;
   /** Operational staff: admin or warehouse operator — unlocks internal stock views. */
   isOps: boolean;
+  /** Can build in-store sales carts (/vendedor): sellers and admins. */
+  canSell: boolean;
   /** Every client pays retail — a lower price only ever comes from an admin-approved quote. */
   priceFor: (p: Product) => number;
   cart: CartItem[];
@@ -100,6 +102,8 @@ function roleFromBackend(backendRole: BackendRole | undefined): UserRole {
       return "admin";
     case "warehouse_operator":
       return "warehouse_operator";
+    case "seller":
+      return "seller";
     default:
       return "guest";
   }
@@ -151,6 +155,7 @@ export function ElectronStoreProvider({ children }: { children: ReactNode }) {
       role,
       isAdmin: role === "admin",
       isOps: role === "admin" || role === "warehouse_operator",
+      canSell: role === "admin" || role === "seller",
       priceFor,
       cart,
       addToCart: (p, qty = 1) =>

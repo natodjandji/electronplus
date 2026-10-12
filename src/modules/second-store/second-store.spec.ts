@@ -262,6 +262,31 @@ describe('Second store sync and records removed in Profit Plus', () => {
     expect(firestore.read(Collections.SECOND_STORE_PRODUCTS, 'r7')).toBeDefined();
   });
 
+  it('reports stock per linked product: linked records add up, gone or unlinked ones do not', async () => {
+    const firestore = new FakeFirestore();
+    const seed = (id: string, data: Partial<SecondStoreProduct>) =>
+      firestore.seed(Collections.SECOND_STORE_PRODUCTS, id, {
+        name: id,
+        stock: 0,
+        createdAt: new Date(),
+        updatedAt: new Date(),
+        ...data,
+      });
+    seed('a', { stock: 4, linkedProductId: 'breaker' });
+    seed('b', { stock: 3, linkedProductId: 'breaker' });
+    seed('c', { stock: 9, linkedProductId: 'cable', missingFromErpSince: new Date() });
+    seed('d', { stock: 7 });
+    seed('e', { stock: -2, linkedProductId: 'tablero' });
+
+    const { service } = instance(firestore);
+    expect(await service.stockByLinkedProduct()).toEqual({ breaker: 7, tablero: 0 });
+
+    // Within the minute it's served from memory, without reading Firestore.
+    firestore.reads.length = 0;
+    await service.stockByLinkedProduct();
+    expect(firestore.reads).toEqual([]);
+  });
+
   it('marks records an admin creates as manual', async () => {
     const firestore = new FakeFirestore();
     const created = await instance(firestore).service.create({ name: 'Nuevo', stock: 2 } as never);
