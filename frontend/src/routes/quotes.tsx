@@ -54,6 +54,7 @@ import {
   usePaymentMethods,
   type PaymentMethodConfig,
 } from "@/lib/payment-methods";
+import { openCustomerQuotePdf } from "@/lib/open-pdf";
 import { computeTotal, computeWholesaleTotal } from "@/lib/quote-totals";
 import { formatBs, useBcvRate } from "@/lib/use-bcv-rate";
 import { formatTaxId, validateTaxIdNumber, type TaxIdPrefix } from "@/lib/venezuelan-tax-id";
@@ -466,6 +467,7 @@ function QuoteBuilder({ id, onBack }: { id: string; onBack: () => void }) {
   const queryClient = useQueryClient();
   const [pick, setPick] = useState("");
   const [busy, setBusy] = useState(false);
+  const [openingPdf, setOpeningPdf] = useState(false);
 
   const { data: quote, isLoading } = useQuery({
     queryKey: ["quotes", id],
@@ -636,8 +638,22 @@ function QuoteBuilder({ id, onBack }: { id: string; onBack: () => void }) {
               <Badge className={STATUS_BADGE[quote.status]}>{STATUS_LABEL[quote.status]}</Badge>
             )}
             <div className="flex flex-wrap items-center gap-2 print:hidden">
-              <Button variant="outline" onClick={() => window.print()} className="gap-2">
-                <Printer className="h-4 w-4" />
+              <Button
+                variant="outline"
+                onClick={() => {
+                  setOpeningPdf(true);
+                  openCustomerQuotePdf(quote.id)
+                    .catch(reportError)
+                    .finally(() => setOpeningPdf(false));
+                }}
+                disabled={openingPdf}
+                className="gap-2"
+              >
+                {openingPdf ? (
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                ) : (
+                  <Printer className="h-4 w-4" />
+                )}
                 Imprimir / PDF
               </Button>
               {isDraft && (

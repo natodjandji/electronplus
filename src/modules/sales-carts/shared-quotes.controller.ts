@@ -1,7 +1,7 @@
 import { Controller, Get, Header, Param, StreamableFile } from '@nestjs/common';
 import { ApiTags } from '@nestjs/swagger';
 import { Throttle } from '@nestjs/throttler';
-import { quoteNumberLabel } from './quote-pdf';
+import { quoteNumberLabel } from './sales-quote-pdf';
 import { SalesCartsService } from './sales-carts.service';
 
 /** The customer's side of a shared sales cart: public, read-only, found

@@ -35,4 +35,7 @@ export interface Quote extends FirestoreDoc {
   /** Set once the customer checks an approved quote out into a real order —
    * blocks converting the same quote twice. */
   convertedOrderId?: string;
+  /** Unguessable token for the quote's PDF link (quote-pdfs/:token), set
+   * the first time its owner or an admin asks to print it. */
+  pdfToken?: string;
 }

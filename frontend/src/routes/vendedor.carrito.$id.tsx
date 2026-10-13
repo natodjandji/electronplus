@@ -68,6 +68,7 @@ import {
   type SalesCartItem,
   type SharedQuoteLink,
 } from "@/lib/sales-carts";
+import { openPdf } from "@/lib/open-pdf";
 import { primeScanSound, scanFeedback } from "@/lib/scan-feedback";
 import { formatBs, useBcvRate } from "@/lib/use-bcv-rate";
 import {
@@ -191,13 +192,12 @@ function CartScreen({ cart }: { cart: SalesCart }) {
         navigate({ to: "/vendedor/carrito/$id", params: { id: next.id }, replace }),
     });
 
-  // Shares first, so the PDF has what's in the cart now, then opens it in
-  // this tab — a tab opened once the request returns would be blocked as a
-  // popup. Phones hand the PDF to their viewer, which prints and shares.
+  // Shares first, so the PDF has what's in the cart now. A failed share
+  // was already reported by the mutation.
   const printQuote = () =>
-    actions.share.mutate(undefined, {
-      onSuccess: (link) => window.location.assign(quotePdfUrl(link.token)),
-    });
+    void openPdf(async () => quotePdfUrl((await actions.share.mutateAsync()).token)).catch(
+      () => undefined,
+    );
 
   return (
     <SellerShell>

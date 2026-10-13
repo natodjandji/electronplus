@@ -25,6 +25,7 @@ import { SetGlobalDiscountDto } from './dto/set-global-discount.dto';
 import { SetPaymentMethodDto } from './dto/set-payment-method.dto';
 import { UpdateQuoteLineDto } from './dto/update-quote-line.dto';
 import { computeQuoteTotals } from './quote-totals';
+import { QuotePdfService } from './quote-pdf.service';
 import { QuotesService } from './quotes.service';
 
 @ApiTags('quotes')
@@ -32,7 +33,10 @@ import { QuotesService } from './quotes.service';
 @Controller('quotes')
 @UseGuards(FirebaseAuthGuard, RolesGuard)
 export class QuotesController {
-  constructor(private readonly quotesService: QuotesService) {}
+  constructor(
+    private readonly quotesService: QuotesService,
+    private readonly quotePdf: QuotePdfService,
+  ) {}
 
   @Post()
   create(@CurrentUser() user: AuthenticatedUser, @Body() dto: CreateQuoteDto) {
@@ -54,6 +58,14 @@ export class QuotesController {
   async findOne(@Param('id') id: string, @CurrentUser() user: AuthenticatedUser) {
     const quote = await this.quotesService.findOneForUser(id, user);
     return { ...quote, totals: computeQuoteTotals(quote) };
+  }
+
+  /** Its owner's (or an admin's) link to the quote's PDF, which opens
+   * without the Bearer token — see QuotePdfService. */
+  @Post(':id/pdf-link')
+  @HttpCode(200)
+  pdfLink(@Param('id') id: string, @CurrentUser() user: AuthenticatedUser) {
+    return this.quotePdf.pdfLink(id, user);
   }
 
   @Delete(':id')

@@ -31,7 +31,8 @@ import {
   SalesCartStatus,
 } from './entities/sales-cart.entity';
 import { SharedQuote } from './entities/shared-quote.entity';
-import { renderQuotePdf } from './quote-pdf';
+import { renderQuotePdf } from '../../common/pdf/quote-pdf';
+import { salesQuotePdf } from './sales-quote-pdf';
 import { computeSalesCartTotals } from './sales-cart-totals';
 
 export const QUOTE_VALIDITY_DAYS = 3;
@@ -297,7 +298,7 @@ export class SalesCartsService {
   /** The shared quote as a letter-size PDF, to print or keep. */
   async sharedQuotePdf(token: string): Promise<{ number: number; pdf: Buffer }> {
     const quote = await this.findSharedQuote(token);
-    return { number: quote.number, pdf: await renderQuotePdf(quote) };
+    return { number: quote.number, pdf: await renderQuotePdf(salesQuotePdf(quote)) };
   }
 
   async findSharedQuote(token: string): Promise<Omit<SharedQuote, 'cartId'>> {

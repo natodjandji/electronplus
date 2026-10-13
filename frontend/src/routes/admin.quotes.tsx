@@ -1,14 +1,13 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useMemo, useRef, useState } from "react";
-import { Check, Loader2, Printer, Tag, X } from "lucide-react";
+import { Check, Loader2, Printer, X } from "lucide-react";
 import { AdminShell } from "@/components/admin-shell";
 import { CardListSkeleton } from "@/components/table-skeleton";
 import { MonthYearPicker, useMonthPeriod } from "@/components/month-pager";
 import { PaginationBar, usePagination } from "@/components/pagination";
 import { PendingToggle } from "@/components/pending-toggle";
 import { periodQuery } from "@/lib/admin-period";
-import { ElectronLogo } from "@/components/electron-logo";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
@@ -27,6 +26,7 @@ import { Separator } from "@/components/ui/separator";
 import { Switch } from "@/components/ui/switch";
 import { Textarea } from "@/components/ui/textarea";
 import { apiFetch, ApiError, reportError } from "@/lib/api-client";
+import { openCustomerQuotePdf } from "@/lib/open-pdf";
 import { formatMoneyAdmin } from "@/lib/electron-store";
 import { formatDate } from "@/lib/format";
 import {
@@ -35,7 +35,6 @@ import {
   type PaymentMethodConfig,
 } from "@/lib/payment-methods";
 import { computeTotal, computeWholesaleTotal } from "@/lib/quote-totals";
-import { formatBs, useBcvRate } from "@/lib/use-bcv-rate";
 import { toast } from "sonner";
 
 export const Route = createFileRoute("/admin/quotes")({
@@ -225,12 +224,12 @@ function QuoteDetailDialog({ id, onClose }: { id: string; onClose: () => void })
   const [rejectReason, setRejectReason] = useState("");
   const [discountTouched, setDiscountTouched] = useState(false);
   const [useWholesale, setUseWholesale] = useState(false);
+  const [openingPdf, setOpeningPdf] = useState(false);
 
   const { data: quote } = useQuery({
     queryKey: ["admin", "quotes", id],
     queryFn: () => apiFetch<Quote>(`/quotes/${id}`),
   });
-  const { data: bcv } = useBcvRate();
   const { data: paymentMethods } = usePaymentMethods();
 
   const invalidate = () => {
@@ -283,7 +282,7 @@ function QuoteDetailDialog({ id, onClose }: { id: string; onClose: () => void })
   return (
     <>
       <Dialog open onOpenChange={(open) => !open && onClose()}>
-        <DialogContent className="max-w-lg print:hidden">
+        <DialogContent className="max-w-lg">
           <DialogHeader>
             <div className="flex items-center justify-between gap-3 pr-6">
               <DialogTitle>{quote.customerName || "Sin nombre"}</DialogTitle>
@@ -293,9 +292,20 @@ function QuoteDetailDialog({ id, onClose }: { id: string; onClose: () => void })
                   variant="outline"
                   size="sm"
                   className="gap-1.5"
-                  onClick={() => window.print()}
+                  disabled={openingPdf}
+                  onClick={() => {
+                    setOpeningPdf(true);
+                    openCustomerQuotePdf(quote.id)
+                      .catch(reportError)
+                      .finally(() => setOpeningPdf(false));
+                  }}
                 >
-                  <Printer className="h-3.5 w-3.5" /> Imprimir / PDF
+                  {openingPdf ? (
+                    <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                  ) : (
+                    <Printer className="h-3.5 w-3.5" />
+                  )}{" "}
+                  Imprimir / PDF
                 </Button>
               </div>
             </div>
@@ -438,89 +448,6 @@ function QuoteDetailDialog({ id, onClose }: { id: string; onClose: () => void })
           ) : null}
         </DialogContent>
       </Dialog>
-
-      <div className="hidden print:block">
-        <div className="mx-auto max-w-2xl p-6">
-          <div className="flex items-center justify-between gap-4 border-b border-border pb-4">
-            <ElectronLogo layout="full" tone="color" className="h-8" />
-            <div className="text-right text-xs text-muted-foreground">
-              <div className="font-semibold text-brand-navy">Solicitud de cotización</div>
-              <div>{formatDate(quote.createdAt)}</div>
-            </div>
-          </div>
-
-          <div className="mt-4">
-            <div className="text-lg font-bold text-brand-navy">
-              {quote.customerName || "Sin nombre"}
-            </div>
-            {quote.customerTaxId && (
-              <div className="text-sm text-muted-foreground">RIF/Cédula: {quote.customerTaxId}</div>
-            )}
-            <div className="text-sm text-muted-foreground">
-              Estado: {STATUS_LABEL[quote.status]}
-            </div>
-          </div>
-
-          <table className="mt-6 w-full text-sm">
-            <thead>
-              <tr className="border-b border-border text-left text-xs uppercase tracking-wider text-muted-foreground">
-                <th className="py-2">Producto</th>
-                <th className="py-2 text-right">Detal</th>
-                <th className="py-2 text-right">Mayor</th>
-                <th className="py-2 text-right">Cant.</th>
-                <th className="py-2 text-right">Total</th>
-              </tr>
-            </thead>
-            <tbody>
-              {quote.items.map((item) => (
-                <tr key={item.id} className="border-b border-border">
-                  <td className="py-3">
-                    <div className="font-semibold text-brand-navy">{item.name}</div>
-                    <div className="text-xs text-muted-foreground">{item.sku}</div>
-                  </td>
-                  <td className="py-3 text-right">{formatMoneyAdmin(item.unitPrice)}</td>
-                  <td className="py-3 text-right text-muted-foreground">
-                    {formatMoneyAdmin(item.wholesalePrice)}
-                  </td>
-                  <td className="py-3 text-right">{item.qty}</td>
-                  <td className="py-3 text-right font-semibold text-brand-navy">
-                    {formatMoneyAdmin(item.unitPrice * item.qty * (1 - item.discountPct / 100))}
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-
-          <div className="mt-6 flex flex-col items-end gap-2">
-            {quote.globalDiscountPct > 0 && (
-              <div className="text-sm text-muted-foreground">
-                Descuento especial:{" "}
-                <span className="font-semibold text-brand-navy">{quote.globalDiscountPct}%</span>
-              </div>
-            )}
-            <div className="flex items-baseline gap-8">
-              <span className="text-lg font-bold text-brand-navy">Total detal</span>
-              <span className="flex items-baseline gap-2">
-                <span className="text-lg font-bold tabular-nums text-brand-navy">
-                  {formatMoneyAdmin(total)}
-                </span>
-                {bcv && (
-                  <span className="inline-flex items-center rounded-full bg-brand-blue/10 px-2 py-0.5 text-xs font-semibold tabular-nums text-brand-blue">
-                    ≈ {formatBs(total, bcv.rate)}
-                  </span>
-                )}
-              </span>
-            </div>
-            <div className="flex items-center gap-1.5 rounded-md bg-brand-yellow/10 px-2.5 py-1.5 text-sm text-brand-navy/70">
-              <Tag className="h-3.5 w-3.5 shrink-0 text-brand-yellow" />
-              <span className="font-bold tabular-nums text-brand-navy">
-                {formatMoneyAdmin(wholesaleTotal)}
-              </span>
-              <span>Total al mayor</span>
-            </div>
-          </div>
-        </div>
-      </div>
     </>
   );
 }
