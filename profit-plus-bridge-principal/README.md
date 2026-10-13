@@ -35,6 +35,17 @@ conexión falla, el mensaje dice qué revisar.
 Usa un usuario de SQL Server **de solo lectura** (rol `db_datareader` sobre
 la base de Profit Plus), nunca `sa`: el bridge nunca escribe.
 
+### La categoría de cada producto
+
+Profit Plus clasifica cada artículo de varias formas (línea, sublínea,
+categoría); el diagnóstico muestra en "Clasificaciones usadas por los
+artículos" cuál llena la tienda y con cuántos valores. La consulta toma esa
+clasificación y devuelve su código (`categoriaCodigo`) y su descripción
+(`categoria`). En la web, el código es la identidad de la categoría: si en
+Profit le cambian el nombre, la categoría sigue siendo la misma, con el
+nombre nuevo, y sus productos se actualizan en la siguiente sincronización.
+Un artículo sin clasificación queda en "Sin categoría".
+
 ## 2. Instalar y configurar
 
 Requiere [Node.js](https://nodejs.org) 18.19 o superior (la versión LTS
@@ -77,7 +88,7 @@ Respuesta esperada:
 {
   "total": 3,
   "productos": [
-    { "codigo": "EP-LED-9W", "descripcion": "Bombillo LED 9W", "categoria": "Iluminación", "stock": 42, "precio1": 4.5, "precio2": 3.2 }
+    { "codigo": "EP-LED-9W", "descripcion": "Bombillo LED 9W", "categoriaCodigo": "07", "categoria": "Iluminación", "stock": 42, "precio1": 4.5, "precio2": 3.2 }
   ]
 }
 ```
@@ -137,7 +148,7 @@ No uses port forwarding: expondría el bridge sin HTTPS.
 
 | Método | Ruta | Auth | Descripción |
 |---|---|---|---|
-| `GET` | `/api/productos-sincronizacion` | `Authorization: Bearer <API_KEY>` | Catálogo completo: código, descripción, categoría, stock, precio1, precio2 |
+| `GET` | `/api/productos-sincronizacion` | `Authorization: Bearer <API_KEY>` | Catálogo completo: código, descripción, código y nombre de la categoría, stock, precio1, precio2 |
 | `GET` | `/health` | ninguna | Confirma que el proceso está vivo (no expone datos ni toca SQL Server) |
 
 Las respuestas llevan `Cache-Control: no-store` y el catálogo va comprimido

@@ -99,6 +99,13 @@ try {
  *     Grp_Descripcion) — si tu instalación no tiene esta tabla, quita el
  *     JOIN y usa directamente art.Art_CodGrupo como "categoria".
  *
+ * Categoría: Profit Plus clasifica cada artículo de varias formas (línea,
+ * sublínea, categoría), cada una con su código en el artículo y su
+ * descripción en otra tabla. La que usa la tienda se ve en el diagnóstico
+ * ("Clasificaciones usadas por los artículos"). Su código va en
+ * categoria_codigo — es lo que mantiene la misma categoría en la web aunque
+ * en Profit le cambien el nombre — y su descripción en categoria.
+ *
  * El almacén llega como parámetro (@almacen), nunca pegado al texto de la
  * consulta: así no hay inyección SQL posible desde el .env.
  */
@@ -106,6 +113,7 @@ const PRODUCTOS_QUERY = `
   SELECT
     art.Art_Codigo                       AS codigo,
     art.Art_Descripcion                  AS descripcion,
+    art.Art_CodGrupo                     AS categoria_codigo,
     grp.Grp_Descripcion                  AS categoria,
     SUM(ISNULL(inv.Inv_Existencia, 0))   AS stock,
     art.Art_Precio1                      AS precio1,
@@ -118,7 +126,7 @@ const PRODUCTOS_QUERY = `
     ON grp.Grp_Codigo = art.Art_CodGrupo
   WHERE art.Art_Activo = 1
   GROUP BY
-    art.Art_Codigo, art.Art_Descripcion, grp.Grp_Descripcion,
+    art.Art_Codigo, art.Art_Descripcion, art.Art_CodGrupo, grp.Grp_Descripcion,
     art.Art_Precio1, art.Art_Precio2
   ORDER BY art.Art_Codigo;
 `;
@@ -161,6 +169,7 @@ function toProducto(row) {
   return {
     codigo: String(row.codigo ?? '').trim(),
     descripcion: String(row.descripcion ?? '').trim(),
+    categoriaCodigo: String(row.categoria_codigo ?? '').trim() || null,
     categoria: String(row.categoria ?? '').trim() || null,
     stock: Number(row.stock) || 0,
     precio1: Number(row.precio1) || 0,

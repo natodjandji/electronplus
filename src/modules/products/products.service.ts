@@ -706,6 +706,9 @@ export class ProductsService {
       existing.sku !== patch.sku ||
       existing.name !== patch.name ||
       existing.categoryId !== patch.categoryId ||
+      // The product keeps a copy of its category's name: a category renamed
+      // in Profit Plus has to reach every product in it.
+      existing.category?.label !== patch.category?.label ||
       existing.retailPrice !== patch.retailPrice ||
       existing.wholesalePrice !== patch.wholesalePrice ||
       existing.cost !== patch.cost ||

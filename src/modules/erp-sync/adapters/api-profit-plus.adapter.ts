@@ -13,6 +13,8 @@ import {
 interface BridgeProduct {
   codigo: string;
   descripcion: string;
+  /** Profit Plus's code for the item's category; null when it has none. */
+  categoriaCodigo?: string | null;
   categoria: string | null;
   stock: number;
   precio1: number;
@@ -78,17 +80,22 @@ export class ApiProfitPlusAdapter implements ProfitPlusAdapter {
       // un SKU con espacios no coincide con el código de barras escaneado
       // ni con la búsqueda. Se limpian aquí aunque el bridge ya lo haga.
       const code = String(p.codigo ?? '').trim();
-      // El bridge puede devolver categoria=null (LEFT JOIN sin match) —
-      // CategoriesService.findOrCreateByCode ya crea "Sin categoría" la
-      // primera vez y la reutiliza después, mismo mecanismo que cualquier
-      // categoría real.
-      const categoryLabel = p.categoria?.trim() || 'Sin categoría';
+      // El código de la categoría en Profit es su identidad: si en Profit le
+      // cambian el nombre, en la web sigue siendo la misma categoría con el
+      // nombre nuevo. Un artículo sin categoría (LEFT JOIN sin match) cae en
+      // "Sin categoría", que se crea la primera vez y se reutiliza después;
+      // uno con código pero sin descripción se muestra con su código.
+      const categoryExternalId = String(p.categoriaCodigo ?? '').trim() || undefined;
+      const categoryLabel =
+        p.categoria?.trim() ||
+        (categoryExternalId ? `Categoría ${categoryExternalId}` : 'Sin categoría');
       return {
         externalId: code,
         sku: code,
         name: String(p.descripcion ?? '').trim(),
         categoryCode: slugify(categoryLabel) || 'sin-categoria',
         categoryLabel,
+        categoryExternalId,
         // precio1 = tarifa principal (detal), precio2 = segunda tarifa
         // (mayor) — mismo orden que ya asume el resto del catálogo
         // (retailPrice/wholesalePrice).

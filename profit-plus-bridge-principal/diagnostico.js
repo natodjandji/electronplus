@@ -5,6 +5,8 @@
  *   - la versión de SQL Server y el nombre de la base;
  *   - las tablas cuyo nombre parece de artículos, existencias, almacenes,
  *     precios, líneas/grupos o monedas, con sus filas y columnas;
+ *   - qué clasificaciones (línea, sublínea, categoría) usan los artículos,
+ *     para saber cuál mostrar como categoría en la web;
  *   - 3 filas de ejemplo de las tablas de catálogo conocidas de Profit Plus.
  * Nada de clientes, ventas ni usuarios: solo el catálogo. No modifica nada.
  *
@@ -46,6 +48,13 @@ const SAMPLE_TABLES = [
   'saInvent',
   'saGrupoArt',
 ];
+
+/** Tablas de artículos de Profit Plus, según la versión. */
+const ARTICLE_TABLES = new Set(['art', 'saarticulo', 'saart']);
+/** Columnas de un artículo que apuntan a una clasificación (línea,
+ * sublínea, categoría, grupo), por su nombre. */
+const CLASSIFICATION_COLUMN = /lin|cat|grup|subl/i;
+const TEXT_TYPES = new Set(['char', 'varchar', 'nchar', 'nvarchar']);
 
 const SAMPLE_ROWS = 3;
 const MAX_VALUE_LENGTH = 80;
@@ -130,6 +139,39 @@ async function main() {
       out(`${table.esquema}.${table.tabla} — ${table.filas} filas`);
       out(`  ${cols.length > 0 ? cols.join(', ') : '(sin columnas visibles para este usuario)'}`);
     }
+    out();
+
+    // Cuántos artículos tienen cada clasificación y con cuántos valores
+    // distintos: la que la tienda llena es la que se muestra como categoría.
+    out('== Clasificaciones usadas por los artículos');
+    const articleTables = tables.filter((t) => ARTICLE_TABLES.has(t.tabla.toLowerCase()));
+    for (const table of articleTables) {
+      const classifications = columns.filter(
+        (c) =>
+          c.esquema === table.esquema &&
+          c.tabla === table.tabla &&
+          TEXT_TYPES.has(String(c.tipo).toLowerCase()) &&
+          CLASSIFICATION_COLUMN.test(c.columna),
+      );
+      for (const column of classifications) {
+        const value = `NULLIF(LTRIM(RTRIM(${quoteName(column.columna)})), '')`;
+        try {
+          const { recordset } = await pool.request().query(`
+            SELECT COUNT(DISTINCT ${value}) AS distintos,
+                   SUM(CASE WHEN ${value} IS NULL THEN 0 ELSE 1 END) AS con_valor,
+                   COUNT(*) AS total
+            FROM ${quoteName(table.esquema)}.${quoteName(table.tabla)}
+          `);
+          const { distintos, con_valor: conValor, total } = recordset[0];
+          out(
+            `${table.tabla}.${column.columna}: ${distintos} valores distintos, en ${conValor} de ${total} artículos`,
+          );
+        } catch (err) {
+          out(`${table.tabla}.${column.columna}: (no se pudo contar: ${err.message})`);
+        }
+      }
+    }
+    if (articleTables.length === 0) out('(no se encontró la tabla de artículos)');
     out();
 
     const wanted = new Set(SAMPLE_TABLES.map((name) => name.toLowerCase()));

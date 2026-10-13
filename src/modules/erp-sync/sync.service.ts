@@ -118,23 +118,29 @@ export class SyncService implements OnModuleInit {
       const { byErpExternalId, bySku } = await this.productsService.findAllForErpMatching();
       const catalogChanges: ErpCatalogChanges = { put: [], merge: [], remove: [] };
 
-      // Resolve each distinct category code exactly once — sharing the
-      // in-flight promise across items with the same code avoids both N
-      // sequential reads for a repeated code AND a race where two
-      // concurrent findOrCreateByCode calls for the same new code both
-      // pass the "not found" check and create duplicate category docs.
-      const categoryByCode = new Map<string, ReturnType<CategoriesService['findOrCreateByCode']>>();
-      const resolveCategory = (code: string, label: string) => {
-        const existing = categoryByCode.get(code);
+      // Resolve each distinct category exactly once — by Profit's category
+      // code when the bridge sends it, else by name. Sharing the in-flight
+      // promise across items of the same category avoids both N sequential
+      // reads AND a race where two concurrent lookups for a new category
+      // both pass the "not found" check and create duplicate category docs.
+      const categoryByKey = new Map<string, ReturnType<CategoriesService['findOrCreateForErp']>>();
+      const resolveCategory = (item: ErpInventoryItem) => {
+        const key = item.categoryExternalId
+          ? `erp:${item.categoryExternalId}`
+          : `code:${item.categoryCode}`;
+        const existing = categoryByKey.get(key);
         if (existing) return existing;
-        const pending = this.categoriesService.findOrCreateByCode(code, label);
-        categoryByCode.set(code, pending);
+        const pending = this.categoriesService.findOrCreateForErp(
+          item.categoryExternalId,
+          item.categoryLabel,
+        );
+        categoryByKey.set(key, pending);
         return pending;
       };
 
       const results = await Promise.allSettled(
         items.map(async (item) => {
-          const category = await resolveCategory(item.categoryCode, item.categoryLabel);
+          const category = await resolveCategory(item);
           const existing = byErpExternalId.get(item.externalId) ?? bySku.get(item.sku);
           return this.productsService.upsertFromErp(
             {

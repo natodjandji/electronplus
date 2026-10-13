@@ -13,11 +13,12 @@ describe('ApiProfitPlusAdapter', () => {
     const spy = jest.spyOn(global, 'fetch').mockResolvedValue(
       new Response(
         JSON.stringify({
-          total: 2,
+          total: 3,
           productos: [
             {
               codigo: 'EP-LED-9W      ',
               descripcion: 'Bombillo LED 9W   ',
+              categoriaCodigo: '07    ',
               categoria: ' Iluminación ',
               stock: -3,
               precio1: '4.50',
@@ -30,6 +31,15 @@ describe('ApiProfitPlusAdapter', () => {
               stock: 12.5,
               precio1: 1,
               precio2: null,
+            },
+            {
+              codigo: 'TOM-2',
+              descripcion: 'Toma doble',
+              categoriaCodigo: '05',
+              categoria: null,
+              stock: 3,
+              precio1: 2,
+              precio2: 1.5,
             },
           ],
         }),
@@ -44,6 +54,7 @@ describe('ApiProfitPlusAdapter', () => {
         name: 'Bombillo LED 9W',
         categoryCode: 'iluminacion',
         categoryLabel: 'Iluminación',
+        categoryExternalId: '07',
         retailPrice: 4.5,
         wholesalePrice: 3.2,
         stock: 0,
@@ -57,6 +68,18 @@ describe('ApiProfitPlusAdapter', () => {
         retailPrice: 1,
         wholesalePrice: 0,
         stock: 12.5,
+      },
+      // A category code without a name in Profit: shown by its code.
+      {
+        externalId: 'TOM-2',
+        sku: 'TOM-2',
+        name: 'Toma doble',
+        categoryCode: 'categoria-05',
+        categoryLabel: 'Categoría 05',
+        categoryExternalId: '05',
+        retailPrice: 2,
+        wholesalePrice: 1.5,
+        stock: 3,
       },
     ]);
     expect(spy).toHaveBeenCalledWith(

@@ -41,7 +41,11 @@ describe('SyncService and products removed in Profit Plus', () => {
     events.on(ERP_SYNC_ERROR_EVENT, errors);
     const adapter = { fetchInventory: jest.fn(async () => feed), isConfigured: () => true };
     const categories = {
-      findOrCreateByCode: async (code: string, label: string) => ({ id: 'cat', code, label }),
+      findOrCreateForErp: async (_erpCode: string | undefined, label: string) => ({
+        id: 'cat',
+        code: 'cables',
+        label,
+      }),
     };
     const sync = new SyncService(
       adapter as never,
@@ -84,6 +88,19 @@ describe('SyncService and products removed in Profit Plus', () => {
     expect(products).toEqual([
       expect.objectContaining({ erpExternalId: 'A', name: 'Producto A', stock: 4 }),
     ]);
+  });
+
+  it('carries a category renamed in Profit Plus to its products', async () => {
+    const { sync, read } = setup(
+      [{ ...item('A'), categoryLabel: 'Cables y alambres', categoryExternalId: '07' }],
+      { A: { erpExternalId: 'A' } },
+    );
+    const log = await sync.runInboundSync();
+    expect(log.itemsProcessed).toBe(1);
+    expect(read('A')).toMatchObject({
+      categoryId: 'cat',
+      category: { id: 'cat', code: 'cables', label: 'Cables y alambres' },
+    });
   });
 
   it('brings it back when Profit Plus sends it again', async () => {
