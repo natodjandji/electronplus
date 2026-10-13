@@ -29,7 +29,7 @@ export function SellerShell({ children }: { children: ReactNode }) {
     <div className="min-h-dvh bg-brand-surface print:min-h-0 print:bg-white">
       <header className="sticky top-0 z-40 border-b border-border bg-white/90 backdrop-blur print:hidden">
         <div className="mx-auto flex h-16 max-w-7xl items-center gap-2 px-3 sm:gap-4 sm:px-6">
-          <Link to="/vendedor" className="shrink-0" aria-label="Ventas en tienda">
+          <Link to="/" className="shrink-0">
             <ElectronLogo layout="full" tone="color" className="h-7 sm:h-9" />
           </Link>
 

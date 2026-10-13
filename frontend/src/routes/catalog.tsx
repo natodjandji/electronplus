@@ -2,7 +2,7 @@ import { createFileRoute, Link } from "@tanstack/react-router";
 import { useMemo, useRef, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { AnimatePresence, motion } from "motion/react";
-import { ArrowUpDown, Filter, LayoutGrid, List, Search, Tags } from "lucide-react";
+import { ArrowUpDown, Filter, LayoutGrid, List, Search } from "lucide-react";
 import { PublicShell } from "@/components/public-shell";
 import { CircuitBackground } from "@/components/circuit-traces";
 import { staggerContainer, staggerItem } from "@/components/motion-primitives";
@@ -86,6 +86,8 @@ export const Route = createFileRoute("/catalog")({
 // of hanging off the left edge — flex-wrap + justify-center, which a CSS
 // grid can't do for its last row.
 const PAGE_SIZE = 10;
+/** A section title inside the filters popover. */
+const FILTER_HEADING = "mb-2 text-xs font-semibold uppercase tracking-wider text-muted-foreground";
 const GRID_CONTAINER = "flex flex-wrap justify-center gap-3";
 // min-w-0: like a grid track, let a card narrow below a long unbreakable SKU
 // instead of growing past its basis and knocking its neighbour to the next row.
@@ -160,7 +162,29 @@ function CatalogPage() {
   );
   const resultsTop = useRef<HTMLElement>(null);
 
-  const activeFilterCount = (onlyAvailable ? 1 : 0) + (priceFiltered ? 1 : 0);
+  // Every filter lives in one popover, so its badge counts them all.
+  const activeFilterCount = cats.length + (onlyAvailable ? 1 : 0) + (priceFiltered ? 1 : 0);
+  const clearFilters = () => {
+    setCats([]);
+    setOnlyAvailable(false);
+    setPriceRange(null);
+  };
+
+  const viewToggle = (className: string) => (
+    <ToggleGroup
+      type="single"
+      value={view}
+      onValueChange={(v) => v && setView(v as "grid" | "list")}
+      className={cn("shrink-0 rounded-md border border-input", className)}
+    >
+      <ToggleGroupItem value="grid" aria-label="Vista de cuadrícula" className="h-9 w-9">
+        <LayoutGrid className="h-4 w-4" />
+      </ToggleGroupItem>
+      <ToggleGroupItem value="list" aria-label="Vista de lista" className="h-9 w-9">
+        <List className="h-4 w-4" />
+      </ToggleGroupItem>
+    </ToggleGroup>
+  );
 
   const handleQtyChange = (p: Product, currentQty: number, nextQty: number) => {
     if (nextQty <= 0) {
@@ -210,49 +234,7 @@ function CatalogPage() {
           <div className="flex items-center gap-2">
             <Popover>
               <PopoverTrigger asChild>
-                <Button variant="outline" className="gap-2">
-                  <Tags className="h-4 w-4" />
-                  Categorías
-                  {cats.length > 0 && (
-                    <Badge className="ml-0.5 h-5 min-w-5 justify-center rounded-full bg-brand-blue px-1 text-white">
-                      {cats.length}
-                    </Badge>
-                  )}
-                </Button>
-              </PopoverTrigger>
-              <PopoverContent align="start" className="w-64">
-                <div className="mb-2 flex items-center justify-between">
-                  <div className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-                    Categorías
-                  </div>
-                  {cats.length > 0 && (
-                    <button
-                      onClick={() => setCats([])}
-                      className="text-xs font-medium text-brand-blue hover:underline"
-                    >
-                      Limpiar
-                    </button>
-                  )}
-                </div>
-                <div className="-mr-2 max-h-72 space-y-2 overflow-y-auto pr-2">
-                  {availableCategories.map((c) => (
-                    <label key={c.id} className="flex items-center gap-2 text-sm text-brand-navy">
-                      <Checkbox
-                        checked={cats.includes(c.id)}
-                        onCheckedChange={(v) =>
-                          setCats((prev) => (v ? [...prev, c.id] : prev.filter((x) => x !== c.id)))
-                        }
-                      />
-                      {c.label}
-                    </label>
-                  ))}
-                </div>
-              </PopoverContent>
-            </Popover>
-
-            <Popover>
-              <PopoverTrigger asChild>
-                <Button variant="outline" className="gap-2">
+                <Button variant="outline" className="shrink-0 gap-2">
                   <Filter className="h-4 w-4" />
                   Filtros
                   {activeFilterCount > 0 && (
@@ -262,70 +244,82 @@ function CatalogPage() {
                   )}
                 </Button>
               </PopoverTrigger>
-              <PopoverContent align="start" className="w-72">
-                <div className="mb-4">
-                  <div className="mb-2 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-                    Rango de precio (REF)
-                  </div>
-                  <Slider
-                    value={range}
-                    onValueChange={(v) => setPriceRange([v[0], v[1]])}
-                    min={0}
-                    max={priceCeiling}
-                    step={1}
-                    thumbLabels={["Precio mínimo", "Precio máximo"]}
-                  />
-                  <div className="mt-2 flex justify-between text-xs tabular-nums text-muted-foreground">
-                    <span>{formatMoney(range[0])}</span>
-                    <span>{formatMoney(range[1])}</span>
-                  </div>
+              <PopoverContent align="start" className="w-80 p-0">
+                <div className="flex items-center justify-between border-b border-border px-4 py-3">
+                  <div className="text-sm font-semibold text-brand-navy">Filtros</div>
+                  {activeFilterCount > 0 && (
+                    <button
+                      onClick={clearFilters}
+                      className="text-xs font-medium text-brand-blue hover:underline"
+                    >
+                      Limpiar todo
+                    </button>
+                  )}
                 </div>
-                <label className="flex items-center gap-2 text-sm text-brand-navy">
-                  <Checkbox
-                    checked={onlyAvailable}
-                    onCheckedChange={(v) => setOnlyAvailable(!!v)}
-                  />
-                  Solo disponibles
-                </label>
-                {activeFilterCount > 0 && (
-                  <button
-                    onClick={() => {
-                      setOnlyAvailable(false);
-                      setPriceRange(null);
-                    }}
-                    className="mt-4 text-xs font-medium text-brand-blue hover:underline"
-                  >
-                    Limpiar filtros
-                  </button>
-                )}
+                <div className="space-y-5 p-4">
+                  <div>
+                    <div className={FILTER_HEADING}>Categorías</div>
+                    {availableCategories.length > 0 ? (
+                      <div className="-mr-2 max-h-52 space-y-2 overflow-y-auto pr-2">
+                        {availableCategories.map((c) => (
+                          <label
+                            key={c.id}
+                            className="flex items-center gap-2 text-sm text-brand-navy"
+                          >
+                            <Checkbox
+                              checked={cats.includes(c.id)}
+                              onCheckedChange={(v) =>
+                                setCats((prev) =>
+                                  v ? [...prev, c.id] : prev.filter((x) => x !== c.id),
+                                )
+                              }
+                            />
+                            {c.label}
+                          </label>
+                        ))}
+                      </div>
+                    ) : (
+                      <p className="text-sm text-muted-foreground">Sin categorías por ahora.</p>
+                    )}
+                  </div>
+                  <div>
+                    <div className={FILTER_HEADING}>Rango de precio (REF)</div>
+                    <Slider
+                      value={range}
+                      onValueChange={(v) => setPriceRange([v[0], v[1]])}
+                      min={0}
+                      max={priceCeiling}
+                      step={1}
+                      thumbLabels={["Precio mínimo", "Precio máximo"]}
+                    />
+                    <div className="mt-2 flex justify-between text-xs tabular-nums text-muted-foreground">
+                      <span>{formatMoney(range[0])}</span>
+                      <span>{formatMoney(range[1])}</span>
+                    </div>
+                  </div>
+                  <label className="flex items-center gap-2 text-sm text-brand-navy">
+                    <Checkbox
+                      checked={onlyAvailable}
+                      onCheckedChange={(v) => setOnlyAvailable(!!v)}
+                    />
+                    Solo disponibles
+                  </label>
+                </div>
               </PopoverContent>
             </Popover>
 
-            <ToggleGroup
-              type="single"
-              value={view}
-              onValueChange={(v) => v && setView(v as "grid" | "list")}
-              className="rounded-md border border-input"
-            >
-              <ToggleGroupItem value="grid" aria-label="Vista de cuadrícula" className="h-9 w-9">
-                <LayoutGrid className="h-4 w-4" />
-              </ToggleGroupItem>
-              <ToggleGroupItem value="list" aria-label="Vista de lista" className="h-9 w-9">
-                <List className="h-4 w-4" />
-              </ToggleGroupItem>
-            </ToggleGroup>
-          </div>
-        </div>
-
-        <div className="mb-4 mt-4 flex items-center justify-between gap-3">
-          <div className="text-sm text-muted-foreground">
-            {filtered.length} producto{filtered.length === 1 ? "" : "s"}
-          </div>
-          <div className="flex items-center gap-2">
-            <span className="hidden text-sm text-muted-foreground sm:inline">Ordenar por</span>
+            {/* Next to the filters; on a phone it takes the rest of the row. */}
             <Select value={sort} onValueChange={(v) => isCatalogSort(v) && setSort(v)}>
-              <SelectTrigger aria-label="Ordenar por" className="h-9 w-auto gap-2">
+              <SelectTrigger
+                aria-label="Ordenar por"
+                className="h-9 min-w-0 flex-1 gap-2 sm:w-auto sm:flex-none"
+              >
                 <ArrowUpDown className="h-4 w-4 shrink-0 text-muted-foreground" />
+                {/* Not a <span>: the trigger forces every direct span child
+                    visible (line-clamp), which would undo `hidden`. */}
+                <small className="hidden text-sm text-muted-foreground lg:inline">
+                  Ordenar por
+                </small>
                 <SelectValue />
               </SelectTrigger>
               <SelectContent align="end">
@@ -336,7 +330,18 @@ function CatalogPage() {
                 ))}
               </SelectContent>
             </Select>
+
+            {viewToggle("hidden sm:flex")}
           </div>
+        </div>
+
+        {/* On a phone the view switch sits here, so filters and sort get the
+            whole row above. */}
+        <div className="mb-4 mt-4 flex items-center justify-between gap-3">
+          <div className="text-sm text-muted-foreground">
+            {filtered.length} producto{filtered.length === 1 ? "" : "s"}
+          </div>
+          {viewToggle("sm:hidden")}
         </div>
 
         {isLoading ? (
