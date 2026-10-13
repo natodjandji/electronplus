@@ -1,6 +1,8 @@
-import { Injectable, Logger } from '@nestjs/common';
+import { Inject, Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { OnEvent } from '@nestjs/event-emitter';
+import type { Auth } from 'firebase-admin/auth';
+import { FIREBASE_AUTH } from '../../firebase/firebase.constants';
 import { EnvConfig } from '../../config/env.validation';
 import { USER_CREATED_EVENT, UserCreatedEvent } from '../../common/guards/firebase-auth.guard';
 import {
@@ -18,7 +20,11 @@ import {
 import { STOCK_ALERT_RAISED_EVENT, StockAlertRaisedEvent } from '../inventory/inventory.service';
 import { INVOICE_DUE_ALERT_EVENT, InvoiceDueAlertEvent } from '../finance/finance.service';
 import { EXPENSE_DUE_ALERT_EVENT, ExpenseDueAlertEvent } from '../expenses/expenses.service';
-import { UsersService } from '../users/users.service';
+import {
+  EMAIL_VERIFICATION_REQUESTED_EVENT,
+  EmailVerificationRequestedEvent,
+  UsersService,
+} from '../users/users.service';
 import { EmailService } from './email.service';
 import { expenseDueEmail } from './templates/expense-due-email';
 import { invoiceDueEmail } from './templates/invoice-due-email';
@@ -26,6 +32,7 @@ import { orderCreatedEmail } from './templates/order-created-email';
 import { orderStatusEmail } from './templates/order-status-email';
 import { quoteStatusEmail } from './templates/quote-status-email';
 import { stockAlertEmail } from './templates/stock-alert-email';
+import { verifyEmailEmail } from './templates/verify-email-email';
 import { welcomeEmail } from './templates/welcome-email';
 
 const ADMIN_CACHE_TTL_MS = 5 * 60 * 1000;
@@ -46,6 +53,7 @@ export class EmailListener {
     private readonly ordersService: OrdersService,
     private readonly quotesService: QuotesService,
     private readonly usersService: UsersService,
+    @Inject(FIREBASE_AUTH) private readonly auth: Auth,
     config: ConfigService<EnvConfig, true>,
   ) {
     this.siteUrl = config.get('PUBLIC_SITE_URL', { infer: true });
@@ -58,6 +66,20 @@ export class EmailListener {
       await this.email.send(payload.email, subject, html);
     } catch (error) {
       this.logger.error(`Failed to send welcome email to ${payload.email}`, error as Error);
+    }
+  }
+
+  @OnEvent(EMAIL_VERIFICATION_REQUESTED_EVENT)
+  async handleEmailVerificationRequested(payload: EmailVerificationRequestedEvent): Promise<void> {
+    try {
+      const link = await this.auth.generateEmailVerificationLink(payload.email);
+      const { subject, html } = verifyEmailEmail(payload.displayName, link, this.siteUrl);
+      await this.email.send(payload.email, subject, html);
+    } catch (error) {
+      this.logger.error(
+        `Failed to send the verification email to ${payload.email}`,
+        error as Error,
+      );
     }
   }
 

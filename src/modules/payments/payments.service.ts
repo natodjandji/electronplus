@@ -1,4 +1,10 @@
-import { BadRequestException, ForbiddenException, Inject, Injectable } from '@nestjs/common';
+import {
+  BadRequestException,
+  ForbiddenException,
+  Inject,
+  Injectable,
+  Logger,
+} from '@nestjs/common';
 import { EventEmitter2 } from '@nestjs/event-emitter';
 import type { Firestore } from 'firebase-admin/firestore';
 import { Role } from '../../common/enums/role.enum';
@@ -24,6 +30,7 @@ export interface PaymentVerifiedEvent {
 
 @Injectable()
 export class PaymentsService {
+  private readonly logger = new Logger(PaymentsService.name);
   private readonly repo: FirestoreRepository<Payment>;
 
   constructor(
@@ -129,7 +136,11 @@ export class PaymentsService {
       const snap = await tx.get(ref);
       if (!snap.exists) throw new BadRequestException('Payment not found');
       const payment = { ...snap.data(), id: snap.id } as Payment;
-      if (!MANUAL_RECONCILIATION_METHODS.includes(payment.method)) {
+      // A PayPal charge that PayPal didn't confirm (see capturePaypal) is
+      // checked by hand like a bank transfer; any other PayPal payment
+      // confirms itself through the capture.
+      const paypalUnderReview = payment.method === PaymentMethod.PAYPAL && !!payment.paypalReview;
+      if (!MANUAL_RECONCILIATION_METHODS.includes(payment.method) && !paypalUnderReview) {
         throw new BadRequestException('Only manual-reconciliation payments are verified this way');
       }
       if (payment.status !== PaymentStatus.PENDING) {
@@ -177,9 +188,15 @@ export class PaymentsService {
    * prevents a double charge if two requests race — PayPal accepts exactly
    * one capture per order and errors the other. The transaction below only
    * needs to guarantee *our own* write+event fire at most once: if another
-   * concurrent request already flipped this payment to VERIFIED by the time
-   * this one's capture call returns, skip the write/event instead of
-   * throwing — the payment did genuinely succeed, just via the other call. */
+   * concurrent request already settled this payment by the time this one's
+   * capture call returns, skip the write/event instead of throwing — the
+   * payment did genuinely succeed, just via the other call.
+   *
+   * The order is paid only when PayPal confirms the charge itself (not just
+   * the order) for this payment's exact amount in USD. A charge still under
+   * review at PayPal, or for a different amount, leaves the payment pending
+   * for an admin: the buyer's money is taken, so their checkout finishes
+   * and the order waits for verification like a bank transfer. */
   async capturePaypal(id: string, user: AuthenticatedUser): Promise<Payment> {
     const payment = await this.findById(id);
     await this.assertOrderAccess(payment.orderId, user);
@@ -190,23 +207,45 @@ export class PaymentsService {
       throw new BadRequestException(`Payment is already ${payment.status}`);
     }
     const result = await this.paypal.captureOrder(payment.externalReference);
-    if (result.status !== 'COMPLETED') {
+    if (result.status !== 'COMPLETED' || !result.capture) {
       throw new BadRequestException(`PayPal order not completed (status: ${result.status})`);
+    }
+    const { capture } = result;
+    if (capture.status === 'DECLINED' || capture.status === 'FAILED') {
+      throw new BadRequestException(`PayPal declined the charge (status: ${capture.status})`);
+    }
+    const confirmed =
+      capture.status === 'COMPLETED' &&
+      capture.currency === 'USD' &&
+      Math.abs(capture.amount - payment.amount) < 0.005;
+    if (!confirmed) {
+      this.logger.warn(
+        `PayPal charge ${capture.id} for payment ${id} needs review: ${capture.status} ${capture.amount} ${capture.currency} (expected ${payment.amount} USD)`,
+      );
     }
 
     const ref = this.repo.doc(id);
-    const { saved, alreadyVerified } = await this.firestore.runTransaction(async (tx) => {
+    const { saved, verifiedNow } = await this.firestore.runTransaction(async (tx) => {
       const snap = await tx.get(ref);
       const current = { ...snap.data(), id: snap.id } as Payment;
       if (current.status !== PaymentStatus.PENDING) {
-        return { saved: current, alreadyVerified: true };
+        return { saved: current, verifiedNow: false };
       }
-      const patch = { status: PaymentStatus.VERIFIED, verifiedAt: new Date() };
+      const patch: Partial<Payment> = confirmed
+        ? { status: PaymentStatus.VERIFIED, verifiedAt: new Date(), paypalCaptureId: capture.id }
+        : {
+            paypalCaptureId: capture.id,
+            paypalReview: {
+              status: capture.status,
+              amount: capture.amount,
+              currency: capture.currency,
+            },
+          };
       tx.update(ref, patch);
-      return { saved: { ...current, ...patch }, alreadyVerified: false };
+      return { saved: { ...current, ...patch }, verifiedNow: confirmed };
     });
 
-    if (!alreadyVerified) {
+    if (verifiedNow) {
       this.events.emit(PAYMENT_VERIFIED_EVENT, {
         orderId: saved.orderId,
         paymentId: saved.id,

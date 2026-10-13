@@ -38,7 +38,15 @@
           },
           {
             "key": "Permissions-Policy",
-            "value": "camera=(), microphone=(), geolocation=(), usb=()"
+            "value": "camera=(self), microphone=(), geolocation=(), usb=()"
+          },
+          {
+            "key": "X-Frame-Options",
+            "value": "DENY"
+          },
+          {
+            "key": "Content-Security-Policy",
+            "value": "frame-ancestors 'none'"
           }
         ]
       },
@@ -75,32 +83,6 @@
           {
             "key": "Access-Control-Allow-Origin",
             "value": "*"
-          }
-        ]
-      },
-      {
-        "source": "/@(admin|client|checkout|cart|quotes|login|register)",
-        "headers": [
-          {
-            "key": "X-Frame-Options",
-            "value": "DENY"
-          },
-          {
-            "key": "Content-Security-Policy",
-            "value": "frame-ancestors 'none'"
-          }
-        ]
-      },
-      {
-        "source": "/@(admin|client|quotes)/**",
-        "headers": [
-          {
-            "key": "X-Frame-Options",
-            "value": "DENY"
-          },
-          {
-            "key": "Content-Security-Policy",
-            "value": "frame-ancestors 'none'"
           }
         ]
       }

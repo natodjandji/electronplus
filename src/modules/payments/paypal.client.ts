@@ -13,6 +13,45 @@ export interface PayPalOrder {
   links: { rel: string; href: string; method: string }[];
 }
 
+/** An order after capture: its own status and the charge itself. An order
+ * can be COMPLETED while its capture is still PENDING (PayPal reviewing the
+ * payment), so the capture is what says the money arrived. */
+export interface PayPalCaptureResult {
+  status: string;
+  capture?: { id: string; status: string; amount: number; currency: string };
+}
+
+/** Per call. A hung PayPal request otherwise holds the buyer's checkout
+ * (and a Cloud Run request) open until the platform cuts it off. */
+const PAYPAL_TIMEOUT_MS = 20_000;
+
+interface PayPalOrderBody {
+  status?: string;
+  details?: { issue?: string }[];
+  purchase_units?: {
+    payments?: {
+      captures?: {
+        id?: string;
+        status?: string;
+        amount?: { value?: string; currency_code?: string };
+      }[];
+    };
+  }[];
+}
+
+function toCaptureResult(body: PayPalOrderBody): PayPalCaptureResult {
+  const capture = body.purchase_units?.[0]?.payments?.captures?.[0];
+  return {
+    status: body.status ?? 'UNKNOWN',
+    capture: capture && {
+      id: capture.id ?? '',
+      status: capture.status ?? 'UNKNOWN',
+      amount: Number(capture.amount?.value),
+      currency: capture.amount?.currency_code ?? '',
+    },
+  };
+}
+
 @Injectable()
 export class PayPalClient {
   private readonly logger = new Logger(PayPalClient.name);
@@ -51,6 +90,7 @@ export class PayPalClient {
         'Content-Type': 'application/x-www-form-urlencoded',
       },
       body: 'grant_type=client_credentials',
+      signal: AbortSignal.timeout(PAYPAL_TIMEOUT_MS),
     });
     if (!res.ok) {
       // PayPal's raw error body is logged server-side only — it's third-party
@@ -75,6 +115,7 @@ export class PayPalClient {
         intent: 'CAPTURE',
         purchase_units: [{ amount: { currency_code: currency, value: amount.toFixed(2) } }],
       }),
+      signal: AbortSignal.timeout(PAYPAL_TIMEOUT_MS),
     });
     if (!res.ok) {
       this.logger.error(`PayPal create order failed: ${res.status} ${await res.text()}`);
@@ -83,17 +124,45 @@ export class PayPalClient {
     return res.json() as Promise<PayPalOrder>;
   }
 
-  async captureOrder(paypalOrderId: string): Promise<{ status: string; raw: unknown }> {
+  async captureOrder(paypalOrderId: string): Promise<PayPalCaptureResult> {
     const token = await this.getAccessToken();
-    const res = await fetch(`${this.baseUrl}/v2/checkout/orders/${paypalOrderId}/capture`, {
-      method: 'POST',
-      headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
-    });
-    const raw = await res.json();
+    const res = await fetch(
+      `${this.baseUrl}/v2/checkout/orders/${encodeURIComponent(paypalOrderId)}/capture`,
+      {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+        signal: AbortSignal.timeout(PAYPAL_TIMEOUT_MS),
+      },
+    );
+    const body = (await res.json().catch(() => ({}))) as PayPalOrderBody;
     if (!res.ok) {
-      this.logger.error(`PayPal capture failed: ${res.status} ${JSON.stringify(raw)}`);
+      // A capture that went through but whose answer was lost (a timeout,
+      // a dropped connection) comes back as ORDER_ALREADY_CAPTURED on the
+      // buyer's retry: read the order instead, or the payment stays pending
+      // with the money already taken.
+      if (res.status === 422 && body.details?.some((d) => d.issue === 'ORDER_ALREADY_CAPTURED')) {
+        return this.getOrder(paypalOrderId);
+      }
+      this.logger.error(`PayPal capture failed: ${res.status} ${JSON.stringify(body)}`);
       throw new ServiceUnavailableException('PayPal capture failed');
     }
-    return { status: (raw as { status: string }).status, raw };
+    return toCaptureResult(body);
+  }
+
+  private async getOrder(paypalOrderId: string): Promise<PayPalCaptureResult> {
+    const token = await this.getAccessToken();
+    const res = await fetch(
+      `${this.baseUrl}/v2/checkout/orders/${encodeURIComponent(paypalOrderId)}`,
+      {
+        headers: { Authorization: `Bearer ${token}` },
+        signal: AbortSignal.timeout(PAYPAL_TIMEOUT_MS),
+      },
+    );
+    const body = (await res.json().catch(() => ({}))) as PayPalOrderBody;
+    if (!res.ok) {
+      this.logger.error(`PayPal order lookup failed: ${res.status} ${JSON.stringify(body)}`);
+      throw new ServiceUnavailableException('PayPal order lookup failed');
+    }
+    return toCaptureResult(body);
   }
 }

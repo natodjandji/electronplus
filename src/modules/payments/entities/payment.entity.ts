@@ -37,6 +37,13 @@ export interface Payment extends FirestoreDoc {
   reference?: string; // bank/pago-móvil/zelle confirmation reference
   proofUrl?: string;
   externalReference?: string; // PayPal order id
+  /** PayPal's id for the charge — how it's found in the PayPal dashboard. */
+  paypalCaptureId?: string;
+  /** Set when PayPal took the money but didn't confirm it for this order —
+   * the charge is still under review at PayPal, or it doesn't match the
+   * order's amount. The payment stays pending until an admin checks PayPal
+   * and verifies or rejects it by hand. */
+  paypalReview?: { status: string; amount: number; currency: string };
   verifiedByUserId?: string;
   verifiedAt?: Date;
   rejectionReason?: string;

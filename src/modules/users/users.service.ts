@@ -1,4 +1,5 @@
-import { ForbiddenException, Inject, Injectable } from '@nestjs/common';
+import { BadRequestException, ForbiddenException, Inject, Injectable } from '@nestjs/common';
+import { EventEmitter2 } from '@nestjs/event-emitter';
 import type { Auth } from 'firebase-admin/auth';
 import type { Firestore } from 'firebase-admin/firestore';
 import { Role } from '../../common/enums/role.enum';
@@ -8,6 +9,13 @@ import { FirestoreRepository, snapshotToEntity } from '../../firebase/firestore.
 import { UpdateProfileDto } from './dto/update-profile.dto';
 import { UpdateUserDto } from './dto/update-user.dto';
 import { User } from './entities/user.entity';
+
+export const EMAIL_VERIFICATION_REQUESTED_EVENT = 'user.email-verification.requested';
+
+export interface EmailVerificationRequestedEvent {
+  email: string;
+  displayName?: string;
+}
 
 export interface UserPage {
   data: User[];
@@ -23,6 +31,7 @@ export class UsersService {
   constructor(
     @Inject(FIRESTORE) firestore: Firestore,
     @Inject(FIREBASE_AUTH) private readonly auth: Auth,
+    private readonly events: EventEmitter2,
   ) {
     this.repo = new FirestoreRepository<User>(firestore, Collections.USERS);
   }
@@ -73,6 +82,10 @@ export class UsersService {
     if (dto.role === Role.ADMIN) {
       throw new ForbiddenException('The admin role cannot be granted from the panel');
     }
+    // repo.update() is a set-merge: on an unknown id it would create a
+    // half-made user before Firebase Auth refused the role change.
+    await this.repo.getOrThrow(uid, 'User not found');
+    if (dto.role && dto.role !== Role.CLIENT) await this.assertEmailVerified(uid);
     const updated = await this.repo.update(uid, dto);
     if (dto.role) {
       // Keeps FirebaseAuthGuard's role custom claim in sync.
@@ -89,6 +102,27 @@ export class UsersService {
       await this.auth.revokeRefreshTokens(uid);
     }
     return updated;
+  }
+
+  /** A staff role opens the seller tool — quotes with the store's name and
+   * any discount — so it only goes to an account whose email is proven.
+   * Anyone can register an unverified account under an employee's address
+   * and wait to be promoted. Google sign-ins arrive verified; an
+   * email-and-password account is sent a verification link, and the role
+   * can be set once it's confirmed. */
+  private async assertEmailVerified(uid: string): Promise<void> {
+    const account = await this.auth.getUser(uid);
+    if (account.emailVerified) return;
+    if (!account.email) {
+      throw new BadRequestException('Este usuario no tiene un correo verificado.');
+    }
+    this.events.emit(EMAIL_VERIFICATION_REQUESTED_EVENT, {
+      email: account.email,
+      displayName: account.displayName,
+    } satisfies EmailVerificationRequestedEvent);
+    throw new BadRequestException(
+      'Este usuario todavía no verificó su correo. Le enviamos un enlace para verificarlo; cuando lo confirme, vuelve a asignarle el rol.',
+    );
   }
 
   async updateProfile(uid: string, dto: UpdateProfileDto): Promise<User> {

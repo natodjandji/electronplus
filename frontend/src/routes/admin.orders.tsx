@@ -87,6 +87,9 @@ interface Payment {
   reference?: string;
   proofUrl?: string;
   rejectionReason?: string;
+  /** PayPal took the money but didn't confirm it for this order. */
+  paypalCaptureId?: string;
+  paypalReview?: { status: string; amount: number; currency: string };
   createdAt: string;
 }
 
@@ -430,6 +433,13 @@ function OrderDetailDialog({ orderId, onClose }: { orderId: string; onClose: () 
                 )}
                 {payment.status === "rejected" && payment.rejectionReason && (
                   <div className="text-destructive">Motivo: {payment.rejectionReason}</div>
+                )}
+                {payment.status === "pending" && payment.paypalReview && (
+                  <div className="mt-1 text-amber-700">
+                    PayPal no confirmó este cobro ({payment.paypalReview.status},{" "}
+                    {payment.paypalReview.amount} {payment.paypalReview.currency}). Revísalo en tu
+                    cuenta de PayPal (cobro {payment.paypalCaptureId}) antes de verificarlo.
+                  </div>
                 )}
               </div>
               {payment.proofUrl && (

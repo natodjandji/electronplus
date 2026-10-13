@@ -23,11 +23,21 @@ describe('PaymentsService', () => {
   const orderId = 'order-1';
   const paymentId = 'payment-1';
 
-  function buildService(firestore: FakeFirestore, paypal: Record<string, jest.Mock> = {}) {
+  /** A captured PayPal order as PayPalClient.captureOrder() reports it. */
+  const completed = (amount: number, status = 'COMPLETED', currency = 'USD') => ({
+    status: 'COMPLETED',
+    capture: { id: 'cap-1', status, amount, currency },
+  });
+
+  function buildService(
+    firestore: FakeFirestore,
+    paypal: Record<string, jest.Mock> = {},
+    events = new EventEmitter2(),
+  ) {
     return new PaymentsService(
       firestore as unknown as ConstructorParameters<typeof PaymentsService>[0],
       paypal as unknown as ConstructorParameters<typeof PaymentsService>[1],
-      new EventEmitter2(),
+      events,
       {} as unknown as ConstructorParameters<typeof PaymentsService>[3],
     );
   }
@@ -80,7 +90,7 @@ describe('PaymentsService', () => {
       seedOrder(firestore);
       seedPayment(firestore, { method: PaymentMethod.PAYPAL, externalReference: 'ext-1' });
       const service = buildService(firestore, {
-        captureOrder: jest.fn().mockResolvedValue({ status: 'COMPLETED' }),
+        captureOrder: jest.fn().mockResolvedValue(completed(100)),
       });
 
       await expect(service.capturePaypal(paymentId, intruder)).rejects.toThrow(ForbiddenException);
@@ -94,7 +104,7 @@ describe('PaymentsService', () => {
         externalReference: 'ext-1',
         status: PaymentStatus.VERIFIED,
       });
-      const captureOrder = jest.fn().mockResolvedValue({ status: 'COMPLETED' });
+      const captureOrder = jest.fn().mockResolvedValue(completed(100));
       const service = buildService(firestore, { captureOrder });
 
       await expect(service.capturePaypal(paymentId, owner)).rejects.toThrow(BadRequestException);
@@ -107,11 +117,63 @@ describe('PaymentsService', () => {
       seedOrder(firestore);
       seedPayment(firestore, { method: PaymentMethod.PAYPAL, externalReference: 'ext-1' });
       const service = buildService(firestore, {
-        captureOrder: jest.fn().mockResolvedValue({ status: 'COMPLETED' }),
+        captureOrder: jest.fn().mockResolvedValue(completed(100)),
       });
 
       const result = await service.capturePaypal(paymentId, owner);
       expect(result.status).toBe(PaymentStatus.VERIFIED);
+    });
+    it('leaves a charge PayPal is still reviewing pending, for an admin to verify', async () => {
+      const firestore = new FakeFirestore();
+      seedOrder(firestore);
+      seedPayment(firestore, { method: PaymentMethod.PAYPAL, externalReference: 'ext-1' });
+      const events = new EventEmitter2();
+      const verified = jest.fn();
+      events.on('payment.verified', verified);
+      const service = buildService(
+        firestore,
+        { captureOrder: jest.fn().mockResolvedValue(completed(100, 'PENDING')) },
+        events,
+      );
+
+      const result = await service.capturePaypal(paymentId, owner);
+      expect(result.status).toBe(PaymentStatus.PENDING);
+      expect(firestore.read(Collections.PAYMENTS, paymentId)).toMatchObject({
+        status: PaymentStatus.PENDING,
+        paypalCaptureId: 'cap-1',
+        paypalReview: { status: 'PENDING', amount: 100, currency: 'USD' },
+      });
+      expect(verified).not.toHaveBeenCalled();
+
+      // Once the admin confirms it in PayPal, it's verified by hand.
+      await expect(service.verifyManual(paymentId, admin.id)).resolves.toMatchObject({
+        status: PaymentStatus.VERIFIED,
+      });
+    });
+
+    it('does not mark the order paid when PayPal charged a different amount', async () => {
+      const firestore = new FakeFirestore();
+      seedOrder(firestore);
+      seedPayment(firestore, { method: PaymentMethod.PAYPAL, externalReference: 'ext-1' });
+      const service = buildService(firestore, {
+        captureOrder: jest.fn().mockResolvedValue(completed(1)),
+      });
+
+      const result = await service.capturePaypal(paymentId, owner);
+      expect(result.status).toBe(PaymentStatus.PENDING);
+      expect(result.paypalReview).toEqual({ status: 'COMPLETED', amount: 1, currency: 'USD' });
+    });
+
+    it('fails a charge PayPal declined, leaving the payment untouched', async () => {
+      const firestore = new FakeFirestore();
+      seedOrder(firestore);
+      seedPayment(firestore, { method: PaymentMethod.PAYPAL, externalReference: 'ext-1' });
+      const service = buildService(firestore, {
+        captureOrder: jest.fn().mockResolvedValue(completed(100, 'DECLINED')),
+      });
+
+      await expect(service.capturePaypal(paymentId, owner)).rejects.toThrow(BadRequestException);
+      expect(firestore.read(Collections.PAYMENTS, paymentId)?.paypalReview).toBeUndefined();
     });
   });
 
@@ -119,6 +181,14 @@ describe('PaymentsService', () => {
     it('rejects re-verifying a payment that already left pending', async () => {
       const firestore = new FakeFirestore();
       seedPayment(firestore, { status: PaymentStatus.VERIFIED });
+      const service = buildService(firestore);
+
+      await expect(service.verifyManual(paymentId, admin.id)).rejects.toThrow(BadRequestException);
+    });
+
+    it('does not verify a PayPal payment that PayPal confirms itself', async () => {
+      const firestore = new FakeFirestore();
+      seedPayment(firestore, { method: PaymentMethod.PAYPAL, externalReference: 'ext-1' });
       const service = buildService(firestore);
 
       await expect(service.verifyManual(paymentId, admin.id)).rejects.toThrow(BadRequestException);
