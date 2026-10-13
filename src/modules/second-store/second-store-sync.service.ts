@@ -108,13 +108,18 @@ export class SecondStoreSyncService implements OnModuleInit {
   }
 
   async runInboundSync(): Promise<SecondStoreSyncResult> {
-    // insert()/patch(): the log is only written here, never read back.
-    const logId = await this.logsRepo.insert({
-      status: SecondStoreSyncStatus.RUNNING,
-      startedAt: new Date(),
-      itemsProcessed: 0,
-      expiresAt: secondStoreSyncLogExpiresAt(),
-    });
+    // One write per run, at the end: this runs every 30 minutes and its
+    // log was most of the database's steady writes. A manual trigger waits
+    // for the run, so the panel's button already shows it's in progress.
+    const startedAt = new Date();
+    const writeLog = (fields: Pick<SecondStoreSyncLog, 'status'> & Partial<SecondStoreSyncLog>) =>
+      this.logsRepo.insert({
+        startedAt,
+        itemsProcessed: 0,
+        expiresAt: secondStoreSyncLogExpiresAt(),
+        ...fields,
+        finishedAt: new Date(),
+      });
 
     const url = this.config.get('SECOND_STORE_PROFIT_API_URL', { infer: true });
     const apiKey = this.config.get('SECOND_STORE_PROFIT_API_KEY', { infer: true });
@@ -122,11 +127,7 @@ export class SecondStoreSyncService implements OnModuleInit {
       const message =
         'SECOND_STORE_PROFIT_API_URL/SECOND_STORE_PROFIT_API_KEY no configurados todavía — se salta este ciclo de sincronización.';
       this.logger.warn(message);
-      await this.logsRepo.patch(logId, {
-        status: SecondStoreSyncStatus.ERROR,
-        error: message,
-        finishedAt: new Date(),
-      });
+      await writeLog({ status: SecondStoreSyncStatus.ERROR, error: message });
       return { fromBridge: 0, created: 0, updated: 0, unchanged: 0, removed: 0, flagged: 0 };
     }
 
@@ -263,18 +264,13 @@ export class SecondStoreSyncService implements OnModuleInit {
       this.logger.log(
         `Second-store sync: ${result.fromBridge} artículos del bridge, ${result.created} creados, ${result.updated} actualizados, ${result.unchanged} sin cambios, ${result.removed} eliminados, ${result.flagged} marcados como fuera de Profit.`,
       );
-      await this.logsRepo.patch(logId, {
+      await writeLog({
         status: SecondStoreSyncStatus.SUCCESS,
         itemsProcessed: result.fromBridge,
-        finishedAt: new Date(),
       });
       return result;
     } catch (error) {
-      await this.logsRepo.patch(logId, {
-        status: SecondStoreSyncStatus.ERROR,
-        error: (error as Error).message,
-        finishedAt: new Date(),
-      });
+      await writeLog({ status: SecondStoreSyncStatus.ERROR, error: (error as Error).message });
       throw error;
     }
   }

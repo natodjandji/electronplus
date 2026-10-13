@@ -1,28 +1,26 @@
 import { useEffect, useRef, useState } from "react";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient, type QueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
-import { ApiError, apiFetch } from "./api-client";
 import type { LiveCatalogLookup } from "./cart-reconcile";
 import { useElectronStore } from "./electron-store";
-import { type ApiProduct, toProduct } from "./product-api";
+import { catalogQuery, toProduct } from "./product-api";
 
-/** One request per cart line (carts are small) rather than scanning the
- * catalog list: that list is paginated, so a product beyond its first page
- * would look "missing" and get wrongly dropped. A 404 is the only proof a
- * product is gone; any other failure leaves that line out of the lookup so
- * it stays untouched. */
-async function fetchLiveCatalog(ids: string[]): Promise<LiveCatalogLookup> {
-  const settled = await Promise.allSettled(
-    ids.map((id) => apiFetch<ApiProduct>(`/products/${encodeURIComponent(id)}`)),
-  );
+/** Checked against the whole active catalog the store already loads (and
+ * usually already has cached) instead of one request per cart line. A
+ * product missing from it is gone for a customer — unlisted products 404
+ * and checkout refuses them. If the catalog can't load, this throws and
+ * the cart stays exactly as it is. */
+async function fetchLiveCatalog(
+  queryClient: QueryClient,
+  ids: string[],
+): Promise<LiveCatalogLookup> {
+  const { data } = await queryClient.fetchQuery(catalogQuery);
+  const byId = new Map(data.map((product) => [product.id, product]));
   const lookup: LiveCatalogLookup = new Map();
-  settled.forEach((outcome, i) => {
-    if (outcome.status === "fulfilled") {
-      lookup.set(ids[i], toProduct(outcome.value));
-    } else if (outcome.reason instanceof ApiError && outcome.reason.status === 404) {
-      lookup.set(ids[i], null);
-    }
-  });
+  for (const id of ids) {
+    const product = byId.get(id);
+    lookup.set(id, product ? toProduct(product) : null);
+  }
   return lookup;
 }
 
@@ -34,6 +32,7 @@ async function fetchLiveCatalog(ids: string[]): Promise<LiveCatalogLookup> {
  */
 export function useCartCatalogSync() {
   const { cart, syncCartWithCatalog } = useElectronStore();
+  const queryClient = useQueryClient();
 
   // The cart hydrates from localStorage after mount, so it starts empty:
   // capture the ids the first time it has items instead of on first render.
@@ -46,7 +45,7 @@ export function useCartCatalogSync() {
 
   const { data: lookup } = useQuery({
     queryKey: ["cart-live-catalog", idsToCheck],
-    queryFn: () => fetchLiveCatalog(idsToCheck!),
+    queryFn: () => fetchLiveCatalog(queryClient, idsToCheck!),
     enabled: idsToCheck !== null,
     gcTime: 0,
     retry: false,

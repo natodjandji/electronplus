@@ -132,7 +132,7 @@ export class ExpensesService {
           const nextDueStatus = dueStatusForDueDate(expense.dueDate);
           if (nextDueStatus === expense.dueStatus) continue;
 
-          await this.repo.update(expense.id, { dueStatus: nextDueStatus });
+          await this.repo.patch(expense.id, { dueStatus: nextDueStatus });
           updated++;
 
           if (

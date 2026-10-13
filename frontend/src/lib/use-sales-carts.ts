@@ -1,7 +1,9 @@
+import { useEffect, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { API_BASE_URL, apiFetch, reportError } from "./api-client";
 import type { Product } from "./product";
 import {
+  createQtyDebouncer,
   salesCartKey,
   salesCartListKey,
   type PriceList,
@@ -116,11 +118,36 @@ function requestFor(cartId: string, change: CartChange) {
   }
 }
 
+/** How long a line's stepper rests before its quantity is sent. */
+const QTY_SEND_DELAY_MS = 400;
+
+/** Sends the stepper's pending quantities before the mutation's own
+ * request, so a quote or a finished sale has exactly what's on screen. */
+function afterPendingQty<
+  M extends {
+    mutate: (...args: never[]) => void;
+    mutateAsync: (...args: never[]) => Promise<unknown>;
+  },
+>(mutation: M, flush: () => void): M {
+  return {
+    ...mutation,
+    mutate: ((...args: Parameters<M["mutate"]>) => {
+      flush();
+      mutation.mutate(...args);
+    }) as M["mutate"],
+    mutateAsync: ((...args: Parameters<M["mutateAsync"]>) => {
+      flush();
+      return mutation.mutateAsync(...args);
+    }) as M["mutateAsync"],
+  };
+}
+
 /**
  * Every edit to one cart, applied to the screen at once and sent to the
  * server one at a time (mutation scope), so quick scans arrive in order.
- * The server's copy replaces the local one only once nothing else is
- * queued — an earlier reply would briefly undo the scans still in flight.
+ * Stepper taps wait for the line to settle and go as one write. The
+ * server's copy replaces the local one only once nothing else is queued or
+ * waiting — an earlier reply would briefly undo the edits still pending.
  */
 export function useSalesCartActions(cartId: string) {
   const queryClient = useQueryClient();
@@ -132,7 +159,7 @@ export function useSalesCartActions(cartId: string) {
     scope: { id: `sales-cart:${cartId}` },
     mutationFn: (c: CartChange) => requestFor(cartId, c),
     onSuccess: (cart) => {
-      if (queryClient.isMutating({ mutationKey: writeKey }) <= 1) {
+      if (queryClient.isMutating({ mutationKey: writeKey }) <= 1 && !pendingQty.waiting) {
         queryClient.setQueryData(key, cart);
       }
     },
@@ -141,6 +168,25 @@ export function useSalesCartActions(cartId: string) {
       void queryClient.invalidateQueries({ queryKey: key });
     },
   });
+
+  const { mutate: send } = change;
+  const [pendingQty] = useState(() =>
+    createQtyDebouncer(
+      (productId, qty) => send({ kind: "qty", productId, qty }),
+      QTY_SEND_DELAY_MS,
+    ),
+  );
+  // Leaving the cart or putting the phone away sends what's still waiting.
+  useEffect(() => {
+    const onHide = () => {
+      if (document.visibilityState === "hidden") pendingQty.flush();
+    };
+    document.addEventListener("visibilitychange", onHide);
+    return () => {
+      document.removeEventListener("visibilitychange", onHide);
+      pendingQty.flush();
+    };
+  }, [pendingQty]);
 
   const share = useMutation({
     mutationKey: writeKey,
@@ -187,6 +233,13 @@ export function useSalesCartActions(cartId: string) {
   const apply = (c: CartChange) => {
     void queryClient.cancelQueries({ queryKey: key });
     queryClient.setQueryData<SalesCart>(key, (cart) => (cart ? applyChange(cart, c) : cart));
+    if (c.kind === "qty") {
+      pendingQty.set(c.productId, c.qty);
+      // Removing a line is one deliberate tap: no reason to hold it.
+      if (c.qty === 0) pendingQty.flush();
+      return;
+    }
+    pendingQty.flush();
     change.mutate(c);
   };
 
@@ -198,8 +251,8 @@ export function useSalesCartActions(cartId: string) {
       priceList?: PriceList;
       discountPct?: number;
     }) => apply({ kind: "update", patch }),
-    share,
-    complete,
-    cancel,
+    share: afterPendingQty(share, pendingQty.flush),
+    complete: afterPendingQty(complete, pendingQty.flush),
+    cancel: afterPendingQty(cancel, pendingQty.flush),
   };
 }

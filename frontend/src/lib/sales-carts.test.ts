@@ -1,7 +1,8 @@
-import { describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import type { Product } from "./product";
 import {
   computeCartTotals,
+  createQtyDebouncer,
   findScannedProduct,
   parseScannedCode,
   whatsappShareHref,
@@ -77,5 +78,46 @@ describe("whatsappShareHref", () => {
       "https://wa.me/584141234567?text=Hola",
     );
     expect(whatsappShareHref("Hola mundo")).toBe("https://wa.me/?text=Hola%20mundo");
+  });
+});
+
+describe("createQtyDebouncer", () => {
+  afterEach(() => vi.useRealTimers());
+
+  it("sends only the quantity a line settles on", () => {
+    vi.useFakeTimers();
+    const sent: [string, number][] = [];
+    const qty = createQtyDebouncer((id, n) => sent.push([id, n]), 400);
+    qty.set("a", 2);
+    vi.advanceTimersByTime(300);
+    qty.set("a", 3);
+    qty.set("b", 5);
+    qty.set("a", 4);
+    expect(qty.waiting).toBe(true);
+    vi.advanceTimersByTime(399);
+    expect(sent).toEqual([]);
+    vi.advanceTimersByTime(1);
+    expect(sent).toEqual([
+      ["b", 5],
+      ["a", 4],
+    ]);
+    expect(qty.waiting).toBe(false);
+  });
+
+  it("sends what is waiting at once on flush, and nothing twice", () => {
+    vi.useFakeTimers();
+    const sent: [string, number][] = [];
+    const qty = createQtyDebouncer((id, n) => sent.push([id, n]), 400);
+    qty.set("a", 2);
+    qty.set("b", 0);
+    qty.flush();
+    expect(sent).toEqual([
+      ["a", 2],
+      ["b", 0],
+    ]);
+    vi.advanceTimersByTime(1000);
+    expect(sent).toHaveLength(2);
+    qty.flush();
+    expect(sent).toHaveLength(2);
   });
 });

@@ -144,3 +144,35 @@ export function whatsappShareHref(text: string, phone?: string) {
   const base = digits.length >= 11 ? `https://wa.me/${digits}` : "https://wa.me/";
   return `${base}?text=${encodeURIComponent(text)}`;
 }
+
+/**
+ * Holds a line's quantity while the seller is still tapping the stepper and
+ * sends only where it settles: ten quick taps are one write, not ten.
+ * `flush` sends whatever is waiting at once — before any other change, so
+ * the server applies them in the order the seller made them.
+ */
+export function createQtyDebouncer(
+  send: (productId: string, qty: number) => void,
+  delayMs: number,
+) {
+  const pending = new Map<string, { qty: number; timer: ReturnType<typeof setTimeout> }>();
+  const sendNow = (productId: string) => {
+    const queued = pending.get(productId);
+    if (!queued) return;
+    clearTimeout(queued.timer);
+    pending.delete(productId);
+    send(productId, queued.qty);
+  };
+  return {
+    set(productId: string, qty: number) {
+      clearTimeout(pending.get(productId)?.timer);
+      pending.set(productId, { qty, timer: setTimeout(() => sendNow(productId), delayMs) });
+    },
+    flush() {
+      for (const productId of [...pending.keys()]) sendNow(productId);
+    },
+    get waiting() {
+      return pending.size > 0;
+    },
+  };
+}

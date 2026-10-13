@@ -8,9 +8,14 @@ import { RolesGuard } from '../../common/guards/roles.guard';
 import { DateRangeDto } from './dto/date-range.dto';
 import { ReportsService } from './reports.service';
 
+/** The default (the last month) ends on the next whole minute, so reports
+ * the dashboard requests together resolve to the same range and share one
+ * read of the orders (ReportsService caches by range). */
 function resolveRange(dto: DateRangeDto): { from: Date; to: Date } {
-  const to = dto.to ? new Date(dto.to) : new Date();
-  const from = dto.from ? new Date(dto.from) : new Date(new Date().setMonth(to.getMonth() - 1));
+  const nextMinute = new Date();
+  nextMinute.setSeconds(60, 0);
+  const to = dto.to ? new Date(dto.to) : nextMinute;
+  const from = dto.from ? new Date(dto.from) : new Date(new Date(to).setMonth(to.getMonth() - 1));
   return { from, to };
 }
 

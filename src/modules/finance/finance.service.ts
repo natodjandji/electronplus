@@ -259,7 +259,7 @@ export class FinanceService {
           const nextDueStatus = dueStatusForDueDate(invoice.dueDate);
           if (nextDueStatus === invoice.dueStatus) continue;
 
-          await this.payablesRepo.update(invoice.id, { dueStatus: nextDueStatus });
+          await this.payablesRepo.patch(invoice.id, { dueStatus: nextDueStatus });
           updated++;
 
           if (

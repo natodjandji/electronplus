@@ -141,7 +141,9 @@ function SalesCartPage() {
       </SellerShell>
     );
   }
-  return <CartScreen cart={cart} />;
+  // Keyed so the next cart (after finishing a sale) starts with its own
+  // state, and anything still pending is sent for the cart it belongs to.
+  return <CartScreen key={cart.id} cart={cart} />;
 }
 
 function CartScreen({ cart }: { cart: SalesCart }) {

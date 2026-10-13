@@ -1,6 +1,6 @@
 import { EventEmitter2 } from '@nestjs/event-emitter';
 import type { Firestore } from 'firebase-admin/firestore';
-import { FakeFirestore } from '../../test/fake-firestore';
+import { FakeDocRef, FakeFirestore } from '../../test/fake-firestore';
 import { Collections } from '../../firebase/firestore-collections';
 import { ProductsService } from '../products/products.service';
 import { SecondStoreIndex } from './second-store-index';
@@ -43,6 +43,36 @@ const secondStoreReads = (firestore: FakeFirestore) =>
 
 describe('Second store sync + listing over the snapshot', () => {
   afterEach(() => jest.restoreAllMocks());
+
+  it('records each run with a single log write', async () => {
+    const firestore = new FakeFirestore();
+    const set = jest.spyOn(FakeDocRef.prototype, 'set');
+    const logWrites = () =>
+      set.mock.contexts.filter((ref) =>
+        (ref as FakeDocRef).path.startsWith(`${Collections.SECOND_STORE_SYNC_LOGS}/`),
+      );
+
+    bridgeReturns([
+      { codigo: 'T1', descripcion: 'Toma doble', stock: 8, precio1: 3, precio2: 2.5 },
+    ]);
+    await instance(firestore).sync.runInboundSync();
+    expect(logWrites()).toHaveLength(1);
+    expect(await instance(firestore).sync.getLogs()).toEqual([
+      expect.objectContaining({
+        status: 'success',
+        itemsProcessed: 1,
+        finishedAt: expect.any(Date),
+      }),
+    ]);
+
+    jest.spyOn(global, 'fetch').mockRejectedValue(new Error('bridge caído'));
+    await expect(instance(firestore).sync.runInboundSync()).rejects.toThrow('bridge caído');
+    expect(logWrites()).toHaveLength(2);
+    expect((await instance(firestore).sync.getLogs()).map((log) => log.status).sort()).toEqual([
+      'error',
+      'success',
+    ]);
+  });
 
   it('matches against the snapshot, writes only changes, and the list reflects them', async () => {
     const firestore = new FakeFirestore();
