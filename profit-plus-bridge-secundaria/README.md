@@ -37,23 +37,28 @@ confirmar ese nombre.
 
 ## 2. Instalar y configurar
 
-Requiere [Node.js](https://nodejs.org) 18 o superior instalado en la máquina
-donde vas a correr esto (idealmente la misma red que el SQL Server de la
-tienda secundaria).
+Requiere [Node.js](https://nodejs.org) 18.19 o superior (la versión LTS
+actual sirve) en la máquina donde vas a correr esto, idealmente la misma del
+SQL Server de la tienda secundaria.
 
 ```bash
 cd profit-plus-bridge-secundaria
-npm install
+npm ci
 cp .env.example .env
 ```
 
-Edita `.env` con los datos reales de conexión (servidor, base, usuario,
-contraseña) y genera un `API_KEY` largo y aleatorio, **distinto** al que
-uses en el bridge de la tienda principal:
+Edita `.env` con los datos reales de conexión (servidor, base, usuario de
+solo lectura, contraseña) y genera la `API_KEY`, **distinta** a la del
+bridge de la tienda principal. El bridge no arranca con la clave de ejemplo
+ni con una de menos de 32 caracteres:
 
 ```bash
-openssl rand -hex 32
+node -e "console.log(require('crypto').randomBytes(32).toString('hex'))"
 ```
+
+El bridge escucha solo en `127.0.0.1` (variable `HOST`): el túnel del paso 5
+entra por ahí y ningún otro equipo de la red de la tienda necesita llegar a
+él.
 
 ## 3. Correrla
 
@@ -64,7 +69,7 @@ npm start
 Deja el proceso corriendo y prueba el endpoint (reemplaza `TU_API_KEY`):
 
 ```bash
-curl -H "Authorization: Bearer TU_API_KEY" http://localhost:4001/api/productos-sincronizacion
+curl -H "Authorization: Bearer TU_API_KEY" http://127.0.0.1:4001/api/productos-sincronizacion
 ```
 
 Respuesta esperada:
@@ -80,50 +85,101 @@ Respuesta esperada:
 ```
 
 Si SQL Server no responde o las credenciales fallan, el endpoint responde
-`500` con un mensaje descriptivo (`error` + `detalle`) en vez de tumbar el
-proceso — puedes seguir pegándole al `/health` para confirmar que el
-servidor Node sigue vivo mientras arreglas la conexión.
+`503` (fallo de conexión, que suele pasar solo) o `500` con el tipo de fallo
+y un id, sin tumbar el proceso:
+
+```json
+{ "error": "No se pudo consultar Profit Plus.", "motivo": "login", "id": "0d8efcc7" }
+```
+
+El mensaje completo de SQL Server, con qué revisar, queda en el registro
+del bridge en la línea con ese id; a la respuesta no va, porque nombra el
+equipo, la instancia, la base y el usuario. `/health` sigue respondiendo
+mientras arreglas la conexión.
 
 ## 4. Dejarla corriendo como servicio (Windows)
 
 La forma más simple y robusta de que esto sobreviva un reinicio de la PC sin
 que alguien tenga que abrir una terminal manualmente es
-[NSSM](https://nssm.cc/) (Non-Sucking Service Manager), gratuito:
+[NSSM](https://nssm.cc/) (Non-Sucking Service Manager), gratuito. En una
+terminal como Administrador (ajusta las rutas):
 
-1. Descarga NSSM y descomprímelo en cualquier carpeta.
-2. Abre una terminal como Administrador en esa carpeta y corre:
-   ```
-   nssm install ProfitPlusBridgeSecundaria
-   ```
-3. En la ventana que abre:
-   - **Path**: la ruta a `node.exe` (normalmente `C:\Program Files\nodejs\node.exe`)
-   - **Startup directory**: la ruta a esta carpeta (`profit-plus-bridge-secundaria`)
-   - **Arguments**: `server.js`
-4. Instala el servicio y arráncalo:
-   ```
-   nssm start ProfitPlusBridgeSecundaria
-   ```
+```powershell
+nssm install ProfitPlusBridgeSecundaria "C:\Program Files\nodejs\node.exe" server.js
+nssm set ProfitPlusBridgeSecundaria AppDirectory C:\ruta\a\profit-plus-bridge-secundaria
+nssm set ProfitPlusBridgeSecundaria AppStdout C:\ruta\a\logs\bridge-secundaria.log
+nssm set ProfitPlusBridgeSecundaria AppStderr C:\ruta\a\logs\bridge-secundaria.log
+nssm set ProfitPlusBridgeSecundaria AppRotateFiles 1
+nssm set ProfitPlusBridgeSecundaria AppRotateOnline 1
+nssm set ProfitPlusBridgeSecundaria AppRotateBytes 1048576
+nssm set ProfitPlusBridgeSecundaria Start SERVICE_AUTO_START
+nssm start ProfitPlusBridgeSecundaria
+```
 
-Alternativa más simple si no quieres instalar nada adicional: crear una
-tarea programada en el **Programador de tareas de Windows** que ejecute
-`node server.js` desde esta carpeta "al iniciar sesión" o "al iniciar el
-sistema".
+`AppDirectory` es lo importante: el bridge lee el `.env` de esa carpeta.
 
 ## 5. Exponerla a internet (para que el backend en la nube la alcance)
 
-Esta API corre en la red local de la tienda secundaria, sin IP pública por
-defecto. El backend en la nube necesita poder alcanzarla vía
-`SECOND_STORE_PROFIT_API_URL` — para eso tienes dos caminos típicos:
+Esta API corre en la PC de la tienda, sin IP pública. El backend en la nube
+la alcanza por un [Cloudflare Tunnel](https://developers.cloudflare.com/cloudflare-one/connections/connect-networks/):
+`cloudflared` corre como servicio, abre el túnel hacia afuera (el router no
+abre ningún puerto) y publica `https://profit-secundaria.electronplus.com.ve`
+apuntando a `http://127.0.0.1:4001`.
 
-- **Túnel** (más rápido de poner a andar): [Cloudflare Tunnel](https://developers.cloudflare.com/cloudflare-one/connections/connect-networks/) (gratis) o [ngrok](https://ngrok.com/). Te da una URL pública fija que reenvía al puerto 4001 local, sin abrir puertos en el router.
-- **Port forwarding** en el router del local + IP fija/DDNS — más manual y menos seguro si no le sumas HTTPS.
+Esa URL va en `SECOND_STORE_PROFIT_API_URL` del backend, y la misma
+`API_KEY` de aquí en el secreto `second-store-profit-api-key`
+(`SECOND_STORE_PROFIT_API_KEY`). No uses port forwarding: expondría el
+bridge sin HTTPS.
 
-La URL resultante va en `SECOND_STORE_PROFIT_API_URL` del backend en la
-nube, con el mismo `API_KEY` que configuraste aquí en `SECOND_STORE_PROFIT_API_KEY`.
+## 6. Actualizar una instalación que ya corre
+
+La versión endurecida (octubre 2026) cambia tres cosas que pueden impedir
+que arranque o que el túnel la alcance. Revísalas antes de reemplazar
+nada; la sincronización corre cada 30 minutos, así que hazlo justo después
+de una (en punto o y media).
+
+1. **¿Dónde está la carpeta?** En PowerShell como administrador:
+   `nssm get ProfitPlusBridgeSecundaria AppDirectory`.
+2. **¿cloudflared corre en esta misma PC?** En Cloudflare → Zero Trust →
+   Networks → Tunnels → el túnel de la secundaria → *Public hostname*
+   `profit-secundaria`: si el *Service* es `localhost:4001` o
+   `127.0.0.1:4001`, no hay nada que hacer (mejor `127.0.0.1:4001`). Si es
+   una IP de la red (`192.168.x.x:4001`), cloudflared está en otra PC: o lo
+   instalas en esta y cambias el *Service* a `127.0.0.1:4001`, o pones
+   `HOST=0.0.0.0` en el `.env` (el bridge queda expuesto a la red de la
+   tienda, como hasta ahora).
+3. **¿La `API_KEY` tiene al menos 32 caracteres?** Si es más corta, genera
+   otra (paso 2), ponla en el `.env` y como versión nueva del secreto
+   `second-store-profit-api-key` en Google Cloud; la API debe reiniciarse
+   para tomarla.
+
+Después:
+
+```powershell
+# Respaldo de la carpeta actual (incluye el .env)
+Copy-Item -Recurse C:\ruta\a\profit-plus-bridge-secundaria C:\ruta\a\profit-plus-bridge-secundaria-respaldo
+nssm stop ProfitPlusBridgeSecundaria
+# Copia los archivos nuevos encima (server.js, db-config.js, package.json,
+# package-lock.json, .env.example, README.md) — el .env se queda como está.
+cd C:\ruta\a\profit-plus-bridge-secundaria
+npm ci
+nssm start ProfitPlusBridgeSecundaria
+curl.exe http://127.0.0.1:4001/health
+```
+
+Comprueba con la clave que el catálogo sale completo (`total` cerca de
+5 400) y luego, en el panel de la web, *Tienda secundaria → Sincronizar*.
+
+Si algo falla, vuelve atrás: `nssm stop ProfitPlusBridgeSecundaria`, borra
+la carpeta, renombra el respaldo a su nombre original y
+`nssm start ProfitPlusBridgeSecundaria`.
 
 ## Endpoints
 
 | Método | Ruta | Auth | Descripción |
 |---|---|---|---|
 | `GET` | `/api/productos-sincronizacion` | `Authorization: Bearer <API_KEY>` | Catálogo completo: código, descripción, precio1, precio2, stock |
-| `GET` | `/health` | ninguna | Confirma que el proceso está vivo (no expone datos) |
+| `GET` | `/health` | ninguna | Confirma que el proceso está vivo (no expone datos ni toca SQL Server) |
+
+Las respuestas llevan `Cache-Control: no-store` y el catálogo va comprimido
+con gzip cuando el cliente lo acepta (el backend sí).
