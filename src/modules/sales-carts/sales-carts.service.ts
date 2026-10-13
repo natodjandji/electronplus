@@ -31,9 +31,10 @@ import {
   SalesCartStatus,
 } from './entities/sales-cart.entity';
 import { SharedQuote } from './entities/shared-quote.entity';
+import { renderQuotePdf } from './quote-pdf';
 import { computeSalesCartTotals } from './sales-cart-totals';
 
-export const QUOTE_VALIDITY_DAYS = 14;
+export const QUOTE_VALIDITY_DAYS = 3;
 const QUOTE_COUNTER_ID = 'salesQuotes';
 const STORE_TIME_ZONE = 'America/Caracas';
 
@@ -222,7 +223,7 @@ export class SalesCartsService {
   /**
    * Freezes the cart as a quote behind a public link. Sharing again keeps
    * the same link and number but refreshes its contents, prices and the
-   * 14-day validity — the customer only ever sees what was shared.
+   * 3-day validity — the customer only ever sees what was shared.
    */
   async share(user: AuthenticatedUser, id: string): Promise<SharedQuoteLink> {
     const bcvRate = await this.exchangeRate
@@ -293,6 +294,12 @@ export class SalesCartsService {
 
   /** The public side of a shared quote — no account needed, so it carries
    * nothing internal (no cart id, stock or costs). */
+  /** The shared quote as a letter-size PDF, to print or keep. */
+  async sharedQuotePdf(token: string): Promise<{ number: number; pdf: Buffer }> {
+    const quote = await this.findSharedQuote(token);
+    return { number: quote.number, pdf: await renderQuotePdf(quote) };
+  }
+
   async findSharedQuote(token: string): Promise<Omit<SharedQuote, 'cartId'>> {
     if (!/^[A-Za-z0-9_-]{16,64}$/.test(token)) {
       throw new NotFoundException('Cotización no encontrada');

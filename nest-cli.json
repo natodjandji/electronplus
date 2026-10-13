@@ -4,7 +4,10 @@
   "sourceRoot": "src",
   "compilerOptions": {
     "deleteOutDir": true,
-    "assets": ["modules/email/assets/**/*"],
+    "assets": [
+      "modules/email/assets/**/*",
+      "modules/sales-carts/assets/**/*"
+    ],
     "watchAssets": true
   }
 }

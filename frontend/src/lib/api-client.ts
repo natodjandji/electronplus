@@ -1,7 +1,7 @@
 import { toast } from "sonner";
 import { auth } from "./firebase";
 
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL ?? "http://localhost:3000/api";
+export const API_BASE_URL = import.meta.env.VITE_API_BASE_URL ?? "http://localhost:3000/api";
 
 /** The bare server origin (no /api prefix) — Nest's global route prefix only
  * applies to @Controller routes, not the WebSocket gateway, so realtime

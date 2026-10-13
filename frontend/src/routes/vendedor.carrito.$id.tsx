@@ -71,6 +71,7 @@ import {
 import { primeScanSound, scanFeedback } from "@/lib/scan-feedback";
 import { formatBs, useBcvRate } from "@/lib/use-bcv-rate";
 import {
+  quotePdfUrl,
   useCreateSalesCart,
   useSalesCart,
   useSalesCartActions,
@@ -190,14 +191,12 @@ function CartScreen({ cart }: { cart: SalesCart }) {
         navigate({ to: "/vendedor/carrito/$id", params: { id: next.id }, replace }),
     });
 
+  // Shares first, so the PDF has what's in the cart now, then opens it in
+  // this tab — a tab opened once the request returns would be blocked as a
+  // popup. Phones hand the PDF to their viewer, which prints and shares.
   const printQuote = () =>
     actions.share.mutate(undefined, {
-      onSuccess: (link) =>
-        navigate({
-          to: "/cotizacion/$token",
-          params: { token: link.token },
-          search: { imprimir: true, carrito: cart.id },
-        }),
+      onSuccess: (link) => window.location.assign(quotePdfUrl(link.token)),
     });
 
   return (

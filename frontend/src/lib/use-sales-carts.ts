@@ -1,5 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { apiFetch, reportError } from "./api-client";
+import { API_BASE_URL, apiFetch, reportError } from "./api-client";
 import type { Product } from "./product";
 import {
   salesCartKey,
@@ -9,6 +9,11 @@ import {
   type SalesCartCustomer,
   type SharedQuoteLink,
 } from "./sales-carts";
+
+/** The shared quote as a letter-size PDF, built by the server — what
+ * "Imprimir" opens and the customer downloads. */
+export const quotePdfUrl = (token: string) =>
+  `${API_BASE_URL}/shared-quotes/${encodeURIComponent(token)}/pdf`;
 
 export function useSalesCartList(status: "open" | "completed") {
   return useQuery({

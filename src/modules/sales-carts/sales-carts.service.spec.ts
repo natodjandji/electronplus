@@ -181,7 +181,7 @@ describe('SalesCartsService', () => {
     expect(first.number).toBe(1);
     expect(first.url).toBe(`https://electronplus.com.ve/cotizacion/${first.token}`);
     const days = (first.validUntil.getTime() - Date.now()) / (24 * 60 * 60 * 1000);
-    expect(Math.round(days)).toBe(14);
+    expect(Math.round(days)).toBe(3);
 
     const quote = await service.findSharedQuote(first.token);
     expect(quote).toMatchObject({
@@ -196,6 +196,11 @@ describe('SalesCartsService', () => {
     });
     expect(quote).not.toHaveProperty('cartId');
     expect(quote.qrImageDataUrl).toMatch(/^data:image\/png;base64,/);
+
+    // The same quote as a printable PDF, numbered like the link.
+    const { number, pdf } = await service.sharedQuotePdf(first.token);
+    expect(number).toBe(1);
+    expect(pdf.subarray(0, 5).toString()).toBe('%PDF-');
 
     // Edits don't reach the link until the seller shares again.
     await service.addItem(seller, id, { productId: 'cable-12' });

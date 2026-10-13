@@ -1,7 +1,6 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
-import { useEffect, useRef } from "react";
-import { AlertTriangle, ArrowLeft, MessageCircle, Printer } from "lucide-react";
+import { AlertTriangle, ArrowLeft, FileDown, MessageCircle } from "lucide-react";
 import { PublicShell } from "@/components/public-shell";
 import { QuoteDocument } from "@/components/seller/quote-document";
 import { Button } from "@/components/ui/button";
@@ -11,10 +10,10 @@ import { apiFetch } from "@/lib/api-client";
 import { CONTACT_INFO } from "@/lib/contact-info";
 import { useElectronStore } from "@/lib/electron-store";
 import { formatQuoteNumber, type SharedQuote } from "@/lib/sales-carts";
+import { quotePdfUrl } from "@/lib/use-sales-carts";
 
 export const Route = createFileRoute("/cotizacion/$token")({
-  validateSearch: (search: Record<string, unknown>): { imprimir?: boolean; carrito?: string } => ({
-    imprimir: search.imprimir === true || search.imprimir === "true" ? true : undefined,
+  validateSearch: (search: Record<string, unknown>): { carrito?: string } => ({
     carrito: typeof search.carrito === "string" ? search.carrito : undefined,
   }),
   head: () => ({
@@ -27,14 +26,14 @@ export const Route = createFileRoute("/cotizacion/$token")({
 });
 
 /**
- * The quote a seller shared: anyone with the link can open and print it,
- * no account needed. `?imprimir` opens the print dialog once it loads
- * (the seller's "Imprimir cotización"); `?carrito` gives the seller a
+ * The quote a seller shared: anyone with the link can open it, no account
+ * needed. Printing and keeping it go through the server-built PDF (the
+ * same letter-size sheet from any device); `?carrito` gives the seller a
  * way back to the cart.
  */
 function SharedQuotePage() {
   const { token } = Route.useParams();
-  const { imprimir, carrito } = Route.useSearch();
+  const { carrito } = Route.useSearch();
   const { canSell } = useElectronStore();
   const {
     data: quote,
@@ -46,20 +45,10 @@ function SharedQuotePage() {
     retry: false,
   });
 
-  const printed = useRef(false);
-  useEffect(() => {
-    if (!imprimir || !quote || printed.current) return;
-    printed.current = true;
-    // Let the logo and QR image paint before the print snapshot is taken.
-    const timer = setTimeout(() => window.print(), 400);
-    return () => clearTimeout(timer);
-  }, [imprimir, quote]);
-
   const expired = quote ? new Date(quote.validUntil).getTime() < Date.now() : false;
 
   return (
     <PublicShell>
-      <style>{"@page { size: letter; margin: 14mm; }"}</style>
       <section className="mx-auto max-w-3xl px-4 py-6 sm:px-6 sm:py-10 print:max-w-none print:p-0">
         <div className="mb-4 flex flex-wrap items-center gap-2 print:hidden">
           {carrito && canSell && (
@@ -71,8 +60,10 @@ function SharedQuotePage() {
           )}
           {quote && (
             <div className="ml-auto flex gap-2">
-              <Button variant="outline" size="sm" className="gap-2" onClick={() => window.print()}>
-                <Printer className="h-4 w-4" /> Imprimir o guardar PDF
+              <Button variant="outline" size="sm" className="gap-2" asChild>
+                <a href={quotePdfUrl(token)} target="_blank" rel="noopener">
+                  <FileDown className="h-4 w-4" /> Descargar o imprimir PDF
+                </a>
               </Button>
               <Button
                 size="sm"
