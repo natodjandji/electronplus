@@ -32,7 +32,7 @@ export type ChatCtx = {
   formatMoney: (n: number) => string;
 };
 
-export const MAIN_MENU: QuickReply[] = [
+const MAIN_MENU: QuickReply[] = [
   { label: "🔎 Buscar productos", send: "buscar productos" },
   { label: "🧾 Cotizaciones", send: "quiero una cotización" },
   { label: "💲 Precios detal/mayorista", send: "precios mayorista y detal" },
@@ -86,7 +86,7 @@ function expandSlang(tokens: string[]): string[] {
   return tokens.map((tok) => SLANG[tok] ?? tok).flatMap((tok) => tok.split(" "));
 }
 
-export function normalize(text: string) {
+function normalize(text: string) {
   return stripAccents(text).toLowerCase().trim();
 }
 

@@ -21,7 +21,7 @@ import {
 } from "@/components/ui/select";
 import { TaxIdField } from "@/components/tax-id-field";
 import { PhoneField } from "@/components/phone-field";
-import { apiFetch, ApiError, reportError } from "@/lib/api-client";
+import { apiFetch, reportError } from "@/lib/api-client";
 import { formatTaxId, validateTaxIdNumber, type TaxIdPrefix } from "@/lib/venezuelan-tax-id";
 import { formatPhone, validatePhoneNumber, type PhonePrefix } from "@/lib/venezuelan-phone";
 import { toast } from "sonner";

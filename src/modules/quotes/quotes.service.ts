@@ -197,14 +197,6 @@ export class QuotesService {
     }));
   }
 
-  /** Admin-only — reverts applyWholesalePricing back to full retail pricing. */
-  async resetToRetailPricing(id: string, user: AuthenticatedUser): Promise<Quote> {
-    return this.withNotFinalizedQuoteTransaction(id, user, (quote) => ({
-      items: quote.items.map((item) => ({ ...item, discountPct: 0 })),
-      globalDiscountPct: 0,
-    }));
-  }
-
   /** draft -> sent: the customer submits their quote request for admin review. */
   async send(id: string, user: AuthenticatedUser): Promise<Quote> {
     await this.assertEditable(id, user);
@@ -246,15 +238,6 @@ export class QuotesService {
     const quote = await this.findOneForUser(id, user);
     if (quote.status !== QuoteStatus.DRAFT) {
       throw new ForbiddenException('Only draft quotes can be edited');
-    }
-    return quote;
-  }
-
-  /** Discount can still be adjusted right up until a final decision is recorded. */
-  private async assertNotFinalized(id: string, user: AuthenticatedUser): Promise<Quote> {
-    const quote = await this.findOneForUser(id, user);
-    if (quote.status === QuoteStatus.APPROVED || quote.status === QuoteStatus.REJECTED) {
-      throw new ForbiddenException('Cannot change the discount on a finalized quote');
     }
     return quote;
   }

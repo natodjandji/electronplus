@@ -3,11 +3,7 @@ import { ConfigService } from '@nestjs/config';
 import * as QRCode from 'qrcode';
 import bwipjs from 'bwip-js';
 import { EnvConfig } from '../../config/env.validation';
-import { Role } from '../../common/enums/role.enum';
-import { AuthenticatedUser } from '../../common/interfaces/authenticated-user.interface';
-import { toCatalogDto } from '../products/mappers/product.mapper';
 import { Product } from '../products/entities/product.entity';
-import { PricingService } from '../products/pricing.service';
 import { ProductsService } from '../products/products.service';
 
 export interface QrLabel {
@@ -16,7 +12,6 @@ export interface QrLabel {
   name: string;
   retailPrice: number;
   wholesalePrice: number;
-  token: string;
   /** The product's public storefront page — what every printed QR code encodes. */
   productUrl: string;
   /** QR pointing at the storefront page — used by both the "precio" and "almacén" label formats. */
@@ -29,7 +24,6 @@ export interface QrLabel {
 export class QrService {
   constructor(
     private readonly productsService: ProductsService,
-    private readonly pricingService: PricingService,
     private readonly config: ConfigService<EnvConfig, true>,
   ) {}
 
@@ -62,22 +56,15 @@ export class QrService {
       name: product.name,
       retailPrice: product.retailPrice,
       wholesalePrice: product.wholesalePrice,
-      token: product.qrToken,
       barcodeImageDataUrl,
       productUrl,
       qrImageDataUrl,
     };
   }
 
-  async issueLabel(productId: string): Promise<QrLabel> {
-    const product = await this.productsService.findById(productId);
-    return this.buildLabel(product);
-  }
-
   /** Bulk label printing can cover an arbitrary admin-selected slice of the
    * catalog — batch the product lookup (one Firestore round trip) instead
-   * of issueLabel's one-read-per-id, same fix already applied to
-   * second-store.service.ts's findAll. */
+   * of one read per product. */
   async issueLabels(productIds: string[]): Promise<QrLabel[]> {
     const products = await this.productsService.findByIds(productIds);
     const byId = new Map(products.map((p) => [p.id, p]));
@@ -86,32 +73,5 @@ export class QrService {
       throw new NotFoundException(`Product(s) not found: ${missing.join(', ')}`);
     }
     return Promise.all(productIds.map((id) => this.buildLabel(byId.get(id)!)));
-  }
-
-  /**
-   * Role-aware QR scan payload: an authenticated Admin gets full internal
-   * detail (stock by warehouse, cost, location); everyone else — public or
-   * a logged-in client — gets commercial data only.
-   */
-  async scan(token: string, user?: AuthenticatedUser) {
-    const product = await this.productsService.findByQrToken(token);
-    const base = toCatalogDto(product, user?.role, this.pricingService);
-
-    if (user?.role === Role.ADMIN) {
-      const stockByWarehouse = await this.productsService.stockByWarehouse(product.id);
-      return {
-        ...base,
-        internal: true,
-        stockByWarehouse: stockByWarehouse.map((s) => ({
-          warehouse: s.warehouse.name,
-          location: s.location,
-          quantity: s.quantity,
-        })),
-      };
-    }
-
-    // user.role is never ADMIN on this branch, so toCatalogDto already
-    // omitted cost/thresholds/erpSyncedAt — nothing further to strip.
-    return { ...base, internal: false };
   }
 }

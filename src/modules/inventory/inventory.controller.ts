@@ -14,11 +14,6 @@ import { InventoryService } from './inventory.service';
 export class InventoryController {
   constructor(private readonly inventoryService: InventoryService) {}
 
-  @Get('alerts')
-  activeAlerts() {
-    return this.inventoryService.findActiveAlerts();
-  }
-
   @Get('warehouse/:id/stock')
   stockInWarehouse(@Param('id') id: string) {
     return this.inventoryService.stockInWarehouse(id);

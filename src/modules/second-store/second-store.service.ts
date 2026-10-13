@@ -104,26 +104,6 @@ export class SecondStoreService {
     return this.repo.findOne([{ field: 'linkedProductId', op: '==', value: productId }]);
   }
 
-  async findById(id: string): Promise<SecondStoreProductWithLink> {
-    const item = await this.repo.getOrThrow(id, 'Second store product not found');
-    if (!item.linkedProductId) return { ...item, linkedProduct: null };
-    try {
-      const product = await this.productsService.findById(item.linkedProductId);
-      return {
-        ...item,
-        linkedProduct: {
-          id: product.id,
-          sku: product.sku,
-          name: product.name,
-          stock: product.stock,
-        },
-      };
-    } catch {
-      // Linked product was deleted after linking — surface as unlinked rather than failing the list.
-      return { ...item, linkedProduct: null };
-    }
-  }
-
   async create(dto: CreateSecondStoreProductDto): Promise<SecondStoreProduct> {
     if (dto.linkedProductId) {
       await this.productsService.findById(dto.linkedProductId); // throws if the product doesn't exist

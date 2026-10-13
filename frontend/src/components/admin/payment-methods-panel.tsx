@@ -16,7 +16,7 @@ import { Label } from "@/components/ui/label";
 import { Field } from "@/components/ui/field";
 import { Switch } from "@/components/ui/switch";
 import { Textarea } from "@/components/ui/textarea";
-import { apiFetch, ApiError, reportError } from "@/lib/api-client";
+import { apiFetch, reportError } from "@/lib/api-client";
 import { toast } from "sonner";
 import { usePaymentMethods, type PaymentMethodConfig } from "@/lib/payment-methods";
 

@@ -44,16 +44,12 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { apiFetch, ApiError, reportError } from "@/lib/api-client";
+import { apiFetch, reportError } from "@/lib/api-client";
 import { useAuth } from "@/lib/auth-context";
 import { formatMoney } from "@/lib/electron-store";
 import { formatDate } from "@/lib/format";
 import { catalogQuery } from "@/lib/product-api";
-import {
-  paymentMethodLabel,
-  usePaymentMethods,
-  type PaymentMethodConfig,
-} from "@/lib/payment-methods";
+import { paymentMethodLabel, usePaymentMethods } from "@/lib/payment-methods";
 import { openCustomerQuotePdf } from "@/lib/open-pdf";
 import { computeTotal, computeWholesaleTotal } from "@/lib/quote-totals";
 import { formatBs, useBcvRate } from "@/lib/use-bcv-rate";

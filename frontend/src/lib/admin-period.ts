@@ -14,7 +14,7 @@ export function periodQuery(period: MonthPeriod, kind: "timestamp" | "date"): st
 }
 
 /** Orders awaiting the admin — shown regardless of month (see PendingToggle). */
-export const ORDERS_NEEDING_ACTION = ["pending_payment_verification"];
+const ORDERS_NEEDING_ACTION = ["pending_payment_verification"];
 
 // Shared with the dashboard (admin.index.tsx), which shows this month's count
 // and the pending count from the same cache entries.

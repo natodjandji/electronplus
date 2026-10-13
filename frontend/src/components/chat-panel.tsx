@@ -9,13 +9,7 @@ import { catalogQuery, toProduct } from "@/lib/product-api";
 import { useCategories } from "@/lib/categories";
 import { useElectronStore, formatMoney } from "@/lib/electron-store";
 import mascotIdle from "@/assets/mascot/mascot-idle.webp";
-import {
-  buildReply,
-  welcomeReply,
-  type QuickReply,
-  type ExternalLink,
-  type BotReplyContent,
-} from "@/lib/chat-bot";
+import { buildReply, welcomeReply, type QuickReply, type BotReplyContent } from "@/lib/chat-bot";
 import { cn } from "@/lib/utils";
 import { ProductImage } from "@/components/product-image";
 import { EASE_OUT_QUINT } from "@/components/motion-primitives";

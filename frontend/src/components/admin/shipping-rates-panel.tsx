@@ -21,7 +21,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { apiFetch, ApiError, reportError } from "@/lib/api-client";
+import { apiFetch, reportError } from "@/lib/api-client";
 import { formatMoneyAdmin } from "@/lib/electron-store";
 import { VENEZUELA_STATE_NAMES, citiesForState } from "@/lib/venezuela-locations";
 import { toast } from "sonner";

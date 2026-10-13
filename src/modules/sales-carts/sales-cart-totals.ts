@@ -15,7 +15,7 @@ export interface SalesCartTotals {
   total: number;
 }
 
-export function unitPriceFor(item: SalesCartItem, priceList: PriceList): number {
+function unitPriceFor(item: SalesCartItem, priceList: PriceList): number {
   return priceList === PriceList.WHOLESALE ? item.wholesalePrice : item.retailPrice;
 }
 

@@ -27,10 +27,6 @@ export class UsersService {
     this.repo = new FirestoreRepository<User>(firestore, Collections.USERS);
   }
 
-  findAll(): Promise<User[]> {
-    return this.repo.findAll({ orderBy: { field: 'createdAt', direction: 'desc' } });
-  }
-
   /** One page of a role's users, newest first, continuing after the user
    * with id `after`. The panel used to load every account on each visit —
    * a list that grows with every customer who ever signs in; this reads one
@@ -54,8 +50,8 @@ export class UsersService {
   }
 
   /** Operational alert emails (low stock, invoice/expense due) go to every
-   * admin, not just one hardcoded address — a Firestore-side filter instead
-   * of fetching findAll() and filtering in memory. */
+   * admin, not just one hardcoded address — filtered in Firestore rather
+   * than by loading every user. */
   findAdmins(): Promise<User[]> {
     return this.repo.findAll({ where: [{ field: 'role', op: '==', value: Role.ADMIN }] });
   }

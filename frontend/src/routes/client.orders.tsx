@@ -30,7 +30,7 @@ import {
   ORDER_STATUS_LABEL,
   type OrderStatus,
 } from "@/components/order-stepper";
-import { apiFetch, ApiError, reportError } from "@/lib/api-client";
+import { apiFetch, reportError } from "@/lib/api-client";
 import { compressImageToBase64 } from "@/lib/image-compress";
 import { formatMoney } from "@/lib/electron-store";
 import { toast } from "sonner";

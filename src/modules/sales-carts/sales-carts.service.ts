@@ -35,7 +35,7 @@ import { renderQuotePdf } from '../../common/pdf/quote-pdf';
 import { salesQuotePdf } from './sales-quote-pdf';
 import { computeSalesCartTotals } from './sales-cart-totals';
 
-export const QUOTE_VALIDITY_DAYS = 3;
+const QUOTE_VALIDITY_DAYS = 3;
 const QUOTE_COUNTER_ID = 'salesQuotes';
 const STORE_TIME_ZONE = 'America/Caracas';
 

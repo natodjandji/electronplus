@@ -1,7 +1,7 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useMemo, useState } from "react";
-import { Building2, Loader2, Mail, Pencil, Phone, Plus, Trash2 } from "lucide-react";
+import { Building2, Mail, Pencil, Phone, Plus, Trash2 } from "lucide-react";
 import { AdminShell } from "@/components/admin-shell";
 import { PaginationBar, usePagination } from "@/components/pagination";
 import { Card } from "@/components/ui/card";
@@ -26,7 +26,7 @@ import { Field } from "@/components/ui/field";
 import { TaxIdField } from "@/components/tax-id-field";
 import { PhoneField } from "@/components/phone-field";
 import { CreateSupplierDialog, useSuppliers } from "@/components/supplier-picker";
-import { apiFetch, ApiError, reportError } from "@/lib/api-client";
+import { apiFetch, reportError } from "@/lib/api-client";
 import {
   formatTaxId,
   parseTaxId,

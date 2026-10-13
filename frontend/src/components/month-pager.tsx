@@ -10,12 +10,12 @@ import {
 } from "@/components/ui/select";
 import { cn } from "@/lib/utils";
 
-export function monthKey(dateStr: string): string {
+function monthKey(dateStr: string): string {
   const d = new Date(dateStr);
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
 }
 
-export function monthLabel(key: string): string {
+function monthLabel(key: string): string {
   const [year, month] = key.split("-").map(Number);
   return new Date(year, month - 1, 1).toLocaleDateString("es-VE", {
     month: "long",

@@ -42,12 +42,6 @@ export class ReportsController {
     return this.reportsService.categoryShare(from, to);
   }
 
-  @Get('cashflow')
-  cashFlow(@Query() dto: DateRangeDto) {
-    const { from, to } = resolveRange(dto);
-    return this.reportsService.cashFlow(from, to);
-  }
-
   @Get('profitability')
   profitability(@Query() dto: DateRangeDto) {
     const { from, to } = resolveRange(dto);

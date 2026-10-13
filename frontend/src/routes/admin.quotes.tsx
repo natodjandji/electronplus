@@ -25,15 +25,11 @@ import {
 import { Separator } from "@/components/ui/separator";
 import { Switch } from "@/components/ui/switch";
 import { Textarea } from "@/components/ui/textarea";
-import { apiFetch, ApiError, reportError } from "@/lib/api-client";
+import { apiFetch, reportError } from "@/lib/api-client";
 import { openCustomerQuotePdf } from "@/lib/open-pdf";
 import { formatMoneyAdmin } from "@/lib/electron-store";
 import { formatDate } from "@/lib/format";
-import {
-  paymentMethodLabel,
-  usePaymentMethods,
-  type PaymentMethodConfig,
-} from "@/lib/payment-methods";
+import { paymentMethodLabel, usePaymentMethods } from "@/lib/payment-methods";
 import { computeTotal, computeWholesaleTotal } from "@/lib/quote-totals";
 import { toast } from "sonner";
 

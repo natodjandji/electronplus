@@ -44,7 +44,7 @@ import {
 import { Separator } from "@/components/ui/separator";
 import { Textarea } from "@/components/ui/textarea";
 import { SupplierPicker, useSuppliers } from "@/components/supplier-picker";
-import { apiFetch, ApiError, reportError } from "@/lib/api-client";
+import { apiFetch, reportError } from "@/lib/api-client";
 import { formatMoneyAdmin } from "@/lib/electron-store";
 import { compressImageToBase64 } from "@/lib/image-compress";
 import { toast } from "sonner";

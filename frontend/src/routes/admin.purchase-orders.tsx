@@ -57,7 +57,7 @@ import { Separator } from "@/components/ui/separator";
 import { Textarea } from "@/components/ui/textarea";
 import { SupplierPicker, useSuppliers } from "@/components/supplier-picker";
 import { ProductSearchSelect } from "@/components/product-search-select";
-import { apiFetch, ApiError, reportError } from "@/lib/api-client";
+import { apiFetch, reportError } from "@/lib/api-client";
 import { formatMoneyAdmin } from "@/lib/electron-store";
 import { formatDate } from "@/lib/format";
 import { CONTACT_INFO } from "@/lib/contact-info";

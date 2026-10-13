@@ -23,7 +23,7 @@ import {
 import { SupplierPayment } from './entities/supplier-payment.entity';
 import { Supplier } from './entities/supplier.entity';
 
-export const DUE_SOON_THRESHOLD_DAYS = 5;
+const DUE_SOON_THRESHOLD_DAYS = 5;
 export const INVOICE_DUE_ALERT_EVENT = 'finance.invoice.due';
 
 export interface InvoiceDueAlertEvent {

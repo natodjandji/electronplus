@@ -48,7 +48,7 @@ import {
 } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
 import { SupplierPicker, useSuppliers } from "@/components/supplier-picker";
-import { apiFetch, ApiError, reportError } from "@/lib/api-client";
+import { apiFetch, reportError } from "@/lib/api-client";
 import {
   applySecondStoreRow,
   type SecondStoreProduct,
@@ -57,7 +57,7 @@ import {
 import { uploadProductImage } from "@/lib/image-compress";
 import { formatMoneyAdmin } from "@/lib/electron-store";
 import { toast } from "sonner";
-import { slugify, stripDiacritics } from "@/lib/text";
+import { slugify } from "@/lib/text";
 import { useCategories, type Category } from "@/lib/categories";
 
 export const Route = createFileRoute("/admin/inventory")({

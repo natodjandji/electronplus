@@ -3,7 +3,6 @@ import { useState, type ReactNode } from "react";
 import {
   LayoutDashboard,
   Receipt,
-  PackageSearch,
   QrCode,
   ArrowLeft,
   ClipboardList,

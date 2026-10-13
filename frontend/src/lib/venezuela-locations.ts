@@ -3,7 +3,7 @@ export interface VenezuelaState {
   cities: string[];
 }
 
-export const VENEZUELA_STATES: VenezuelaState[] = [
+const VENEZUELA_STATES: VenezuelaState[] = [
   { name: "Amazonas", cities: ["Puerto Ayacucho", "La Esmeralda", "San Fernando de Atabapo"] },
   { name: "Anzoátegui", cities: ["Barcelona", "Puerto La Cruz", "Lechería", "El Tigre", "Anaco"] },
   { name: "Apure", cities: ["San Fernando de Apure", "Guasdualito", "Achaguas"] },

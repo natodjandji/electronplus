@@ -13,7 +13,7 @@ import { ERP_SYNC_ERROR_EVENT, ErpSyncErrorEvent } from './sync.service';
 export const ERP_EXPORT_MAX_ATTEMPTS = 5;
 
 /** Attempts per cron tick, so one run stays well inside the request timeout. */
-export const ERP_EXPORT_MAX_PER_RUN = 50;
+const ERP_EXPORT_MAX_PER_RUN = 50;
 
 /** How long one attempt holds an order. Long enough for a bridge call; short
  * enough that an instance stalled mid-attempt doesn't block the order past

@@ -22,7 +22,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
-import { apiFetch, ApiError, reportError } from "@/lib/api-client";
+import { apiFetch, reportError } from "@/lib/api-client";
 import { formatMoneyAdmin } from "@/lib/electron-store";
 import { formatCalendarDate } from "@/lib/format";
 import { toast } from "sonner";

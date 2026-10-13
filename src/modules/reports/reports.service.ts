@@ -210,20 +210,6 @@ export class ReportsService {
     }));
   }
 
-  async cashFlow(from: Date, to: Date): Promise<{ sales: number; purchases: number; net: number }> {
-    const orders = await this.revenueOrders(from, to);
-    const sales = orders.reduce((sum, order) => sum + (order.totalAmount as number), 0);
-
-    const paymentsSnap = await this.firestore
-      .collectionGroup(Collections.SUPPLIER_PAYMENTS)
-      .where('paidAt', '>=', Timestamp.fromDate(from))
-      .where('paidAt', '<=', Timestamp.fromDate(to))
-      .get();
-    const purchases = paymentsSnap.docs.reduce((sum, d) => sum + (d.data().amount as number), 0);
-
-    return { sales, purchases, net: sales - purchases };
-  }
-
   async profitability(
     from: Date,
     to: Date,

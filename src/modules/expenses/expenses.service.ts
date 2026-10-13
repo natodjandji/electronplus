@@ -16,7 +16,7 @@ import {
   ExpenseStatus,
 } from './entities/expense.entity';
 
-export const DUE_SOON_THRESHOLD_DAYS = 5;
+const DUE_SOON_THRESHOLD_DAYS = 5;
 export const EXPENSE_DUE_ALERT_EVENT = 'expenses.expense.due';
 
 export interface ExpenseDueAlertEvent {

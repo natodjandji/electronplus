@@ -106,8 +106,8 @@ export class InventoryService {
     });
 
     // A product that arrives already low (the first import of a catalog,
-    // a new item not stocked yet) is listed with the other alerts, but
-    // nothing ran out: no notification or email per product — the first
+    // a new item not stocked yet) gets its alert recorded, but nothing
+    // ran out: no notification or email per product — the first
     // principal sync would otherwise send one for every empty item.
     if (payload.imported) return;
 
@@ -121,13 +121,6 @@ export class InventoryService {
       level,
       stock: payload.stock,
     } satisfies StockAlertRaisedEvent);
-  }
-
-  findActiveAlerts(): Promise<StockAlert[]> {
-    return this.repo.findAll({
-      where: [{ field: 'active', op: '==', value: true }],
-      orderBy: { field: 'stockAtTrigger', direction: 'asc' },
-    });
   }
 
   stockInWarehouse(warehouseId: string) {

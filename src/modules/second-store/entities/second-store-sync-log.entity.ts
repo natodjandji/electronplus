@@ -1,7 +1,6 @@
 import { FirestoreDoc } from '../../../firebase/firestore.repository';
 
 export enum SecondStoreSyncStatus {
-  RUNNING = 'running',
   SUCCESS = 'success',
   ERROR = 'error',
 }

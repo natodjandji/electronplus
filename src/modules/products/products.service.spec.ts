@@ -36,7 +36,7 @@ describe('ProductsService batched transaction reads', () => {
     });
   }
 
-  it('getForUpdateMany resolves every product keyed by id, same shape as getForUpdate', async () => {
+  it('getForUpdateMany resolves every product keyed by id', async () => {
     const firestore = new FakeFirestore();
     seedProduct(firestore, 'p1', { stock: 10 });
     seedProduct(firestore, 'p2', { stock: 20 });
@@ -52,7 +52,7 @@ describe('ProductsService batched transaction reads', () => {
     expect(result.get('p2')?.product.stock).toBe(20);
   });
 
-  it('getForUpdateMany throws NotFoundException if any id is missing, same as getForUpdate', async () => {
+  it('getForUpdateMany throws NotFoundException if any id is missing', async () => {
     const firestore = new FakeFirestore();
     seedProduct(firestore, 'p1');
     const service = buildService(firestore);
@@ -310,7 +310,6 @@ describe('ProductsService catalog snapshot', () => {
       retailPrice: 5,
       wholesalePrice: 4,
       erpExternalId: `ERP-${id}`,
-      qrToken: `qr-${id}`,
       ...overrides,
     });
   }

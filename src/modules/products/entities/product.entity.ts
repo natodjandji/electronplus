@@ -27,8 +27,6 @@ export interface Product extends FirestoreDoc {
   thumbnailUrl?: string;
   active: boolean;
 
-  /** Opaque, persisted token — looked up via `where('qrToken', '==', token)`. */
-  qrToken: string;
   /** Free-text physical location, e.g. "Depósito A · Estante 3B". */
   warehouseLocation?: string;
 

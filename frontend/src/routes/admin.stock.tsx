@@ -1,7 +1,7 @@
 import { useRef } from "react";
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { AlertTriangle, Loader2, PackageX, ShoppingCart } from "lucide-react";
+import { AlertTriangle, PackageX, ShoppingCart } from "lucide-react";
 import { AdminShell } from "@/components/admin-shell";
 import { PaginationBar, usePagination } from "@/components/pagination";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -10,7 +10,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
 import { useSuppliers } from "@/components/supplier-picker";
-import { apiFetch, ApiError, reportError } from "@/lib/api-client";
+import { apiFetch, reportError } from "@/lib/api-client";
 import { toast } from "sonner";
 
 export const Route = createFileRoute("/admin/stock")({

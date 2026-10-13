@@ -6,7 +6,6 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { EventEmitter2 } from '@nestjs/event-emitter';
-import { randomBytes } from 'crypto';
 import type { DocumentReference, Firestore, Transaction } from 'firebase-admin/firestore';
 import { FieldValue, Timestamp } from 'firebase-admin/firestore';
 import { FIRESTORE } from '../../firebase/firebase.constants';
@@ -74,10 +73,6 @@ export interface StockUpdateContext {
 
 /** gRPC status code Firestore returns when update() targets a missing doc. */
 const GRPC_NOT_FOUND = 5;
-
-function generateQrToken(): string {
-  return randomBytes(24).toString('base64url');
-}
 
 /** `GET products/<segment>` routes declared before `products/:id` in
  * ProductsController — a product slugified to one of these would be
@@ -344,12 +339,6 @@ export class ProductsService {
     return products;
   }
 
-  async findByQrToken(token: string): Promise<Product> {
-    const product = await this.repo.findOne([{ field: 'qrToken', op: '==', value: token }]);
-    if (!product) throw new NotFoundException('Product not found');
-    return product;
-  }
-
   async stockByWarehouse(productId: string): Promise<StockLevel[]> {
     const productRef = this.repo.doc(productId); // throws if productId isn't a valid single-segment id
     const levelsRepo = new FirestoreRepository<StockLevel>(
@@ -413,7 +402,6 @@ export class ProductsService {
       imageUrl: dto.imageUrl,
       thumbnailUrl: dto.thumbnailUrl,
       active: dto.active ?? true,
-      qrToken: generateQrToken(),
     });
     await this.catalog.apply({ put: [product] });
     return product;
@@ -421,7 +409,7 @@ export class ProductsService {
 
   async update(id: string, dto: UpdateProductDto): Promise<Product> {
     // The repository's update is a set-merge: on an unknown id it would
-    // create a half-formed product (no sku/qrToken) and index it.
+    // create a half-formed product (no sku or category) and index it.
     const existing = await this.getOrForget(id);
     const patch: Partial<Product> = { ...dto };
     if (dto.categoryId) {
@@ -492,7 +480,7 @@ export class ProductsService {
   // callers (e.g. PurchaseOrdersService) that need the stock change to commit
   // atomically alongside other writes of their own, in a single transaction.
   // Firestore requires every read in a transaction before any write, so —
-  // same as getForUpdate/reserveStock below — call getStockForUpdate for
+  // same as getForUpdateMany/reserveStock below — call getStockForUpdate for
   // every item first, then applyStockDelta for every item.
 
   async getStockForUpdate(
@@ -642,11 +630,11 @@ export class ProductsService {
   // --- Transaction-safe primitives for callers (Orders) that reserve stock
   // for several products inside one Firestore transaction. Firestore
   // requires ALL reads before ANY writes in a transaction, so the caller
-  // must call getForUpdate() for every item first, then writeStockUpdate()
+  // must call getForUpdateMany() for every item first, then reserveStock()
   // for every item — never interleaved.
 
-  /** Batched equivalent of calling getForUpdate per item — one tx.getAll()
-   * instead of N sequential tx.get() round trips (Orders' create /
+  /** Reads every product with one tx.getAll() instead of N sequential
+   * tx.get() round trips (Orders' create /
    * createFromQuote, both reserving stock for every line in one go). */
   async getForUpdateMany(
     tx: Transaction,
@@ -669,25 +657,6 @@ export class ProductsService {
       });
     });
     return result;
-  }
-
-  async getForUpdate(
-    tx: Transaction,
-    productId: string,
-  ): Promise<{ ref: DocumentReference; product: Product }> {
-    const ref = this.repo.doc(productId);
-    const snap = await tx.get(ref);
-    if (!snap.exists) throw new NotFoundException('Product not found');
-    const data = snap.data()!;
-    return {
-      ref,
-      product: {
-        ...data,
-        id: snap.id,
-        createdAt: data.createdAt?.toDate?.() ?? data.createdAt,
-        updatedAt: data.updatedAt?.toDate?.() ?? data.updatedAt,
-      } as Product,
-    };
   }
 
   /** A product a customer can put in an order or quote: listed in the
@@ -844,7 +813,6 @@ export class ProductsService {
         ...patch,
         erpSyncedAt: new Date(),
         active: true,
-        qrToken: generateQrToken(),
       });
       catalogChanges.put.push(saved);
     }

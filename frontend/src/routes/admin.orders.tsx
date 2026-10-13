@@ -36,7 +36,7 @@ import {
   nextOrderStatus,
   type OrderStatus,
 } from "@/components/order-stepper";
-import { apiFetch, ApiError, reportError } from "@/lib/api-client";
+import { apiFetch, reportError } from "@/lib/api-client";
 import { formatMoneyAdmin } from "@/lib/electron-store";
 import { toast } from "sonner";
 import { formatDate } from "@/lib/format";

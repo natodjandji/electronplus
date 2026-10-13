@@ -37,12 +37,6 @@ export class UsersController {
     return this.usersService.updateProfile(user.id, dto);
   }
 
-  @Get()
-  @Roles(Role.ADMIN)
-  findAll() {
-    return this.usersService.findAll();
-  }
-
   @Get('by-role/:role')
   @Roles(Role.ADMIN)
   findPageByRole(

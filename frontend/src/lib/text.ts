@@ -1,5 +1,5 @@
 /** Strips combining diacritical marks (U+0300–U+036F) left behind by NFD normalization. */
-export function stripDiacritics(value: string): string {
+function stripDiacritics(value: string): string {
   return Array.from(value)
     .filter((ch) => {
       const code = ch.codePointAt(0)!;

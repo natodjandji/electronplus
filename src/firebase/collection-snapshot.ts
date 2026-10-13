@@ -612,7 +612,7 @@ function partition<T extends FirestoreDoc>(items: T[]): T[][] {
 }
 
 /** FNV-1a — stable, cheap, and spreads short string ids evenly. */
-export function shardOf(id: string, shardCount: number): number {
+function shardOf(id: string, shardCount: number): number {
   let hash = 0x811c9dc5;
   for (let i = 0; i < id.length; i++) {
     hash ^= id.charCodeAt(i);
