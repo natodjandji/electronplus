@@ -89,7 +89,7 @@ export function SiteHeader() {
           <Button
             variant="ghost"
             size="sm"
-            className="gap-2 text-brand-blue hover:bg-brand-yellow/15 hover:text-brand-navy hidden sm:inline-flex"
+            className="gap-2 text-brand-blue hidden sm:inline-flex"
             asChild
           >
             <Link to="/quotes" search={{ new: true }}>
