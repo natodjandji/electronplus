@@ -19,6 +19,8 @@ export interface SyncLog extends FirestoreDoc {
   itemsProcessed: number;
   /** Inbound only: products hidden because Profit Plus stopped sending them. */
   itemsHidden?: number;
+  /** Inbound only: Profit Plus rows left out for a blank or repeated code. */
+  itemsSkipped?: number;
   reference?: string; // e.g. orderId for outbound sync
   error?: string;
   /** Firestore TTL policy field (see firestore.indexes.json /

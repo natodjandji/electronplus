@@ -134,9 +134,13 @@ app.get('/api/productos-sincronizacion', requireApiKey, async (req, res) => {
       .query(PRODUCTOS_QUERY);
 
     const productos = result.recordset.map((row) => ({
-      codigo: row.codigo,
-      descripcion: row.descripcion,
-      categoria: row.categoria ?? null,
+      // Profit Plus guarda código, descripción y grupo en columnas char() de
+      // ancho fijo: vienen rellenas con espacios a la derecha (igual que en
+      // la tienda secundaria). Sin recortarlas, el código no coincide con el
+      // código de barras escaneado ni con la búsqueda en la web.
+      codigo: String(row.codigo ?? '').trim(),
+      descripcion: String(row.descripcion ?? '').trim(),
+      categoria: String(row.categoria ?? '').trim() || null,
       stock: Number(row.stock) || 0,
       precio1: Number(row.precio1) || 0,
       precio2: Number(row.precio2) || 0,

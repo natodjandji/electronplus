@@ -41,6 +41,22 @@ describe('fetchBridge', () => {
     expect(spy).toHaveBeenCalledTimes(2);
   });
 
+  it('gives up on a bridge that hangs, after one retry', async () => {
+    // Like the network: never answers, only rejects when its signal aborts.
+    const spy = jest
+      .spyOn(global, 'fetch')
+      .mockImplementation(
+        (_url, init) =>
+          new Promise((_resolve, reject) =>
+            init!.signal!.addEventListener('abort', () => reject(init!.signal!.reason)),
+          ),
+      );
+    await expect(fetchBridge('https://bridge/x', {}, 'El bridge', 0, 20)).rejects.toThrow(
+      'El bridge no respondió en 0 s',
+    );
+    expect(spy).toHaveBeenCalledTimes(2);
+  });
+
   it('summarizes plain text and long bodies', () => {
     expect(summarizeBody('  <p>Error\n interno</p> ')).toBe('Error interno');
     expect(summarizeBody('')).toBe('sin detalle');

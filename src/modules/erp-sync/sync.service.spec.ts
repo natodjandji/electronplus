@@ -53,7 +53,7 @@ describe('SyncService and products removed in Profit Plus', () => {
       events,
     );
     const read = (id: string) => firestore.read(Collections.PRODUCTS, id)!;
-    return { sync, adapter, errors, read };
+    return { sync, adapter, errors, read, firestore };
   }
 
   it('hides a product Profit Plus no longer sends and leaves manual products alone', async () => {
@@ -69,6 +69,21 @@ describe('SyncService and products removed in Profit Plus', () => {
     expect(read('C').erpRemovedAt).toBeInstanceOf(Date);
     expect(read('A')).toMatchObject({ active: true });
     expect(read('manual')).toMatchObject({ active: true });
+  });
+
+  it('keeps one product per Profit Plus code and leaves out rows without one', async () => {
+    const { sync, firestore } = setup(
+      [item('A', 4), { ...item('A', 9), name: 'Otro A' }, { ...item(''), name: 'Sin código' }],
+      {},
+    );
+    const log = await sync.runInboundSync();
+    expect(log).toMatchObject({ itemsProcessed: 1, itemsSkipped: 2 });
+    const products = (await firestore.collection(Collections.PRODUCTS).get()).docs.map((d) =>
+      d.data(),
+    );
+    expect(products).toEqual([
+      expect.objectContaining({ erpExternalId: 'A', name: 'Producto A', stock: 4 }),
+    ]);
   });
 
   it('brings it back when Profit Plus sends it again', async () => {

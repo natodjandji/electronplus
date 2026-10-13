@@ -23,7 +23,7 @@ describe('ErpExportService', () => {
     });
     const events = { emit: jest.fn() };
     const service = new ErpExportService(
-      { reportSale, isConfigured: () => true } as never,
+      { reportSale, isConfigured: () => true, canReportSales: () => true } as never,
       firestore as never,
       events as never,
     );
@@ -64,7 +64,7 @@ describe('ErpExportService', () => {
   it('keeps a sale pending without an attempt while the bridge is not set up', async () => {
     const { service, reportSale, read, firestore } = build();
     const unconfigured = new ErpExportService(
-      { reportSale, isConfigured: () => false } as never,
+      { reportSale, isConfigured: () => false, canReportSales: () => true } as never,
       firestore as never,
       { emit: jest.fn() } as never,
     );
@@ -78,6 +78,23 @@ describe('ErpExportService', () => {
 
     // Once it is, the same sale goes out.
     expect(await service.exportOrder('o1')).toBe('exported');
+  });
+
+  it('keeps sales pending, not marked as reported, while the bridge can only read', async () => {
+    const { reportSale, read, firestore } = build();
+    const readOnly = new ErpExportService(
+      { reportSale, isConfigured: () => true, canReportSales: () => false } as never,
+      firestore as never,
+      { emit: jest.fn() } as never,
+    );
+    firestore.reads.length = 0;
+    expect(await readOnly.exportOrder('o1')).toBe('skipped');
+    expect(await readOnly.exportPending()).toEqual({ exported: 0, failed: 0, waiting: 0 });
+    // Pending orders pile up until then: no tick reads them.
+    expect(firestore.reads).toEqual([]);
+    expect(reportSale).not.toHaveBeenCalled();
+    expect(read()).toMatchObject({ erpExportPending: true });
+    expect(read().erpExportedAt).toBeUndefined();
   });
 
   it('ignores orders that are not pending', async () => {

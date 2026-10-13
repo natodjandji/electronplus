@@ -1,4 +1,4 @@
-import { Injectable, Logger } from '@nestjs/common';
+import { Injectable } from '@nestjs/common';
 import { fetchBridge } from '../../../common/http/fetch-bridge';
 import { ConfigService } from '@nestjs/config';
 import { EnvConfig } from '../../../config/env.validation';
@@ -37,8 +37,6 @@ interface BridgeResponse {
  */
 @Injectable()
 export class ApiProfitPlusAdapter implements ProfitPlusAdapter {
-  private readonly logger = new Logger(ApiProfitPlusAdapter.name);
-
   constructor(private readonly config: ConfigService<EnvConfig, true>) {}
 
   isConfigured(): boolean {
@@ -75,39 +73,46 @@ export class ApiProfitPlusAdapter implements ProfitPlusAdapter {
     const data = (await res.json()) as BridgeResponse;
 
     return data.productos.map((p) => {
+      // Profit Plus guarda código y descripción en columnas char() de ancho
+      // fijo: llegan rellenos de espacios (le pasó al bridge secundario), y
+      // un SKU con espacios no coincide con el código de barras escaneado
+      // ni con la búsqueda. Se limpian aquí aunque el bridge ya lo haga.
+      const code = String(p.codigo ?? '').trim();
       // El bridge puede devolver categoria=null (LEFT JOIN sin match) —
       // CategoriesService.findOrCreateByCode ya crea "Sin categoría" la
       // primera vez y la reutiliza después, mismo mecanismo que cualquier
       // categoría real.
       const categoryLabel = p.categoria?.trim() || 'Sin categoría';
       return {
-        externalId: p.codigo,
-        sku: p.codigo,
-        name: p.descripcion,
+        externalId: code,
+        sku: code,
+        name: String(p.descripcion ?? '').trim(),
         categoryCode: slugify(categoryLabel) || 'sin-categoria',
         categoryLabel,
         // precio1 = tarifa principal (detal), precio2 = segunda tarifa
         // (mayor) — mismo orden que ya asume el resto del catálogo
         // (retailPrice/wholesalePrice).
-        retailPrice: p.precio1,
-        wholesalePrice: p.precio2,
-        stock: p.stock,
+        retailPrice: Number(p.precio1) || 0,
+        wholesalePrice: Number(p.precio2) || 0,
+        // Profit Plus admite existencias negativas; en la tienda es agotado.
+        stock: Math.max(0, Number(p.stock) || 0),
       };
     });
   }
 
+  /** El bridge (profit-plus-bridge-principal) hoy es solo de lectura: no
+   * expone ningún endpoint para escribir una venta en Profit Plus. Hacerlo
+   * toca el sistema contable (numeración de factura, movimientos de
+   * inventario, impuestos) y hay que definirlo con quien administra Profit
+   * Plus. Mientras tanto ErpExportService deja las ventas pendientes, sin
+   * marcarlas como reportadas, para enviarlas todas cuando exista. */
+  canReportSales(): boolean {
+    return false;
+  }
+
   async reportSale(sale: ErpSaleExport): Promise<void> {
-    // El bridge (profit-plus-bridge-principal) hoy es solo de lectura — no
-    // expone ningún endpoint para escribir una venta de vuelta en Profit
-    // Plus. Reportar una venta implica tocar el sistema contable
-    // (numeración de factura, movimientos de inventario, impuestos), y eso
-    // hay que definirlo junto con quien administra Profit Plus antes de
-    // automatizarlo — no es algo para improvisar acá. Se deja como no-op
-    // (loggeado, no lanza error) para que configurar el bridge principal
-    // no dispare 5 reintentos + una notificación de error por cada venta
-    // pagada mientras esa mitad de la integración no exista.
-    this.logger.warn(
-      `reportSale no implementado todavía — la venta ${sale.orderId} no se reportó a Profit Plus (falta definir el endpoint de escritura en el bridge).`,
+    throw new Error(
+      `El bridge de Profit Plus todavía no recibe ventas — la venta ${sale.orderId} no se reportó.`,
     );
   }
 

@@ -57,7 +57,7 @@ export class ErpExportService {
   async exportPending(
     now = new Date(),
   ): Promise<{ exported: number; failed: number; waiting: number }> {
-    if (!this.adapter.isConfigured()) return { exported: 0, failed: 0, waiting: 0 };
+    if (!this.canExport()) return { exported: 0, failed: 0, waiting: 0 };
     const pending = await this.orders.findAll({
       where: [{ field: 'erpExportPending', op: '==', value: true }],
     });
@@ -78,13 +78,18 @@ export class ErpExportService {
     return tally;
   }
 
+  /** Until the bridge is set up and can take sales, orders just stay
+   * pending, without a read or an attempt: an attempt would only fail,
+   * alert every admin and use up the retries, so the sale would never reach
+   * Profit Plus once it can. Pending is the record of what still has to go. */
+  private canExport(): boolean {
+    return this.adapter.isConfigured() && this.adapter.canReportSales();
+  }
+
   /** One attempt at reporting a paid order. Safe to run from the listener
-   * and the cron at once: only the caller that claims the order reports it.
-   * Until the bridge is set up the order just stays pending: an attempt
-   * would only fail, alert every admin, and use up the retries, so the sale
-   * would never reach Profit Plus once the bridge goes live. */
+   * and the cron at once: only the caller that claims the order reports it. */
   async exportOrder(orderId: string): Promise<ErpExportResult> {
-    if (!this.adapter.isConfigured()) return 'skipped';
+    if (!this.canExport()) return 'skipped';
     const claimedUntil = await this.claim(orderId);
     if (!claimedUntil) return 'skipped';
 

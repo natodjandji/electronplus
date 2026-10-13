@@ -41,6 +41,9 @@ export interface ProfitPlusAdapter {
   /** False until the connection details exist — scheduled runs skip quietly
    * instead of logging a failed sync every tick before go-live. */
   isConfigured(): boolean;
+  /** False while the bridge can only read: paid sales then stay pending
+   * (not marked as reported) until it can write them into Profit Plus. */
+  canReportSales(): boolean;
   fetchInventory(): Promise<ErpInventoryItem[]>;
   reportSale(sale: ErpSaleExport): Promise<void>;
   healthCheck(): Promise<boolean>;

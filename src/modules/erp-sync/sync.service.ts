@@ -13,6 +13,7 @@ import { CategoriesService } from '../products/categories.service';
 import { Product } from '../products/entities/product.entity';
 import { ErpCatalogChanges, ProductsService } from '../products/products.service';
 import {
+  ErpInventoryItem,
   ErpNotConfiguredError,
   PROFIT_PLUS_ADAPTER,
   ProfitPlusAdapter,
@@ -38,6 +39,28 @@ export interface ErpSyncErrorEvent {
   direction: SyncDirection;
   message: string;
   reference?: string;
+}
+
+/** One product per Profit Plus code. A row without a code can't be matched
+ * from one run to the next, and a code that comes twice would create two
+ * products — or flip one between both rows every run. The first row of a
+ * code wins; the rest are left out and named in the log. */
+function uniqueByCode(rows: ErpInventoryItem[]): {
+  items: ErpInventoryItem[];
+  skipped: string[];
+} {
+  const seen = new Set<string>();
+  const items: ErpInventoryItem[] = [];
+  const skipped: string[] = [];
+  for (const row of rows) {
+    if (!row.externalId) skipped.push(`(sin código) ${row.name}`.trim());
+    else if (seen.has(row.externalId)) skipped.push(row.externalId);
+    else {
+      seen.add(row.externalId);
+      items.push(row);
+    }
+  }
+  return { items, skipped };
 }
 
 @Injectable()
@@ -83,7 +106,12 @@ export class SyncService implements OnModuleInit {
     });
 
     try {
-      const items = await this.adapter.fetchInventory();
+      const { items, skipped } = uniqueByCode(await this.adapter.fetchInventory());
+      if (skipped.length > 0) {
+        this.logger.warn(
+          `Inbound sync: ${skipped.length} artículo(s) de Profit Plus omitidos por código vacío o repetido: ${skipped.slice(0, 10).join(', ')}${skipped.length > 10 ? '…' : ''}`,
+        );
+      }
 
       // Matched in memory against the catalog snapshot (about one read for
       // the whole run) instead of querying Firestore per item.
@@ -177,6 +205,7 @@ export class SyncService implements OnModuleInit {
         status: SyncStatus.SUCCESS,
         itemsProcessed: processed,
         itemsHidden: hidden,
+        ...(skipped.length > 0 && { itemsSkipped: skipped.length }),
         finishedAt: new Date(),
       };
       await this.repo.patch(log.id, finished);
