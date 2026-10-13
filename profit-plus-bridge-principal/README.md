@@ -14,47 +14,50 @@ Plus (o en la misma red).
 
 ## 1. Verificar el esquema real antes de usarla
 
-La consulta en `server.js` (`PRODUCTOS_QUERY`) está armada sobre la
-convención estándar de Profit Plus (tablas `saArt`, `saInvent`,
-`saGrupoArt`), pero **los nombres exactos de columnas varían entre
-versiones**. Antes de correrla en serio, confirma el esquema real contra tu
-base — conéctate con SQL Server Management Studio (o `sqlcmd`) y corre:
+La consulta en `server.js` (`PRODUCTOS_QUERY`) es **aproximada**: los
+nombres de tablas y columnas de Profit Plus cambian entre versiones, y la
+del bridge secundario resultó ser otra completamente distinta. Antes de
+usarla en serio hay que escribirla contra el esquema real.
 
-```sql
--- Lista las columnas reales de cada tabla
-EXEC sp_columns saArt;
-EXEC sp_columns saInvent;
-EXEC sp_columns saGrupoArt;
+Con el `.env` ya configurado (paso 2), corre el diagnóstico — es de solo
+lectura y solo mira el catálogo (artículos, existencias, almacenes,
+precios, líneas, monedas):
 
--- O mira unas filas reales para reconocer los campos a simple vista
-SELECT TOP 5 * FROM saArt;
-SELECT TOP 5 * FROM saInvent;
+```bash
+npm run diagnostico
 ```
 
-Con eso, ajusta los nombres de columna dentro del string `PRODUCTOS_QUERY`
-en `server.js` (está comentado campo por campo). Si tu instalación no tiene
-tabla de grupos/categorías separada, quita el `LEFT JOIN saGrupoArt` y usa
-directamente el código de grupo del artículo como `categoria`. Si no existe
-una columna de "activo" (`Art_Activo`), quita esa condición del `WHERE`.
+Prueba la conexión con los mismos datos que usará el servidor y guarda en
+`diagnostico-profit.txt` las tablas, sus columnas y unas filas de ejemplo.
+Ese archivo es lo que hace falta para reescribir `PRODUCTOS_QUERY`. Si la
+conexión falla, el mensaje dice qué revisar.
+
+Usa un usuario de SQL Server **de solo lectura** (rol `db_datareader` sobre
+la base de Profit Plus), nunca `sa`: el bridge nunca escribe.
 
 ## 2. Instalar y configurar
 
-Requiere [Node.js](https://nodejs.org) 18 o superior instalado en la máquina
-donde vas a correr esto (idealmente la misma red que el SQL Server de Profit
-Plus).
+Requiere [Node.js](https://nodejs.org) 18.19 o superior (la versión LTS
+actual sirve) en la máquina donde vas a correr esto, idealmente la misma del
+SQL Server de Profit Plus.
 
 ```bash
 cd profit-plus-bridge-principal
-npm install
+npm ci
 cp .env.example .env
 ```
 
 Edita `.env` con los datos reales de conexión (servidor, base, usuario,
-contraseña) y genera un `API_KEY` largo y aleatorio, por ejemplo:
+contraseña) y genera la `API_KEY`. El bridge no arranca con la clave de
+ejemplo ni con una de menos de 32 caracteres:
 
 ```bash
-openssl rand -hex 32
+node -e "console.log(require('crypto').randomBytes(32).toString('hex'))"
 ```
+
+El bridge escucha solo en `127.0.0.1` (variable `HOST`): el túnel del paso 5
+entra por ahí y ningún otro equipo de la red de la tienda necesita llegar a
+él.
 
 ## 3. Correrla
 
@@ -65,7 +68,7 @@ npm start
 Deja el proceso corriendo y prueba el endpoint (reemplaza `TU_API_KEY`):
 
 ```bash
-curl -H "Authorization: Bearer TU_API_KEY" http://localhost:4000/api/productos-sincronizacion
+curl -H "Authorization: Bearer TU_API_KEY" http://127.0.0.1:4000/api/productos-sincronizacion
 ```
 
 Respuesta esperada:
@@ -80,9 +83,17 @@ Respuesta esperada:
 ```
 
 Si SQL Server no responde o las credenciales fallan, el endpoint responde
-`500` con un mensaje descriptivo (`error` + `detalle`) en vez de tumbar el
-proceso — puedes seguir pegándole al `/health` para confirmar que el
-servidor Node sigue vivo mientras arreglas la conexión.
+`503` (fallo de conexión, que suele pasar solo) o `500` con el tipo de fallo
+y un id, sin tumbar el proceso:
+
+```json
+{ "error": "No se pudo consultar Profit Plus.", "motivo": "login", "id": "0d8efcc7" }
+```
+
+El mensaje completo de SQL Server, con qué revisar, queda en el registro
+del bridge en la línea con ese id; a la respuesta no va, porque nombra el
+equipo, la instancia, la base y el usuario. `/health` sigue respondiendo
+mientras arreglas la conexión.
 
 ## 4. Dejarla corriendo como servicio (Windows)
 
@@ -111,20 +122,23 @@ sistema".
 
 ## 5. Exponerla a internet (para que el backend en la nube la alcance)
 
-Esta API corre en la red local de la tienda, sin IP pública por defecto. El
-backend en la nube (Cloud Run) necesita poder alcanzarla vía
-`PROFIT_PLUS_API_URL` — para eso tienes dos caminos típicos:
+Esta API corre en la PC de la tienda, sin IP pública. El backend en la nube
+(Cloud Run) la alcanza por un [Cloudflare Tunnel](https://developers.cloudflare.com/cloudflare-one/connections/connect-networks/),
+igual que el bridge secundario: `cloudflared` corre como servicio en esta PC,
+abre el túnel hacia afuera (el router no abre ningún puerto) y publica
+`https://profit-principal.electronplus.com.ve` apuntando a
+`http://127.0.0.1:4000`.
 
-- **Túnel** (más rápido de poner a andar): [Cloudflare Tunnel](https://developers.cloudflare.com/cloudflare-one/connections/connect-networks/) (gratis, y ya tienes el dominio en Cloudflare) o [ngrok](https://ngrok.com/). Te da una URL pública fija que reenvía al puerto 4000 local, sin abrir puertos en el router.
-- **Port forwarding** en el router del local + IP fija/DDNS — más manual y menos seguro si no le sumas HTTPS.
-
-Cualquiera de los dos, la URL resultante es lo que va en `PROFIT_PLUS_API_URL`
-del backend principal, con el mismo `API_KEY` que configuraste aquí en
-`PROFIT_PLUS_API_KEY`.
+Esa URL va en `PROFIT_PLUS_API_URL` del backend principal, y la misma
+`API_KEY` de aquí en el secreto `profit-plus-api-key` (`PROFIT_PLUS_API_KEY`).
+No uses port forwarding: expondría el bridge sin HTTPS.
 
 ## Endpoints
 
 | Método | Ruta | Auth | Descripción |
 |---|---|---|---|
 | `GET` | `/api/productos-sincronizacion` | `Authorization: Bearer <API_KEY>` | Catálogo completo: código, descripción, categoría, stock, precio1, precio2 |
-| `GET` | `/health` | ninguna | Confirma que el proceso está vivo (no expone datos) |
+| `GET` | `/health` | ninguna | Confirma que el proceso está vivo (no expone datos ni toca SQL Server) |
+
+Las respuestas llevan `Cache-Control: no-store` y el catálogo va comprimido
+con gzip cuando el cliente lo acepta (el backend sí).
