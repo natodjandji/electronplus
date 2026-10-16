@@ -17,7 +17,9 @@ Plus (o en la misma red).
 La consulta en `server.js` (`PRODUCTOS_QUERY`) está escrita con el esquema
 real de la base de la tienda (`ELECT26`, verificado el 2026-10-15): las
 tablas `art` (artículos y precios), `st_almac` (existencia por almacén),
-`lin_art` (líneas) y `cat_art` (marcas). Los nombres cambian entre
+`lin_art` (líneas) y `cat_art` (marcas). La web muestra como código del
+producto la **referencia** del artículo (`ref`, o el código interno si está
+vacía) y lo reconoce por su código interno (`co_art`), que es único. Los nombres cambian entre
 versiones de Profit Plus: si algún día se actualiza Profit, o la consulta
 falla con "nombre de columna no válido", vuelve a verificarlos.
 
@@ -103,7 +105,7 @@ Respuesta esperada:
 {
   "total": 3,
   "productos": [
-    { "codigo": "EP-LED-9W", "descripcion": "Bombillo LED 9W", "categoriaCodigo": "07", "categoria": "Iluminación", "marcaCodigo": "01", "marca": "Lucerna", "stock": 42, "precio1": 4.5, "precio2": 3.2 }
+    { "codigo": "LAM001001", "referencia": "91248923474", "descripcion": "Bombillo LED 9W", "categoriaCodigo": "07", "categoria": "Iluminación", "marcaCodigo": "01", "marca": "Lucerna", "stock": 42, "precio1": 4.5, "precio2": 3.2 }
   ]
 }
 ```

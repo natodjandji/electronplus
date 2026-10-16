@@ -42,6 +42,14 @@ export interface ErpSyncErrorEvent {
   reference?: string;
 }
 
+/** Each value that appears more than once, once. */
+function repeatedValues(values: string[]): string[] {
+  const seen = new Set<string>();
+  const repeated = new Set<string>();
+  for (const value of values) (seen.has(value) ? repeated : seen).add(value);
+  return [...repeated];
+}
+
 /** One product per Profit Plus code. A row without a code can't be matched
  * from one run to the next, and a code that comes twice would create two
  * products — or flip one between both rows every run. The first row of a
@@ -112,6 +120,15 @@ export class SyncService implements OnModuleInit {
       if (skipped.length > 0) {
         this.logger.warn(
           `Inbound sync: ${skipped.length} artículo(s) de Profit Plus omitidos por código vacío o repetido: ${skipped.slice(0, 10).join(', ')}${skipped.length > 10 ? '…' : ''}`,
+        );
+      }
+      // The SKU is Profit's reference, which Profit doesn't force to be
+      // unique: two articles with the same one look alike on the web and to
+      // the seller's scanner. They're still synced; this says which.
+      const repeatedSkus = repeatedValues(items.map((item) => item.sku));
+      if (repeatedSkus.length > 0) {
+        this.logger.warn(
+          `Inbound sync: referencias repetidas en Profit Plus (la web les muestra el mismo código): ${repeatedSkus.slice(0, 10).join(', ')}${repeatedSkus.length > 10 ? '…' : ''}`,
         );
       }
 

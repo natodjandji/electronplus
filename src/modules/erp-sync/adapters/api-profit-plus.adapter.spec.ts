@@ -16,7 +16,8 @@ describe('ApiProfitPlusAdapter', () => {
           total: 3,
           productos: [
             {
-              codigo: 'EP-LED-9W      ',
+              codigo: 'LAM001001      ',
+              referencia: ' 91248923474 ',
               descripcion: 'Bombillo LED 9W   ',
               categoriaCodigo: '07    ',
               categoria: ' Iluminación ',
@@ -28,6 +29,7 @@ describe('ApiProfitPlusAdapter', () => {
             },
             {
               codigo: 'CAB-12',
+              referencia: '   ',
               descripcion: 'Cable 12',
               categoria: null,
               marca: '   ',
@@ -53,8 +55,10 @@ describe('ApiProfitPlusAdapter', () => {
 
     expect(await adapter.fetchInventory()).toEqual([
       {
-        externalId: 'EP-LED-9W',
-        sku: 'EP-LED-9W',
+        // The reference is what the store calls the code; the internal code
+        // stays the identity.
+        externalId: 'LAM001001',
+        sku: '91248923474',
         name: 'Bombillo LED 9W',
         categoryCode: 'iluminacion',
         categoryLabel: 'Iluminación',
@@ -66,6 +70,7 @@ describe('ApiProfitPlusAdapter', () => {
         stock: 0,
       },
       {
+        // No reference in Profit: shown by its internal code.
         externalId: 'CAB-12',
         sku: 'CAB-12',
         name: 'Cable 12',

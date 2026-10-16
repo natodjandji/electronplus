@@ -90,10 +90,12 @@ try {
  * 2026-10-15). Las mismas tablas existen en la empresa "demo", que sirve
  * para probarla con datos.
  *
- *   - art: un artículo por fila. co_art es su código único (el que ve la
- *     web como SKU); art_des, la descripción; prec_vta1 y prec_vta2, el
- *     precio detal y el mayor, en dólares sin IVA. Los anulados no salen,
- *     y la web los oculta.
+ *   - art: un artículo por fila. co_art es su código interno, único: con él
+ *     la web reconoce el artículo de una sincronización a otra. ref es la
+ *     REFERENCIA, el código que la tienda usa y que la web muestra (si está
+ *     vacía, muestra co_art). art_des, la descripción; prec_vta1 y
+ *     prec_vta2, el precio detal y el mayor, en dólares sin IVA. Los
+ *     anulados no salen, y la web los oculta.
  *   - lin_art: la LÍNEA del artículo es su categoría en la web; su código
  *     (co_lin) la identifica aunque en Profit le cambien el nombre.
  *   - cat_art: la tienda usa la CATEGORÍA de Profit, renombrada, para la
@@ -112,6 +114,7 @@ try {
 const PRODUCTOS_QUERY = `
   SELECT
     RTRIM(art.co_art)     AS codigo,
+    RTRIM(art.ref)        AS referencia,
     RTRIM(art.art_des)    AS descripcion,
     RTRIM(art.co_lin)     AS categoria_codigo,
     RTRIM(lin.lin_des)    AS categoria,
@@ -170,6 +173,7 @@ function dropPool(pool) {
 function toProducto(row) {
   return {
     codigo: String(row.codigo ?? '').trim(),
+    referencia: String(row.referencia ?? '').trim() || null,
     descripcion: String(row.descripcion ?? '').trim(),
     categoriaCodigo: String(row.categoria_codigo ?? '').trim() || null,
     categoria: String(row.categoria ?? '').trim() || null,
