@@ -1108,6 +1108,10 @@ function OrderDetailDialog({ orderId, onClose }: { orderId: string; onClose: () 
                   placeholder="Opcional"
                 />
               </Field>
+              <p className="text-xs text-muted-foreground">
+                Cuando la orden queda pagada se suma al stock lo de los productos creados en la web.
+                El de los productos de Profit Plus cambia al registrar la compra en Profit.
+              </p>
             </div>
             <DialogFooter>
               <Button variant="outline" onClick={() => setPayOpen(false)}>

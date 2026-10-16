@@ -69,6 +69,10 @@ export interface StockUpdateContext {
   sku: string;
   name: string;
   minStockThreshold?: number;
+  /** Synced from the principal store's Profit Plus, whose stock is the only
+   * source of truth: manual adjustments and purchase-order stock-in skip it
+   * (the next sync would overwrite them anyway). */
+  fromErp: boolean;
 }
 
 /** gRPC status code Firestore returns when update() targets a missing doc. */
@@ -468,10 +472,17 @@ export class ProductsService {
     throw new NotFoundException('Product not found');
   }
 
-  /** Manual admin stock adjustment (+ restock / - shrinkage), optionally scoped to a warehouse. */
+  /** Manual admin stock adjustment (+ restock / - shrinkage), optionally
+   * scoped to a warehouse. Not for products synced from Profit Plus: their
+   * stock comes only from Profit, where every sale is invoiced. */
   async adjustStock(id: string, dto: AdjustStockDto): Promise<Product> {
     const changed = await this.firestore.runTransaction(async (tx) => {
       const ctx = await this.getStockForUpdate(tx, id, dto.warehouseId);
+      if (ctx.fromErp) {
+        throw new BadRequestException(
+          'El stock de este producto viene de Profit Plus y solo cambia con la sincronización.',
+        );
+      }
       return this.applyStockDelta(tx, ctx, dto.delta);
     });
 
@@ -519,6 +530,7 @@ export class ProductsService {
       sku: data.sku as string,
       name: data.name as string,
       minStockThreshold: data.minStockThreshold as number | undefined,
+      fromErp: Boolean(data.erpExternalId),
     };
   }
 
@@ -546,6 +558,7 @@ export class ProductsService {
         sku: data.sku as string,
         name: data.name as string,
         minStockThreshold: data.minStockThreshold as number | undefined,
+        fromErp: Boolean(data.erpExternalId),
       });
     });
     return result;
@@ -596,6 +609,7 @@ export class ProductsService {
         sku: data.sku as string,
         name: data.name as string,
         minStockThreshold: data.minStockThreshold as number | undefined,
+        fromErp: Boolean(data.erpExternalId),
       });
     });
     return result;

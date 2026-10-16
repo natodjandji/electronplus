@@ -1,4 +1,4 @@
-import { NotFoundException } from '@nestjs/common';
+import { BadRequestException, NotFoundException } from '@nestjs/common';
 import { EventEmitter2 } from '@nestjs/event-emitter';
 import { FakeFirestore } from '../../test/fake-firestore';
 import { Collections } from '../../firebase/firestore-collections';
@@ -338,7 +338,7 @@ describe('ProductsService catalog snapshot', () => {
   it('shows admin writes immediately, on this instance and the next one', async () => {
     const firestore = new FakeFirestore();
     firestore.seed(Collections.CATEGORIES, CATEGORY.id, CATEGORY);
-    seedProduct(firestore, 'old');
+    seedProduct(firestore, 'old', { erpExternalId: undefined });
     const service = buildService(firestore);
     await service.activeCatalog();
 
@@ -361,6 +361,17 @@ describe('ProductsService catalog snapshot', () => {
 
     await service.delete(created.id);
     expect((await otherInstance.adminFindAll({} as never)).map((p) => p.id)).toEqual(['old']);
+  });
+
+  it("won't adjust by hand the stock of a product synced from Profit Plus", async () => {
+    const firestore = new FakeFirestore();
+    seedProduct(firestore, 'de-profit', { stock: 7 });
+    const service = buildService(firestore);
+
+    await expect(service.adjustStock('de-profit', { delta: 5 } as never)).rejects.toThrow(
+      BadRequestException,
+    );
+    expect(firestore.read(Collections.PRODUCTS, 'de-profit')).toMatchObject({ stock: 7 });
   });
 
   it('a product deleted from the console leaves the list once the admin deletes or edits it', async () => {

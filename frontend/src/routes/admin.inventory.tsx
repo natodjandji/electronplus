@@ -90,6 +90,8 @@ interface AdminProduct {
   active: boolean;
   /** Set when the Profit Plus sync hid it: Profit Plus stopped sending it. */
   erpRemovedAt?: string | null;
+  /** Its code in Profit Plus, for products synced from there. */
+  erpExternalId?: string;
 }
 
 // Shares its queryKey/cache with admin.index.tsx, admin.stock.tsx and
@@ -829,7 +831,20 @@ function ProductFormDialog({ product, onClose }: { product?: AdminProduct; onClo
               onChange={(e) => setMinStockThreshold(Math.max(0, Number(e.target.value)))}
             />
           </Field>
-          {isEdit && (
+          {isEdit && product!.erpExternalId && (
+            // Profit Plus is the only source of this stock: every sale is
+            // invoiced there, and the sync overwrites the web's figure.
+            <Field className="grid gap-1.5 sm:col-span-2">
+              <Label className="text-xs font-medium text-brand-navy">
+                Stock real (unidades en existencia)
+              </Label>
+              <Input value={`${product!.stock} uds`} disabled />
+              <p className="text-xs text-muted-foreground">
+                Viene de Profit Plus y se actualiza solo con la sincronización (cada 15 minutos).
+              </p>
+            </Field>
+          )}
+          {isEdit && !product!.erpExternalId && (
             <Field className="grid gap-1.5 sm:col-span-2">
               <Label className="text-xs font-medium text-brand-navy">
                 Stock real (unidades en existencia)

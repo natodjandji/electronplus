@@ -197,7 +197,8 @@ export class PurchaseOrdersService {
    * accounts-payable balance is updated, and the ordered quantities are
    * added to inventory — all inside one transaction, so a crash mid-way
    * can never leave the order "paid" without the payable/stock following,
-   * or vice versa.
+   * or vice versa. Products synced from Profit Plus get no stock here: the
+   * purchase reaches their stock once it's registered in Profit.
    */
   async registerPayment(
     id: string,
@@ -284,6 +285,7 @@ export class PurchaseOrdersService {
       if (fullyPaid) {
         order.items.forEach((item) => {
           const ctx = stockContextsById.get(item.productId)!;
+          if (ctx.fromErp) return;
           stockChanges.push(this.productsService.applyStockDelta(tx, ctx, item.quantityOrdered));
         });
       }
