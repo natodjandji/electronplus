@@ -168,6 +168,18 @@ describe('SyncService and products removed in Profit Plus', () => {
     expect(read('E')).toMatchObject({ active: true, erpRemovedAt: removedAt });
   });
 
+  it('hides the last products when Profit Plus no longer has any, if the catalog is that small', async () => {
+    const { sync, read, errors } = setup([], {
+      A: { erpExternalId: 'A' },
+      B: { erpExternalId: 'B' },
+    });
+    const log = await sync.runInboundSync();
+    expect(log.itemsHidden).toBe(2);
+    expect(read('A')).toMatchObject({ active: false });
+    expect(read('B')).toMatchObject({ active: false });
+    expect(errors).not.toHaveBeenCalled();
+  });
+
   it('hides nothing when too much of the catalog goes missing at once, and says so', async () => {
     const products: Record<string, Record<string, unknown>> = {};
     for (let i = 0; i < 20; i++) products[`P${i}`] = { erpExternalId: `P${i}` };

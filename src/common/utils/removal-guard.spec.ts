@@ -10,8 +10,14 @@ describe('removalAllowed', () => {
     expect(removalAllowed(600, 5438, 4838)).toBe(false);
   });
 
-  it('never retires anything on an empty feed', () => {
-    expect(removalAllowed(0, 0, 0)).toBe(false);
-    expect(removalAllowed(2, 10, 0)).toBe(false);
+  it('retires nothing on an empty feed from a real catalog', () => {
+    expect(removalAllowed(10, 10, 0)).toBe(false);
+    expect(removalAllowed(5438, 5438, 0)).toBe(false);
+  });
+
+  it('lets an empty feed retire a catalog within the floor: its last items were deleted', () => {
+    expect(removalAllowed(1, 1, 0)).toBe(true);
+    expect(removalAllowed(5, 5, 0)).toBe(true);
+    expect(removalAllowed(6, 6, 0)).toBe(false);
   });
 });

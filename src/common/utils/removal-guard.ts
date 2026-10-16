@@ -8,8 +8,11 @@ const MIN_REMOVAL_ALLOWANCE = 5;
  * ERP-backed ones. An empty feed or a large drop is far more likely a
  * bridge or Profit Plus problem (a failed query, the wrong database) than
  * that many real deletions, so the run keeps everything and says so instead.
+ * A catalog within the floor is the exception: there an empty feed is just
+ * the last few items deleted (a store starting out or testing), and losing
+ * them by mistake costs little.
  */
 export function removalAllowed(removing: number, catalogSize: number, feedSize: number): boolean {
-  if (feedSize === 0) return false;
+  if (feedSize === 0 && catalogSize > MIN_REMOVAL_ALLOWANCE) return false;
   return removing <= Math.max(MIN_REMOVAL_ALLOWANCE, Math.floor(catalogSize * MAX_REMOVAL_SHARE));
 }
