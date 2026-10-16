@@ -1,3 +1,4 @@
+import { BadRequestException } from '@nestjs/common';
 import { EventEmitter2 } from '@nestjs/event-emitter';
 import type { Firestore } from 'firebase-admin/firestore';
 import { FakeDocRef, FakeFirestore } from '../../test/fake-firestore';
@@ -136,13 +137,52 @@ describe('Second store sync + listing over the snapshot', () => {
 
   it('a manual edit shows up in the list served by another instance', async () => {
     const firestore = new FakeFirestore();
-    firestore.seed(Collections.SECOND_STORE_PRODUCTS, 'a', { name: 'Breaker 20A', stock: 4 });
+    firestore.seed(Collections.SECOND_STORE_PRODUCTS, 'a', {
+      name: 'Breaker 20A',
+      stock: 4,
+      source: 'manual',
+    });
     const admin = instance(firestore);
     await admin.service.findAll();
 
     await admin.service.update('a', { stock: 9, notes: 'contado a mano' } as never);
     const list = await instance(firestore).service.findAll();
     expect(list[0]).toMatchObject({ stock: 9, notes: 'contado a mano' });
+  });
+
+  it("won't change or delete what the secundaria's Profit Plus owns on a record it brought", async () => {
+    const firestore = new FakeFirestore();
+    firestore.seed(Collections.SECOND_STORE_PRODUCTS, 'erp', {
+      name: 'PILOTO VERDE',
+      code: '16523',
+      stock: 4,
+      retailPrice: 2,
+      source: 'erp',
+    });
+    firestore.seed(Collections.SECOND_STORE_PRODUCTS, 'ya-no-esta', {
+      name: 'PILOTO ROJO',
+      stock: 0,
+      source: 'erp',
+      missingFromErpSince: new Date(),
+    });
+    const { service } = instance(firestore);
+
+    await expect(service.update('erp', { stock: 9 } as never)).rejects.toThrow(BadRequestException);
+    await expect(service.update('erp', { retailPrice: 3, name: 'X' } as never)).rejects.toThrow(
+      /precio al detal, descripción|descripción, precio al detal/,
+    );
+    // The admin's own fields, and Profit's ones sent unchanged, still save.
+    await service.update('erp', { notes: 'en vitrina', price: 2.5, stock: 4 } as never);
+    expect(firestore.read(Collections.SECOND_STORE_PRODUCTS, 'erp')).toMatchObject({
+      stock: 4,
+      notes: 'en vitrina',
+      price: 2.5,
+    });
+
+    await expect(service.delete('erp')).rejects.toThrow(BadRequestException);
+    // Gone from Profit already: it can go here too.
+    await service.delete('ya-no-esta');
+    expect(firestore.read(Collections.SECOND_STORE_PRODUCTS, 'ya-no-esta')).toBeUndefined();
   });
 });
 

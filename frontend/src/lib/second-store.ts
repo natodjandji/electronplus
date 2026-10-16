@@ -12,6 +12,8 @@ export interface SecondStoreProduct {
   linkedProduct: { id: string; sku: string; name: string; stock: number } | null;
   /** Set when Profit Plus stopped sending this (linked) record. */
   missingFromErpSince?: string | null;
+  /** 'manual' when an admin created it; anything else came from Profit Plus. */
+  source?: "erp" | "manual";
 }
 
 export const SECOND_STORE_PRODUCTS_KEY = ["admin", "second-store-products"] as const;

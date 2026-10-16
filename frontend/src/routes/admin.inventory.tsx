@@ -284,36 +284,40 @@ function InventoryPage() {
                       </div>
                     </td>
                     <td className="px-4 py-3 text-right">
-                      <AlertDialog>
-                        <AlertDialogTrigger asChild>
-                          <button
-                            type="button"
-                            onClick={(e) => e.stopPropagation()}
-                            className="text-muted-foreground transition-colors hover:text-destructive"
-                            aria-label="Eliminar producto"
-                          >
-                            <Trash2 className="h-4 w-4" />
-                          </button>
-                        </AlertDialogTrigger>
-                        <AlertDialogContent onClick={(e) => e.stopPropagation()}>
-                          <AlertDialogHeader>
-                            <AlertDialogTitle>¿Eliminar este producto?</AlertDialogTitle>
-                            <AlertDialogDescription>
-                              Esta acción no se puede deshacer. Se eliminará "{p.name}" ({p.sku})
-                              del inventario permanentemente.
-                            </AlertDialogDescription>
-                          </AlertDialogHeader>
-                          <AlertDialogFooter>
-                            <AlertDialogCancel>Cancelar</AlertDialogCancel>
-                            <AlertDialogAction
-                              onClick={() => deleteProduct.mutate(p.id)}
-                              className="bg-destructive text-white hover:bg-destructive/90"
+                      {/* One still in Profit Plus would come back with the
+                          next sync: it's removed there, or deactivated here. */}
+                      {(!p.erpExternalId || p.erpRemovedAt) && (
+                        <AlertDialog>
+                          <AlertDialogTrigger asChild>
+                            <button
+                              type="button"
+                              onClick={(e) => e.stopPropagation()}
+                              className="text-muted-foreground transition-colors hover:text-destructive"
+                              aria-label="Eliminar producto"
                             >
-                              Eliminar
-                            </AlertDialogAction>
-                          </AlertDialogFooter>
-                        </AlertDialogContent>
-                      </AlertDialog>
+                              <Trash2 className="h-4 w-4" />
+                            </button>
+                          </AlertDialogTrigger>
+                          <AlertDialogContent onClick={(e) => e.stopPropagation()}>
+                            <AlertDialogHeader>
+                              <AlertDialogTitle>¿Eliminar este producto?</AlertDialogTitle>
+                              <AlertDialogDescription>
+                                Esta acción no se puede deshacer. Se eliminará "{p.name}" ({p.sku})
+                                del inventario permanentemente.
+                              </AlertDialogDescription>
+                            </AlertDialogHeader>
+                            <AlertDialogFooter>
+                              <AlertDialogCancel>Cancelar</AlertDialogCancel>
+                              <AlertDialogAction
+                                onClick={() => deleteProduct.mutate(p.id)}
+                                className="bg-destructive text-white hover:bg-destructive/90"
+                              >
+                                Eliminar
+                              </AlertDialogAction>
+                            </AlertDialogFooter>
+                          </AlertDialogContent>
+                        </AlertDialog>
+                      )}
                     </td>
                   </tr>
                 );
@@ -724,6 +728,9 @@ function ProductFormDialog({ product, onClose }: { product?: AdminProduct; onClo
   });
 
   const canSave = sku && name && categoryId && retailPrice >= 0 && wholesalePrice >= 0;
+  // Profit Plus owns these on a product it brought: the sync would undo any
+  // change made here, and the API refuses one.
+  const fromErp = Boolean(product?.erpExternalId);
 
   return (
     <Dialog open onOpenChange={(open) => !open && onClose()}>
@@ -733,13 +740,20 @@ function ProductFormDialog({ product, onClose }: { product?: AdminProduct; onClo
         </DialogHeader>
 
         <div className="grid gap-4 sm:grid-cols-2">
+          {fromErp && (
+            <p className="rounded-md bg-brand-blue/10 px-3 py-2 text-xs text-brand-navy sm:col-span-2">
+              Viene de Profit Plus: el código, el nombre, la categoría, los precios y el stock se
+              cambian en Profit. Aquí puedes editar las especificaciones, la imagen, el costo, el
+              stock mínimo y si está activo.
+            </p>
+          )}
           <Field className="grid gap-1.5">
             <Label className="text-xs font-medium text-brand-navy">SKU</Label>
-            <Input value={sku} onChange={(e) => setSku(e.target.value)} />
+            <Input value={sku} onChange={(e) => setSku(e.target.value)} disabled={fromErp} />
           </Field>
           <Field className="grid gap-1.5">
             <Label className="text-xs font-medium text-brand-navy">Nombre</Label>
-            <Input value={name} onChange={(e) => setName(e.target.value)} />
+            <Input value={name} onChange={(e) => setName(e.target.value)} disabled={fromErp} />
           </Field>
           <Field className="grid gap-1.5 sm:col-span-2">
             <Label className="text-xs font-medium text-brand-navy">Especificaciones</Label>
@@ -752,7 +766,7 @@ function ProductFormDialog({ product, onClose }: { product?: AdminProduct; onClo
           <Field className="grid min-w-0 gap-1.5">
             <Label className="text-xs font-medium text-brand-navy">Categoría</Label>
             <div className="flex min-w-0 gap-2">
-              <Select value={categoryId} onValueChange={setCategoryId}>
+              <Select value={categoryId} onValueChange={setCategoryId} disabled={fromErp}>
                 <SelectTrigger className="min-w-0 flex-1">
                   <SelectValue placeholder="Seleccionar…" />
                 </SelectTrigger>
@@ -769,6 +783,7 @@ function ProductFormDialog({ product, onClose }: { product?: AdminProduct; onClo
                 variant="outline"
                 size="icon"
                 className="shrink-0"
+                disabled={fromErp}
                 onClick={() => setCreatingCategory(true)}
               >
                 <Plus className="h-4 w-4" />
@@ -800,6 +815,7 @@ function ProductFormDialog({ product, onClose }: { product?: AdminProduct; onClo
               step="0.01"
               value={retailPrice}
               onChange={(e) => setRetailPrice(Math.max(0, Number(e.target.value)))}
+              disabled={fromErp}
             />
           </Field>
           <Field className="grid gap-1.5">
@@ -810,6 +826,7 @@ function ProductFormDialog({ product, onClose }: { product?: AdminProduct; onClo
               step="0.01"
               value={wholesalePrice}
               onChange={(e) => setWholesalePrice(Math.max(0, Number(e.target.value)))}
+              disabled={fromErp}
             />
           </Field>
           <Field className="grid gap-1.5">

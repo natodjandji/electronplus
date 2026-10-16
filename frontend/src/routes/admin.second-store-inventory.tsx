@@ -159,6 +159,9 @@ function EditDialog({ item, onClose }: { item: SecondStoreProduct; onClose: () =
   const [retailPrice, setRetailPrice] = useState(item.retailPrice ?? 0);
   const [wholesalePrice, setWholesalePrice] = useState(item.wholesalePrice ?? 0);
 
+  // The secundaria's Profit Plus owns these on a record it brought: the sync
+  // would undo any change made here, and the API refuses one.
+  const fromErp = item.source !== "manual";
   const dirty =
     name !== item.name ||
     code !== (item.code ?? "") ||
@@ -207,17 +210,25 @@ function EditDialog({ item, onClose }: { item: SecondStoreProduct; onClose: () =
     <Dialog open onOpenChange={(open) => !open && onClose()}>
       <DialogContent className="max-w-md">
         <DialogHeader>
-          <DialogTitle>Editar producto de tienda secundaria</DialogTitle>
+          <DialogTitle>
+            {fromErp ? "Producto de tienda secundaria" : "Editar producto de tienda secundaria"}
+          </DialogTitle>
         </DialogHeader>
         <div className="grid gap-3">
+          {fromErp && (
+            <p className="rounded-md bg-brand-blue/10 px-3 py-2 text-xs text-brand-navy">
+              Viene del Profit Plus de la tienda secundaria: la descripción, el código, el stock y
+              los precios se cambian allá y llegan solos con la sincronización.
+            </p>
+          )}
           <Field className="grid gap-1.5">
             <Label className="text-xs font-medium text-brand-navy">Descripción</Label>
-            <Input value={name} onChange={(e) => setName(e.target.value)} />
+            <Input value={name} onChange={(e) => setName(e.target.value)} disabled={fromErp} />
           </Field>
           <div className="grid grid-cols-2 gap-2">
             <Field className="grid gap-1.5">
               <Label className="text-xs font-medium text-brand-navy">Código</Label>
-              <Input value={code} onChange={(e) => setCode(e.target.value)} />
+              <Input value={code} onChange={(e) => setCode(e.target.value)} disabled={fromErp} />
             </Field>
             <Field className="grid gap-1.5">
               <Label className="text-xs font-medium text-brand-navy">Stock</Label>
@@ -226,6 +237,7 @@ function EditDialog({ item, onClose }: { item: SecondStoreProduct; onClose: () =
                 min={0}
                 value={stock}
                 onChange={(e) => setStock(Math.max(0, Number(e.target.value)))}
+                disabled={fromErp}
               />
             </Field>
             <Field className="grid gap-1.5">
@@ -236,6 +248,7 @@ function EditDialog({ item, onClose }: { item: SecondStoreProduct; onClose: () =
                 step="0.01"
                 value={retailPrice}
                 onChange={(e) => setRetailPrice(Math.max(0, Number(e.target.value)))}
+                disabled={fromErp}
               />
             </Field>
             <Field className="grid gap-1.5">
@@ -246,6 +259,7 @@ function EditDialog({ item, onClose }: { item: SecondStoreProduct; onClose: () =
                 step="0.01"
                 value={wholesalePrice}
                 onChange={(e) => setWholesalePrice(Math.max(0, Number(e.target.value)))}
+                disabled={fromErp}
               />
             </Field>
           </div>
@@ -273,13 +287,15 @@ function EditDialog({ item, onClose }: { item: SecondStoreProduct; onClose: () =
             <Button variant="outline" onClick={onClose}>
               Cerrar
             </Button>
-            <Button
-              className="bg-brand-blue text-white hover:bg-brand-blue/90"
-              disabled={!dirty || save.isPending}
-              onClick={() => save.mutate()}
-            >
-              Guardar cambios
-            </Button>
+            {!fromErp && (
+              <Button
+                className="bg-brand-blue text-white hover:bg-brand-blue/90"
+                disabled={!dirty || save.isPending}
+                onClick={() => save.mutate()}
+              >
+                Guardar cambios
+              </Button>
+            )}
           </div>
         </DialogFooter>
       </DialogContent>

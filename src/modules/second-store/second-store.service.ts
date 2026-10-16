@@ -1,4 +1,4 @@
-import { Inject, Injectable, NotFoundException } from '@nestjs/common';
+import { BadRequestException, Inject, Injectable, NotFoundException } from '@nestjs/common';
 import { FieldValue } from 'firebase-admin/firestore';
 import type { Firestore } from 'firebase-admin/firestore';
 import { FIRESTORE } from '../../firebase/firebase.constants';
@@ -17,15 +17,49 @@ export interface SecondStoreProductWithLink extends SecondStoreProduct {
 }
 
 /**
- * `stock`/`retailPrice`/`wholesalePrice` here can each be set two ways:
- * manually via update() below, or by SecondStoreSyncService's scheduled
- * pull from profit-plus-bridge-secundaria (see that file's doc comment for
- * the code/name matching rules). Both stay available at once, same
- * tradeoff the primary catalog already accepts between its own ERP sync
- * and ProductsController's manual adjustStock endpoint: whichever wrote
- * last wins, and the next scheduled sync overwrites the ERP-owned fields
- * again.
+ * A record's `name`/`code`/`stock`/`retailPrice`/`wholesalePrice` come from
+ * SecondStoreSyncService's scheduled pull from profit-plus-bridge-secundaria
+ * (see that file's doc comment for the code/name matching rules). The admin
+ * can set them only on a record created by hand. On one the sync brought,
+ * update() refuses them, the same as the principal catalog does for
+ * products from its own Profit Plus.
  */
+
+/** What the secundaria's Profit Plus sync writes on a record it brought,
+ * with how the admin form names it. Changed here, it would only last until
+ * the next run (every 30 minutes), so it's refused instead. The admin's own
+ * fields (reference price, notes, link) stay editable. */
+const ERP_OWNED_FIELDS = {
+  name: 'descripción',
+  code: 'código',
+  stock: 'stock',
+  retailPrice: 'precio al detal',
+  wholesalePrice: 'precio al mayor',
+} as const satisfies Partial<Record<keyof UpdateSecondStoreProductDto, string>>;
+
+/** Same rule the sync uses to decide what it may retire: everything but
+ * what an admin created by hand. */
+function fromErp(record: SecondStoreProduct): boolean {
+  return record.source !== 'manual';
+}
+
+function assertErpFieldsUntouched(
+  existing: SecondStoreProduct,
+  dto: UpdateSecondStoreProductDto,
+): void {
+  if (!fromErp(existing)) return;
+  const changed = Object.entries(ERP_OWNED_FIELDS)
+    .filter(([field]) => {
+      const value = dto[field as keyof typeof ERP_OWNED_FIELDS];
+      return value !== undefined && value !== existing[field as keyof typeof ERP_OWNED_FIELDS];
+    })
+    .map(([, label]) => label);
+  if (changed.length > 0) {
+    throw new BadRequestException(
+      `Estos datos vienen del Profit Plus de la tienda secundaria y solo se cambian allá: ${changed.join(', ')}.`,
+    );
+  }
+}
 
 @Injectable()
 export class SecondStoreService {
@@ -112,14 +146,23 @@ export class SecondStoreService {
   }
 
   async update(id: string, dto: UpdateSecondStoreProductDto): Promise<SecondStoreProduct> {
-    await this.getOrForget(id);
+    const existing = await this.getOrForget(id);
+    assertErpFieldsUntouched(existing, dto);
     return this.indexed(await this.repo.update(id, dto));
   }
 
   /** Succeeds when the doc is already gone: one deleted behind the app's
    * back (the Firebase console, a script) is still listed from the
-   * snapshot, and deleting it again is how it leaves the list. */
+   * snapshot, and deleting it again is how it leaves the list. A record
+   * still in the secundaria's Profit Plus would come back with the next
+   * sync, so only one gone from there (flagged) or made by hand can go. */
   async delete(id: string): Promise<void> {
+    const existing = await this.repo.findById(id);
+    if (existing && fromErp(existing) && !existing.missingFromErpSince) {
+      throw new BadRequestException(
+        'Este producto viene del Profit Plus de la tienda secundaria: para quitarlo, bórralo allá.',
+      );
+    }
     await this.repo.delete(id);
     await this.index.apply({ remove: [id] });
   }

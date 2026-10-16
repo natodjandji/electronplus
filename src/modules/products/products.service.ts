@@ -75,6 +75,18 @@ export interface StockUpdateContext {
   fromErp: boolean;
 }
 
+/** What the principal store's Profit Plus sync writes on a product it
+ * brought, with how the admin form names it. Changed here, it would only
+ * last until the next run (every 15 minutes), so it's refused instead.
+ * Stock has its own guard (adjustStock), and so does a brand's supplier. */
+const ERP_OWNED_FIELDS = {
+  sku: 'código',
+  name: 'nombre',
+  categoryId: 'categoría',
+  retailPrice: 'precio detal',
+  wholesalePrice: 'precio mayor',
+} as const satisfies Partial<Record<keyof UpdateProductDto, string>>;
+
 /** gRPC status code Firestore returns when update() targets a missing doc. */
 const GRPC_NOT_FOUND = 5;
 
@@ -418,6 +430,7 @@ export class ProductsService {
     // The repository's update is a set-merge: on an unknown id it would
     // create a half-formed product (no sku or category) and index it.
     const existing = await this.getOrForget(id);
+    this.assertErpFieldsUntouched(existing, dto);
     const patch: Partial<Product> = { ...dto };
     if (dto.categoryId) {
       const category = await this.categoriesRepo.getOrThrow(dto.categoryId, 'Category not found');
@@ -452,6 +465,14 @@ export class ProductsService {
    * app's back (the Firebase console, a script) is still listed from the
    * catalog snapshot, and deleting it again is how it leaves the list. */
   async delete(id: string): Promise<void> {
+    // Deleted here, a product still in Profit Plus would come back with the
+    // next sync. One the sync already hid (gone from Profit) can go.
+    const product = await this.repo.findById(id);
+    if (product?.erpExternalId && !product.erpRemovedAt) {
+      throw new BadRequestException(
+        'Este producto viene de Profit Plus: para quitarlo, anúlalo o bórralo en Profit, o desactívalo aquí.',
+      );
+    }
     const stockLevels = await this.firestore.collection(`products/${id}/stockLevels`).get();
     if (!stockLevels.empty) {
       const batch = this.firestore.batch();
@@ -460,6 +481,26 @@ export class ProductsService {
     }
     await this.repo.delete(id);
     await this.catalog.apply({ remove: [id] });
+  }
+
+  /** Refuses a change to what Profit Plus owns on a product it brought. A
+   * field sent with its current value passes: the admin form sends them all. */
+  private assertErpFieldsUntouched(existing: Product, dto: UpdateProductDto): void {
+    if (!existing.erpExternalId) return;
+    const changed: string[] = Object.entries(ERP_OWNED_FIELDS)
+      .filter(([field]) => {
+        const value = dto[field as keyof typeof ERP_OWNED_FIELDS];
+        return value !== undefined && value !== existing[field as keyof typeof ERP_OWNED_FIELDS];
+      })
+      .map(([, label]) => label);
+    if (existing.brand && dto.supplierId !== undefined && dto.supplierId !== existing.supplierId) {
+      changed.push('proveedor (lo asigna la marca)');
+    }
+    if (changed.length > 0) {
+      throw new BadRequestException(
+        `Estos datos vienen de Profit Plus y solo se cambian allá: ${changed.join(', ')}.`,
+      );
+    }
   }
 
   /** getOrThrow() that also drops a missing product from the catalog

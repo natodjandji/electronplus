@@ -363,6 +363,43 @@ describe('ProductsService catalog snapshot', () => {
     expect((await otherInstance.adminFindAll({} as never)).map((p) => p.id)).toEqual(['old']);
   });
 
+  it("won't change or delete what Profit Plus owns on a product it brought", async () => {
+    const firestore = new FakeFirestore();
+    seedProduct(firestore, 'de-profit', { brand: 'LUCERNA', supplierId: 'lucerna' });
+    seedProduct(firestore, 'oculto', { erpRemovedAt: new Date() });
+    const service = buildService(firestore);
+
+    await expect(service.update('de-profit', { retailPrice: 99 } as never)).rejects.toThrow(
+      BadRequestException,
+    );
+    await expect(service.update('de-profit', { name: 'Otro', sku: 'X' } as never)).rejects.toThrow(
+      /código, nombre/,
+    );
+    await expect(service.update('de-profit', { supplierId: 'otro' } as never)).rejects.toThrow(
+      /proveedor/,
+    );
+    // The web's own fields, and Profit's ones sent unchanged (the admin
+    // form sends every field), still save.
+    await service.update('de-profit', {
+      sku: 'SKU-de-profit',
+      name: 'Producto de-profit',
+      retailPrice: 5,
+      supplierId: 'lucerna',
+      specs: 'Luz cálida',
+      minStockThreshold: 3,
+    } as never);
+    expect(firestore.read(Collections.PRODUCTS, 'de-profit')).toMatchObject({
+      retailPrice: 5,
+      specs: 'Luz cálida',
+      minStockThreshold: 3,
+    });
+
+    await expect(service.delete('de-profit')).rejects.toThrow(BadRequestException);
+    // Already gone from Profit (hidden by the sync): it can go here too.
+    await service.delete('oculto');
+    expect(firestore.read(Collections.PRODUCTS, 'oculto')).toBeUndefined();
+  });
+
   it("won't adjust by hand the stock of a product synced from Profit Plus", async () => {
     const firestore = new FakeFirestore();
     seedProduct(firestore, 'de-profit', { stock: 7 });
