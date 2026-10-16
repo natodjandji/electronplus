@@ -2,7 +2,7 @@
 
 API REST liviana (Node.js + Express) que consulta la base SQL Server de Profit
 Plus en la tienda **principal** y devuelve el catálogo completo (código,
-descripción, categoría, stock, precio1, precio2) en JSON, listo para que el
+descripción, categoría, marca, stock, precio1, precio2) en JSON, listo para que el
 backend en la nube lo sincronice. Proyecto standalone — no depende del backend
 principal ni se despliega junto con él; corre localmente donde esté Profit
 Plus (o en la misma red).
@@ -12,12 +12,14 @@ Plus (o en la misma red).
 > Server físicamente distinto, con su propio `.env` y su propio puerto.
 > Mismo contrato de campos que este, esquema de columnas distinto.
 
-## 1. Verificar el esquema real antes de usarla
+## 1. El esquema de Profit Plus
 
-La consulta en `server.js` (`PRODUCTOS_QUERY`) es **aproximada**: los
-nombres de tablas y columnas de Profit Plus cambian entre versiones, y la
-del bridge secundario resultó ser otra completamente distinta. Antes de
-usarla en serio hay que escribirla contra el esquema real.
+La consulta en `server.js` (`PRODUCTOS_QUERY`) está escrita con el esquema
+real de la base de la tienda (`ELECT26`, verificado el 2026-10-15): las
+tablas `art` (artículos y precios), `st_almac` (existencia por almacén),
+`lin_art` (líneas) y `cat_art` (marcas). Los nombres cambian entre
+versiones de Profit Plus: si algún día se actualiza Profit, o la consulta
+falla con "nombre de columna no válido", vuelve a verificarlos.
 
 Con el `.env` ya configurado (paso 2), corre el diagnóstico — es de solo
 lectura y solo mira el catálogo (artículos, existencias, almacenes,
@@ -29,8 +31,8 @@ npm run diagnostico
 
 Prueba la conexión con los mismos datos que usará el servidor y guarda en
 `diagnostico-profit.txt` las tablas, sus columnas y unas filas de ejemplo.
-Ese archivo es lo que hace falta para reescribir `PRODUCTOS_QUERY`. Si la
-conexión falla, el mensaje dice qué revisar.
+Con ese archivo se escribe o corrige `PRODUCTOS_QUERY`. Si la conexión
+falla, el mensaje dice qué revisar.
 
 Usa un usuario de SQL Server **de solo lectura** (rol `db_datareader` sobre
 la base de Profit Plus), nunca `sa`: el bridge nunca escribe.
@@ -119,39 +121,42 @@ del bridge en la línea con ese id; a la respuesta no va, porque nombra el
 equipo, la instancia, la base y el usuario. `/health` sigue respondiendo
 mientras arreglas la conexión.
 
-## 4. Dejarla corriendo como servicio (Windows)
+## 4. Dejarla corriendo sola (Windows)
 
-La forma más simple y robusta de que esto sobreviva un reinicio de la PC sin
-que alguien tenga que abrir una terminal manualmente es
-[NSSM](https://nssm.cc/) (Non-Sucking Service Manager), gratuito:
+En la tienda corre como **tarea programada** de Windows, no con NSSM (su
+sitio no estaba disponible al instalar la tienda secundaria):
 
-1. Descarga NSSM y descomprímelo en cualquier carpeta.
-2. Abre una terminal como Administrador en esa carpeta y corre:
-   ```
-   nssm install ProfitPlusBridgePrincipal
-   ```
-3. En la ventana que abre:
-   - **Path**: la ruta a `node.exe` (normalmente `C:\Program Files\nodejs\node.exe`)
-   - **Startup directory**: la ruta a esta carpeta (`profit-plus-bridge-principal`)
-   - **Arguments**: `server.js`
-4. Instala el servicio y arráncalo:
-   ```
-   nssm start ProfitPlusBridgePrincipal
-   ```
-
-Alternativa más simple si no quieres instalar nada adicional: crear una
-tarea programada en el **Programador de tareas de Windows** que ejecute
-`node server.js` desde esta carpeta "al iniciar sesión" o "al iniciar el
-sistema".
+- Tarea `ElectronPlus Bridge Principal`: corre como SYSTEM al iniciar el
+  equipo, sin límite de tiempo, y si el proceso termina la reintenta cada
+  minuto (hasta 999 veces).
+- Acción: `cmd /c "node.exe" server.js >> C:\electronplus\logs\bridge-principal.log 2>&1`,
+  con esta carpeta como directorio de trabajo (de ahí lee el `.env`).
+- Reiniciarla: `Stop-ScheduledTask`, cerrar el `node` que quede en el
+  puerto 4000 y `Start-ScheduledTask`. Detener la tarea puede dejar vivo al
+  proceso hijo.
+- El registro es UTF-8: léelo con `Get-Content -Encoding UTF8`.
 
 ## 5. Exponerla a internet (para que el backend en la nube la alcance)
 
 Esta API corre en la PC de la tienda, sin IP pública. El backend en la nube
-(Cloud Run) la alcanza por un [Cloudflare Tunnel](https://developers.cloudflare.com/cloudflare-one/connections/connect-networks/),
-igual que el bridge secundario: `cloudflared` corre como servicio en esta PC,
-abre el túnel hacia afuera (el router no abre ningún puerto) y publica
+(Cloud Run) la alcanza por un [Cloudflare Tunnel](https://developers.cloudflare.com/cloudflare-one/connections/connect-networks/):
+`cloudflared` corre como servicio en esta PC, abre el túnel hacia afuera (el
+router no abre ningún puerto) y publica
 `https://profit-principal.electronplus.com.ve` apuntando a
 `http://127.0.0.1:4000`.
+
+El túnel (`profit-plus-principal`) se administra desde el panel de
+Cloudflare (Zero Trust → Tunnels): ahí está su nombre público y a dónde
+apunta. En la PC solo está el servicio `cloudflared`, instalado con el token
+del túnel. Ese token es una credencial: no se comparte ni se guarda en
+archivos.
+
+El servicio arranca en modo retrasado y con reintentos (`sc config
+cloudflared start= delayed-auto`, `sc failureflag cloudflared 1`): al
+encender la PC, Windows le da 45 segundos para arrancar y, con el equipo
+ocupado, en la secundaria no le alcanzaron. Además, la tarea
+`ElectronPlus Vigilante Tunel` lo arranca si lo encuentra detenido (3
+minutos después de encender y luego cada 5 minutos).
 
 Esa URL va en `PROFIT_PLUS_API_URL` del backend principal, y la misma
 `API_KEY` de aquí en el secreto `profit-plus-api-key` (`PROFIT_PLUS_API_KEY`).

@@ -2,7 +2,7 @@
  * Puente REST liviano entre Profit Plus (SQL Server, on-premise en la
  * tienda principal) y el backend en la nube. Expone un único endpoint de
  * solo lectura que devuelve el catálogo completo (código, descripción,
- * categoría, stock, precio1, precio2) que la sincronización necesita. Todo
+ * categoría, marca, stock, precio1, precio2) que la sincronización necesita. Todo
  * el proyecto vive en esta carpeta aparte — no toca ni depende del backend
  * principal (NestJS) — pensado para correr como servicio local en la misma
  * PC (o red) donde está el SQL Server de Profit Plus.
@@ -85,50 +85,52 @@ try {
 }
 
 /**
- * CONSULTA APROXIMADA — basada en la convención estándar de tablas de
- * Profit Plus (prefijo "sa"). Los nombres exactos de columnas varían entre
- * versiones, así que antes de usar esto en producción hay que reescribirla
- * con el esquema real — ver "npm run diagnostico" en el README.
+ * Consulta del catálogo, escrita con el esquema real de la base ELECT26
+ * (Profit Plus Administrativo, verificado con "npm run diagnostico" el
+ * 2026-10-15). Las mismas tablas existen en la empresa "demo", que sirve
+ * para probarla con datos.
  *
- * Supuestos hechos aquí (ajusta lo que no coincida con tu esquema):
- *   - saArt: catálogo de artículos (Art_Codigo, Art_Descripcion,
- *     Art_CodGrupo, Art_Precio1, Art_Precio2, Art_Activo).
- *   - saInvent: existencia por almacén (Inv_CodArt, Inv_CodAlm,
- *     Inv_Existencia).
- *   - saGrupoArt: categorías/grupos de artículos (Grp_Codigo,
- *     Grp_Descripcion) — si tu instalación no tiene esta tabla, quita el
- *     JOIN y usa directamente art.Art_CodGrupo como "categoria".
+ *   - art: un artículo por fila. co_art es su código único (el que ve la
+ *     web como SKU); art_des, la descripción; prec_vta1 y prec_vta2, el
+ *     precio detal y el mayor, en dólares sin IVA. Los anulados no salen,
+ *     y la web los oculta.
+ *   - lin_art: la LÍNEA del artículo es su categoría en la web; su código
+ *     (co_lin) la identifica aunque en Profit le cambien el nombre.
+ *   - cat_art: la tienda usa la CATEGORÍA de Profit, renombrada, para la
+ *     MARCA (Lucerna es la "001"). En la web cada marca es además un
+ *     proveedor, enlazado por su código (co_cat).
+ *   - st_almac: existencia actual (stock_act) por almacén. Con
+ *     WAREHOUSE_CODE vacío se suman todos; la tienda tiene uno solo (CCS).
+ *     El comprometido y el por llegar no se cuentan.
  *
- * Categoría: Profit Plus clasifica cada artículo de varias formas (línea,
- * sublínea, categoría), cada una con su código en el artículo y su
- * descripción en otra tabla. La que usa la tienda se ve en el diagnóstico
- * ("Clasificaciones usadas por los artículos"). Su código va en
- * categoria_codigo — es lo que mantiene la misma categoría en la web aunque
- * en Profit le cambien el nombre — y su descripción en categoria.
+ * Profit guarda códigos y descripciones en columnas char() rellenas de
+ * espacios: se recortan aquí y otra vez en toProducto().
  *
  * El almacén llega como parámetro (@almacen), nunca pegado al texto de la
  * consulta: así no hay inyección SQL posible desde el .env.
  */
 const PRODUCTOS_QUERY = `
   SELECT
-    art.Art_Codigo                       AS codigo,
-    art.Art_Descripcion                  AS descripcion,
-    art.Art_CodGrupo                     AS categoria_codigo,
-    grp.Grp_Descripcion                  AS categoria,
-    SUM(ISNULL(inv.Inv_Existencia, 0))   AS stock,
-    art.Art_Precio1                      AS precio1,
-    art.Art_Precio2                      AS precio2
-  FROM saArt art
-  LEFT JOIN saInvent inv
-    ON inv.Inv_CodArt = art.Art_Codigo
-    AND (@almacen IS NULL OR inv.Inv_CodAlm = @almacen)
-  LEFT JOIN saGrupoArt grp
-    ON grp.Grp_Codigo = art.Art_CodGrupo
-  WHERE art.Art_Activo = 1
-  GROUP BY
-    art.Art_Codigo, art.Art_Descripcion, art.Art_CodGrupo, grp.Grp_Descripcion,
-    art.Art_Precio1, art.Art_Precio2
-  ORDER BY art.Art_Codigo;
+    RTRIM(art.co_art)     AS codigo,
+    RTRIM(art.art_des)    AS descripcion,
+    RTRIM(art.co_lin)     AS categoria_codigo,
+    RTRIM(lin.lin_des)    AS categoria,
+    RTRIM(art.co_cat)     AS marca_codigo,
+    RTRIM(cat.cat_des)    AS marca,
+    ISNULL(st.stock, 0)   AS stock,
+    art.prec_vta1         AS precio1,
+    art.prec_vta2         AS precio2
+  FROM art
+  LEFT JOIN lin_art lin ON lin.co_lin = art.co_lin
+  LEFT JOIN cat_art cat ON cat.co_cat = art.co_cat
+  LEFT JOIN (
+    SELECT co_art, SUM(stock_act) AS stock
+    FROM st_almac
+    WHERE @almacen IS NULL OR co_alma = @almacen
+    GROUP BY co_art
+  ) st ON st.co_art = art.co_art
+  WHERE art.anulado = 0
+  ORDER BY art.co_art;
 `;
 
 // --- SQL Server -------------------------------------------------------------
