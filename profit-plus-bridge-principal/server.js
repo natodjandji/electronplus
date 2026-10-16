@@ -171,6 +171,8 @@ function toProducto(row) {
     descripcion: String(row.descripcion ?? '').trim(),
     categoriaCodigo: String(row.categoria_codigo ?? '').trim() || null,
     categoria: String(row.categoria ?? '').trim() || null,
+    marcaCodigo: String(row.marca_codigo ?? '').trim() || null,
+    marca: String(row.marca ?? '').trim() || null,
     stock: Number(row.stock) || 0,
     precio1: Number(row.precio1) || 0,
     precio2: Number(row.precio2) || 0,

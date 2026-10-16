@@ -1,4 +1,5 @@
 import { Module, Provider } from '@nestjs/common';
+import { FinanceModule } from '../finance/finance.module';
 import { OrdersModule } from '../orders/orders.module';
 import { ProductsModule } from '../products/products.module';
 import { ApiProfitPlusAdapter } from './adapters/api-profit-plus.adapter';
@@ -29,7 +30,7 @@ const adapterProvider: Provider = {
 };
 
 @Module({
-  imports: [ProductsModule, OrdersModule],
+  imports: [ProductsModule, OrdersModule, FinanceModule],
   controllers: [ErpSyncController],
   providers: [
     ApiProfitPlusAdapter,

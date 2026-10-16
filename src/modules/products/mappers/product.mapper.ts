@@ -9,6 +9,7 @@ export function toCatalogDto(product: Product, role: Role | undefined, pricing: 
     sku: product.sku,
     name: product.name,
     specs: product.specs,
+    brand: product.brand ?? null,
     category: {
       id: product.category.id,
       code: product.category.code,

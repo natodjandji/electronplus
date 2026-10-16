@@ -276,6 +276,8 @@ function SupplierDetailDialog({
                         Esta acción no se puede deshacer. Se eliminará a "{supplier.name}" de la
                         lista de proveedores. Los productos, facturas y órdenes de compra que lo
                         referencian no se ven afectados.
+                        {supplier.erpBrandCode &&
+                          " Es una marca de Profit Plus: mientras exista allá, la sincronización lo vuelve a crear."}
                       </AlertDialogDescription>
                     </AlertDialogHeader>
                     <AlertDialogFooter>
@@ -296,6 +298,11 @@ function SupplierDetailDialog({
 
         {!editing && (
           <div className="grid gap-1.5 text-sm">
+            {supplier.erpBrandCode && (
+              <div className="text-muted-foreground">
+                Marca de Profit Plus: sus productos se le asignan solos.
+              </div>
+            )}
             {supplier.taxId && <div className="text-muted-foreground">RIF: {supplier.taxId}</div>}
             {supplier.contactEmail && (
               <div className="flex items-center gap-1.5 text-muted-foreground">

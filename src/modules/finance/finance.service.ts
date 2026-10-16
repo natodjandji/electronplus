@@ -6,6 +6,7 @@ import { FieldValue } from 'firebase-admin/firestore';
 import { FIRESTORE } from '../../firebase/firebase.constants';
 import { Collections } from '../../firebase/firestore-collections';
 import { periodWhere } from '../../common/dto/period-query.dto';
+import { slugify } from '../../common/utils/slug';
 import { FirestoreRepository } from '../../firebase/firestore.repository';
 import { isStoragePath, UploadsService } from '../uploads/uploads.service';
 import { CreateInvoiceDto } from './dto/create-invoice.dto';
@@ -58,6 +59,31 @@ export class FinanceService {
 
   listSuppliers(): Promise<Supplier[]> {
     return this.suppliersRepo.findAll({ orderBy: { field: 'name' } });
+  }
+
+  /** The supplier standing for a Profit Plus brand, for the ERP sync to
+   * assign that brand's products to. Once linked it's found by the brand's
+   * code, so renaming the supplier here (to its legal name, say) keeps the
+   * link. A brand seen for the first time adopts an unlinked supplier with
+   * its name (ignoring case and accents), or gets a new one holding just the
+   * name, for an admin to complete. A brand without a code is matched by
+   * name every time. */
+  async findOrCreateForErpBrand(erpBrandCode: string | undefined, name: string): Promise<Supplier> {
+    const linked = erpBrandCode
+      ? await this.suppliersRepo.findOne([{ field: 'erpBrandCode', op: '==', value: erpBrandCode }])
+      : await this.suppliersRepo.findOne([{ field: 'name', op: '==', value: name }]);
+    if (linked) return linked;
+
+    const key = slugify(name);
+    const sameName = (await this.listSuppliers()).find(
+      (s) => !s.erpBrandCode && slugify(s.name) === key,
+    );
+    if (sameName) {
+      if (!erpBrandCode) return sameName;
+      await this.suppliersRepo.patch(sameName.id, { erpBrandCode });
+      return { ...sameName, erpBrandCode };
+    }
+    return this.suppliersRepo.create({ name, erpBrandCode });
   }
 
   updateSupplier(id: string, dto: UpdateSupplierDto): Promise<Supplier> {

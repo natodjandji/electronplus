@@ -414,6 +414,44 @@ describe('ProductsService catalog snapshot', () => {
     expect(fromSnapshot).toMatchObject({ stock: 7, cost: 3 });
   });
 
+  it('ERP upserts carry the brand from Profit Plus, and clear it when Profit drops it', async () => {
+    const firestore = new FakeFirestore();
+    seedProduct(firestore, 'bombillo', { stock: 1 });
+    const service = buildService(firestore);
+    const { byErpExternalId } = await service.findAllForErpMatching();
+    const existing = byErpExternalId.get('ERP-bombillo')!;
+    const item = {
+      externalId: 'ERP-bombillo',
+      sku: existing.sku,
+      name: existing.name,
+      categoryId: CATEGORY.id,
+      category: CATEGORY,
+      retailPrice: 5,
+      wholesalePrice: 4,
+      stock: 1,
+    };
+    const changes = () => ({ put: [], merge: [], remove: [] });
+
+    // No brand on either side — a product saved before brands existed has
+    // no field at all, and that must not count as a change.
+    expect((await service.upsertFromErp(item, existing, changes())).wrote).toBe(false);
+
+    const branded = await service.upsertFromErp({ ...item, brand: 'Lucerna' }, existing, changes());
+    expect(branded.wrote).toBe(true);
+    expect(firestore.read(Collections.PRODUCTS, 'bombillo')).toMatchObject({ brand: 'Lucerna' });
+
+    const same = await service.upsertFromErp(
+      { ...item, brand: 'Lucerna' },
+      branded.product,
+      changes(),
+    );
+    expect(same.wrote).toBe(false);
+
+    const dropped = await service.upsertFromErp(item, branded.product, changes());
+    expect(dropped.wrote).toBe(true);
+    expect(firestore.read(Collections.PRODUCTS, 'bombillo')).toMatchObject({ brand: null });
+  });
+
   it('ERP upsert of a product deleted since the snapshot recreates it whole', async () => {
     const firestore = new FakeFirestore();
     seedProduct(firestore, 'producto-borrado', { name: 'Producto borrado' });

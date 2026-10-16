@@ -9,6 +9,7 @@ import { EnvConfig } from '../../config/env.validation';
 import { FIRESTORE } from '../../firebase/firebase.constants';
 import { Collections } from '../../firebase/firestore-collections';
 import { FirestoreRepository } from '../../firebase/firestore.repository';
+import { FinanceService } from '../finance/finance.service';
 import { CategoriesService } from '../products/categories.service';
 import { Product } from '../products/entities/product.entity';
 import { ErpCatalogChanges, ProductsService } from '../products/products.service';
@@ -73,6 +74,7 @@ export class SyncService implements OnModuleInit {
     @Inject(FIRESTORE) firestore: Firestore,
     private readonly productsService: ProductsService,
     private readonly categoriesService: CategoriesService,
+    private readonly financeService: FinanceService,
     private readonly schedulerRegistry: SchedulerRegistry,
     private readonly config: ConfigService<EnvConfig, true>,
     private readonly events: EventEmitter2,
@@ -138,9 +140,37 @@ export class SyncService implements OnModuleInit {
         return pending;
       };
 
+      // Each brand is also a supplier: its products are assigned to it, for
+      // purchase orders. Resolved once per brand, like categories. A failure
+      // here only leaves the supplier as it was — prices and stock still
+      // update.
+      const supplierByKey = new Map<string, Promise<string | undefined>>();
+      const resolveSupplier = (item: ErpInventoryItem): Promise<string | undefined> => {
+        const brand = item.brand;
+        if (!brand) return Promise.resolve(undefined);
+        const key = item.brandExternalId ? `erp:${item.brandExternalId}` : `name:${brand}`;
+        let pending = supplierByKey.get(key);
+        if (!pending) {
+          pending = this.financeService
+            .findOrCreateForErpBrand(item.brandExternalId, brand)
+            .then((supplier) => supplier.id)
+            .catch((error: Error) => {
+              this.logger.warn(
+                `Inbound sync: no se pudo asignar el proveedor de la marca ${brand}: ${error.message}`,
+              );
+              return undefined;
+            });
+          supplierByKey.set(key, pending);
+        }
+        return pending;
+      };
+
       const results = await Promise.allSettled(
         items.map(async (item) => {
-          const category = await resolveCategory(item);
+          const [category, supplierId] = await Promise.all([
+            resolveCategory(item),
+            resolveSupplier(item),
+          ]);
           const existing = byErpExternalId.get(item.externalId) ?? bySku.get(item.sku);
           return this.productsService.upsertFromErp(
             {
@@ -154,6 +184,8 @@ export class SyncService implements OnModuleInit {
               cost: item.cost,
               stock: item.stock,
               specs: item.specs,
+              brand: item.brand,
+              supplierId,
             },
             existing,
             catalogChanges,

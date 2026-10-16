@@ -15,4 +15,6 @@ export type Product = {
    * `image` itself for products uploaded before thumbnails existed. */
   thumbnail: string;
   specs: string;
+  /** From Profit Plus, when the product has one. */
+  brand?: string;
 };

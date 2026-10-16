@@ -47,10 +47,10 @@ function buildProductJsonLd(product: Product) {
     mpn: product.sku,
     description: productDescription(product),
     category: categoryLabel(product),
-    // Google's Product rich-result guidance wants a brand; the catalog has no
-    // per-item manufacturer field, so the seller stands in rather than
-    // omitting a recommended property.
-    brand: { "@type": "Brand", name: "Electron Plus" },
+    // Google's Product rich-result guidance wants a brand: the one Profit Plus
+    // has for the product, else the seller rather than omitting a
+    // recommended property.
+    brand: { "@type": "Brand", name: product.brand ?? "Electron Plus" },
     ...(product.image ? { image: [product.image] } : {}),
     offers: {
       "@type": "Offer",
@@ -231,7 +231,15 @@ function ProductPage() {
               </div>
             )}
             <h1 className="mt-2 text-3xl font-bold text-brand-navy">{product.name}</h1>
-            <div className="mt-1 text-xs text-muted-foreground">SKU {product.sku}</div>
+            <div className="mt-1 text-xs text-muted-foreground">
+              {product.brand && (
+                <>
+                  Marca <span className="font-semibold text-brand-navy">{product.brand}</span>
+                  {" · "}
+                </>
+              )}
+              SKU {product.sku}
+            </div>
 
             <div className="mt-6">
               <PriceTag product={product} size="lg" />

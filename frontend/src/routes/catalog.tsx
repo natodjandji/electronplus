@@ -112,6 +112,7 @@ function CatalogPage() {
   const { data: bcv } = useBcvRate();
   const [q, setQ] = useState(initialQ ?? "");
   const [cats, setCats] = useState<string[]>(initialCategory ? [initialCategory] : []);
+  const [brands, setBrands] = useState<string[]>([]);
   const [onlyAvailable, setOnlyAvailable] = useState(false);
   // null = no price filter. The slider's ceiling follows the catalog's
   // priciest product — a fixed 0–100 range silently hid everything above
@@ -131,8 +132,11 @@ function CatalogPage() {
     const needle = q.toLowerCase();
     const price = effectivePriceRange(priceRange, priceCeiling);
     const matches = (products ?? []).filter((p) => {
-      if (needle && !`${p.name} ${p.sku}`.toLowerCase().includes(needle)) return false;
+      if (needle && !`${p.name} ${p.sku} ${p.brand ?? ""}`.toLowerCase().includes(needle)) {
+        return false;
+      }
       if (cats.length && !cats.includes(p.category)) return false;
+      if (brands.length && !(p.brand && brands.includes(p.brand))) return false;
       if (onlyAvailable && p.stock <= 0) return false;
       if (price.active) {
         const value = priceFor(p);
@@ -141,7 +145,7 @@ function CatalogPage() {
       return true;
     });
     return sortCatalog(matches, sort, priceFor, q);
-  }, [products, q, cats, onlyAvailable, priceRange, priceCeiling, priceFor, sort]);
+  }, [products, q, cats, brands, onlyAvailable, priceRange, priceCeiling, priceFor, sort]);
 
   // Straight from the data: Profit Plus defines its own categories, so a
   // hardcoded list would leave the real ones without a filter.
@@ -155,17 +159,29 @@ function CatalogPage() {
       .sort((a, b) => a.label.localeCompare(b.label, "es"));
   }, [products]);
 
+  // Also from Profit Plus. A single brand filters nothing, so the filter only
+  // shows up once there are two.
+  const availableBrands = useMemo(() => {
+    const names = new Set<string>();
+    for (const p of products ?? []) if (p.brand) names.add(p.brand);
+    return [...names]
+      .sort((a, b) => a.localeCompare(b, "es"))
+      .map((name) => ({ id: name, label: name }));
+  }, [products]);
+
   const pagination = usePagination(
     filtered,
     PAGE_SIZE,
-    JSON.stringify([q, cats, onlyAvailable, priceRange, sort]),
+    JSON.stringify([q, cats, brands, onlyAvailable, priceRange, sort]),
   );
   const resultsTop = useRef<HTMLElement>(null);
 
   // Every filter lives in one popover, so its badge counts them all.
-  const activeFilterCount = cats.length + (onlyAvailable ? 1 : 0) + (priceFiltered ? 1 : 0);
+  const activeFilterCount =
+    cats.length + brands.length + (onlyAvailable ? 1 : 0) + (priceFiltered ? 1 : 0);
   const clearFilters = () => {
     setCats([]);
+    setBrands([]);
     setOnlyAvailable(false);
     setPriceRange(null);
   };
@@ -260,28 +276,25 @@ function CatalogPage() {
                   <div>
                     <div className={FILTER_HEADING}>Categorías</div>
                     {availableCategories.length > 0 ? (
-                      <div className="-mr-2 max-h-52 space-y-2 overflow-y-auto pr-2">
-                        {availableCategories.map((c) => (
-                          <label
-                            key={c.id}
-                            className="flex items-center gap-2 text-sm text-brand-navy"
-                          >
-                            <Checkbox
-                              checked={cats.includes(c.id)}
-                              onCheckedChange={(v) =>
-                                setCats((prev) =>
-                                  v ? [...prev, c.id] : prev.filter((x) => x !== c.id),
-                                )
-                              }
-                            />
-                            {c.label}
-                          </label>
-                        ))}
-                      </div>
+                      <FilterChecklist
+                        options={availableCategories}
+                        selected={cats}
+                        onChange={setCats}
+                      />
                     ) : (
                       <p className="text-sm text-muted-foreground">Sin categorías por ahora.</p>
                     )}
                   </div>
+                  {availableBrands.length > 1 && (
+                    <div>
+                      <div className={FILTER_HEADING}>Marca</div>
+                      <FilterChecklist
+                        options={availableBrands}
+                        selected={brands}
+                        onChange={setBrands}
+                      />
+                    </div>
+                  )}
                   <div>
                     <div className={FILTER_HEADING}>Rango de precio (REF)</div>
                     <Slider
@@ -445,6 +458,33 @@ function CatalogCardSkeleton() {
   );
 }
 
+/** A scrollable list of checkboxes; `selected` holds the checked ids. */
+function FilterChecklist({
+  options,
+  selected,
+  onChange,
+}: {
+  options: { id: string; label: string }[];
+  selected: string[];
+  onChange: (next: (prev: string[]) => string[]) => void;
+}) {
+  return (
+    <div className="-mr-2 max-h-52 space-y-2 overflow-y-auto pr-2">
+      {options.map((o) => (
+        <label key={o.id} className="flex items-center gap-2 text-sm text-brand-navy">
+          <Checkbox
+            checked={selected.includes(o.id)}
+            onCheckedChange={(v) =>
+              onChange((prev) => (v ? [...prev, o.id] : prev.filter((x) => x !== o.id)))
+            }
+          />
+          {o.label}
+        </label>
+      ))}
+    </div>
+  );
+}
+
 function ProductCard({
   product,
   qty,
@@ -482,7 +522,8 @@ function ProductCard({
         )}
       </div>
       <div className="flex flex-1 flex-col p-3">
-        <div className="text-[9px] font-semibold uppercase tracking-widest text-muted-foreground">
+        <div className="truncate text-[9px] font-semibold uppercase tracking-widest text-muted-foreground">
+          {product.brand && <span className="text-brand-blue">{product.brand} · </span>}
           {product.sku}
         </div>
         <h3 className="mt-0.5 line-clamp-2 min-h-9 text-xs font-semibold text-brand-navy">
@@ -549,7 +590,8 @@ function ProductListRow({
         </div>
 
         <div className="min-w-0 flex-1">
-          <div className="text-[10px] font-semibold uppercase tracking-widest text-muted-foreground">
+          <div className="truncate text-[10px] font-semibold uppercase tracking-widest text-muted-foreground">
+            {product.brand && <span className="text-brand-blue">{product.brand} · </span>}
             {product.sku}
           </div>
           <h3 className="line-clamp-1 text-sm font-semibold text-brand-navy">

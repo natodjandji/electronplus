@@ -166,7 +166,10 @@ export class ProductsService {
     if (query.search) {
       const needle = query.search.toLowerCase();
       products = products.filter(
-        (p) => p.name.toLowerCase().includes(needle) || p.sku.toLowerCase().includes(needle),
+        (p) =>
+          p.name.toLowerCase().includes(needle) ||
+          p.sku.toLowerCase().includes(needle) ||
+          Boolean(p.brand?.toLowerCase().includes(needle)),
       );
     }
     return new PaginatedResult(products.slice(skip, skip + limit), products.length, page, limit);
@@ -713,7 +716,9 @@ export class ProductsService {
       existing.wholesalePrice !== patch.wholesalePrice ||
       existing.cost !== patch.cost ||
       existing.stock !== patch.stock ||
-      existing.specs !== patch.specs
+      existing.specs !== patch.specs ||
+      (existing.brand ?? null) !== (patch.brand ?? null) ||
+      existing.supplierId !== patch.supplierId
     );
   }
 
@@ -759,6 +764,8 @@ export class ProductsService {
       cost?: number;
       stock: number;
       specs?: string;
+      brand?: string;
+      supplierId?: string;
     },
     existing: Product | undefined,
     catalogChanges: ErpCatalogChanges,
@@ -778,6 +785,12 @@ export class ProductsService {
       // count as changed — and get rewritten — on every single run.
       cost: item.cost ?? existing?.cost,
       specs: item.specs ?? existing?.specs,
+      // Profit Plus is the only source of a brand: one removed there goes
+      // away here too.
+      brand: item.brand ?? null,
+      // The brand's supplier when it has one; otherwise whatever an admin
+      // picked stays.
+      supplierId: item.supplierId ?? existing?.supplierId,
     };
     // Back in Profit Plus after the sync had hidden it: show it again.
     if (existing?.erpRemovedAt) {

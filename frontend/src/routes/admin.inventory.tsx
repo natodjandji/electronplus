@@ -75,6 +75,8 @@ interface AdminProduct {
   sku: string;
   name: string;
   specs?: string;
+  /** From Profit Plus; its supplier is assigned by the sync. */
+  brand?: string | null;
   categoryId: string;
   category: Category;
   supplierId?: string;
@@ -643,6 +645,7 @@ function SecondStoreLinkDialog({
 function ProductFormDialog({ product, onClose }: { product?: AdminProduct; onClose: () => void }) {
   const queryClient = useQueryClient();
   const { data: categories } = useCategories();
+  const { data: suppliers } = useSuppliers();
   const isEdit = Boolean(product);
 
   const [sku, setSku] = useState(product?.sku ?? "");
@@ -772,7 +775,20 @@ function ProductFormDialog({ product, onClose }: { product?: AdminProduct; onClo
           </Field>
           <Field className="grid min-w-0 gap-1.5">
             <Label className="text-xs font-medium text-brand-navy">Proveedor</Label>
-            <SupplierPicker value={supplierId} onChange={(id) => setSupplierId(id)} />
+            {product?.brand ? (
+              // The sync assigns it on every run: a change here wouldn't last.
+              <>
+                <Input
+                  value={suppliers?.find((s) => s.id === supplierId)?.name ?? product.brand}
+                  disabled
+                />
+                <p className="text-[11px] text-muted-foreground">
+                  Lo asigna la marca {product.brand} desde Profit Plus.
+                </p>
+              </>
+            ) : (
+              <SupplierPicker value={supplierId} onChange={(id) => setSupplierId(id)} />
+            )}
           </Field>
           <Field className="grid gap-1.5">
             <Label className="text-xs font-medium text-brand-navy">Precio detal ($)</Label>

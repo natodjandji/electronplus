@@ -6,6 +6,7 @@ export interface ApiProduct {
   sku: string;
   name: string;
   specs?: string;
+  brand?: string | null;
   category: { id: string; code: string; label: string };
   retailPrice: number;
   wholesalePrice: number;
@@ -28,6 +29,7 @@ export function toProduct(p: ApiProduct): Product {
     image: p.imageUrl ?? "",
     thumbnail: p.thumbnailUrl ?? p.imageUrl ?? "",
     specs: p.specs ?? "",
+    brand: p.brand || undefined,
   };
 }
 

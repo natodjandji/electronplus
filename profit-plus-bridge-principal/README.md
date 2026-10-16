@@ -46,6 +46,19 @@ Profit le cambian el nombre, la categoría sigue siendo la misma, con el
 nombre nuevo, y sus productos se actualizan en la siguiente sincronización.
 Un artículo sin clasificación queda en "Sin categoría".
 
+La tienda principal agrupa por **línea** (esa es la categoría en la web) y
+usa la **categoría** de Profit, renombrada, para guardar la **marca** del
+producto. La consulta devuelve su código (`marcaCodigo`) y su descripción
+(`marca`), null si el artículo no tiene. En la web:
+
+- la marca se muestra en el producto, la búsqueda la encuentra y el filtro
+  "Marca" aparece cuando hay dos o más;
+- cada marca es también un **proveedor**: la sincronización asigna sus
+  productos al proveedor de la marca (lo crea con solo el nombre la primera
+  vez, o adopta uno que ya se llame igual). Lo enlaza el código de la marca,
+  así que al proveedor se le puede cambiar el nombre en la web sin perder el
+  enlace.
+
 ## 2. Instalar y configurar
 
 Requiere [Node.js](https://nodejs.org) 18.19 o superior (la versión LTS
@@ -88,7 +101,7 @@ Respuesta esperada:
 {
   "total": 3,
   "productos": [
-    { "codigo": "EP-LED-9W", "descripcion": "Bombillo LED 9W", "categoriaCodigo": "07", "categoria": "Iluminación", "stock": 42, "precio1": 4.5, "precio2": 3.2 }
+    { "codigo": "EP-LED-9W", "descripcion": "Bombillo LED 9W", "categoriaCodigo": "07", "categoria": "Iluminación", "marcaCodigo": "01", "marca": "Lucerna", "stock": 42, "precio1": 4.5, "precio2": 3.2 }
   ]
 }
 ```
@@ -148,7 +161,7 @@ No uses port forwarding: expondría el bridge sin HTTPS.
 
 | Método | Ruta | Auth | Descripción |
 |---|---|---|---|
-| `GET` | `/api/productos-sincronizacion` | `Authorization: Bearer <API_KEY>` | Catálogo completo: código, descripción, código y nombre de la categoría, stock, precio1, precio2 |
+| `GET` | `/api/productos-sincronizacion` | `Authorization: Bearer <API_KEY>` | Catálogo completo: código, descripción, código y nombre de la categoría, marca, stock, precio1, precio2 |
 | `GET` | `/health` | ninguna | Confirma que el proceso está vivo (no expone datos ni toca SQL Server) |
 
 Las respuestas llevan `Cache-Control: no-store` y el catálogo va comprimido

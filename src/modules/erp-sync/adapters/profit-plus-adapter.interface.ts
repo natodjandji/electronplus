@@ -13,6 +13,11 @@ export interface ErpInventoryItem {
   /** The category's own code in Profit Plus, when the bridge sends it — what
    * keeps a renamed category the same category on the web. */
   categoryExternalId?: string;
+  /** The product's brand, when Profit Plus has one for it. */
+  brand?: string;
+  /** The brand's own code in Profit Plus — what keeps a renamed brand
+   * linked to the same supplier on the web. */
+  brandExternalId?: string;
   retailPrice: number;
   wholesalePrice: number;
   cost?: number;

@@ -34,6 +34,8 @@ export interface Supplier {
   taxId?: string;
   contactEmail?: string;
   contactPhone?: string;
+  /** Set when it stands for a Profit Plus brand: the sync assigns it. */
+  erpBrandCode?: string;
 }
 
 export function useSuppliers() {

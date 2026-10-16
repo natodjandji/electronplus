@@ -16,6 +16,10 @@ interface BridgeProduct {
   /** Profit Plus's code for the item's category; null when it has none. */
   categoriaCodigo?: string | null;
   categoria: string | null;
+  /** Profit Plus's code for the item's brand, and its name; null when the
+   * item has none. */
+  marcaCodigo?: string | null;
+  marca?: string | null;
   stock: number;
   precio1: number;
   precio2: number;
@@ -89,6 +93,10 @@ export class ApiProfitPlusAdapter implements ProfitPlusAdapter {
       const categoryLabel =
         p.categoria?.trim() ||
         (categoryExternalId ? `Categoría ${categoryExternalId}` : 'Sin categoría');
+      // La marca, igual que la categoría: su código es su identidad, y una
+      // sin descripción se muestra con su código.
+      const brandExternalId = String(p.marcaCodigo ?? '').trim() || undefined;
+      const brand = p.marca?.trim() || (brandExternalId ? `Marca ${brandExternalId}` : undefined);
       return {
         externalId: code,
         sku: code,
@@ -96,6 +104,8 @@ export class ApiProfitPlusAdapter implements ProfitPlusAdapter {
         categoryCode: slugify(categoryLabel) || 'sin-categoria',
         categoryLabel,
         categoryExternalId,
+        brand,
+        brandExternalId,
         // precio1 = tarifa principal (detal), precio2 = segunda tarifa
         // (mayor) — mismo orden que ya asume el resto del catálogo
         // (retailPrice/wholesalePrice).

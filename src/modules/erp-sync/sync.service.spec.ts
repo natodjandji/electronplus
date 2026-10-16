@@ -1,6 +1,7 @@
 import { EventEmitter2 } from '@nestjs/event-emitter';
 import { FakeFirestore } from '../../test/fake-firestore';
 import { Collections } from '../../firebase/firestore-collections';
+import { FinanceService } from '../finance/finance.service';
 import { ProductsService } from '../products/products.service';
 import { ErpInventoryItem } from './adapters/profit-plus-adapter.interface';
 import { ERP_SYNC_ERROR_EVENT, SyncService } from './sync.service';
@@ -52,6 +53,7 @@ describe('SyncService and products removed in Profit Plus', () => {
       firestore as never,
       new ProductsService(firestore as never, events),
       categories as never,
+      new FinanceService(firestore as never, events, {} as never),
       {} as never,
       { get: () => undefined } as never,
       events,
@@ -101,6 +103,44 @@ describe('SyncService and products removed in Profit Plus', () => {
       categoryId: 'cat',
       category: { id: 'cat', code: 'cables', label: 'Cables y alambres' },
     });
+  });
+
+  it('assigns each brand to its supplier: adopts one with the same name, creates the rest', async () => {
+    const { sync, read, firestore } = setup(
+      [
+        { ...item('A'), brand: 'Lucerna', brandExternalId: 'LUC' },
+        { ...item('B'), brand: 'Lucerna', brandExternalId: 'LUC' },
+        { ...item('C'), brand: 'Philips', brandExternalId: 'PHI' },
+        item('D'),
+      ],
+      { D: { erpExternalId: 'D', supplierId: 'elegido-a-mano' } },
+    );
+    firestore.seed(Collections.SUPPLIERS, 'luc', { name: 'LUCERNA', taxId: 'J-1' });
+
+    await sync.runInboundSync();
+    const suppliers = (await firestore.collection(Collections.SUPPLIERS).get()).docs.map(
+      (d) => ({ id: d.id, ...d.data() }) as { id: string; name: string; erpBrandCode?: string },
+    );
+    expect(suppliers).toHaveLength(2);
+    expect(suppliers).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ id: 'luc', name: 'LUCERNA', erpBrandCode: 'LUC' }),
+        expect.objectContaining({ name: 'Philips', erpBrandCode: 'PHI' }),
+      ]),
+    );
+    const philips = suppliers.find((s) => s.erpBrandCode === 'PHI')!;
+    expect(read('producto-a')).toMatchObject({ brand: 'Lucerna', supplierId: 'luc' });
+    expect(read('producto-b')).toMatchObject({ supplierId: 'luc' });
+    expect(read('producto-c')).toMatchObject({ brand: 'Philips', supplierId: philips.id });
+    // No brand: the supplier an admin picked stays.
+    expect(read('D')).toMatchObject({ supplierId: 'elegido-a-mano' });
+
+    // Renamed here to its legal name: still the same supplier on the next run.
+    await firestore.collection(Collections.SUPPLIERS).doc('luc').update({ name: 'Lucerna C.A.' });
+    const log = await sync.runInboundSync();
+    expect(log.itemsProcessed).toBe(4);
+    expect((await firestore.collection(Collections.SUPPLIERS).get()).docs).toHaveLength(2);
+    expect(read('producto-a')).toMatchObject({ supplierId: 'luc' });
   });
 
   it('brings it back when Profit Plus sends it again', async () => {

@@ -4,6 +4,8 @@ export interface Product extends FirestoreDoc {
   sku: string;
   name: string;
   specs?: string;
+  /** From Profit Plus; null when the item has no brand there. */
+  brand?: string | null;
 
   categoryId: string;
   /** Denormalized so catalog reads never need a join. */

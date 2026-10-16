@@ -374,7 +374,8 @@ function FeaturedProductCard({ product }: { product: Product }) {
           />
         </div>
         <div className="p-4">
-          <div className="text-[10px] font-semibold uppercase tracking-widest text-muted-foreground">
+          <div className="truncate text-[10px] font-semibold uppercase tracking-widest text-muted-foreground">
+            {product.brand && <span className="text-brand-blue">{product.brand} · </span>}
             {product.sku}
           </div>
           <div className="mt-1 line-clamp-2 min-h-10 text-sm font-semibold text-brand-navy">
