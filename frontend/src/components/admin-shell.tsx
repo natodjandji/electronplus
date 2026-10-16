@@ -54,7 +54,7 @@ const NAV_GROUPS: {
     items: [
       { to: "/admin/orders", label: "Pedidos", icon: Truck, exact: false },
       { to: "/admin/quotes", label: "Cotizaciones", icon: FileCheck2, exact: false },
-      { to: "/vendedor", label: "Ventas en tienda", icon: ScanLine, exact: false },
+      { to: "/admin/in-store-sales", label: "Ventas en tienda", icon: ScanLine, exact: false },
       { to: "/admin/users", label: "Usuarios", icon: Users, exact: false },
     ],
   },

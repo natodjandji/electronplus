@@ -22,6 +22,7 @@ import { Route as RegisterRouteImport } from './routes/register'
 import { Route as VendedorRouteImport } from './routes/vendedor'
 import { Route as AdminIndexRouteImport } from './routes/admin.index'
 import { Route as AdminExpensesRouteImport } from './routes/admin.expenses'
+import { Route as AdminInStoreSalesRouteImport } from './routes/admin.in-store-sales'
 import { Route as AdminInventoryRouteImport } from './routes/admin.inventory'
 import { Route as AdminLabelsRouteImport } from './routes/admin.labels'
 import { Route as AdminOrdersRouteImport } from './routes/admin.orders'
@@ -103,6 +104,11 @@ const AdminIndexRoute = AdminIndexRouteImport.update({
 const AdminExpensesRoute = AdminExpensesRouteImport.update({
   id: '/expenses',
   path: '/expenses',
+  getParentRoute: () => AdminRoute,
+} as any)
+const AdminInStoreSalesRoute = AdminInStoreSalesRouteImport.update({
+  id: '/in-store-sales',
+  path: '/in-store-sales',
   getParentRoute: () => AdminRoute,
 } as any)
 const AdminInventoryRoute = AdminInventoryRouteImport.update({
@@ -205,6 +211,7 @@ export interface FileRoutesByFullPath {
   '/register': typeof RegisterRoute
   '/vendedor': typeof VendedorRouteWithChildren
   '/admin/expenses': typeof AdminExpensesRoute
+  '/admin/in-store-sales': typeof AdminInStoreSalesRoute
   '/admin/inventory': typeof AdminInventoryRoute
   '/admin/labels': typeof AdminLabelsRoute
   '/admin/orders': typeof AdminOrdersRoute
@@ -235,6 +242,7 @@ export interface FileRoutesByTo {
   '/quotes': typeof QuotesRoute
   '/register': typeof RegisterRoute
   '/admin/expenses': typeof AdminExpensesRoute
+  '/admin/in-store-sales': typeof AdminInStoreSalesRoute
   '/admin/inventory': typeof AdminInventoryRoute
   '/admin/labels': typeof AdminLabelsRoute
   '/admin/orders': typeof AdminOrdersRoute
@@ -268,6 +276,7 @@ export interface FileRoutesById {
   '/register': typeof RegisterRoute
   '/vendedor': typeof VendedorRouteWithChildren
   '/admin/expenses': typeof AdminExpensesRoute
+  '/admin/in-store-sales': typeof AdminInStoreSalesRoute
   '/admin/inventory': typeof AdminInventoryRoute
   '/admin/labels': typeof AdminLabelsRoute
   '/admin/orders': typeof AdminOrdersRoute
@@ -302,6 +311,7 @@ export interface FileRouteTypes {
     | '/register'
     | '/vendedor'
     | '/admin/expenses'
+    | '/admin/in-store-sales'
     | '/admin/inventory'
     | '/admin/labels'
     | '/admin/orders'
@@ -332,6 +342,7 @@ export interface FileRouteTypes {
     | '/quotes'
     | '/register'
     | '/admin/expenses'
+    | '/admin/in-store-sales'
     | '/admin/inventory'
     | '/admin/labels'
     | '/admin/orders'
@@ -364,6 +375,7 @@ export interface FileRouteTypes {
     | '/register'
     | '/vendedor'
     | '/admin/expenses'
+    | '/admin/in-store-sales'
     | '/admin/inventory'
     | '/admin/labels'
     | '/admin/orders'
@@ -494,6 +506,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AdminExpensesRouteImport
       parentRoute: typeof AdminRoute
     }
+    '/admin/in-store-sales': {
+      id: '/admin/in-store-sales'
+      path: '/in-store-sales'
+      fullPath: '/admin/in-store-sales'
+      preLoaderRoute: typeof AdminInStoreSalesRouteImport
+      parentRoute: typeof AdminRoute
+    }
     '/admin/inventory': {
       id: '/admin/inventory'
       path: '/inventory'
@@ -618,6 +637,7 @@ declare module '@tanstack/react-router' {
 
 interface AdminRouteChildren {
   AdminExpensesRoute: typeof AdminExpensesRoute
+  AdminInStoreSalesRoute: typeof AdminInStoreSalesRoute
   AdminInventoryRoute: typeof AdminInventoryRoute
   AdminLabelsRoute: typeof AdminLabelsRoute
   AdminOrdersRoute: typeof AdminOrdersRoute
@@ -634,6 +654,7 @@ interface AdminRouteChildren {
 
 const AdminRouteChildren: AdminRouteChildren = {
   AdminExpensesRoute: AdminExpensesRoute,
+  AdminInStoreSalesRoute: AdminInStoreSalesRoute,
   AdminInventoryRoute: AdminInventoryRoute,
   AdminLabelsRoute: AdminLabelsRoute,
   AdminOrdersRoute: AdminOrdersRoute,
