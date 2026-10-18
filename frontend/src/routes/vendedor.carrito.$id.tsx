@@ -78,6 +78,7 @@ import {
   useSalesCartActions,
   useSecondStoreStock,
 } from "@/lib/use-sales-carts";
+import { round2 } from "@/lib/money";
 
 export const Route = createFileRoute("/vendedor/carrito/$id")({
   component: SalesCartPage,
@@ -679,9 +680,7 @@ function PricingCard({
 
   const commitDiscount = () => {
     const parsed = Number(discount.replace(",", "."));
-    const value = Number.isFinite(parsed)
-      ? Math.round(Math.min(Math.max(parsed, 0), 100) * 100) / 100
-      : 0;
+    const value = Number.isFinite(parsed) ? round2(Math.min(Math.max(parsed, 0), 100)) : 0;
     setDiscount(value ? String(value) : "");
     if (value !== cart.discountPct) onChange({ discountPct: value });
   };

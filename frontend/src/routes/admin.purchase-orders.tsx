@@ -62,6 +62,7 @@ import { formatMoneyAdmin } from "@/lib/electron-store";
 import { formatDate } from "@/lib/format";
 import { CONTACT_INFO } from "@/lib/contact-info";
 import { toast } from "sonner";
+import { round2 } from "@/lib/money";
 
 export const Route = createFileRoute("/admin/purchase-orders")({
   head: () => ({
@@ -1064,7 +1065,7 @@ function OrderDetailDialog({ orderId, onClose }: { orderId: string; onClose: () 
                       // before that fix can still have an unrounded total,
                       // which would pre-fill this field with something like
                       // 61.17435 instead of a payable amount.
-                      setPayAmount(Math.round(Math.max(0, remaining) * 100) / 100);
+                      setPayAmount(round2(Math.max(0, remaining)));
                       setPayOpen(true);
                     }}
                   >

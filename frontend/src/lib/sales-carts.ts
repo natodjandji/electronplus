@@ -1,5 +1,6 @@
 import type { Product } from "./product";
 import { TAX_RATE } from "./electron-store";
+import { round2 } from "@/lib/money";
 
 /** No "cancelled": cancelling a cart deletes it. */
 export type SalesCartStatus = "open" | "completed";
@@ -71,10 +72,6 @@ export const PRICE_LIST_LABEL: Record<PriceList, string> = {
   retail: "Precio detal",
   wholesale: "Precio al mayor",
 };
-
-function round2(n: number) {
-  return Math.round(n * 100) / 100;
-}
 
 export function unitPriceFor(item: SalesCartItem, priceList: PriceList) {
   return priceList === "wholesale" ? item.wholesalePrice : item.retailPrice;

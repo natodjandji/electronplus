@@ -1,5 +1,6 @@
 import { PurchaseOrderItemInputDto } from './dto/purchase-order-item-input.dto';
 import { PurchaseOrderItem, PurchaseOrderTotals } from './entities/purchase-order.entity';
+import { round2 } from '../../common/utils/money';
 
 // Unrounded floats here (e.g. totalAmount = 61.17435...) get stored as-is in
 // Firestore. An admin registering a payment naturally types the rounded
@@ -7,9 +8,6 @@ import { PurchaseOrderItem, PurchaseOrderTotals } from './entities/purchase-orde
 // in purchase-orders.service.ts — the order gets stuck PARTIALLY_PAID
 // forever and its stock-in (gated on fullyPaid) never happens. orders.ts
 // already rounds every computed total for the same reason; this mirrors it.
-function round2(n: number): number {
-  return Math.round(n * 100) / 100;
-}
 
 export function buildItems(
   inputs: PurchaseOrderItemInputDto[],

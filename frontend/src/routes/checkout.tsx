@@ -52,6 +52,7 @@ import { VENEZUELA_STATE_NAMES, citiesForState } from "@/lib/venezuela-locations
 import { usePaymentMethods } from "@/lib/payment-methods";
 import { PayPalButton } from "@/components/paypal-button";
 import { toast } from "sonner";
+import { round2 } from "@/lib/money";
 
 const PAYPAL_CLIENT_ID = import.meta.env.VITE_PAYPAL_CLIENT_ID as string | undefined;
 
@@ -113,10 +114,6 @@ interface QuoteForCheckout {
   globalDiscountPct: number;
   convertedOrderId?: string;
   items: QuoteItemForCheckout[];
-}
-
-function round2(n: number): number {
-  return Math.round(n * 100) / 100;
 }
 
 function CheckoutPage() {

@@ -15,6 +15,7 @@ import {
   type CartSyncResult,
   type LiveCatalogLookup,
 } from "./cart-reconcile";
+import { round2 } from "@/lib/money";
 
 export type UserRole = "guest" | "client" | "admin" | "warehouse_operator" | "seller";
 
@@ -61,10 +62,6 @@ type StoreValue = {
   discountAmount: number;
   taxAmount: number;
 };
-
-function round2(n: number): number {
-  return Math.round(n * 100) / 100;
-}
 
 const CART_STORAGE_KEY = "electron-plus:cart";
 const DISCOUNT_STORAGE_KEY = "electron-plus:discount";
@@ -140,7 +137,7 @@ export function ElectronStoreProvider({ children }: { children: ReactNode }) {
 
   const value = useMemo<StoreValue>(() => {
     const priceFor = (p: Product) => p.retailPrice;
-    const cartTotal = cart.reduce((s, i) => s + priceFor(i.product) * i.qty, 0);
+    const cartTotal = round2(cart.reduce((s, i) => s + round2(priceFor(i.product) * i.qty), 0));
     const cartCount = cart.reduce((s, i) => s + i.qty, 0);
     const discountAmount = discount
       ? round2(
