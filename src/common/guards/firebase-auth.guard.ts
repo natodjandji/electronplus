@@ -7,7 +7,7 @@ import {
 } from '@nestjs/common';
 import { EventEmitter2 } from '@nestjs/event-emitter';
 import type { Auth } from 'firebase-admin/auth';
-import type { Firestore } from 'firebase-admin/firestore';
+import type { DocumentReference, Firestore } from 'firebase-admin/firestore';
 import { FieldValue } from 'firebase-admin/firestore';
 import { FIREBASE_AUTH, FIRESTORE } from '../../firebase/firebase.constants';
 import { Collections } from '../../firebase/firestore-collections';
@@ -20,6 +20,9 @@ function extractBearerToken(authHeader?: string): string | undefined {
 }
 
 export const USER_CREATED_EVENT = 'user.created';
+
+/** gRPC status Firestore's create() rejects with when the doc exists. */
+const GRPC_ALREADY_EXISTS = 6;
 
 /** How long a staff token's revocation check is trusted before asking
  * Firebase Auth again — a demotion or deactivation locks the account out
@@ -107,22 +110,9 @@ export class FirebaseAuthGuard implements CanActivate {
     picture?: string;
   }) {
     const ref = this.firestore.collection(Collections.USERS).doc(decoded.uid);
-    const snap = await ref.get();
+    let data = (await ref.get()).data();
 
-    let role: Role;
-    if (!snap.exists) {
-      role = Role.CLIENT;
-      const now = FieldValue.serverTimestamp();
-      await ref.set({
-        uid: decoded.uid,
-        email: decoded.email ?? null,
-        displayName: decoded.name ?? null,
-        photoURL: decoded.picture ?? null,
-        role,
-        active: true,
-        createdAt: now,
-        updatedAt: now,
-      });
+    if (!data && (await this.createUserDoc(ref, decoded))) {
       if (decoded.email) {
         this.events.emit(USER_CREATED_EVENT, {
           uid: decoded.uid,
@@ -130,12 +120,14 @@ export class FirebaseAuthGuard implements CanActivate {
           displayName: decoded.name,
         } satisfies UserCreatedEvent);
       }
-    } else {
-      if (snap.data()!.active === false) {
-        throw new UnauthorizedException('This account is deactivated');
-      }
-      role = snap.data()!.role as Role;
+      data = { role: Role.CLIENT, active: true };
     }
+    // Created by a request that got there first (see createUserDoc).
+    data ??= (await ref.get()).data();
+    if (data?.active === false) {
+      throw new UnauthorizedException('This account is deactivated');
+    }
+    const role = (data?.role as Role | undefined) ?? Role.CLIENT;
 
     // Best-effort — the request still succeeds with the freshly-read role
     // even if this write fails; it'll just fall back to Firestore again
@@ -143,5 +135,33 @@ export class FirebaseAuthGuard implements CanActivate {
     this.auth.setCustomUserClaims(decoded.uid, { role }).catch(() => undefined);
 
     return { id: decoded.uid, email: decoded.email ?? '', role };
+  }
+
+  /** A first sign-in fires several requests at once (the session sync, the
+   * signup flow's own call, the panel's first queries), each finding no
+   * profile yet. create() lets exactly one of them make it — false for the
+   * others — so the profile isn't overwritten and the welcome email goes
+   * out once. */
+  private async createUserDoc(
+    ref: DocumentReference,
+    decoded: { uid: string; email?: string; name?: string; picture?: string },
+  ): Promise<boolean> {
+    const now = FieldValue.serverTimestamp();
+    try {
+      await ref.create({
+        uid: decoded.uid,
+        email: decoded.email ?? null,
+        displayName: decoded.name ?? null,
+        photoURL: decoded.picture ?? null,
+        role: Role.CLIENT,
+        active: true,
+        createdAt: now,
+        updatedAt: now,
+      });
+      return true;
+    } catch (error) {
+      if ((error as { code?: number }).code === GRPC_ALREADY_EXISTS) return false;
+      throw error;
+    }
   }
 }

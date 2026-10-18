@@ -2,7 +2,8 @@ import { ExecutionContext, UnauthorizedException } from '@nestjs/common';
 import { EventEmitter2 } from '@nestjs/event-emitter';
 import { FakeFirestore } from '../../test/fake-firestore';
 import { Role } from '../enums/role.enum';
-import { FirebaseAuthGuard } from './firebase-auth.guard';
+import { Collections } from '../../firebase/firestore-collections';
+import { FirebaseAuthGuard, USER_CREATED_EVENT } from './firebase-auth.guard';
 
 function contextFor(token: string) {
   const request: Record<string, unknown> = { headers: { authorization: `Bearer ${token}` } };
@@ -51,5 +52,46 @@ describe('FirebaseAuthGuard revocation checks', () => {
     await expect(guard.canActivate(context)).resolves.toBe(true);
     expect(request.user).toEqual({ id: 'u1', email: 'u@example.com', role: Role.CLIENT });
     expect(verifyIdToken.mock.calls.some(([, check]) => check === true)).toBe(false);
+  });
+});
+
+/** A first sign-in fires several requests at once, each finding no profile. */
+describe('FirebaseAuthGuard first sign-in', () => {
+  function build() {
+    const firestore = new FakeFirestore();
+    const events = new EventEmitter2();
+    const welcomed = jest.fn();
+    events.on(USER_CREATED_EVENT, welcomed);
+    const guard = new FirebaseAuthGuard(
+      {
+        verifyIdToken: () => Promise.resolve({ uid: 'new-user', email: 'n@example.com' }),
+        setCustomUserClaims: () => Promise.resolve(),
+      } as never,
+      firestore as never,
+      events,
+    );
+    return { guard, firestore, welcomed };
+  }
+
+  it('creates the profile once and sends one welcome email, however many requests race', async () => {
+    const { guard, firestore, welcomed } = build();
+    const results = await Promise.all(
+      [1, 2, 3].map((n) => guard.canActivate(contextFor(`first-${n}`).context)),
+    );
+
+    expect(results).toEqual([true, true, true]);
+    expect(welcomed).toHaveBeenCalledTimes(1);
+    expect(firestore.read(Collections.USERS, 'new-user')).toMatchObject({
+      role: Role.CLIENT,
+      active: true,
+    });
+  });
+
+  it('still refuses a deactivated account found on the way', async () => {
+    const { guard, firestore } = build();
+    firestore.seed(Collections.USERS, 'new-user', { role: Role.CLIENT, active: false });
+    await expect(guard.canActivate(contextFor('deactivated').context)).rejects.toThrow(
+      UnauthorizedException,
+    );
   });
 });

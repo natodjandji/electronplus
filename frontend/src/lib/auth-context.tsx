@@ -185,15 +185,22 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const registerWithEmail = async (name: string, email: string, password: string) => {
     const credential = await createUserWithEmailAndPassword(auth, email.trim(), password);
-    // displayName lands after account creation; sync so the backend profile
-    // (created on the first /auth/session call) picks it up.
-    await updateProfile(credential.user, { displayName: name.trim() });
+    const displayName = name.trim();
+    await updateProfile(credential.user, { displayName });
+    // The account change already fired the session sync, which created the
+    // backend profile before the name existed — so the name is saved on it
+    // explicitly, not left to whichever request happened to create it.
     try {
       const idToken = await credential.user.getIdToken();
-      const synced = await apiFetch<UserProfile>("/auth/session", { method: "POST", idToken });
-      setProfile(synced);
+      const saved = await apiFetch<UserProfile>("/users/me", {
+        method: "PATCH",
+        body: { displayName },
+        idToken,
+      });
+      setProfile(saved);
     } catch {
-      // Backend unreachable — the guard will retry the sync on next auth change.
+      // Backend unreachable: the name stays in Firebase Auth, and the
+      // customer can still set it from their profile.
     }
   };
 
