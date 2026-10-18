@@ -4,7 +4,8 @@ import { Collections } from '../../firebase/firestore-collections';
 import { FakeFirestore } from '../../test/fake-firestore';
 import { PriceList, SalesCartStatus } from './entities/sales-cart.entity';
 import { computeSalesCartTotals } from './sales-cart-totals';
-import { SalesCartsService, storeDay } from './sales-carts.service';
+import { storeDay } from '../../common/utils/store-day';
+import { SalesCartsService } from './sales-carts.service';
 
 const seller = { id: 'seller-1', email: 'ana@tienda.com', role: Role.SELLER };
 const otherSeller = { id: 'seller-2', email: 'luis@tienda.com', role: Role.SELLER };

@@ -11,6 +11,8 @@ import {
   DiscountRedemption,
   DiscountType,
 } from './entities/discount-code.entity';
+import { storeDay } from '../../common/utils/store-day';
+import { round2 } from '../../common/utils/money';
 
 export interface DiscountValidation {
   valid: boolean;
@@ -19,12 +21,6 @@ export interface DiscountValidation {
   value?: number;
   discountAmount: number;
   message?: string;
-}
-
-/** Today in Venezuela as YYYY-MM-DD: a code valid "until the 15th" works the
- * whole 15th there, not only until 8 p.m. (midnight UTC). */
-export function todayInVenezuela(now = new Date()): string {
-  return new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Caracas' }).format(now);
 }
 
 function normalize(code: string): string {
@@ -38,7 +34,9 @@ function unusableReason(
   redemption: DiscountRedemption | undefined,
 ): string | undefined {
   if (!found || !found.enabled) return 'Código de descuento inválido';
-  if (found.expiresOn && found.expiresOn < todayInVenezuela()) {
+  // The store's day: a code valid "until the 15th" works the whole 15th
+  // there, not only until 8 p.m. (midnight UTC).
+  if (found.expiresOn && found.expiresOn < storeDay()) {
     return 'Este código de descuento ya venció';
   }
   if (found.maxUses != null && (found.usedCount ?? 0) >= found.maxUses) {
@@ -54,9 +52,7 @@ function unusableReason(
 function discountFor(found: DiscountCode, subtotal: number): number {
   return Math.min(
     subtotal,
-    found.type === DiscountType.PERCENTAGE
-      ? Math.round(((subtotal * found.value) / 100) * 100) / 100
-      : found.value,
+    found.type === DiscountType.PERCENTAGE ? round2((subtotal * found.value) / 100) : found.value,
   );
 }
 

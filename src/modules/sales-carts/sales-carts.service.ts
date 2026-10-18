@@ -34,15 +34,10 @@ import { SharedQuote } from './entities/shared-quote.entity';
 import { renderQuotePdf } from '../../common/pdf/quote-pdf';
 import { salesQuotePdf } from './sales-quote-pdf';
 import { computeSalesCartTotals } from './sales-cart-totals';
+import { storeDay } from '../../common/utils/store-day';
 
 const QUOTE_VALIDITY_DAYS = 3;
 const QUOTE_COUNTER_ID = 'salesQuotes';
-const STORE_TIME_ZONE = 'America/Caracas';
-
-/** The store's calendar day for a moment, as YYYY-MM-DD. */
-export function storeDay(date: Date): string {
-  return new Intl.DateTimeFormat('en-CA', { timeZone: STORE_TIME_ZONE }).format(date);
-}
 
 export interface SharedQuoteLink {
   token: string;

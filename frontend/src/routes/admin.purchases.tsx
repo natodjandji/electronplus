@@ -19,7 +19,7 @@ import { MonthYearPicker, useMonthPeriod } from "@/components/month-pager";
 import { PaginationBar, usePagination } from "@/components/pagination";
 import { PendingToggle } from "@/components/pending-toggle";
 import { periodQuery } from "@/lib/admin-period";
-import { formatCalendarDate } from "@/lib/format";
+import { formatCalendarDate, localToday } from "@/lib/format";
 import { Card } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Badge } from "@/components/ui/badge";
@@ -402,7 +402,7 @@ function CreateInvoiceDialog({ onClose }: { onClose: () => void }) {
   const [supplierName, setSupplierName] = useState("");
   const [invoiceNumber, setInvoiceNumber] = useState("");
   const [amount, setAmount] = useState(0);
-  const [issueDate, setIssueDate] = useState(() => new Date().toISOString().slice(0, 10));
+  const [issueDate, setIssueDate] = useState(localToday);
   const [dueDate, setDueDate] = useState("");
   const [paymentTerms, setPaymentTerms] = useState("");
   const [notes, setNotes] = useState("");
@@ -680,7 +680,7 @@ function InvoiceDetailDialog({ invoiceId, onClose }: { invoiceId: string; onClos
           <div className="space-y-1 text-sm">
             <div className="flex justify-between text-muted-foreground">
               <span>Emitida</span>
-              <span>{new Date(invoice.issueDate).toLocaleDateString("es-VE")}</span>
+              <span>{formatCalendarDate(invoice.issueDate)}</span>
             </div>
             <div className="flex justify-between text-muted-foreground">
               <span>Vence</span>

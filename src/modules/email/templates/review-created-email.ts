@@ -1,9 +1,9 @@
 import { EMAIL_COLORS as C } from '../brand';
 import { escapeHtml } from '../html-escape';
 import { badge, button, emailLayout, eyebrow, heading } from './base-layout';
+import { STORE_TIME_ZONE } from '../../../common/utils/store-day';
 
 const RATING_LABELS = ['', 'Muy mala', 'Mala', 'Regular', 'Buena', 'Excelente'];
-const STORE_TIME_ZONE = 'America/Caracas';
 
 function stars(rating: number): string {
   return `<span style="color:${C.yellow};letter-spacing:2px;">${'★'.repeat(rating)}</span><span style="color:${C.border};letter-spacing:2px;">${'★'.repeat(5 - rating)}</span>`;

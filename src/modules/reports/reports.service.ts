@@ -7,6 +7,7 @@ import { Collections } from '../../firebase/firestore-collections';
 import { FirestoreRepository } from '../../firebase/firestore.repository';
 import { OrderStatus } from '../orders/entities/order.entity';
 import { SalesDailySummary } from './entities/sales-daily-summary.entity';
+import { addDays, addMonths, storeDay, storeDayStart } from '../../common/utils/store-day';
 
 const REVENUE_STATUSES = [
   OrderStatus.PAID,
@@ -19,10 +20,6 @@ const REVENUE_STATUSES = [
 const REVENUE_CACHE_MS = 60 * 1000;
 
 type DayTotals = Pick<SalesDailySummary, 'date' | 'salesTotal' | 'purchasesTotal' | 'ordersCount'>;
-
-function toIsoDate(date: Date): string {
-  return date.toISOString().slice(0, 10);
-}
 
 @Injectable()
 export class ReportsService {
@@ -53,9 +50,7 @@ export class ReportsService {
   @Cron(CronExpression.EVERY_DAY_AT_1AM)
   async rollupYesterday(): Promise<DayTotals | undefined> {
     try {
-      const yesterday = new Date();
-      yesterday.setDate(yesterday.getDate() - 1);
-      return await this.rollupDay(yesterday);
+      return await this.rollupDay(storeDayStart(addDays(storeDay(), -1)));
     } catch (error) {
       this.logger.error('rollupYesterday cron run failed', error as Error);
       return undefined;
@@ -72,12 +67,12 @@ export class ReportsService {
   }
 
   /** A day's sales (paid orders) and purchases (supplier payments), read
-   * live and not stored. */
+   * live and not stored. The day is the store's (Venezuela), not UTC's: a
+   * sale at 9 p.m. belongs to that day, not the next one. */
   private async dayTotals(date: Date): Promise<DayTotals> {
-    const dayStart = new Date(date);
-    dayStart.setHours(0, 0, 0, 0);
-    const dayEnd = new Date(dayStart);
-    dayEnd.setDate(dayEnd.getDate() + 1);
+    const day = storeDay(date);
+    const dayStart = storeDayStart(day);
+    const dayEnd = storeDayStart(addDays(day, 1));
 
     const [ordersSnap, paymentsSnap] = await Promise.all([
       this.firestore
@@ -93,7 +88,7 @@ export class ReportsService {
         .get(),
     ]);
     return {
-      date: toIsoDate(dayStart),
+      date: day,
       salesTotal: ordersSnap.docs.reduce((sum, d) => sum + (d.data().totalAmount as number), 0),
       purchasesTotal: paymentsSnap.docs.reduce((sum, d) => sum + (d.data().amount as number), 0),
       ordersCount: ordersSnap.size,
@@ -109,12 +104,8 @@ export class ReportsService {
    */
   async salesSeries(months = 7): Promise<{ month: string; ventas: number; compras: number }[]> {
     const today = new Date();
-    const firstDay = new Date(today);
-    firstDay.setHours(0, 0, 0, 0);
-    firstDay.setDate(1);
-    firstDay.setMonth(firstDay.getMonth() - (months - 1));
-    const fromIso = toIsoDate(firstDay);
-    const todayIso = toIsoDate(new Date(new Date(today).setHours(0, 0, 0, 0)));
+    const todayIso = storeDay(today);
+    const fromIso = addMonths(`${todayIso.slice(0, 7)}-01`, -(months - 1));
 
     const [past, live] = await Promise.all([
       this.pastSummaries(fromIso, todayIso),

@@ -15,6 +15,7 @@ import {
   ExpenseFrequency,
   ExpenseStatus,
 } from './entities/expense.entity';
+import { addMonths, daysBetween, storeDay } from '../../common/utils/store-day';
 
 const DUE_SOON_THRESHOLD_DAYS = 5;
 export const EXPENSE_DUE_ALERT_EVENT = 'expenses.expense.due';
@@ -95,7 +96,7 @@ export class ExpensesService {
    * lastPaidAt instead of spawning a new doc per cycle. */
   async markPaid(id: string): Promise<Expense> {
     const expense = await this.findById(id);
-    const today = new Date().toISOString().slice(0, 10);
+    const today = storeDay();
 
     if (expense.frequency === ExpenseFrequency.ONCE) {
       return this.repo.update(id, {
@@ -162,12 +163,10 @@ export class ExpensesService {
   }
 }
 
+/** Counted in the store's days: in UTC, a Venezuelan evening is already
+ * tomorrow, and an expense due today would show as overdue. */
 function dueStatusForDueDate(dueDate: string): ExpenseDueStatus {
-  const due = new Date(dueDate);
-  const today = new Date();
-  today.setHours(0, 0, 0, 0);
-  due.setHours(0, 0, 0, 0);
-  const daysUntilDue = Math.round((due.getTime() - today.getTime()) / (1000 * 60 * 60 * 24));
+  const daysUntilDue = daysBetween(storeDay(), dueDate);
 
   if (daysUntilDue < 0) return ExpenseDueStatus.OVERDUE;
   if (daysUntilDue <= DUE_SOON_THRESHOLD_DAYS) return ExpenseDueStatus.DUE_SOON;
@@ -175,12 +174,5 @@ function dueStatusForDueDate(dueDate: string): ExpenseDueStatus {
 }
 
 function advanceDueDate(dueDate: string, frequency: ExpenseFrequency): string {
-  const [year, month, day] = dueDate.split('-').map(Number);
-  const next = new Date(Date.UTC(year, month - 1, day));
-  if (frequency === ExpenseFrequency.MONTHLY) {
-    next.setUTCMonth(next.getUTCMonth() + 1);
-  } else {
-    next.setUTCFullYear(next.getUTCFullYear() + 1);
-  }
-  return next.toISOString().slice(0, 10);
+  return addMonths(dueDate, frequency === ExpenseFrequency.MONTHLY ? 1 : 12);
 }

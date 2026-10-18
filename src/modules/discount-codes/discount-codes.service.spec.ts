@@ -1,7 +1,8 @@
 import { BadRequestException } from '@nestjs/common';
 import { FakeFirestore } from '../../test/fake-firestore';
 import { Collections } from '../../firebase/firestore-collections';
-import { DiscountCodesService, todayInVenezuela } from './discount-codes.service';
+import { storeDay } from '../../common/utils/store-day';
+import { DiscountCodesService } from './discount-codes.service';
 import { DiscountType } from './entities/discount-code.entity';
 
 describe('DiscountCodesService limits', () => {
@@ -22,7 +23,7 @@ describe('DiscountCodesService limits', () => {
   }
 
   it('works through its last day and not after', async () => {
-    const lastDayToday = build({ expiresOn: todayInVenezuela() });
+    const lastDayToday = build({ expiresOn: storeDay() });
     await expect(lastDayToday.service.validate('promo', 100, 'u1')).resolves.toMatchObject({
       valid: true,
       discountAmount: 10,
@@ -37,7 +38,7 @@ describe('DiscountCodesService limits', () => {
 
   it('reads the expiry in Venezuela time, not UTC', () => {
     // 02:00 UTC on the 16th is still 22:00 on the 15th in Caracas.
-    expect(todayInVenezuela(new Date('2026-10-16T02:00:00Z'))).toBe('2026-10-15');
+    expect(storeDay(new Date('2026-10-16T02:00:00Z'))).toBe('2026-10-15');
   });
 
   it('counts each checkout and refuses once maxUses is reached', async () => {

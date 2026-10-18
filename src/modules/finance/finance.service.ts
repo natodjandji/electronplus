@@ -23,6 +23,7 @@ import {
 } from './entities/supplier-payable.entity';
 import { SupplierPayment } from './entities/supplier-payment.entity';
 import { Supplier } from './entities/supplier.entity';
+import { daysBetween, storeDay } from '../../common/utils/store-day';
 
 const DUE_SOON_THRESHOLD_DAYS = 5;
 export const INVOICE_DUE_ALERT_EVENT = 'finance.invoice.due';
@@ -316,12 +317,10 @@ export class FinanceService {
   }
 }
 
+/** Counted in the store's days: in UTC, a Venezuelan evening is already
+ * tomorrow, and an invoice due today would show as overdue. */
 function dueStatusForDueDate(dueDate: string): PayableDueStatus {
-  const due = new Date(dueDate);
-  const today = new Date();
-  today.setHours(0, 0, 0, 0);
-  due.setHours(0, 0, 0, 0);
-  const daysUntilDue = Math.round((due.getTime() - today.getTime()) / (1000 * 60 * 60 * 24));
+  const daysUntilDue = daysBetween(storeDay(), dueDate);
 
   if (daysUntilDue < 0) return PayableDueStatus.OVERDUE;
   if (daysUntilDue <= DUE_SOON_THRESHOLD_DAYS) return PayableDueStatus.DUE_SOON;

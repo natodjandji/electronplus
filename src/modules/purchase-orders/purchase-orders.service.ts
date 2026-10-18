@@ -26,6 +26,7 @@ import { UpdatePurchaseOrderItemsDto } from './dto/update-purchase-order-items.d
 import { PurchaseOrderPayment } from './entities/purchase-order-payment.entity';
 import { PurchaseOrder, PurchaseOrderStatus } from './entities/purchase-order.entity';
 import { buildItems, computeTotals } from './purchase-order-totals';
+import { addDays, storeDay } from '../../common/utils/store-day';
 
 const DEFAULT_PAYABLE_TERM_DAYS = 30;
 
@@ -170,23 +171,21 @@ export class PurchaseOrdersService {
       throw new ForbiddenException('Only draft purchase orders can be issued');
     }
 
-    const issueDate = new Date();
-    const dueDate = new Date(issueDate);
-    dueDate.setDate(dueDate.getDate() + DEFAULT_PAYABLE_TERM_DAYS);
-    const toIso = (d: Date) => d.toISOString().slice(0, 10);
+    const issuedAt = new Date();
+    const issueDate = storeDay(issuedAt);
 
     const payable = await this.financeService.createInvoice({
       supplierId: order.supplierId,
       supplierName: order.supplierName,
       invoiceNumber: `PO-${order.id.slice(0, 8).toUpperCase()}`,
       amount: order.totals.totalAmount,
-      issueDate: toIso(issueDate),
-      dueDate: toIso(dueDate),
+      issueDate,
+      dueDate: addDays(issueDate, DEFAULT_PAYABLE_TERM_DAYS),
     });
 
     return this.repo.update(id, {
       status: PurchaseOrderStatus.ISSUED,
-      issuedAt: issueDate,
+      issuedAt,
       linkedPayableId: payable.id,
     });
   }

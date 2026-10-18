@@ -17,7 +17,7 @@ import { MonthYearPicker, useMonthPeriod } from "@/components/month-pager";
 import { PaginationBar, usePagination } from "@/components/pagination";
 import { PendingToggle } from "@/components/pending-toggle";
 import { periodQuery } from "@/lib/admin-period";
-import { formatCalendarDate } from "@/lib/format";
+import { formatCalendarDate, localToday } from "@/lib/format";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -397,7 +397,7 @@ function CreateExpenseDialog({ onClose }: { onClose: () => void }) {
   const [category, setCategory] = useState(CATEGORY_OPTIONS[0]);
   const [amount, setAmount] = useState(0);
   const [frequency, setFrequency] = useState<ExpenseFrequency>("monthly");
-  const [dueDate, setDueDate] = useState(() => new Date().toISOString().slice(0, 10));
+  const [dueDate, setDueDate] = useState(localToday);
   const [notes, setNotes] = useState("");
 
   const create = useMutation({
@@ -629,7 +629,7 @@ function EditExpenseDialog({ expense, onClose }: { expense: Expense; onClose: ()
 
         {expense.lastPaidAt && (
           <p className="text-xs text-muted-foreground">
-            Último pago registrado: {new Date(expense.lastPaidAt).toLocaleDateString("es-VE")}
+            Último pago registrado: {formatCalendarDate(expense.lastPaidAt)}
           </p>
         )}
 
