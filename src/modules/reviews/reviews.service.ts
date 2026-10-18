@@ -1,5 +1,6 @@
 import { BadRequestException, Inject, Injectable } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
+import { EventEmitter2 } from '@nestjs/event-emitter';
 import type { Firestore } from 'firebase-admin/firestore';
 import * as QRCode from 'qrcode';
 import { newestFirst, periodWhere } from '../../common/dto/period-query.dto';
@@ -27,6 +28,10 @@ const FORM_MAX_AGE_MS = 60 * 1000;
 /** Where the store's QR points (PUBLIC_SITE_URL + this). */
 export const REVIEW_PAGE_PATH = '/resena';
 
+/** A customer left a review — the admins get an email (EmailListener). */
+export const REVIEW_CREATED_EVENT = 'review.created';
+export type ReviewCreatedEvent = Omit<Review, 'id' | 'updatedAt'>;
+
 export interface ReviewForm {
   /** The editable answers, then "Otro". */
   sources: ReviewSource[];
@@ -50,6 +55,7 @@ export class ReviewsService {
     @Inject(FIRESTORE) firestore: Firestore,
     private readonly usersService: UsersService,
     private readonly config: ConfigService<EnvConfig, true>,
+    private readonly events: EventEmitter2,
   ) {
     this.repo = new FirestoreRepository<Review>(firestore, Collections.REVIEWS);
     this.settingsRepo = new FirestoreRepository<ReviewSettings>(firestore, Collections.SETTINGS);
@@ -91,7 +97,7 @@ export class ReviewsService {
     const seller = dto.sellerId ? form.sellers.find((s) => s.id === dto.sellerId) : undefined;
     if (dto.sellerId && !seller) throw new BadRequestException('Ese vendedor no está en la lista.');
 
-    await this.repo.create({
+    const saved = await this.repo.create({
       rating: dto.rating,
       sourceId: source.id,
       sourceLabel: source.label,
@@ -102,6 +108,19 @@ export class ReviewsService {
       customerName: clean(dto.customerName),
       customerPhone: dto.customerPhone,
     });
+    this.events.emit(REVIEW_CREATED_EVENT, {
+      rating: saved.rating,
+      sourceId: saved.sourceId,
+      sourceLabel: saved.sourceLabel,
+      sourceOther: saved.sourceOther,
+      sellerId: saved.sellerId,
+      sellerName: saved.sellerName,
+      message: saved.message,
+      customerName: saved.customerName,
+      customerPhone: saved.customerPhone,
+      // The moment it was sent: the saved doc's timestamp is the server's.
+      createdAt: new Date(),
+    } satisfies ReviewCreatedEvent);
   }
 
   async list(period: { from?: string; to?: string }): Promise<Review[]> {

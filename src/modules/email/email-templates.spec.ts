@@ -12,6 +12,7 @@ import { invoiceDueEmail } from './templates/invoice-due-email';
 import { orderCreatedEmail } from './templates/order-created-email';
 import { orderStatusEmail } from './templates/order-status-email';
 import { quoteStatusEmail } from './templates/quote-status-email';
+import { reviewCreatedEmail } from './templates/review-created-email';
 import { stockAlertEmail } from './templates/stock-alert-email';
 import { welcomeEmail } from './templates/welcome-email';
 
@@ -68,6 +69,27 @@ const ALL_EMAILS: Record<string, { subject: string; html: string }> = {
     },
     SITE,
   ),
+  reviewHappy: reviewCreatedEmail(
+    {
+      rating: 5,
+      sourceLabel: 'Instagram',
+      sellerName: 'María Pérez',
+      message: 'Muy buena atención',
+      createdAt: new Date('2026-10-18T17:30:00Z'),
+    },
+    SITE,
+  ),
+  reviewToFollowUp: reviewCreatedEmail(
+    {
+      rating: 2,
+      sourceLabel: 'Otro',
+      sourceOther: 'Un volante',
+      customerName: 'Carlos',
+      customerPhone: '0412-5550000',
+      createdAt: new Date('2026-10-18T17:30:00Z'),
+    },
+    SITE,
+  ),
   expenseSoon: expenseDueEmail(
     { name: 'Alquiler', dueStatus: ExpenseDueStatus.DUE_SOON, dueDate: '2026-10-05' },
     SITE,
@@ -108,6 +130,27 @@ describe('email content safety', () => {
     const { html } = quoteStatusEmail(quote(QuoteStatus.REJECTED, evil), SITE)!;
     expect(html).not.toContain(evil);
     expect(html).toContain('&lt;img src=x onerror=alert(1)&gt;');
+  });
+
+  it('escapes what a customer writes in a review, and links their phone to WhatsApp', () => {
+    const evil = '<img src=x onerror=alert(1)>';
+    const { subject, html } = reviewCreatedEmail(
+      {
+        rating: 1,
+        sourceLabel: 'Otro',
+        sourceOther: evil,
+        message: evil,
+        customerName: evil,
+        customerPhone: '0412-5550000',
+        createdAt: new Date('2026-10-18T17:30:00Z'),
+      },
+      SITE,
+    );
+    expect(html).not.toContain(evil);
+    expect(html).toContain('&lt;img src=x onerror=alert(1)&gt;');
+    expect(html).toContain('https://wa.me/584125550000?text=');
+    expect(html).toContain(`${SITE}/admin/reviews`);
+    expect(subject).toBe('Reseña para atender: 1 de 5 estrellas');
   });
 
   it('escapes product names in order lines and alert previews', () => {

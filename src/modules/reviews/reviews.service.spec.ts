@@ -1,7 +1,8 @@
 import { BadRequestException } from '@nestjs/common';
+import { EventEmitter2 } from '@nestjs/event-emitter';
 import { FakeFirestore } from '../../test/fake-firestore';
 import { Collections } from '../../firebase/firestore-collections';
-import { ReviewsService } from './reviews.service';
+import { REVIEW_CREATED_EVENT, ReviewsService } from './reviews.service';
 
 describe('ReviewsService', () => {
   const sellers = [
@@ -13,14 +14,18 @@ describe('ReviewsService', () => {
 
   function setup() {
     const firestore = new FakeFirestore();
+    const events = new EventEmitter2();
+    const created = jest.fn();
+    events.on(REVIEW_CREATED_EVENT, created);
     const service = new ReviewsService(
       firestore as never,
       { findSellers: async () => sellers } as never,
       { get: () => 'https://electronplus.com.ve/' } as never,
+      events,
     );
     const reviews = async () =>
       (await firestore.collection(Collections.REVIEWS).get()).docs.map((d) => d.data());
-    return { firestore, service, reviews };
+    return { firestore, service, reviews, created };
   }
 
   it('offers the default answers, then "Otro", and only named, active sellers', async () => {
@@ -34,8 +39,8 @@ describe('ReviewsService', () => {
     ]);
   });
 
-  it('saves a review with the answer and seller names copied in', async () => {
-    const { service, reviews } = setup();
+  it('saves a review with the answer and seller names copied in, and announces it', async () => {
+    const { service, reviews, created } = setup();
     await service.create({
       rating: 5,
       sourceId: 'instagram',
@@ -60,6 +65,18 @@ describe('ReviewsService', () => {
     // Only "Otro" keeps its text; a blank name isn't stored.
     expect(saved.sourceOther).toBeUndefined();
     expect(saved.customerName).toBeUndefined();
+    // The admins' email is built from the event.
+    expect(created).toHaveBeenCalledTimes(1);
+    expect(created).toHaveBeenCalledWith(
+      expect.objectContaining({
+        rating: 5,
+        sourceLabel: 'Instagram',
+        sellerName: 'María Pérez',
+        message: 'Muy buena atención',
+        customerPhone: '0414-1234567',
+        createdAt: expect.any(Date),
+      }),
+    );
   });
 
   it('keeps what the customer wrote for "Otro"', async () => {
@@ -71,7 +88,7 @@ describe('ReviewsService', () => {
   });
 
   it('refuses an unknown answer or seller, and quietly drops what a bot sends', async () => {
-    const { service, reviews } = setup();
+    const { service, reviews, created } = setup();
     await expect(service.create({ rating: 3, sourceId: 'radio' })).rejects.toThrow(
       BadRequestException,
     );
@@ -80,6 +97,7 @@ describe('ReviewsService', () => {
     );
     await service.create({ rating: 1, sourceId: 'google', website: 'http://spam.example' });
     expect(await reviews()).toEqual([]);
+    expect(created).not.toHaveBeenCalled();
   });
 
   it('edits the answers: a renamed one keeps its id, a new one gets one from its name', async () => {

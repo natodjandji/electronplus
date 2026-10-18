@@ -20,6 +20,7 @@ import {
 import { STOCK_ALERT_RAISED_EVENT, StockAlertRaisedEvent } from '../inventory/inventory.service';
 import { INVOICE_DUE_ALERT_EVENT, InvoiceDueAlertEvent } from '../finance/finance.service';
 import { EXPENSE_DUE_ALERT_EVENT, ExpenseDueAlertEvent } from '../expenses/expenses.service';
+import { REVIEW_CREATED_EVENT, ReviewCreatedEvent } from '../reviews/reviews.service';
 import {
   EMAIL_VERIFICATION_REQUESTED_EVENT,
   EmailVerificationRequestedEvent,
@@ -31,6 +32,7 @@ import { invoiceDueEmail } from './templates/invoice-due-email';
 import { orderCreatedEmail } from './templates/order-created-email';
 import { orderStatusEmail } from './templates/order-status-email';
 import { quoteStatusEmail } from './templates/quote-status-email';
+import { reviewCreatedEmail } from './templates/review-created-email';
 import { stockAlertEmail } from './templates/stock-alert-email';
 import { verifyEmailEmail } from './templates/verify-email-email';
 import { welcomeEmail } from './templates/welcome-email';
@@ -181,6 +183,19 @@ export class EmailListener {
       await this.emailEveryAdmin(subject, html);
     } catch (error) {
       this.logger.error(`Failed to send expense due email for ${payload.name}`, error as Error);
+    }
+  }
+
+  /** Every review reaches the admins, so a bad experience can be followed
+   * up the same day. Reviews are throttled per IP, which bounds how many
+   * of these a flood could trigger. */
+  @OnEvent(REVIEW_CREATED_EVENT)
+  async handleReviewCreatedEmail(payload: ReviewCreatedEvent): Promise<void> {
+    try {
+      const { subject, html } = reviewCreatedEmail(payload, this.siteUrl);
+      await this.emailEveryAdmin(subject, html);
+    } catch (error) {
+      this.logger.error('Failed to send new review email', error as Error);
     }
   }
 }
