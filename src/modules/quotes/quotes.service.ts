@@ -126,8 +126,14 @@ export class QuotesService {
       discountPct: 0,
     };
 
+    // A product already in the quote gets the units on its line: two lines
+    // of one product would each be checked against the stock on their own.
     return this.withEditableQuoteTransaction(id, user, (quote) => ({
-      items: [...quote.items, item],
+      items: quote.items.some((line) => line.productId === product.id)
+        ? quote.items.map((line) =>
+            line.productId === product.id ? { ...line, qty: line.qty + dto.qty } : line,
+          )
+        : [...quote.items, item],
     }));
   }
 

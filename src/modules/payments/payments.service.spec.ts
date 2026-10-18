@@ -202,6 +202,35 @@ describe('PaymentsService', () => {
       const result = await service.verifyManual(paymentId, admin.id);
       expect(result.status).toBe(PaymentStatus.VERIFIED);
     });
+
+    it('refuses to verify the payment of a cancelled order, whose stock was released', async () => {
+      const firestore = new FakeFirestore();
+      firestore.seed(Collections.ORDERS, orderId, { userId: owner.id, status: 'cancelled' });
+      seedPayment(firestore);
+      const verified = jest.fn();
+      const events = new EventEmitter2();
+      events.on('payment.verified', verified);
+      const service = buildService(firestore, {}, events);
+
+      await expect(service.verifyManual(paymentId, admin.id)).rejects.toThrow(/cancelado/);
+      expect(firestore.read(Collections.PAYMENTS, paymentId)).toMatchObject({
+        status: PaymentStatus.PENDING,
+      });
+      expect(verified).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('capturePaypal on a cancelled order', () => {
+    it('refuses before charging the buyer', async () => {
+      const firestore = new FakeFirestore();
+      firestore.seed(Collections.ORDERS, orderId, { userId: owner.id, status: 'cancelled' });
+      seedPayment(firestore, { method: PaymentMethod.PAYPAL, externalReference: 'PP-1' });
+      const paypal = { captureOrder: jest.fn() };
+      const service = buildService(firestore, paypal);
+
+      await expect(service.capturePaypal(paymentId, owner)).rejects.toThrow(/cancelado/);
+      expect(paypal.captureOrder).not.toHaveBeenCalled();
+    });
   });
 
   describe('reject', () => {

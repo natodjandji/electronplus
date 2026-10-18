@@ -5,10 +5,11 @@ import {
   ForbiddenException,
   Inject,
   Injectable,
+  Logger,
   NotFoundException,
 } from '@nestjs/common';
 import { EventEmitter2 } from '@nestjs/event-emitter';
-import type { DocumentReference, Firestore } from 'firebase-admin/firestore';
+import type { DocumentReference, Firestore, Transaction } from 'firebase-admin/firestore';
 import { FieldValue } from 'firebase-admin/firestore';
 import { FIRESTORE } from '../../firebase/firebase.constants';
 import { Collections } from '../../firebase/firestore-collections';
@@ -61,6 +62,16 @@ export const ORDER_STATUS_CHANGED_EVENT = 'order.status_changed';
  * inventory with orders it never pays. */
 const MAX_UNPAID_ORDERS_PER_CLIENT = 5;
 
+/** Each product once, with the units of every line that has it. A
+ * transaction that writes one product's stock twice keeps only the last
+ * write, so an order (or quote) listing a product on two lines must reserve
+ * and release it as one. */
+function unitsByProduct(items: { productId: string; qty: number }[]): Map<string, number> {
+  const units = new Map<string, number>();
+  for (const item of items) units.set(item.productId, (units.get(item.productId) ?? 0) + item.qty);
+  return units;
+}
+
 export interface OrderPaidEvent {
   orderId: string;
 }
@@ -76,6 +87,7 @@ export interface OrderStatusChangedEvent {
 
 @Injectable()
 export class OrdersService {
+  private readonly logger = new Logger(OrdersService.name);
   private readonly repo: FirestoreRepository<Order>;
 
   constructor(
@@ -175,8 +187,8 @@ export class OrdersService {
         this.productsService.assertPurchasable(product);
         const nextStock = this.productsService.reserveStock(tx, ref, product, line.qty);
         const unitPrice = this.pricingService.priceFor(product);
-        const lineTotal = unitPrice * line.qty;
-        subtotal += lineTotal;
+        const lineTotal = round2(unitPrice * line.qty);
+        subtotal = round2(subtotal + lineTotal);
         items.push({
           productId: product.id,
           sku: product.sku,
@@ -303,27 +315,37 @@ export class OrdersService {
       if (current?.status !== QuoteStatus.APPROVED || current.convertedOrderId) {
         throw new ConflictException('This quote was already converted to an order');
       }
-      // One getAll() round trip for every line instead of N sequential
+      // One getAll() round trip for every product instead of N sequential
       // tx.get() calls.
-      const productsById = await this.productsService.getForUpdateMany(
-        tx,
-        current.items.map((line) => line.productId),
-      );
-      const reads = current.items.map((line) => productsById.get(line.productId)!);
+      const units = unitsByProduct(current.items);
+      const productsById = await this.productsService.getForUpdateMany(tx, [...units.keys()]);
 
-      // Phase 2 — ALL writes.
+      // Phase 2 — ALL writes. Stock is reserved once per product, for the
+      // units of all its lines; a product the store stopped selling since
+      // the quote was approved can't be bought through it.
+      const stockChanges: StockChangedEvent[] = [];
+      for (const [productId, qty] of units) {
+        const { ref, product } = productsById.get(productId)!;
+        this.productsService.assertPurchasable(product);
+        const nextStock = this.productsService.reserveStock(tx, ref, product, qty);
+        stockChanges.push({
+          productId: product.id,
+          sku: product.sku,
+          name: product.name,
+          stock: nextStock,
+          minStockThreshold: product.minStockThreshold,
+        });
+      }
+
       let subtotal = 0;
       const items: OrderItem[] = [];
-      const stockChanges: StockChangedEvent[] = [];
-
-      reads.forEach(({ ref, product }, idx) => {
-        const line = current.items[idx];
-        const nextStock = this.productsService.reserveStock(tx, ref, product, line.qty);
+      current.items.forEach((line) => {
+        const { product } = productsById.get(line.productId)!;
         const unitPrice = round2(
           line.unitPrice * (1 - line.discountPct / 100) * (1 - current.globalDiscountPct / 100),
         );
         const lineTotal = round2(unitPrice * line.qty);
-        subtotal += lineTotal;
+        subtotal = round2(subtotal + lineTotal);
         items.push({
           productId: product.id,
           sku: product.sku,
@@ -333,13 +355,6 @@ export class OrdersService {
           unitPrice,
           unitCost: product.cost,
           lineTotal,
-        });
-        stockChanges.push({
-          productId: product.id,
-          sku: product.sku,
-          name: product.name,
-          stock: nextStock,
-          minStockThreshold: product.minStockThreshold,
         });
       });
 
@@ -453,25 +468,10 @@ export class OrdersService {
       // Phase 1 — ALL reads before ANY writes (Firestore transaction rule).
       // One getAll() round trip for every item instead of N sequential
       // tx.get() calls.
-      const stockContextsById = await this.productsService.getStockForUpdateMany(
-        tx,
-        order.items.map((item) => item.productId),
-      );
-      const stockContexts = order.items.map((item) => stockContextsById.get(item.productId)!);
-      const releaseDiscount = order.discountCode
-        ? await this.discountCodesService.beginRelease(
-            tx,
-            order.discountCode,
-            order.userId,
-            order.id,
-          )
-        : undefined;
+      const release = await this.beginRelease(tx, order);
 
       // Phase 2 — ALL writes.
-      const changes = stockContexts.map((ctx, idx) =>
-        this.productsService.applyStockDelta(tx, ctx, order.items[idx].qty),
-      );
-      releaseDiscount?.();
+      const changes = release();
       if (quoteRef) {
         tx.update(quoteRef, { convertedOrderId: FieldValue.delete() });
       }
@@ -479,6 +479,28 @@ export class OrdersService {
       return changes;
     });
     await this.productsService.stockCommitted(stockChanges);
+  }
+
+  /** Reads what giving an order's stock and discount back needs, and
+   * returns the writes, to run once the caller starts writing (Firestore
+   * wants every read in a transaction before the first write). Stock goes
+   * back once per product, for all its lines; a product deleted since has
+   * none to get back, and doesn't block cancelling the order. A limited-use
+   * discount code gets back the use the order took. */
+  private async beginRelease(tx: Transaction, order: Order): Promise<() => StockChangedEvent[]> {
+    const units = unitsByProduct(order.items);
+    const contexts = await this.productsService.getStockForUpdateMany(tx, [...units.keys()], {
+      skipMissing: true,
+    });
+    const releaseDiscount = order.discountCode
+      ? await this.discountCodesService.beginRelease(tx, order.discountCode, order.userId, order.id)
+      : undefined;
+    return () => {
+      releaseDiscount?.();
+      return [...contexts.values()].map((ctx) =>
+        this.productsService.applyStockDelta(tx, ctx, units.get(ctx.productId)!),
+      );
+    };
   }
 
   findMine(user: AuthenticatedUser): Promise<Order[]> {
@@ -533,13 +555,21 @@ export class OrdersService {
   /** Idempotent: a payment can be confirmed twice (credit B2B is verified
    * at checkout and its payment.verified event arrives as well). Only the
    * first call moves the order to paid, flags the sale for the ERP and fires
-   * the events, so the sale is reported and the customer notified once. */
+   * the events, so the sale is reported and the customer notified once.
+   *
+   * A cancelled order stays cancelled: its stock was already released, so
+   * turning it into a paid order would sell units it no longer holds. A
+   * payment that still lands on one (verifyManual and capturePaypal refuse
+   * it, this is the last line) is logged for the admin to refund. */
   async markPaid(orderId: string): Promise<Order> {
     const ref = this.repo.doc(orderId);
+    let cancelled = false;
     const changed = await this.firestore.runTransaction(async (tx) => {
       const snap = await tx.get(ref);
       if (!snap.exists) throw new NotFoundException('Order not found');
-      if (PAID_OR_LATER.has(snap.data()?.status as OrderStatus)) return false;
+      const status = snap.data()?.status as OrderStatus;
+      cancelled = status === OrderStatus.CANCELLED;
+      if (cancelled || PAID_OR_LATER.has(status)) return false;
       // The ERP pending flag rides the same write as the status, so a paid
       // sale can't miss being reported (see ErpExportService).
       tx.update(ref, {
@@ -550,6 +580,9 @@ export class OrdersService {
       return true;
     });
     const order = await this.repo.getOrThrow(orderId, 'Order not found');
+    if (cancelled) {
+      this.logger.warn(`A payment was confirmed for cancelled order ${orderId}: refund it.`);
+    }
     if (changed) {
       this.events.emit(ORDER_PAID_EVENT, { orderId: order.id } satisfies OrderPaidEvent);
       this.events.emit(ORDER_STATUS_CHANGED_EVENT, {
@@ -594,29 +627,10 @@ export class OrdersService {
       }
 
       // Phase 1 — ALL reads before ANY writes (Firestore transaction rule).
-      // One getAll() round trip for every item instead of N sequential
-      // tx.get() calls.
-      const stockContextsById = await this.productsService.getStockForUpdateMany(
-        tx,
-        order.items.map((item) => item.productId),
-      );
-      const stockContexts = order.items.map((item) => stockContextsById.get(item.productId)!);
-      // A cancelled order didn't really use its discount code — a
-      // limited-use code gets that use back.
-      const releaseDiscount = order.discountCode
-        ? await this.discountCodesService.beginRelease(
-            tx,
-            order.discountCode,
-            order.userId,
-            order.id,
-          )
-        : undefined;
+      const release = await this.beginRelease(tx, order);
 
       // Phase 2 — ALL writes.
-      const changes = stockContexts.map((ctx, idx) =>
-        this.productsService.applyStockDelta(tx, ctx, order.items[idx].qty),
-      );
-      releaseDiscount?.();
+      const changes = release();
       tx.update(orderRef, {
         status: OrderStatus.CANCELLED,
         updatedAt: FieldValue.serverTimestamp(),

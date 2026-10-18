@@ -577,16 +577,22 @@ export class ProductsService {
 
   /** Batched equivalent of calling getStockForUpdate per item — one
    * tx.getAll() instead of N sequential tx.get() round trips. Only for
-   * callers that never pass a warehouseId (Orders' compensate/cancel). */
+   * callers that never pass a warehouseId (Orders' compensate/cancel).
+   * With `skipMissing`, a product deleted since is left out instead of
+   * failing the whole call: there's no stock left to give it back. */
   async getStockForUpdateMany(
     tx: Transaction,
     productIds: string[],
+    { skipMissing = false }: { skipMissing?: boolean } = {},
   ): Promise<Map<string, StockUpdateContext>> {
     const refs = productIds.map((id) => this.repo.doc(id));
     const snaps = refs.length > 0 ? await tx.getAll(...refs) : [];
     const result = new Map<string, StockUpdateContext>();
     snaps.forEach((snap, idx) => {
-      if (!snap.exists) throw new NotFoundException('Product not found');
+      if (!snap.exists) {
+        if (skipMissing) return;
+        throw new NotFoundException('Product not found');
+      }
       const data = snap.data()!;
       result.set(productIds[idx], {
         productId: productIds[idx],

@@ -12,6 +12,7 @@ import { AuthenticatedUser } from '../../common/interfaces/authenticated-user.in
 import { FIRESTORE } from '../../firebase/firebase.constants';
 import { Collections } from '../../firebase/firestore-collections';
 import { FirestoreRepository } from '../../firebase/firestore.repository';
+import { OrderStatus } from '../orders/entities/order.entity';
 import { isStoragePath, UploadsService } from '../uploads/uploads.service';
 import {
   MANUAL_RECONCILIATION_METHODS,
@@ -57,6 +58,14 @@ export class PaymentsService {
     const orderSnap = await this.firestore.collection(Collections.ORDERS).doc(orderId).get();
     if (!orderSnap.exists || orderSnap.data()?.userId !== user.id) {
       throw new ForbiddenException('This order does not belong to you');
+    }
+  }
+
+  /** A cancelled order released its stock: a payment confirmed for it
+   * would turn it back into a sale of units it no longer holds. */
+  private assertOrderNotCancelled(order: { status?: unknown } | undefined): void {
+    if (order?.status === OrderStatus.CANCELLED) {
+      throw new BadRequestException('Este pedido fue cancelado: su pago ya no se puede confirmar.');
     }
   }
 
@@ -136,6 +145,10 @@ export class PaymentsService {
       const snap = await tx.get(ref);
       if (!snap.exists) throw new BadRequestException('Payment not found');
       const payment = { ...snap.data(), id: snap.id } as Payment;
+      const orderSnap = await tx.get(
+        this.firestore.collection(Collections.ORDERS).doc(payment.orderId),
+      );
+      this.assertOrderNotCancelled(orderSnap.data());
       // A PayPal charge that PayPal didn't confirm (see capturePaypal) is
       // checked by hand like a bank transfer; any other PayPal payment
       // confirms itself through the capture.
@@ -206,6 +219,12 @@ export class PaymentsService {
     if (payment.status !== PaymentStatus.PENDING) {
       throw new BadRequestException(`Payment is already ${payment.status}`);
     }
+    // Checked before charging: once captured, the buyer's money is taken.
+    const orderSnap = await this.firestore
+      .collection(Collections.ORDERS)
+      .doc(payment.orderId)
+      .get();
+    this.assertOrderNotCancelled(orderSnap.data());
     const result = await this.paypal.captureOrder(payment.externalReference);
     if (result.status !== 'COMPLETED' || !result.capture) {
       throw new BadRequestException(`PayPal order not completed (status: ${result.status})`);

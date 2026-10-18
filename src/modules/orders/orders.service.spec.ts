@@ -3,6 +3,7 @@ import { EventEmitter2 } from '@nestjs/event-emitter';
 import { FakeFirestore } from '../../test/fake-firestore';
 import { Collections } from '../../firebase/firestore-collections';
 import { DiscountCodesService } from '../discount-codes/discount-codes.service';
+import { ProductsService } from '../products/products.service';
 import { ORDER_PAID_EVENT, OrdersService } from './orders.service';
 import { OrderStatus, FulfillmentMethod } from './entities/order.entity';
 import { Role } from '../../common/enums/role.enum';
@@ -333,5 +334,144 @@ describe('OrdersService.markPaid', () => {
     expect((await service.markPaid('order-1')).status).toBe(OrderStatus.SHIPPED);
     expect(read()).toMatchObject({ status: OrderStatus.SHIPPED, erpExportPending: false });
     expect(paid).not.toHaveBeenCalled();
+  });
+
+  it('keeps a cancelled order cancelled: its stock was already released', async () => {
+    const { service, paid, read } = build(OrderStatus.CANCELLED);
+    expect((await service.markPaid('order-1')).status).toBe(OrderStatus.CANCELLED);
+    expect(read().erpExportPending).toBeUndefined();
+    expect(paid).not.toHaveBeenCalled();
+  });
+});
+
+/** Stock through the real ProductsService: an order or quote can list one
+ * product on two lines, and a transaction that writes a product's stock
+ * twice keeps only the last write. */
+describe('OrdersService stock per product', () => {
+  const client = { id: 'client-1', email: 'c@example.com', role: Role.CLIENT };
+  const pickup = { fullName: 'Cliente', phone: '0414' };
+
+  function setup() {
+    const firestore = new FakeFirestore();
+    const product = (id: string, stock: number) =>
+      firestore.seed(Collections.PRODUCTS, id, {
+        sku: `SKU-${id}`,
+        name: `Producto ${id}`,
+        category: { id: 'c1', code: 'c1', label: 'Cat' },
+        retailPrice: 10,
+        wholesalePrice: 8,
+        stock,
+        active: true,
+      });
+    const events = new EventEmitter2();
+    const productsService = new ProductsService(firestore as never, events);
+    const quotesService = { findOneForUser: jest.fn() };
+    const service = new OrdersService(
+      firestore as never,
+      productsService,
+      { priceFor: (p: { retailPrice: number }) => p.retailPrice } as never,
+      { initiate: jest.fn().mockResolvedValue({ status: 'pending' }) } as never,
+      {} as never,
+      new DiscountCodesService(firestore as never),
+      quotesService as never,
+      events,
+    );
+    const stock = (id: string) => firestore.read(Collections.PRODUCTS, id)!.stock;
+    return { firestore, product, service, quotesService, stock };
+  }
+
+  it('reserves every line of a product a quote lists twice', async () => {
+    const { firestore, product, service, quotesService, stock } = setup();
+    product('p1', 10);
+    const quote = {
+      id: 'q1',
+      userId: client.id,
+      status: QuoteStatus.APPROVED,
+      globalDiscountPct: 0,
+      items: [
+        { id: 'l1', productId: 'p1', qty: 3, unitPrice: 10, discountPct: 0 },
+        { id: 'l2', productId: 'p1', qty: 4, unitPrice: 10, discountPct: 0 },
+      ],
+    };
+    firestore.seed(Collections.QUOTES, 'q1', quote);
+    quotesService.findOneForUser.mockResolvedValue(quote);
+
+    const order = await service.createFromQuote('q1', client, {
+      paymentMethod: PaymentMethod.CASH,
+      fulfillmentMethod: FulfillmentMethod.PICKUP,
+      shipping: pickup,
+    });
+
+    expect(stock('p1')).toBe(3);
+    expect(order.items).toHaveLength(2);
+    expect(order.subtotal).toBe(70);
+  });
+
+  it('refuses a quote whose two lines of a product together exceed its stock', async () => {
+    const { firestore, product, service, quotesService, stock } = setup();
+    product('p1', 5);
+    const quote = {
+      id: 'q1',
+      userId: client.id,
+      status: QuoteStatus.APPROVED,
+      globalDiscountPct: 0,
+      items: [
+        { id: 'l1', productId: 'p1', qty: 3, unitPrice: 10, discountPct: 0 },
+        { id: 'l2', productId: 'p1', qty: 3, unitPrice: 10, discountPct: 0 },
+      ],
+    };
+    firestore.seed(Collections.QUOTES, 'q1', quote);
+    quotesService.findOneForUser.mockResolvedValue(quote);
+
+    await expect(
+      service.createFromQuote('q1', client, {
+        paymentMethod: PaymentMethod.CASH,
+        fulfillmentMethod: FulfillmentMethod.PICKUP,
+        shipping: pickup,
+      }),
+    ).rejects.toThrow(ConflictException);
+    expect(stock('p1')).toBe(5);
+  });
+
+  it('refuses a quote with a product the store stopped selling since', async () => {
+    const { firestore, product, service, quotesService } = setup();
+    product('p1', 10);
+    firestore.read(Collections.PRODUCTS, 'p1')!.active = false;
+    const quote = {
+      id: 'q1',
+      userId: client.id,
+      status: QuoteStatus.APPROVED,
+      globalDiscountPct: 0,
+      items: [{ id: 'l1', productId: 'p1', qty: 1, unitPrice: 10, discountPct: 0 }],
+    };
+    firestore.seed(Collections.QUOTES, 'q1', quote);
+    quotesService.findOneForUser.mockResolvedValue(quote);
+
+    await expect(
+      service.createFromQuote('q1', client, {
+        paymentMethod: PaymentMethod.CASH,
+        fulfillmentMethod: FulfillmentMethod.PICKUP,
+        shipping: pickup,
+      }),
+    ).rejects.toThrow(BadRequestException);
+  });
+
+  it('cancels an order with a product deleted since, giving back the rest once per product', async () => {
+    const { firestore, product, service, stock } = setup();
+    product('p1', 1);
+    firestore.seed(Collections.ORDERS, 'o1', {
+      userId: client.id,
+      status: OrderStatus.PENDING_PAYMENT_VERIFICATION,
+      items: [
+        { productId: 'p1', qty: 2 },
+        { productId: 'p1', qty: 3 },
+        { productId: 'borrado', qty: 4 },
+      ],
+      createdAt: new Date(),
+      updatedAt: new Date(),
+    });
+
+    expect((await service.cancel('o1')).status).toBe(OrderStatus.CANCELLED);
+    expect(stock('p1')).toBe(6);
   });
 });
