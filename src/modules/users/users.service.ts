@@ -58,6 +58,11 @@ export class UsersService {
     };
   }
 
+  /** Every seller account — few, so one query without paging. */
+  findSellers(): Promise<User[]> {
+    return this.repo.findAll({ where: [{ field: 'role', op: '==', value: Role.SELLER }] });
+  }
+
   /** Operational alert emails (low stock, invoice/expense due) go to every
    * admin, not just one hardcoded address — filtered in Firestore rather
    * than by loading every user. */

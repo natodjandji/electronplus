@@ -28,6 +28,10 @@ export const Collections = {
   SHARED_QUOTES: 'sharedQuotes',
   /** Sequential numbers (e.g. quote numbers), one doc per sequence. */
   COUNTERS: 'counters',
+  /** Customer reviews left through the store's QR (see ReviewsService). */
+  REVIEWS: 'reviews',
+  /** App settings an admin edits, one doc per feature (e.g. "reviews"). */
+  SETTINGS: 'settings',
   /** Server-only read indexes (see CollectionSnapshot) — no client rule
    * grants access, so firestore.rules' default deny covers them. */
   SNAPSHOTS: 'snapshots',

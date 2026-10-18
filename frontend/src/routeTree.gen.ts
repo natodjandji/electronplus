@@ -19,6 +19,7 @@ import { Route as CollectionsRouteImport } from './routes/collections'
 import { Route as LoginRouteImport } from './routes/login'
 import { Route as QuotesRouteImport } from './routes/quotes'
 import { Route as RegisterRouteImport } from './routes/register'
+import { Route as ResenaRouteImport } from './routes/resena'
 import { Route as VendedorRouteImport } from './routes/vendedor'
 import { Route as AdminIndexRouteImport } from './routes/admin.index'
 import { Route as AdminExpensesRouteImport } from './routes/admin.expenses'
@@ -29,6 +30,7 @@ import { Route as AdminOrdersRouteImport } from './routes/admin.orders'
 import { Route as AdminPurchaseOrdersRouteImport } from './routes/admin.purchase-orders'
 import { Route as AdminPurchasesRouteImport } from './routes/admin.purchases'
 import { Route as AdminQuotesRouteImport } from './routes/admin.quotes'
+import { Route as AdminReviewsRouteImport } from './routes/admin.reviews'
 import { Route as AdminSecondStoreInventoryRouteImport } from './routes/admin.second-store-inventory'
 import { Route as AdminSettingsRouteImport } from './routes/admin.settings'
 import { Route as AdminStockRouteImport } from './routes/admin.stock'
@@ -91,6 +93,11 @@ const RegisterRoute = RegisterRouteImport.update({
   path: '/register',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ResenaRoute = ResenaRouteImport.update({
+  id: '/resena',
+  path: '/resena',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const VendedorRoute = VendedorRouteImport.update({
   id: '/vendedor',
   path: '/vendedor',
@@ -139,6 +146,11 @@ const AdminPurchasesRoute = AdminPurchasesRouteImport.update({
 const AdminQuotesRoute = AdminQuotesRouteImport.update({
   id: '/quotes',
   path: '/quotes',
+  getParentRoute: () => AdminRoute,
+} as any)
+const AdminReviewsRoute = AdminReviewsRouteImport.update({
+  id: '/reviews',
+  path: '/reviews',
   getParentRoute: () => AdminRoute,
 } as any)
 const AdminSecondStoreInventoryRoute =
@@ -209,6 +221,7 @@ export interface FileRoutesByFullPath {
   '/login': typeof LoginRoute
   '/quotes': typeof QuotesRoute
   '/register': typeof RegisterRoute
+  '/resena': typeof ResenaRoute
   '/vendedor': typeof VendedorRouteWithChildren
   '/admin/expenses': typeof AdminExpensesRoute
   '/admin/in-store-sales': typeof AdminInStoreSalesRoute
@@ -218,6 +231,7 @@ export interface FileRoutesByFullPath {
   '/admin/purchase-orders': typeof AdminPurchaseOrdersRoute
   '/admin/purchases': typeof AdminPurchasesRoute
   '/admin/quotes': typeof AdminQuotesRoute
+  '/admin/reviews': typeof AdminReviewsRoute
   '/admin/second-store-inventory': typeof AdminSecondStoreInventoryRoute
   '/admin/settings': typeof AdminSettingsRoute
   '/admin/stock': typeof AdminStockRoute
@@ -241,6 +255,7 @@ export interface FileRoutesByTo {
   '/login': typeof LoginRoute
   '/quotes': typeof QuotesRoute
   '/register': typeof RegisterRoute
+  '/resena': typeof ResenaRoute
   '/admin/expenses': typeof AdminExpensesRoute
   '/admin/in-store-sales': typeof AdminInStoreSalesRoute
   '/admin/inventory': typeof AdminInventoryRoute
@@ -249,6 +264,7 @@ export interface FileRoutesByTo {
   '/admin/purchase-orders': typeof AdminPurchaseOrdersRoute
   '/admin/purchases': typeof AdminPurchasesRoute
   '/admin/quotes': typeof AdminQuotesRoute
+  '/admin/reviews': typeof AdminReviewsRoute
   '/admin/second-store-inventory': typeof AdminSecondStoreInventoryRoute
   '/admin/settings': typeof AdminSettingsRoute
   '/admin/stock': typeof AdminStockRoute
@@ -274,6 +290,7 @@ export interface FileRoutesById {
   '/login': typeof LoginRoute
   '/quotes': typeof QuotesRoute
   '/register': typeof RegisterRoute
+  '/resena': typeof ResenaRoute
   '/vendedor': typeof VendedorRouteWithChildren
   '/admin/expenses': typeof AdminExpensesRoute
   '/admin/in-store-sales': typeof AdminInStoreSalesRoute
@@ -283,6 +300,7 @@ export interface FileRoutesById {
   '/admin/purchase-orders': typeof AdminPurchaseOrdersRoute
   '/admin/purchases': typeof AdminPurchasesRoute
   '/admin/quotes': typeof AdminQuotesRoute
+  '/admin/reviews': typeof AdminReviewsRoute
   '/admin/second-store-inventory': typeof AdminSecondStoreInventoryRoute
   '/admin/settings': typeof AdminSettingsRoute
   '/admin/stock': typeof AdminStockRoute
@@ -309,6 +327,7 @@ export interface FileRouteTypes {
     | '/login'
     | '/quotes'
     | '/register'
+    | '/resena'
     | '/vendedor'
     | '/admin/expenses'
     | '/admin/in-store-sales'
@@ -318,6 +337,7 @@ export interface FileRouteTypes {
     | '/admin/purchase-orders'
     | '/admin/purchases'
     | '/admin/quotes'
+    | '/admin/reviews'
     | '/admin/second-store-inventory'
     | '/admin/settings'
     | '/admin/stock'
@@ -341,6 +361,7 @@ export interface FileRouteTypes {
     | '/login'
     | '/quotes'
     | '/register'
+    | '/resena'
     | '/admin/expenses'
     | '/admin/in-store-sales'
     | '/admin/inventory'
@@ -349,6 +370,7 @@ export interface FileRouteTypes {
     | '/admin/purchase-orders'
     | '/admin/purchases'
     | '/admin/quotes'
+    | '/admin/reviews'
     | '/admin/second-store-inventory'
     | '/admin/settings'
     | '/admin/stock'
@@ -373,6 +395,7 @@ export interface FileRouteTypes {
     | '/login'
     | '/quotes'
     | '/register'
+    | '/resena'
     | '/vendedor'
     | '/admin/expenses'
     | '/admin/in-store-sales'
@@ -382,6 +405,7 @@ export interface FileRouteTypes {
     | '/admin/purchase-orders'
     | '/admin/purchases'
     | '/admin/quotes'
+    | '/admin/reviews'
     | '/admin/second-store-inventory'
     | '/admin/settings'
     | '/admin/stock'
@@ -407,6 +431,7 @@ export interface RootRouteChildren {
   LoginRoute: typeof LoginRoute
   QuotesRoute: typeof QuotesRoute
   RegisterRoute: typeof RegisterRoute
+  ResenaRoute: typeof ResenaRoute
   VendedorRoute: typeof VendedorRouteWithChildren
   CotizacionTokenRoute: typeof CotizacionTokenRoute
   ProductIdRoute: typeof ProductIdRoute
@@ -485,6 +510,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof RegisterRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/resena': {
+      id: '/resena'
+      path: '/resena'
+      fullPath: '/resena'
+      preLoaderRoute: typeof ResenaRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/vendedor': {
       id: '/vendedor'
       path: '/vendedor'
@@ -553,6 +585,13 @@ declare module '@tanstack/react-router' {
       path: '/quotes'
       fullPath: '/admin/quotes'
       preLoaderRoute: typeof AdminQuotesRouteImport
+      parentRoute: typeof AdminRoute
+    }
+    '/admin/reviews': {
+      id: '/admin/reviews'
+      path: '/reviews'
+      fullPath: '/admin/reviews'
+      preLoaderRoute: typeof AdminReviewsRouteImport
       parentRoute: typeof AdminRoute
     }
     '/admin/second-store-inventory': {
@@ -644,6 +683,7 @@ interface AdminRouteChildren {
   AdminPurchaseOrdersRoute: typeof AdminPurchaseOrdersRoute
   AdminPurchasesRoute: typeof AdminPurchasesRoute
   AdminQuotesRoute: typeof AdminQuotesRoute
+  AdminReviewsRoute: typeof AdminReviewsRoute
   AdminSecondStoreInventoryRoute: typeof AdminSecondStoreInventoryRoute
   AdminSettingsRoute: typeof AdminSettingsRoute
   AdminStockRoute: typeof AdminStockRoute
@@ -661,6 +701,7 @@ const AdminRouteChildren: AdminRouteChildren = {
   AdminPurchaseOrdersRoute: AdminPurchaseOrdersRoute,
   AdminPurchasesRoute: AdminPurchasesRoute,
   AdminQuotesRoute: AdminQuotesRoute,
+  AdminReviewsRoute: AdminReviewsRoute,
   AdminSecondStoreInventoryRoute: AdminSecondStoreInventoryRoute,
   AdminSettingsRoute: AdminSettingsRoute,
   AdminStockRoute: AdminStockRoute,
@@ -707,6 +748,7 @@ const rootRouteChildren: RootRouteChildren = {
   LoginRoute: LoginRoute,
   QuotesRoute: QuotesRoute,
   RegisterRoute: RegisterRoute,
+  ResenaRoute: ResenaRoute,
   VendedorRoute: VendedorRouteWithChildren,
   CotizacionTokenRoute: CotizacionTokenRoute,
   ProductIdRoute: ProductIdRoute,

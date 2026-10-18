@@ -31,6 +31,7 @@ import { SeoModule } from './modules/seo/seo.module';
 import { UploadsModule } from './modules/uploads/uploads.module';
 import { ClientErrorsModule } from './modules/client-errors/client-errors.module';
 import { EmailModule } from './modules/email/email.module';
+import { ReviewsModule } from './modules/reviews/reviews.module';
 
 @Module({
   imports: [
@@ -47,6 +48,7 @@ import { EmailModule } from './modules/email/email.module';
     ProductsModule,
     QuotesModule,
     SalesCartsModule,
+    ReviewsModule,
     OrdersModule,
     PaymentsModule,
     ErpSyncModule,
