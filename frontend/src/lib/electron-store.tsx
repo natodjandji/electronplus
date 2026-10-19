@@ -183,7 +183,13 @@ export function ElectronStoreProvider({ children }: { children: ReactNode }) {
             // unremovable qty-0 line — drop it instead.
             .filter((i) => i.qty > 0),
         ),
-      clearCart: () => setCart([]),
+      // Written to storage right away, not on the next render: a checkout
+      // that leaves the site right after (Cashea's redirect) would
+      // otherwise come back to the old cart.
+      clearCart: () => {
+        writeStorage(CART_STORAGE_KEY, []);
+        setCart([]);
+      },
       syncCartWithCatalog: (live) => {
         const { next, result } = reconcileCart(cartRef.current, live);
         setCart(next);
@@ -194,7 +200,10 @@ export function ElectronStoreProvider({ children }: { children: ReactNode }) {
       cartHydrated: hydrated,
       discount,
       setDiscount: setDiscountState,
-      clearDiscount: () => setDiscountState(null),
+      clearDiscount: () => {
+        writeStorage(DISCOUNT_STORAGE_KEY, null);
+        setDiscountState(null);
+      },
       taxableBase,
       discountAmount,
       taxAmount,
