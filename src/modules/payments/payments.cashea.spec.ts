@@ -384,3 +384,52 @@ describe('PaymentsService · Cashea', () => {
     });
   });
 });
+
+describe('PaymentsService · Cashea public status', () => {
+  function build(options: { configured: boolean; enabled?: boolean }) {
+    const minAmount = jest.fn().mockResolvedValue(20);
+    const list = jest
+      .fn()
+      .mockResolvedValue(
+        options.enabled === undefined
+          ? []
+          : [{ id: 'cashea', backendMethod: PaymentMethod.CASHEA, enabled: options.enabled }],
+      );
+    const service = new PaymentsService(
+      new FakeFirestore() as never,
+      {} as never,
+      new EventEmitter2(),
+      {} as never,
+      { isConfigured: () => options.configured, minAmount } as never,
+      { list } as never,
+      { get: () => undefined } as never,
+    );
+    return { service, list };
+  }
+
+  it('promotes Cashea online only once it’s configured and switched on', async () => {
+    await expect(
+      build({ configured: true, enabled: true }).service.casheaPublicStatus(),
+    ).resolves.toEqual({
+      online: true,
+      minAmount: 20,
+    });
+    await expect(
+      build({ configured: true, enabled: false }).service.casheaPublicStatus(),
+    ).resolves.toEqual({
+      online: false,
+      minAmount: null,
+    });
+    await expect(build({ configured: false }).service.casheaPublicStatus()).resolves.toEqual({
+      online: false,
+      minAmount: null,
+    });
+  });
+
+  it('answers repeat visits from memory for a minute', async () => {
+    const { service, list } = build({ configured: true, enabled: true });
+    await service.casheaPublicStatus();
+    await service.casheaPublicStatus();
+    expect(list).toHaveBeenCalledTimes(1);
+  });
+});

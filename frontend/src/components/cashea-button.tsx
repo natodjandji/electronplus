@@ -1,11 +1,11 @@
 import { Loader2 } from "lucide-react";
 import { formatMoney } from "@/lib/electron-store";
-import { CASHEA_LOGO_SRC } from "@/lib/cashea";
 import { cn } from "@/lib/utils";
+import { CasheaMark } from "./cashea-mark";
 
 /**
  * Cashea's "Continuar con Cashea" button, drawn as its official checkout
- * SDK draws it (dark #303134, 12px radius, its logo, Inter-like semibold
+ * SDK draws it (dark #303134, 12px radius, its logo mark, Inter-like semibold
  * label, and the installments line under it) — the checkout itself is
  * created server-side, so this only needs to look and behave like theirs.
  */
@@ -37,7 +37,7 @@ export function CasheaButton({
         {busy ? (
           <Loader2 className="h-8 w-8 animate-spin p-1.5" aria-hidden />
         ) : (
-          <img src={CASHEA_LOGO_SRC} alt="" className="h-8 w-8" width={32} height={32} />
+          <CasheaMark title="" className="h-8 w-8" />
         )}
         {busy ? "Procesando…" : label}
       </button>

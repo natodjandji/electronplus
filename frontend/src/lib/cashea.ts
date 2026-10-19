@@ -37,9 +37,6 @@ export interface CasheaPaymentRecord {
   cashea?: CasheaPayment;
 }
 
-/** Cashea's own logo, as its checkout SDK (MIT) draws its button. */
-export const CASHEA_LOGO_SRC = "/assets/cashea/cashea-logo.png";
-
 /** Methods a down payment can be paid through online: the ones an admin
  * reconciles against a reference (not cash, which is paid at the store). */
 export const ONLINE_DOWN_PAYMENT_METHODS = ["bank_transfer", "pago_movil", "zelle", "other"];

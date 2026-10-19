@@ -32,6 +32,7 @@ import {
 import { PayPalClient } from './paypal.client';
 
 export const PAYMENT_VERIFIED_EVENT = 'payment.verified';
+const CASHEA_STATUS_TTL_MS = 60_000;
 
 export interface PaymentVerifiedEvent {
   orderId: string;
@@ -42,6 +43,10 @@ export interface PaymentVerifiedEvent {
 export class PaymentsService {
   private readonly logger = new Logger(PaymentsService.name);
   private readonly repo: FirestoreRepository<Payment>;
+  private casheaStatusCache?: {
+    value: { online: boolean; minAmount: number | null };
+    at: number;
+  };
 
   constructor(
     @Inject(FIRESTORE) private readonly firestore: Firestore,
@@ -308,6 +313,26 @@ export class PaymentsService {
   }
 
   // --- Cashea ----------------------------------------------------------
+
+  /** Whether buyers can pay with Cashea on the web right now (credentials
+   * set and the method switched on) — what the storefront's Cashea banner
+   * says depends on it. Kept for a minute: every catalog visit asks. */
+  async casheaPublicStatus(): Promise<{ online: boolean; minAmount: number | null }> {
+    const cached = this.casheaStatusCache;
+    if (cached && Date.now() - cached.at < CASHEA_STATUS_TTL_MS) return cached.value;
+    let value: { online: boolean; minAmount: number | null } = { online: false, minAmount: null };
+    if (this.cashea.isConfigured()) {
+      const method = (await this.paymentMethods.list()).find(
+        (m) => m.backendMethod === PaymentMethod.CASHEA,
+      );
+      value = {
+        online: Boolean(method?.enabled),
+        minAmount: method?.enabled ? await this.cashea.minAmount() : null,
+      };
+    }
+    this.casheaStatusCache = { value, at: Date.now() };
+    return value;
+  }
 
   /** What checkout needs to offer Cashea. */
   async casheaConfig(): Promise<{ available: boolean; minAmount: number | null }> {

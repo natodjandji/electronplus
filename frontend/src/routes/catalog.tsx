@@ -4,6 +4,7 @@ import { useQuery } from "@tanstack/react-query";
 import { AnimatePresence, motion } from "motion/react";
 import { ArrowUpDown, Filter, LayoutGrid, List, Search } from "lucide-react";
 import { PublicShell } from "@/components/public-shell";
+import { CasheaBanner } from "@/components/cashea-banner";
 import { CircuitBackground } from "@/components/circuit-traces";
 import { staggerContainer, staggerItem } from "@/components/motion-primitives";
 import { Button } from "@/components/ui/button";
@@ -233,6 +234,8 @@ function CatalogPage() {
           )}
         </div>
       </section>
+
+      <CasheaBanner className="pt-6" />
 
       <section ref={resultsTop} className="mx-auto max-w-7xl scroll-mt-20 px-4 py-8 sm:px-6">
         <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
