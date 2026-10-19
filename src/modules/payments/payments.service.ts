@@ -1,20 +1,29 @@
 import {
+  BadGatewayException,
   BadRequestException,
   ForbiddenException,
   Inject,
   Injectable,
   Logger,
 } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
 import { EventEmitter2 } from '@nestjs/event-emitter';
 import type { Firestore } from 'firebase-admin/firestore';
+import { round2 } from '../../common/utils/money';
+import { EnvConfig } from '../../config/env.validation';
 import { Role } from '../../common/enums/role.enum';
 import { AuthenticatedUser } from '../../common/interfaces/authenticated-user.interface';
 import { FIRESTORE } from '../../firebase/firebase.constants';
 import { Collections } from '../../firebase/firestore-collections';
 import { FirestoreRepository } from '../../firebase/firestore.repository';
-import { OrderStatus } from '../orders/entities/order.entity';
+import { FulfillmentMethod, Order, OrderStatus } from '../orders/entities/order.entity';
+import { PaymentMethodsService } from '../payment-methods/payment-methods.service';
 import { isStoragePath, UploadsService } from '../uploads/uploads.service';
+import { CasheaClient, CasheaError } from './cashea.client';
+import { buildCasheaPayload, casheaPayloadTotal } from './cashea-payload';
 import {
+  CasheaDownPayment,
+  CasheaPayment,
   MANUAL_RECONCILIATION_METHODS,
   Payment,
   PaymentMethod,
@@ -39,6 +48,9 @@ export class PaymentsService {
     private readonly paypal: PayPalClient,
     private readonly events: EventEmitter2,
     private readonly uploadsService: UploadsService,
+    private readonly cashea: CasheaClient,
+    private readonly paymentMethods: PaymentMethodsService,
+    private readonly config: ConfigService<EnvConfig, true>,
   ) {
     this.repo = new FirestoreRepository<Payment>(firestore, Collections.PAYMENTS);
   }
@@ -47,8 +59,20 @@ export class PaymentsService {
    * a short-lived signed URL; a legacy base64 data URI (from before this
    * migration) passes through untouched. */
   private async withSignedProof(payment: Payment): Promise<Payment> {
-    if (!payment.proofUrl || !isStoragePath(payment.proofUrl)) return payment;
-    return { ...payment, proofUrl: await this.uploadsService.getSignedProofUrl(payment.proofUrl) };
+    const sign = async (value: string | undefined) =>
+      value && isStoragePath(value) ? this.uploadsService.getSignedProofUrl(value) : value;
+    const downPayment = payment.cashea?.downPayment;
+    return {
+      ...payment,
+      proofUrl: await sign(payment.proofUrl),
+      ...(downPayment &&
+        !downPayment.atStore && {
+          cashea: {
+            ...payment.cashea!,
+            downPayment: { ...downPayment, proofUrl: await sign(downPayment.proofUrl) },
+          },
+        }),
+    };
   }
 
   /** Mirrors OrdersService's ownership check without depending on OrdersModule
@@ -79,6 +103,8 @@ export class PaymentsService {
   ): Promise<Payment> {
     const isManual = MANUAL_RECONCILIATION_METHODS.includes(method);
     const isCredit = method === PaymentMethod.CREDIT_B2B;
+
+    if (method === PaymentMethod.CASHEA) return this.startCashea(orderId);
 
     if (method === PaymentMethod.PAYPAL) {
       const paypalOrder = await this.paypal.createOrder(amount);
@@ -176,6 +202,13 @@ export class PaymentsService {
 
   async reject(id: string, adminUserId: string, reason: string): Promise<Payment> {
     const ref = this.repo.doc(id);
+    // A rejected Cashea payment mustn't leave the buyer's Cashea order
+    // standing; cancelled there first, so a failure stops the rejection.
+    const before = await this.findById(id);
+    const cashea =
+      before.status === PaymentStatus.PENDING
+        ? await this.cancelCasheaFor(before, { strict: true })
+        : undefined;
     return this.firestore.runTransaction(async (tx) => {
       const snap = await tx.get(ref);
       if (!snap.exists) throw new BadRequestException('Payment not found');
@@ -188,6 +221,7 @@ export class PaymentsService {
         verifiedByUserId: adminUserId,
         verifiedAt: new Date(),
         rejectionReason: reason,
+        ...(cashea && { cashea }),
       };
       tx.update(ref, patch);
       return { ...payment, ...patch };
@@ -271,5 +305,342 @@ export class PaymentsService {
       } satisfies PaymentVerifiedEvent);
     }
     return saved;
+  }
+
+  // --- Cashea ----------------------------------------------------------
+
+  /** What checkout needs to offer Cashea. */
+  async casheaConfig(): Promise<{ available: boolean; minAmount: number | null }> {
+    if (!this.cashea.isConfigured()) return { available: false, minAmount: null };
+    return { available: true, minAmount: await this.cashea.minAmount() };
+  }
+
+  /** Creates the buyer's checkout on Cashea from the stored order: the
+   * buyer finishes it on Cashea's site and comes back to
+   * /cashea/retorno/{orderId}. */
+  private async startCashea(orderId: string): Promise<Payment> {
+    if (!this.cashea.isConfigured()) {
+      throw new BadRequestException('Cashea no está disponible en este momento.');
+    }
+    const orderSnap = await this.firestore.collection(Collections.ORDERS).doc(orderId).get();
+    const order = { ...orderSnap.data(), id: orderId } as Order;
+    const minAmount = await this.cashea.minAmount();
+    if (minAmount !== null && order.totalAmount < minAmount) {
+      throw new BadRequestException(
+        `Cashea requiere una compra mínima de $${minAmount.toFixed(2)}.`,
+      );
+    }
+    const site = this.config.get('PUBLIC_SITE_URL', { infer: true }).replace(/\/+$/, '');
+    const payload = buildCasheaPayload(order, await this.productDetails(order), {
+      redirectUrl: `${site}/cashea/retorno/${encodeURIComponent(orderId)}`,
+      merchantName: this.config.get('CASHEA_MERCHANT_NAME', { infer: true }),
+      externalClientId: this.config.get('CASHEA_EXTERNAL_CLIENT_ID', { infer: true })!,
+      storeId: this.config.get('CASHEA_STORE_ID', { infer: true })!,
+      storeName: this.config.get('CASHEA_STORE_NAME', { infer: true }),
+      fallbackImageUrl: `${site}/og-image.jpg`,
+    });
+    const { payloadId, checkoutUrl } = await this.cashea.createCheckout(payload);
+    return this.repo.create({
+      orderId,
+      method: PaymentMethod.CASHEA,
+      amount: order.totalAmount,
+      status: PaymentStatus.PENDING,
+      externalReference: String(payloadId),
+      cashea: { payloadId, checkoutUrl, total: casheaPayloadTotal(payload) },
+    });
+  }
+
+  /** Photos and descriptions for Cashea's checkout; the order keeps only
+   * names and prices. */
+  private async productDetails(order: Order) {
+    const refs = [...new Set(order.items.map((i) => i.productId))].map((id) =>
+      this.firestore.collection(Collections.PRODUCTS).doc(id),
+    );
+    const snaps = refs.length ? await this.firestore.getAll(...refs) : [];
+    return new Map(
+      snaps.map((snap) => {
+        const data = snap.data() as { imageUrl?: string; specs?: string } | undefined;
+        return [snap.id, { imageUrl: data?.imageUrl, specs: data?.specs }];
+      }),
+    );
+  }
+
+  /** The order's live Cashea payment (its latest payment), or an error. */
+  private async pendingCasheaPayment(orderId: string): Promise<Payment> {
+    const [payment] = await this.repo.findAll({
+      where: [{ field: 'orderId', op: '==', value: orderId }],
+      orderBy: { field: 'createdAt', direction: 'desc' },
+      limit: 1,
+    });
+    if (payment?.method !== PaymentMethod.CASHEA || !payment.cashea) {
+      throw new BadRequestException('Este pedido no se está pagando con Cashea.');
+    }
+    if (payment.status !== PaymentStatus.PENDING) {
+      throw new BadRequestException('Este pago con Cashea ya no está pendiente.');
+    }
+    return payment;
+  }
+
+  /** The buyer is back from Cashea with the order approved: Cashea's order
+   * number is recorded. Coming back twice is harmless; a different number
+   * for the same purchase isn't accepted. */
+  async casheaReturn(orderId: string, idNumber: string, user: AuthenticatedUser): Promise<Payment> {
+    await this.assertOrderAccess(orderId, user);
+    const casheaOrderId = idNumber.trim();
+    if (!/^\d{1,20}$/.test(casheaOrderId)) {
+      throw new BadRequestException('Cashea no devolvió un número de orden válido.');
+    }
+    const { id } = await this.pendingCasheaPayment(orderId);
+    const ref = this.repo.doc(id);
+    const saved = await this.firestore.runTransaction(async (tx) => {
+      const current = { ...(await tx.get(ref)).data(), id } as Payment;
+      const cashea = current.cashea!;
+      if (cashea.orderId === casheaOrderId) return current;
+      if (cashea.orderId) {
+        throw new BadRequestException('Esta compra ya está asociada a otra orden de Cashea.');
+      }
+      const next: CasheaPayment = {
+        ...cashea,
+        orderId: casheaOrderId,
+        returnedAt: new Date().toISOString(),
+      };
+      tx.update(ref, { cashea: next });
+      return { ...current, cashea: next };
+    });
+    return this.withSignedProof(saved);
+  }
+
+  /** The buyer reports the down payment: paid online through one of the
+   * store's payment methods, or to be paid at the store (pickup orders).
+   * It can be reported again while the store hasn't confirmed it. */
+  async casheaReportDownPayment(
+    paymentId: string,
+    user: AuthenticatedUser,
+    report: {
+      atStore: boolean;
+      methodId?: string;
+      amount?: number;
+      reference?: string;
+      proofBase64?: string;
+    },
+  ): Promise<Payment> {
+    const payment = await this.findById(paymentId);
+    await this.assertOrderAccess(payment.orderId, user);
+    const current = await this.pendingCasheaPayment(payment.orderId);
+    if (current.id !== paymentId) {
+      throw new BadRequestException('Este pago con Cashea ya no está vigente.');
+    }
+    if (!current.cashea!.orderId) {
+      throw new BadRequestException('Primero completa la compra en Cashea.');
+    }
+    const order = await this.loadOrder(payment.orderId);
+    this.assertOrderNotCancelled(order);
+
+    let downPayment: CasheaDownPayment;
+    if (report.atStore) {
+      if (order.fulfillmentMethod !== FulfillmentMethod.PICKUP) {
+        throw new BadRequestException(
+          'La inicial en tienda es solo para pedidos con retiro en tienda.',
+        );
+      }
+      downPayment = { atStore: true, reportedAt: new Date().toISOString() };
+    } else {
+      const method = report.methodId
+        ? await this.paymentMethods.findById(report.methodId)
+        : undefined;
+      const online =
+        method?.enabled &&
+        MANUAL_RECONCILIATION_METHODS.includes(method.backendMethod) &&
+        method.backendMethod !== PaymentMethod.CASH;
+      if (!method || !online) {
+        throw new BadRequestException('Elige cómo pagaste la inicial.');
+      }
+      const amount = round2(Number(report.amount));
+      if (!(amount > 0) || amount >= order.totalAmount) {
+        throw new BadRequestException('Indica el monto de la inicial que pagaste.');
+      }
+      const reference = report.reference?.trim() || undefined;
+      if (method.needsReference && !reference) {
+        throw new BadRequestException('Indica la referencia del pago de la inicial.');
+      }
+      const proofUrl = report.proofBase64
+        ? await this.uploadsService.uploadPaymentProof(report.proofBase64)
+        : undefined;
+      downPayment = {
+        atStore: false,
+        methodId: method.id,
+        methodLabel: method.label,
+        amount,
+        ...(reference && { reference }),
+        ...(proofUrl && { proofUrl }),
+        reportedAt: new Date().toISOString(),
+      };
+    }
+
+    const ref = this.repo.doc(paymentId);
+    const saved = await this.firestore.runTransaction(async (tx) => {
+      const latest = { ...(await tx.get(ref)).data(), id: paymentId } as Payment;
+      if (latest.status !== PaymentStatus.PENDING) {
+        throw new BadRequestException('Este pago con Cashea ya no está pendiente.');
+      }
+      const cashea: CasheaPayment = { ...latest.cashea!, downPayment };
+      tx.update(ref, { cashea });
+      return { ...latest, cashea };
+    });
+    return this.withSignedProof(saved);
+  }
+
+  /** The store received the down payment: it's confirmed to Cashea, which
+   * finances the rest, and the order is paid. Cashea is called before the
+   * write (a network call can't sit inside a transaction Firestore may
+   * retry); a second click finds the payment verified and changes nothing. */
+  async casheaConfirm(paymentId: string, adminUserId: string, rawAmount: number): Promise<Payment> {
+    const payment = await this.findById(paymentId);
+    if (payment.method !== PaymentMethod.CASHEA || !payment.cashea) {
+      throw new BadRequestException('Este pago no es con Cashea.');
+    }
+    if (payment.status !== PaymentStatus.PENDING) {
+      throw new BadRequestException(`El pago ya está ${payment.status}.`);
+    }
+    const casheaOrderId = payment.cashea.orderId;
+    if (!casheaOrderId) {
+      throw new BadRequestException('El cliente aún no completó la compra en Cashea.');
+    }
+    const order = await this.loadOrder(payment.orderId);
+    this.assertOrderNotCancelled(order);
+    const amount = round2(Number(rawAmount));
+    if (!(amount > 0) || amount > order.totalAmount) {
+      throw new BadRequestException('Indica el monto de la inicial que recibiste.');
+    }
+    try {
+      await this.cashea.confirmDownPayment(casheaOrderId, amount);
+    } catch (error) {
+      throw this.casheaFailure('Cashea no confirmó la inicial', error);
+    }
+
+    const ref = this.repo.doc(paymentId);
+    const { saved, verifiedNow } = await this.firestore.runTransaction(async (tx) => {
+      const current = { ...(await tx.get(ref)).data(), id: paymentId } as Payment;
+      if (current.status !== PaymentStatus.PENDING) {
+        return { saved: current, verifiedNow: false };
+      }
+      const patch: Partial<Payment> = {
+        status: PaymentStatus.VERIFIED,
+        verifiedByUserId: adminUserId,
+        verifiedAt: new Date(),
+        cashea: {
+          ...current.cashea!,
+          confirmedAmount: amount,
+          confirmedAt: new Date().toISOString(),
+        },
+      };
+      tx.update(ref, patch);
+      return { saved: { ...current, ...patch }, verifiedNow: true };
+    });
+    if (verifiedNow) {
+      this.events.emit(PAYMENT_VERIFIED_EVENT, {
+        orderId: saved.orderId,
+        paymentId: saved.id,
+      } satisfies PaymentVerifiedEvent);
+    }
+    return this.withSignedProof(saved);
+  }
+
+  /** The buyer switches away from a Cashea payment the store hasn't
+   * confirmed: its Cashea order is cancelled and the payment closed, so a
+   * new method can be chosen. Not once a down payment was reported online
+   * — that money has to be sorted out with the store first. */
+  async withdrawCashea(orderId: string): Promise<void> {
+    const payment = await this.pendingCasheaPayment(orderId);
+    if (payment.cashea?.downPayment && !payment.cashea.downPayment.atStore) {
+      throw new BadRequestException(
+        'Ya reportaste el pago de la inicial: escríbenos para cambiar el método de pago.',
+      );
+    }
+    const cashea = await this.cancelCasheaFor(payment, { strict: true });
+    await this.repo.update(payment.id, {
+      status: PaymentStatus.REJECTED,
+      rejectionReason: 'El cliente cambió el método de pago.',
+      verifiedAt: new Date(),
+      ...(cashea && { cashea }),
+    });
+  }
+
+  /** The order was cancelled: its pending Cashea payment is cancelled at
+   * Cashea and closed. A failure is recorded on the payment for the admin
+   * (the order is already cancelled either way); a payment Cashea already
+   * financed is left for the admin to reverse in Cashea's portal. */
+  async casheaOrderCancelled(orderId: string): Promise<void> {
+    const [payment] = await this.repo.findAll({
+      where: [{ field: 'orderId', op: '==', value: orderId }],
+      orderBy: { field: 'createdAt', direction: 'desc' },
+      limit: 1,
+    });
+    if (payment?.method !== PaymentMethod.CASHEA || !payment.cashea) return;
+    if (payment.status === PaymentStatus.VERIFIED) {
+      this.logger.warn(
+        `Order ${orderId} was cancelled after its Cashea down payment was confirmed (Cashea order ${payment.cashea.orderId}).`,
+      );
+      await this.repo.update(payment.id, {
+        cashea: {
+          ...payment.cashea,
+          cancelError:
+            'El pedido se canceló después de confirmar la inicial: anula la orden en el portal de Cashea.',
+        },
+      });
+      return;
+    }
+    if (payment.status !== PaymentStatus.PENDING) return;
+    const cashea = await this.cancelCasheaFor(payment, { strict: false });
+    await this.repo.update(payment.id, {
+      status: PaymentStatus.REJECTED,
+      rejectionReason: 'Pedido cancelado.',
+      verifiedAt: new Date(),
+      ...(cashea && { cashea }),
+    });
+  }
+
+  /** Cancels the Cashea order behind a payment, when there is one (a buyer
+   * who never finished on Cashea left nothing to cancel). Returns the
+   * payment's Cashea record as it now stands; `strict` throws instead of
+   * recording a failure. */
+  private async cancelCasheaFor(
+    payment: Payment,
+    { strict }: { strict: boolean },
+  ): Promise<CasheaPayment | undefined> {
+    if (payment.method !== PaymentMethod.CASHEA || !payment.cashea) return undefined;
+    const now = new Date().toISOString();
+    if (!payment.cashea.orderId || payment.cashea.cancelledAt) {
+      return { ...payment.cashea, cancelledAt: payment.cashea.cancelledAt ?? now };
+    }
+    try {
+      await this.cashea.cancelOrder(payment.cashea.orderId);
+      const { cancelError: _cancelError, ...rest } = payment.cashea;
+      return { ...rest, cancelledAt: now };
+    } catch (error) {
+      if (strict) throw this.casheaFailure('Cashea no canceló la orden', error);
+      const message = error instanceof Error ? error.message : String(error);
+      this.logger.error(
+        `Could not cancel Cashea order ${payment.cashea.orderId} for order ${payment.orderId}: ${message}`,
+      );
+      return {
+        ...payment.cashea,
+        cancelError: `No se pudo cancelar en Cashea (${message}): anúlala en el portal de Cashea.`,
+      };
+    }
+  }
+
+  private casheaFailure(what: string, error: unknown) {
+    const message = error instanceof Error ? error.message : String(error);
+    const status = error instanceof CasheaError ? error.status : 500;
+    return status >= 500
+      ? new BadGatewayException(`${what}: ${message}`)
+      : new BadRequestException(`${what}: ${message}`);
+  }
+
+  private async loadOrder(orderId: string): Promise<Order> {
+    const snap = await this.firestore.collection(Collections.ORDERS).doc(orderId).get();
+    if (!snap.exists) throw new BadRequestException('Order not found');
+    return { ...snap.data(), id: orderId } as Order;
   }
 }

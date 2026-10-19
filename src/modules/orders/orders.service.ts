@@ -19,6 +19,7 @@ import { Role } from '../../common/enums/role.enum';
 import { AuthenticatedUser } from '../../common/interfaces/authenticated-user.interface';
 import { DiscountCodesService } from '../discount-codes/discount-codes.service';
 import { Payment, PaymentMethod, PaymentStatus } from '../payments/entities/payment.entity';
+import { casheaIdentificationNumber } from '../payments/cashea-payload';
 import { PaymentsService } from '../payments/payments.service';
 import { PricingService } from '../products/pricing.service';
 import { ProductsService, StockChangedEvent } from '../products/products.service';
@@ -146,6 +147,21 @@ export class OrdersService {
     return creditLimit;
   }
 
+  /** The order was dropped because its payment couldn't start. A refusal
+   * the buyer can act on (Cashea's minimum purchase, say) keeps its own
+   * message and status; a provider that failed is a 502. */
+  private paymentStartFailed(error: unknown): Error {
+    if (error instanceof BadRequestException) return error;
+    return new BadGatewayException(
+      `No se pudo iniciar el pago y el pedido se canceló: ${(error as Error).message}`,
+    );
+  }
+
+  /** Checked before the order exists: Cashea needs the buyer's cédula. */
+  private assertPaymentPrerequisites(method: PaymentMethod, taxId: string | undefined): void {
+    if (method === PaymentMethod.CASHEA) casheaIdentificationNumber(taxId);
+  }
+
   private assertWithinCreditLine(creditLine: number | undefined, totalAmount: number): void {
     if (creditLine !== undefined && totalAmount > creditLine) {
       throw new ForbiddenException(
@@ -156,6 +172,7 @@ export class OrdersService {
 
   async create(user: AuthenticatedUser, dto: CreateOrderDto): Promise<Order> {
     await this.assertCanOpenOrder(user);
+    this.assertPaymentPrerequisites(dto.paymentMethod, dto.shipping.taxId);
     const creditLine = await this.creditLineFor(user.id, dto.paymentMethod);
     const productIds = dto.items.map((i) => i.productId);
     if (new Set(productIds).size !== productIds.length) {
@@ -265,9 +282,7 @@ export class OrdersService {
       // unreachable) — restore the reserved stock and drop the order rather
       // than leaving a paid-for-nothing reservation.
       await this.compensate(order);
-      throw new BadGatewayException(
-        `Could not initiate payment for the order, it was cancelled: ${(error as Error).message}`,
-      );
+      throw this.paymentStartFailed(error);
     }
 
     this.events.emit(ORDER_CREATED_EVENT, { orderId: order.id } satisfies OrderCreatedEvent);
@@ -292,6 +307,7 @@ export class OrdersService {
   ): Promise<Order> {
     const quote = await this.quotesService.findOneForUser(quoteId, user);
     await this.assertCanOpenOrder(user);
+    this.assertPaymentPrerequisites(dto.paymentMethod, dto.shipping.taxId);
     const creditLine = await this.creditLineFor(user.id, dto.paymentMethod);
     if (quote.status !== QuoteStatus.APPROVED) {
       throw new BadRequestException('Only an approved quote can be checked out');
@@ -408,9 +424,7 @@ export class OrdersService {
       // Payment initiation failed after stock was committed — restore the
       // reserved stock, un-convert the quote, and drop the order.
       await this.compensate(order, quoteRef);
-      throw new BadGatewayException(
-        `Could not initiate payment for the order, it was cancelled: ${(error as Error).message}`,
-      );
+      throw this.paymentStartFailed(error);
     }
 
     this.events.emit(ORDER_CREATED_EVENT, { orderId: order.id } satisfies OrderCreatedEvent);
@@ -421,7 +435,9 @@ export class OrdersService {
     return this.findById(order.id, user);
   }
 
-  /** After a rejection, lets the buyer switch payment method and/or resubmit a reference/proof. */
+  /** After a rejection, lets the buyer switch payment method and/or
+   * resubmit a reference/proof. A Cashea payment the store hasn't confirmed
+   * can be switched too (its Cashea order is cancelled first). */
   async retryPayment(
     orderId: string,
     user: AuthenticatedUser,
@@ -432,13 +448,18 @@ export class OrdersService {
       throw new BadRequestException('This order is not awaiting payment verification');
     }
     const payments = await this.paymentsService.findByOrder(orderId, user);
-    if (payments[0]?.status !== PaymentStatus.REJECTED) {
+    const latest = payments[0];
+    const leavingCashea =
+      latest?.method === PaymentMethod.CASHEA && latest.status === PaymentStatus.PENDING;
+    if (latest?.status !== PaymentStatus.REJECTED && !leavingCashea) {
       throw new BadRequestException('Only a rejected payment can be retried');
     }
+    this.assertPaymentPrerequisites(dto.paymentMethod, order.shippingTaxId);
     this.assertWithinCreditLine(
       await this.creditLineFor(order.userId, dto.paymentMethod),
       order.totalAmount,
     );
+    if (leavingCashea) await this.paymentsService.withdrawCashea(orderId);
 
     await this.repo.update(orderId, { paymentMethod: dto.paymentMethod });
     const payment = await this.paymentsService.initiate(

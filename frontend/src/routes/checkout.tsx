@@ -51,6 +51,8 @@ import {
 import { VENEZUELA_STATE_NAMES, citiesForState } from "@/lib/venezuela-locations";
 import { usePaymentMethods } from "@/lib/payment-methods";
 import { PayPalButton } from "@/components/paypal-button";
+import { CasheaButton } from "@/components/cashea-button";
+import { isCasheaTaxIdPrefix, useCasheaConfig, type CasheaPaymentRecord } from "@/lib/cashea";
 import { toast } from "sonner";
 import { round2 } from "@/lib/money";
 
@@ -200,6 +202,7 @@ function CheckoutPage() {
   });
 
   const { data: paymentMethods } = usePaymentMethods({ enabled: !!user });
+  const { data: casheaConfig } = useCasheaConfig({ enabled: !!user });
   // PayPal needs the SDK client id wired in on this build to actually
   // render a working button — if that's not configured yet, hide it from
   // checkout rather than let a customer pick a payment method with no way
@@ -210,6 +213,7 @@ function CheckoutPage() {
     (m) =>
       m.enabled &&
       (m.backendMethod !== "paypal" || PAYPAL_CLIENT_ID) &&
+      (m.backendMethod !== "cashea" || casheaConfig?.available) &&
       (m.backendMethod !== "credit_b2b" || hasCreditLine),
   );
 
@@ -264,8 +268,17 @@ function CheckoutPage() {
     phoneValidation.valid &&
     (isPickup || (address.trim() && state && city)),
   );
+  // Cashea finances people (a cédula, not a company RIF) from its own
+  // minimum purchase up.
+  const isCashea = info?.backendMethod === "cashea";
+  const casheaMin = casheaConfig?.minAmount ?? null;
+  const casheaBelowMin = isCashea && casheaMin !== null && total < casheaMin;
+  const casheaNeedsCedula = isCashea && !isCasheaTaxIdPrefix(taxIdPrefix);
   const canContinueStep2 =
-    Boolean(info) && (!info!.needsReference || paymentReference.trim().length > 0);
+    Boolean(info) &&
+    (!info!.needsReference || paymentReference.trim().length > 0) &&
+    !casheaBelowMin &&
+    !casheaNeedsCedula;
 
   const handleProofFile = async (file: File) => {
     setProofBusy(true);
@@ -291,9 +304,8 @@ function CheckoutPage() {
     ...(isPickup ? {} : { address: address.trim(), city, state }),
   });
 
-  /** Common tail for every successful payment, PayPal included — saves the
-   * shipping info for next time and sends the customer to their order. */
-  const finishCheckout = (shipping: ReturnType<typeof buildShipping>) => {
+  /** Saves the shipping info for next time (delivery orders). */
+  const saveShippingProfile = (shipping: ReturnType<typeof buildShipping>) => {
     if (!isPickup) {
       apiFetch("/users/me", {
         method: "PATCH",
@@ -307,6 +319,12 @@ function CheckoutPage() {
         },
       }).catch(() => {});
     }
+  };
+
+  /** Common tail for every successful payment, PayPal included — saves the
+   * shipping info for next time and sends the customer to their order. */
+  const finishCheckout = (shipping: ReturnType<typeof buildShipping>) => {
+    saveShippingProfile(shipping);
     toast.success("¡Pedido confirmado! Te contactaremos pronto.");
     navigate({ to: "/client/orders" });
   };
@@ -343,6 +361,23 @@ function CheckoutPage() {
             discountCode: discount?.code,
           },
         });
+      }
+
+      if (info.backendMethod === "cashea") {
+        // The order exists and holds its stock; the buyer finishes on
+        // Cashea's site (log in, pick a plan) and comes back to
+        // /cashea/retorno/{orderId}. An abandoned purchase can be resumed
+        // from "Mis pedidos".
+        const payments = await apiFetch<CasheaPaymentRecord[]>(`/payments/order/${order.id}`);
+        const checkoutUrl = payments[0]?.cashea?.checkoutUrl;
+        if (!checkoutUrl) throw new ApiError("No se pudo iniciar el pago con Cashea", 502);
+        if (!isQuoteCheckout) {
+          clearCart();
+          clearDiscount();
+        }
+        saveShippingProfile(shipping);
+        window.location.assign(checkoutUrl);
+        return;
       }
 
       if (info.backendMethod === "paypal") {
@@ -702,6 +737,15 @@ function CheckoutPage() {
                             <li key={line}>{line}</li>
                           ))}
                         </ul>
+                        {isCashea && (
+                          <CasheaSteps
+                            pickup={isPickup}
+                            minAmount={casheaMin}
+                            belowMin={casheaBelowMin}
+                            needsCedula={casheaNeedsCedula}
+                            onFixCedula={() => goToStep(1)}
+                          />
+                        )}
                         {(info.needsReference || info.needsProof) && (
                           <div className="mt-3 flex items-baseline gap-2 border-t border-border pt-3">
                             <span className="text-xs text-muted-foreground">Monto a pagar:</span>
@@ -916,7 +960,7 @@ function CheckoutPage() {
                 />
               </div>
             ) : (
-              <div className="flex items-center justify-between">
+              <div className="flex flex-wrap items-center justify-between gap-3">
                 <Button
                   variant="ghost"
                   onClick={() => goToStep(Math.max(1, step - 1))}
@@ -934,6 +978,16 @@ function CheckoutPage() {
                   >
                     Continuar
                   </Button>
+                ) : isCashea ? (
+                  <CasheaButton
+                    onClick={handleSubmit}
+                    busy={submitting}
+                    disabled={casheaBelowMin || casheaNeedsCedula}
+                    minAmount={casheaMin}
+                    // A row of its own on a phone (above "Atrás"), so its
+                    // label stays on one line.
+                    className="mx-0 ml-auto max-sm:order-first max-sm:max-w-none max-sm:basis-full"
+                  />
                 ) : (
                   <Button
                     className="gap-2 bg-brand-yellow text-brand-navy hover:bg-brand-yellow/90"
@@ -998,5 +1052,57 @@ function CheckoutPage() {
         </div>
       </section>
     </PublicShell>
+  );
+}
+
+/** How paying with Cashea goes, and what would stop it. */
+function CasheaSteps({
+  pickup,
+  minAmount,
+  belowMin,
+  needsCedula,
+  onFixCedula,
+}: {
+  pickup: boolean;
+  minAmount: number | null;
+  belowMin: boolean;
+  needsCedula: boolean;
+  onFixCedula: () => void;
+}) {
+  return (
+    <div className="mt-3 space-y-3 border-t border-border pt-3">
+      <ol className="space-y-1.5 text-muted-foreground">
+        {[
+          "Confirmas tu pedido y te llevamos a Cashea.",
+          "Inicias sesión en Cashea y eliges tu plan de cuotas.",
+          pickup
+            ? "Pagas la inicial en línea o en la tienda al retirar."
+            : "Pagas la inicial en línea y te enviamos tu pedido.",
+        ].map((text, i) => (
+          <li key={text} className="flex gap-2">
+            <span className="grid h-5 w-5 shrink-0 place-items-center rounded-full bg-brand-blue/10 text-xs font-bold text-brand-blue">
+              {i + 1}
+            </span>
+            {text}
+          </li>
+        ))}
+      </ol>
+      {needsCedula && (
+        <div className="flex flex-wrap items-center gap-2 rounded-md border border-amber-300 bg-amber-50 p-2.5 text-amber-900">
+          <span className="flex-1">
+            Cashea necesita tu cédula (V o E). Cámbiala en tus datos para continuar.
+          </span>
+          <Button size="sm" variant="outline" onClick={onFixCedula}>
+            Cambiar datos
+          </Button>
+        </div>
+      )}
+      {belowMin && minAmount !== null && (
+        <p className="rounded-md border border-amber-300 bg-amber-50 p-2.5 text-amber-900">
+          Cashea está disponible desde {formatMoney(minAmount)}. Agrega productos o elige otro
+          método de pago.
+        </p>
+      )}
+    </div>
   );
 }

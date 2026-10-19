@@ -41,6 +41,14 @@ import {
   usePaymentMethods,
   type PaymentMethod,
 } from "@/lib/payment-methods";
+import { CasheaButton } from "@/components/cashea-button";
+import { CasheaDownPaymentForm } from "@/components/cashea-down-payment";
+import {
+  casheaStage,
+  useCasheaConfig,
+  type CasheaPayment,
+  type CasheaPaymentRecord,
+} from "@/lib/cashea";
 
 export const Route = createFileRoute("/client/orders")({
   head: () => ({
@@ -84,8 +92,10 @@ interface Payment {
   orderId: string;
   method: PaymentMethod;
   status: "pending" | "verified" | "rejected";
+  amount: number;
   reference?: string;
   rejectionReason?: string;
+  cashea?: CasheaPayment;
 }
 
 function useMyOrders() {
@@ -229,8 +239,14 @@ function OrderDetailDialog({ order, onClose }: { order: Order; onClose: () => vo
     queryFn: () => apiFetch<Payment[]>(`/payments/order/${order.id}`),
   });
   const payment = payments?.[0];
-  const canRetry =
-    order.status === "pending_payment_verification" && payment?.status === "rejected";
+  const awaitingPayment = order.status === "pending_payment_verification";
+  const canRetry = awaitingPayment && payment?.status === "rejected";
+  // A Cashea purchase still in progress: finish it, pay the down payment,
+  // or switch to another method (not once a down payment was paid online).
+  const casheaPending =
+    awaitingPayment && payment?.method === "cashea" && payment.status === "pending";
+  const casheaReportedOnline = casheaPending && payment.cashea?.downPayment?.atStore === false;
+  const [switchingMethod, setSwitchingMethod] = useState(false);
 
   return (
     <Dialog open onOpenChange={(open) => !open && onClose()}>
@@ -326,6 +342,25 @@ function OrderDetailDialog({ order, onClose }: { order: Order; onClose: () => vo
           </div>
         </div>
 
+        {casheaPending && payment && (
+          <>
+            <Separator />
+            <CasheaOrderPanel payment={payment} order={order} />
+            {!casheaReportedOnline &&
+              (switchingMethod ? (
+                <RetryPaymentForm order={order} />
+              ) : (
+                <Button
+                  variant="ghost"
+                  className="self-start text-muted-foreground"
+                  onClick={() => setSwitchingMethod(true)}
+                >
+                  Pagar con otro método
+                </Button>
+              ))}
+          </>
+        )}
+
         {canRetry && (
           <>
             <Separator />
@@ -340,10 +375,17 @@ function OrderDetailDialog({ order, onClose }: { order: Order; onClose: () => vo
 function RetryPaymentForm({ order }: { order: Order }) {
   const queryClient = useQueryClient();
   const { data: paymentMethods } = usePaymentMethods();
+  const { data: casheaConfig } = useCasheaConfig();
   const hasCreditLine = useHasCreditLine();
+  const casheaFits =
+    Boolean(casheaConfig?.available) &&
+    (casheaConfig?.minAmount == null || order.totalAmount >= casheaConfig.minAmount);
   const enabledMethods =
     paymentMethods?.filter(
-      (m) => m.enabled && (m.backendMethod !== "credit_b2b" || hasCreditLine),
+      (m) =>
+        m.enabled &&
+        (m.backendMethod !== "credit_b2b" || hasCreditLine) &&
+        (m.backendMethod !== "cashea" || casheaFits),
     ) ?? [];
 
   const [methodId, setMethodId] = useState<string | null>(null);
@@ -380,8 +422,17 @@ function RetryPaymentForm({ order }: { order: Order }) {
           paymentProofBase64: proofBase64,
         },
       }),
-    onSuccess: () => {
+    onSuccess: async () => {
       queryClient.invalidateQueries({ queryKey: ["orders", "mine"] });
+      if (selected?.backendMethod === "cashea") {
+        // A new Cashea checkout: the buyer finishes it on Cashea's site.
+        const payments = await apiFetch<Payment[]>(`/payments/order/${order.id}`);
+        const checkoutUrl = payments[0]?.cashea?.checkoutUrl;
+        if (checkoutUrl) {
+          window.location.assign(checkoutUrl);
+          return;
+        }
+      }
       toast.success("Pago reenviado — quedará pendiente de verificación.");
     },
     onError: reportError,
@@ -496,6 +547,72 @@ function RetryPaymentForm({ order }: { order: Order }) {
         {retry.isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
         Reenviar pago
       </Button>
+    </div>
+  );
+}
+
+/** A Cashea purchase in progress: what the buyer still has to do. */
+function CasheaOrderPanel({ payment, order }: { payment: Payment; order: Order }) {
+  const { data: casheaConfig } = useCasheaConfig();
+  const [editing, setEditing] = useState(false);
+  const record = payment as CasheaPaymentRecord;
+  const stage = casheaStage(record);
+  const cashea = payment.cashea;
+  if (!cashea) return null;
+
+  if (stage === "checkout") {
+    return (
+      <div className="space-y-3">
+        <div className="text-sm">
+          <div className="font-semibold text-brand-navy">Tu compra con Cashea no está completa</div>
+          <p className="mt-0.5 text-muted-foreground">
+            Tu pedido sigue apartado. Entra a Cashea para elegir tu plan de cuotas.
+          </p>
+        </div>
+        <CasheaButton
+          minAmount={casheaConfig?.minAmount}
+          onClick={() => window.location.assign(cashea.checkoutUrl)}
+          className="mx-0"
+        />
+      </div>
+    );
+  }
+
+  const report = cashea.downPayment;
+  return (
+    <div className="space-y-3 text-sm">
+      <div>
+        <div className="font-semibold text-brand-navy">
+          Cashea aprobó tu compra · Orden #{cashea.orderId}
+        </div>
+        {report && !editing ? (
+          <p className="mt-0.5 text-muted-foreground">
+            {report.atStore
+              ? "Pagarás la inicial al retirar tu pedido en la tienda."
+              : `Reportaste la inicial: ${formatMoney(report.amount)} por ${report.methodLabel}${
+                  report.reference ? ` (ref. ${report.reference})` : ""
+                }. La estamos verificando.`}{" "}
+            <button
+              type="button"
+              className="font-medium text-brand-blue hover:underline"
+              onClick={() => setEditing(true)}
+            >
+              Corregir
+            </button>
+          </p>
+        ) : (
+          <p className="mt-0.5 text-muted-foreground">
+            Falta la inicial: el monto que te indicó Cashea en tu plan de pagos.
+          </p>
+        )}
+      </div>
+      {(!report || editing) && (
+        <CasheaDownPaymentForm
+          payment={record}
+          pickup={order.fulfillmentMethod === "pickup"}
+          onSent={() => setEditing(false)}
+        />
+      )}
     </div>
   );
 }

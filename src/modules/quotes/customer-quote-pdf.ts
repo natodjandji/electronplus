@@ -25,6 +25,7 @@ const PAYMENT_METHOD_LABEL: Record<PaymentMethod, string> = {
   [PaymentMethod.ZELLE]: 'Zelle',
   [PaymentMethod.PAYPAL]: 'PayPal',
   [PaymentMethod.CREDIT_B2B]: 'Crédito B2B',
+  [PaymentMethod.CASHEA]: 'Cashea',
   [PaymentMethod.OTHER]: 'Otro',
 };
 

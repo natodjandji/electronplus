@@ -7,6 +7,7 @@ import { Role } from '../../common/enums/role.enum';
 import { FirebaseAuthGuard } from '../../common/guards/firebase-auth.guard';
 import { RolesGuard } from '../../common/guards/roles.guard';
 import { AuthenticatedUser } from '../../common/interfaces/authenticated-user.interface';
+import { CasheaConfirmDto, CasheaDownPaymentDto, CasheaReturnDto } from './dto/cashea.dto';
 import { PaymentsService } from './payments.service';
 
 class RejectPaymentDto {
@@ -22,9 +23,44 @@ class RejectPaymentDto {
 export class PaymentsController {
   constructor(private readonly paymentsService: PaymentsService) {}
 
+  /** Whether checkout can offer Cashea, and its minimum purchase. */
+  @Get('cashea/config')
+  casheaConfig() {
+    return this.paymentsService.casheaConfig();
+  }
+
   @Get('order/:orderId')
   findByOrder(@Param('orderId') orderId: string, @CurrentUser() user: AuthenticatedUser) {
     return this.paymentsService.findByOrder(orderId, user);
+  }
+
+  /** The buyer is back from Cashea with the purchase approved. */
+  @Post('order/:orderId/cashea/return')
+  casheaReturn(
+    @Param('orderId') orderId: string,
+    @Body() dto: CasheaReturnDto,
+    @CurrentUser() user: AuthenticatedUser,
+  ) {
+    return this.paymentsService.casheaReturn(orderId, dto.idNumber, user);
+  }
+
+  @Post(':id/cashea/down-payment')
+  casheaDownPayment(
+    @Param('id') id: string,
+    @Body() dto: CasheaDownPaymentDto,
+    @CurrentUser() user: AuthenticatedUser,
+  ) {
+    return this.paymentsService.casheaReportDownPayment(id, user, dto);
+  }
+
+  @Post(':id/cashea/confirm')
+  @Roles(Role.ADMIN)
+  casheaConfirm(
+    @Param('id') id: string,
+    @Body() dto: CasheaConfirmDto,
+    @CurrentUser() user: AuthenticatedUser,
+  ) {
+    return this.paymentsService.casheaConfirm(id, user.id, dto.amount);
   }
 
   @Post(':id/paypal/capture')

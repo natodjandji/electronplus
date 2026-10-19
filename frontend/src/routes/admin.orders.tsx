@@ -41,6 +41,7 @@ import { formatMoneyAdmin } from "@/lib/electron-store";
 import { toast } from "sonner";
 import { formatDate } from "@/lib/format";
 import { PAYMENT_METHOD_LABEL, usePaymentMethods, type PaymentMethod } from "@/lib/payment-methods";
+import { type CasheaPayment } from "@/lib/cashea";
 
 export const Route = createFileRoute("/admin/orders")({
   head: () => ({
@@ -90,6 +91,7 @@ interface Payment {
   /** PayPal took the money but didn't confirm it for this order. */
   paypalCaptureId?: string;
   paypalReview?: { status: string; amount: number; currency: string };
+  cashea?: CasheaPayment;
   createdAt: string;
 }
 
@@ -460,16 +462,31 @@ function OrderDetailDialog({ orderId, onClose }: { orderId: string; onClose: () 
                 />
               )}
 
+              {payment.method === "cashea" && payment.cashea && (
+                <CasheaPaymentDetails
+                  payment={payment}
+                  cashea={payment.cashea}
+                  orderTotal={order.totalAmount}
+                  pickup={order.fulfillmentMethod === "pickup"}
+                  canConfirm={
+                    order.status === "pending_payment_verification" && payment.status === "pending"
+                  }
+                  onConfirmed={invalidate}
+                />
+              )}
+
               {order.status === "pending_payment_verification" && payment.status === "pending" && (
                 <div className="mt-3 flex flex-wrap gap-2">
-                  <Button
-                    size="sm"
-                    className="gap-2 bg-emerald-600 text-white hover:bg-emerald-700"
-                    onClick={() => verifyPayment.mutate()}
-                    disabled={verifyPayment.isPending}
-                  >
-                    <Check className="h-4 w-4" /> Verificar pago
-                  </Button>
+                  {payment.method !== "cashea" && (
+                    <Button
+                      size="sm"
+                      className="gap-2 bg-emerald-600 text-white hover:bg-emerald-700"
+                      onClick={() => verifyPayment.mutate()}
+                      disabled={verifyPayment.isPending}
+                    >
+                      <Check className="h-4 w-4" /> Verificar pago
+                    </Button>
+                  )}
                   {rejecting ? (
                     <div className="flex flex-1 flex-wrap items-center gap-2">
                       <Input
@@ -498,7 +515,8 @@ function OrderDetailDialog({ orderId, onClose }: { orderId: string; onClose: () 
                       className="gap-2 text-destructive"
                       onClick={() => setRejecting(true)}
                     >
-                      <X className="h-4 w-4" /> Rechazar pago
+                      <X className="h-4 w-4" />{" "}
+                      {payment.method === "cashea" ? "Cancelar en Cashea" : "Rechazar pago"}
                     </Button>
                   )}
                 </div>
@@ -532,5 +550,148 @@ function OrderDetailDialog({ orderId, onClose }: { orderId: string; onClose: () 
         </DialogFooter>
       </DialogContent>
     </Dialog>
+  );
+}
+
+/** A Cashea payment for the admin: where the buyer is, the down payment
+ * they reported, and the confirmation that tells Cashea to finance the
+ * rest (the order is paid from then on). */
+function CasheaPaymentDetails({
+  payment,
+  cashea,
+  orderTotal,
+  pickup,
+  canConfirm,
+  onConfirmed,
+}: {
+  payment: Payment;
+  cashea: CasheaPayment;
+  orderTotal: number;
+  pickup: boolean;
+  canConfirm: boolean;
+  onConfirmed: () => void;
+}) {
+  const report = cashea.downPayment;
+  const [amount, setAmount] = useState(report && !report.atStore ? String(report.amount) : "");
+  const parsed = Number(amount.replace(",", "."));
+  const amountValid = parsed > 0 && parsed <= orderTotal;
+  const confirm = useMutation({
+    mutationFn: () =>
+      apiFetch(`/payments/${payment.id}/cashea/confirm`, {
+        method: "POST",
+        body: { amount: Math.round(parsed * 100) / 100 },
+      }),
+    onSuccess: () => {
+      onConfirmed();
+      toast.success("Inicial confirmada a Cashea — pedido pagado");
+    },
+    onError: reportError,
+  });
+  const totalsDiffer = Math.abs(cashea.total - orderTotal) >= 0.01;
+
+  return (
+    <div className="mt-3 space-y-3 rounded-md border border-border bg-brand-surface p-3 text-sm">
+      <div className="text-brand-navy">
+        {cashea.orderId ? (
+          <>
+            Orden de Cashea <span className="font-semibold">#{cashea.orderId}</span>
+            {totalsDiffer && (
+              <span className="text-muted-foreground">
+                {" "}
+                · Cashea financia {formatMoneyAdmin(cashea.total)} (redondeo por unidad)
+              </span>
+            )}
+          </>
+        ) : (
+          <span className="text-muted-foreground">
+            El cliente aún no completa la compra en Cashea.
+          </span>
+        )}
+      </div>
+
+      {cashea.orderId && (
+        <div>
+          <div className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+            Inicial
+          </div>
+          {!report ? (
+            <div className="mt-0.5 text-muted-foreground">
+              El cliente aún no reporta cómo paga la inicial.
+              {pickup && " Si viene a la tienda, cóbrala al retirar."}
+            </div>
+          ) : report.atStore ? (
+            <div className="mt-0.5 text-brand-navy">Pagará la inicial en la tienda al retirar.</div>
+          ) : (
+            <div className="mt-0.5 grid gap-0.5 text-brand-navy">
+              <div>
+                {formatMoneyAdmin(report.amount)} por {report.methodLabel}
+              </div>
+              {report.reference && (
+                <div className="text-muted-foreground">Referencia: {report.reference}</div>
+              )}
+              {report.proofUrl && (
+                <a
+                  href={report.proofUrl}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="inline-flex items-center gap-1.5 text-xs font-medium text-brand-blue hover:underline"
+                >
+                  <FileText className="h-3.5 w-3.5" /> Ver comprobante
+                </a>
+              )}
+            </div>
+          )}
+        </div>
+      )}
+
+      {cashea.confirmedAmount !== undefined && (
+        <div className="text-emerald-700">
+          Inicial confirmada a Cashea: {formatMoneyAdmin(cashea.confirmedAmount)}
+        </div>
+      )}
+      {cashea.cancelError && (
+        <div className="flex items-start gap-1.5 text-amber-700">
+          <AlertCircle className="mt-0.5 h-4 w-4 shrink-0" /> {cashea.cancelError}
+        </div>
+      )}
+
+      {canConfirm && cashea.orderId && (
+        <div className="space-y-2 border-t border-border pt-3">
+          <p className="text-xs text-muted-foreground">
+            Cuando recibas la inicial, confírmala: Cashea financia el resto y el pedido pasa a
+            Pagado. Verifica antes en el portal de Cashea que la orden #{cashea.orderId} sea por{" "}
+            {formatMoneyAdmin(cashea.total)}.
+          </p>
+          <div className="flex flex-wrap items-end gap-2">
+            <Field className="grid gap-1">
+              <Label htmlFor="cashea-confirm-amount" className="text-xs text-brand-navy">
+                Inicial recibida
+              </Label>
+              <Input
+                id="cashea-confirm-amount"
+                inputMode="decimal"
+                placeholder="0,00"
+                value={amount}
+                onChange={(e) => setAmount(e.target.value)}
+                className="h-9 w-32"
+              />
+            </Field>
+            <Button
+              size="sm"
+              className="h-9 gap-2 bg-emerald-600 text-white hover:bg-emerald-700"
+              disabled={!amountValid || confirm.isPending}
+              onClick={() => confirm.mutate()}
+            >
+              {confirm.isPending ? (
+                <Loader2 className="h-4 w-4 animate-spin" />
+              ) : (
+                <Check className="h-4 w-4" />
+              )}
+              Confirmar inicial
+            </Button>
+          </div>
+        </div>
+      )}
+    </div>
   );
 }

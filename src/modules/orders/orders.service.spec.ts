@@ -7,7 +7,7 @@ import { ProductsService } from '../products/products.service';
 import { ORDER_PAID_EVENT, OrdersService } from './orders.service';
 import { OrderStatus, FulfillmentMethod } from './entities/order.entity';
 import { Role } from '../../common/enums/role.enum';
-import { PaymentMethod } from '../payments/entities/payment.entity';
+import { PaymentMethod, PaymentStatus } from '../payments/entities/payment.entity';
 import { QuoteStatus } from '../quotes/entities/quote.entity';
 
 /** Regression tests for cancel() running as a single Firestore transaction
@@ -473,5 +473,88 @@ describe('OrdersService stock per product', () => {
 
     expect((await service.cancel('o1')).status).toBe(OrderStatus.CANCELLED);
     expect(stock('p1')).toBe(6);
+  });
+});
+
+/** Cashea: the buyer's cédula is checked before an order exists, and an
+ * unconfirmed Cashea payment can be swapped for another method. */
+describe('OrdersService · Cashea', () => {
+  const buyer = { id: 'user-1', email: 'buyer@test.com', role: Role.CLIENT };
+
+  function build(payments: Record<string, jest.Mock>) {
+    const firestore = new FakeFirestore();
+    firestore.seed(Collections.ORDERS, 'order-1', {
+      userId: buyer.id,
+      status: OrderStatus.PENDING_PAYMENT_VERIFICATION,
+      paymentMethod: PaymentMethod.CASHEA,
+      shippingTaxId: 'V-12345678',
+      totalAmount: 58,
+      items: [],
+      createdAt: new Date(),
+      updatedAt: new Date(),
+    });
+    const productsService = { getForUpdateMany: jest.fn() };
+    const service = new OrdersService(
+      firestore as never,
+      productsService as never,
+      {} as never,
+      payments as never,
+      {} as never,
+      new DiscountCodesService(firestore as never),
+      {} as never,
+      new EventEmitter2(),
+    );
+    return { service, productsService, firestore };
+  }
+
+  it('refuses Cashea with a company RIF before reserving anything', async () => {
+    const payments = { initiate: jest.fn() };
+    const { service, productsService } = build(payments);
+    await expect(
+      service.create(buyer, {
+        items: [{ productId: 'p1', qty: 1 }],
+        paymentMethod: PaymentMethod.CASHEA,
+        shipping: { fullName: 'Empresa', phone: '0414-0000000', taxId: 'J-12345678-9' },
+      }),
+    ).rejects.toThrow('Para pagar con Cashea usa tu cédula (V o E)');
+    expect(productsService.getForUpdateMany).not.toHaveBeenCalled();
+    expect(payments.initiate).not.toHaveBeenCalled();
+  });
+
+  it('cancels the pending Cashea payment before switching to another method', async () => {
+    const order: string[] = [];
+    const payments = {
+      findByOrder: jest
+        .fn()
+        .mockResolvedValue([{ method: PaymentMethod.CASHEA, status: PaymentStatus.PENDING }]),
+      withdrawCashea: jest.fn(async () => void order.push('withdraw')),
+      initiate: jest.fn(async () => {
+        order.push('initiate');
+        return { status: PaymentStatus.PENDING };
+      }),
+    };
+    const { service, firestore } = build(payments);
+    await service.retryPayment('order-1', buyer, {
+      paymentMethod: PaymentMethod.PAGO_MOVIL,
+      paymentReference: '123456',
+    });
+    expect(order).toEqual(['withdraw', 'initiate']);
+    expect(firestore.read(Collections.ORDERS, 'order-1')!.paymentMethod).toBe(
+      PaymentMethod.PAGO_MOVIL,
+    );
+  });
+
+  it('still refuses to retry a payment that is pending verification', async () => {
+    const payments = {
+      findByOrder: jest
+        .fn()
+        .mockResolvedValue([{ method: PaymentMethod.PAGO_MOVIL, status: PaymentStatus.PENDING }]),
+      withdrawCashea: jest.fn(),
+    };
+    const { service } = build(payments);
+    await expect(
+      service.retryPayment('order-1', buyer, { paymentMethod: PaymentMethod.CASHEA }),
+    ).rejects.toThrow('Only a rejected payment can be retried');
+    expect(payments.withdrawCashea).not.toHaveBeenCalled();
   });
 });

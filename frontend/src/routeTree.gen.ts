@@ -40,6 +40,7 @@ import { Route as ClientOrdersRouteImport } from './routes/client.orders'
 import { Route as CotizacionTokenRouteImport } from './routes/cotizacion.$token'
 import { Route as ProductIdRouteImport } from './routes/product.$id'
 import { Route as VendedorIndexRouteImport } from './routes/vendedor.index'
+import { Route as CasheaRetornoOrderIdRouteImport } from './routes/cashea.retorno.$orderId'
 import { Route as ProductQrIdRouteImport } from './routes/product.qr.$id'
 import { Route as VendedorCarritoIdRouteImport } from './routes/vendedor.carrito.$id'
 
@@ -199,6 +200,11 @@ const VendedorIndexRoute = VendedorIndexRouteImport.update({
   path: '/',
   getParentRoute: () => VendedorRoute,
 } as any)
+const CasheaRetornoOrderIdRoute = CasheaRetornoOrderIdRouteImport.update({
+  id: '/cashea/retorno/$orderId',
+  path: '/cashea/retorno/$orderId',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ProductQrIdRoute = ProductQrIdRouteImport.update({
   id: '/product/qr/$id',
   path: '/product/qr/$id',
@@ -242,6 +248,7 @@ export interface FileRoutesByFullPath {
   '/product/$id': typeof ProductIdRoute
   '/admin/': typeof AdminIndexRoute
   '/vendedor/': typeof VendedorIndexRoute
+  '/cashea/retorno/$orderId': typeof CasheaRetornoOrderIdRoute
   '/product/qr/$id': typeof ProductQrIdRoute
   '/vendedor/carrito/$id': typeof VendedorCarritoIdRoute
 }
@@ -275,6 +282,7 @@ export interface FileRoutesByTo {
   '/product/$id': typeof ProductIdRoute
   '/admin': typeof AdminIndexRoute
   '/vendedor': typeof VendedorIndexRoute
+  '/cashea/retorno/$orderId': typeof CasheaRetornoOrderIdRoute
   '/product/qr/$id': typeof ProductQrIdRoute
   '/vendedor/carrito/$id': typeof VendedorCarritoIdRoute
 }
@@ -311,6 +319,7 @@ export interface FileRoutesById {
   '/product/$id': typeof ProductIdRoute
   '/admin/': typeof AdminIndexRoute
   '/vendedor/': typeof VendedorIndexRoute
+  '/cashea/retorno/$orderId': typeof CasheaRetornoOrderIdRoute
   '/product/qr/$id': typeof ProductQrIdRoute
   '/vendedor/carrito/$id': typeof VendedorCarritoIdRoute
 }
@@ -348,6 +357,7 @@ export interface FileRouteTypes {
     | '/product/$id'
     | '/admin/'
     | '/vendedor/'
+    | '/cashea/retorno/$orderId'
     | '/product/qr/$id'
     | '/vendedor/carrito/$id'
   fileRoutesByTo: FileRoutesByTo
@@ -381,6 +391,7 @@ export interface FileRouteTypes {
     | '/product/$id'
     | '/admin'
     | '/vendedor'
+    | '/cashea/retorno/$orderId'
     | '/product/qr/$id'
     | '/vendedor/carrito/$id'
   id:
@@ -416,6 +427,7 @@ export interface FileRouteTypes {
     | '/product/$id'
     | '/admin/'
     | '/vendedor/'
+    | '/cashea/retorno/$orderId'
     | '/product/qr/$id'
     | '/vendedor/carrito/$id'
   fileRoutesById: FileRoutesById
@@ -435,6 +447,7 @@ export interface RootRouteChildren {
   VendedorRoute: typeof VendedorRouteWithChildren
   CotizacionTokenRoute: typeof CotizacionTokenRoute
   ProductIdRoute: typeof ProductIdRoute
+  CasheaRetornoOrderIdRoute: typeof CasheaRetornoOrderIdRoute
   ProductQrIdRoute: typeof ProductQrIdRoute
 }
 
@@ -657,6 +670,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof VendedorIndexRouteImport
       parentRoute: typeof VendedorRoute
     }
+    '/cashea/retorno/$orderId': {
+      id: '/cashea/retorno/$orderId'
+      path: '/cashea/retorno/$orderId'
+      fullPath: '/cashea/retorno/$orderId'
+      preLoaderRoute: typeof CasheaRetornoOrderIdRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/product/qr/$id': {
       id: '/product/qr/$id'
       path: '/product/qr/$id'
@@ -752,6 +772,7 @@ const rootRouteChildren: RootRouteChildren = {
   VendedorRoute: VendedorRouteWithChildren,
   CotizacionTokenRoute: CotizacionTokenRoute,
   ProductIdRoute: ProductIdRoute,
+  CasheaRetornoOrderIdRoute: CasheaRetornoOrderIdRoute,
   ProductQrIdRoute: ProductQrIdRoute,
 }
 export const routeTree = rootRouteImport

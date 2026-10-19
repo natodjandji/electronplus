@@ -59,6 +59,20 @@ export const envSchema = z.object({
   PAYPAL_CLIENT_SECRET: z.string().optional(),
   PAYPAL_ENV: z.enum(['sandbox', 'live']).default('sandbox'),
 
+  // Cashea (buy now, pay in installments). Cashea's integration team issues
+  // both keys, the client id and the store id. The public key creates the
+  // checkout; the private one confirms the down payment or cancels an
+  // order, server-side only. Cashea is offered once all four are set.
+  CASHEA_PUBLIC_KEY: z.string().optional(),
+  CASHEA_PRIVATE_KEY: z.string().optional(),
+  CASHEA_EXTERNAL_CLIENT_ID: z.string().optional(),
+  CASHEA_STORE_ID: z.coerce.number().int().positive().optional(),
+  CASHEA_STORE_NAME: z.string().default('Electron Plus'),
+  CASHEA_MERCHANT_NAME: z.string().default('Electron Plus'),
+  // Overridable only to point local tests at a stand-in server.
+  CASHEA_API_URL: z.string().url().default('https://external.cashea.app'),
+  CASHEA_CHECKOUT_URL: z.string().url().default('https://web.cashea.app'),
+
   CORS_ORIGIN: z.string().default('*'),
 
   // Transactional email (welcome, order confirmation, fulfillment updates).

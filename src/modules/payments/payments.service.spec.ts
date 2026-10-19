@@ -39,6 +39,9 @@ describe('PaymentsService', () => {
       paypal as unknown as ConstructorParameters<typeof PaymentsService>[1],
       events,
       {} as unknown as ConstructorParameters<typeof PaymentsService>[3],
+      {} as never,
+      {} as never,
+      {} as never,
     );
   }
 

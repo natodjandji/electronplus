@@ -1,15 +1,33 @@
 import { Inject, Injectable } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
 import type { Firestore } from 'firebase-admin/firestore';
+import { EnvConfig } from '../../config/env.validation';
 import { slugify } from '../../common/utils/slug';
 import { FIRESTORE } from '../../firebase/firebase.constants';
 import { Collections } from '../../firebase/firestore-collections';
 import { FirestoreRepository } from '../../firebase/firestore.repository';
+import { casheaConfigured } from '../payments/cashea.client';
 import { PaymentMethod } from '../payments/entities/payment.entity';
 import { CreatePaymentMethodDto } from './dto/create-payment-method.dto';
 import { UpdatePaymentMethodDto } from './dto/update-payment-method.dto';
 import { PaymentMethodConfig } from './entities/payment-method.entity';
 
-const DISPLAY_ORDER = ['transferencia', 'pago-movil', 'efectivo', 'credito', 'paypal'];
+const DISPLAY_ORDER = ['transferencia', 'pago-movil', 'efectivo', 'cashea', 'credito', 'paypal'];
+
+const CASHEA_ID = 'cashea';
+/** Added once Cashea's credentials are set — switched off, so an admin
+ * turns it on after trying it. */
+const CASHEA_DEFAULT: Omit<PaymentMethodConfig, 'id' | 'createdAt' | 'updatedAt'> = {
+  backendMethod: PaymentMethod.CASHEA,
+  label: 'Cashea',
+  details: [
+    'Compra ahora y paga en cuotas sin interés con tu cuenta de Cashea.',
+    'Pagas una inicial y el resto en cuotas desde la app de Cashea.',
+  ],
+  needsReference: false,
+  needsProof: false,
+  enabled: false,
+};
 
 /** Seed data — placeholders until an admin customizes them via the payment-methods panel. */
 const DEFAULTS: Record<string, Omit<PaymentMethodConfig, 'id' | 'createdAt' | 'updatedAt'>> = {
@@ -66,7 +84,10 @@ const DEFAULTS: Record<string, Omit<PaymentMethodConfig, 'id' | 'createdAt' | 'u
 export class PaymentMethodsService {
   private readonly repo: FirestoreRepository<PaymentMethodConfig>;
 
-  constructor(@Inject(FIRESTORE) firestore: Firestore) {
+  constructor(
+    @Inject(FIRESTORE) firestore: Firestore,
+    private readonly config: ConfigService<EnvConfig, true>,
+  ) {
     this.repo = new FirestoreRepository<PaymentMethodConfig>(
       firestore,
       Collections.PAYMENT_METHODS,
@@ -87,9 +108,24 @@ export class PaymentMethodsService {
     await Promise.all(Object.entries(DEFAULTS).map(([id, data]) => this.repo.create(data, id)));
   }
 
+  /** Cashea appears once its credentials are set (switched off until an
+   * admin turns it on) and disappears while they aren't: offered without
+   * them, a buyer couldn't complete it. */
+  private async withCashea(all: PaymentMethodConfig[]): Promise<PaymentMethodConfig[]> {
+    if (!casheaConfigured(this.config)) {
+      return all.filter((m) => m.backendMethod !== PaymentMethod.CASHEA);
+    }
+    if (all.some((m) => m.backendMethod === PaymentMethod.CASHEA)) return all;
+    return [...all, await this.repo.create(CASHEA_DEFAULT, CASHEA_ID)];
+  }
+
+  async findById(id: string): Promise<PaymentMethodConfig | null> {
+    return this.repo.findById(id);
+  }
+
   async list(): Promise<PaymentMethodConfig[]> {
     await this.ensureSeeded();
-    const all = await this.repo.findAll();
+    const all = await this.withCashea(await this.repo.findAll());
     return all.sort((a, b) => {
       const ai = DISPLAY_ORDER.indexOf(a.id);
       const bi = DISPLAY_ORDER.indexOf(b.id);
