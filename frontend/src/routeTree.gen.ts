@@ -26,6 +26,7 @@ import { Route as AdminExpensesRouteImport } from './routes/admin.expenses'
 import { Route as AdminInStoreSalesRouteImport } from './routes/admin.in-store-sales'
 import { Route as AdminInventoryRouteImport } from './routes/admin.inventory'
 import { Route as AdminLabelsRouteImport } from './routes/admin.labels'
+import { Route as AdminMercasistRouteImport } from './routes/admin.mercasist'
 import { Route as AdminOrdersRouteImport } from './routes/admin.orders'
 import { Route as AdminPurchaseOrdersRouteImport } from './routes/admin.purchase-orders'
 import { Route as AdminPurchasesRouteImport } from './routes/admin.purchases'
@@ -127,6 +128,11 @@ const AdminInventoryRoute = AdminInventoryRouteImport.update({
 const AdminLabelsRoute = AdminLabelsRouteImport.update({
   id: '/labels',
   path: '/labels',
+  getParentRoute: () => AdminRoute,
+} as any)
+const AdminMercasistRoute = AdminMercasistRouteImport.update({
+  id: '/mercasist',
+  path: '/mercasist',
   getParentRoute: () => AdminRoute,
 } as any)
 const AdminOrdersRoute = AdminOrdersRouteImport.update({
@@ -233,6 +239,7 @@ export interface FileRoutesByFullPath {
   '/admin/in-store-sales': typeof AdminInStoreSalesRoute
   '/admin/inventory': typeof AdminInventoryRoute
   '/admin/labels': typeof AdminLabelsRoute
+  '/admin/mercasist': typeof AdminMercasistRoute
   '/admin/orders': typeof AdminOrdersRoute
   '/admin/purchase-orders': typeof AdminPurchaseOrdersRoute
   '/admin/purchases': typeof AdminPurchasesRoute
@@ -267,6 +274,7 @@ export interface FileRoutesByTo {
   '/admin/in-store-sales': typeof AdminInStoreSalesRoute
   '/admin/inventory': typeof AdminInventoryRoute
   '/admin/labels': typeof AdminLabelsRoute
+  '/admin/mercasist': typeof AdminMercasistRoute
   '/admin/orders': typeof AdminOrdersRoute
   '/admin/purchase-orders': typeof AdminPurchaseOrdersRoute
   '/admin/purchases': typeof AdminPurchasesRoute
@@ -304,6 +312,7 @@ export interface FileRoutesById {
   '/admin/in-store-sales': typeof AdminInStoreSalesRoute
   '/admin/inventory': typeof AdminInventoryRoute
   '/admin/labels': typeof AdminLabelsRoute
+  '/admin/mercasist': typeof AdminMercasistRoute
   '/admin/orders': typeof AdminOrdersRoute
   '/admin/purchase-orders': typeof AdminPurchaseOrdersRoute
   '/admin/purchases': typeof AdminPurchasesRoute
@@ -342,6 +351,7 @@ export interface FileRouteTypes {
     | '/admin/in-store-sales'
     | '/admin/inventory'
     | '/admin/labels'
+    | '/admin/mercasist'
     | '/admin/orders'
     | '/admin/purchase-orders'
     | '/admin/purchases'
@@ -376,6 +386,7 @@ export interface FileRouteTypes {
     | '/admin/in-store-sales'
     | '/admin/inventory'
     | '/admin/labels'
+    | '/admin/mercasist'
     | '/admin/orders'
     | '/admin/purchase-orders'
     | '/admin/purchases'
@@ -412,6 +423,7 @@ export interface FileRouteTypes {
     | '/admin/in-store-sales'
     | '/admin/inventory'
     | '/admin/labels'
+    | '/admin/mercasist'
     | '/admin/orders'
     | '/admin/purchase-orders'
     | '/admin/purchases'
@@ -572,6 +584,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AdminLabelsRouteImport
       parentRoute: typeof AdminRoute
     }
+    '/admin/mercasist': {
+      id: '/admin/mercasist'
+      path: '/mercasist'
+      fullPath: '/admin/mercasist'
+      preLoaderRoute: typeof AdminMercasistRouteImport
+      parentRoute: typeof AdminRoute
+    }
     '/admin/orders': {
       id: '/admin/orders'
       path: '/orders'
@@ -699,6 +718,7 @@ interface AdminRouteChildren {
   AdminInStoreSalesRoute: typeof AdminInStoreSalesRoute
   AdminInventoryRoute: typeof AdminInventoryRoute
   AdminLabelsRoute: typeof AdminLabelsRoute
+  AdminMercasistRoute: typeof AdminMercasistRoute
   AdminOrdersRoute: typeof AdminOrdersRoute
   AdminPurchaseOrdersRoute: typeof AdminPurchaseOrdersRoute
   AdminPurchasesRoute: typeof AdminPurchasesRoute
@@ -717,6 +737,7 @@ const AdminRouteChildren: AdminRouteChildren = {
   AdminInStoreSalesRoute: AdminInStoreSalesRoute,
   AdminInventoryRoute: AdminInventoryRoute,
   AdminLabelsRoute: AdminLabelsRoute,
+  AdminMercasistRoute: AdminMercasistRoute,
   AdminOrdersRoute: AdminOrdersRoute,
   AdminPurchaseOrdersRoute: AdminPurchaseOrdersRoute,
   AdminPurchasesRoute: AdminPurchasesRoute,

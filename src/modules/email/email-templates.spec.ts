@@ -9,6 +9,7 @@ import { EMAIL_COLORS, EMAIL_CONTACT, emailFontUrl } from './brand';
 import { BRAND_ATTACHMENTS } from './brand-assets';
 import { expenseDueEmail } from './templates/expense-due-email';
 import { invoiceDueEmail } from './templates/invoice-due-email';
+import { mercasistSaleEmail } from './templates/mercasist-sale-email';
 import { orderCreatedEmail } from './templates/order-created-email';
 import { orderStatusEmail } from './templates/order-status-email';
 import { quoteStatusEmail } from './templates/quote-status-email';
@@ -94,6 +95,18 @@ const ALL_EMAILS: Record<string, { subject: string; html: string }> = {
     { name: 'Alquiler', dueStatus: ExpenseDueStatus.DUE_SOON, dueDate: '2026-10-05' },
     SITE,
   ),
+  mercasistSale: mercasistSaleEmail(
+    {
+      id: '18288114',
+      idMl: '2000112345',
+      status: 'Pago recibido',
+      total: 34.8,
+      currency: 'USD',
+      buyer: 'COMPRADOR123',
+      items: [{ title: 'Bombillo LED 9W', sku: 'E27-9W', qty: 2, unitPrice: 17.4 }],
+    },
+    SITE,
+  ),
 };
 
 describe.each(Object.entries(ALL_EMAILS))('email "%s"', (_name, { subject, html }) => {
@@ -151,6 +164,26 @@ describe('email content safety', () => {
     expect(html).toContain('https://wa.me/584125550000?text=');
     expect(html).toContain(`${SITE}/admin/reviews`);
     expect(subject).toBe('Reseña para atender: 1 de 5 estrellas');
+  });
+
+  it('escapes what comes from Mercado Libre in a sale email and links to the sale', () => {
+    const evil = '<img src=x onerror=alert(1)>';
+    const { subject, html } = mercasistSaleEmail(
+      {
+        id: '1',
+        idMl: '2000112345',
+        status: evil,
+        total: 10,
+        currency: 'USD',
+        buyer: evil,
+        items: [{ title: evil, sku: evil, qty: 1, unitPrice: 10 }],
+      },
+      SITE,
+    );
+    expect(html).not.toContain(evil);
+    expect(html).toContain('https://www.mercadolibre.com.ve/ventas/2000112345/detalle');
+    expect(html).toContain(`${SITE}/admin/mercasist`);
+    expect(subject).toBe(`Venta en Mercado Libre: ${evil} (1 unidad)`);
   });
 
   it('escapes product names in order lines and alert previews', () => {

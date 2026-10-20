@@ -32,6 +32,7 @@ import { UploadsModule } from './modules/uploads/uploads.module';
 import { ClientErrorsModule } from './modules/client-errors/client-errors.module';
 import { EmailModule } from './modules/email/email.module';
 import { ReviewsModule } from './modules/reviews/reviews.module';
+import { MercasistModule } from './modules/mercasist/mercasist.module';
 
 @Module({
   imports: [
@@ -49,6 +50,7 @@ import { ReviewsModule } from './modules/reviews/reviews.module';
     QuotesModule,
     SalesCartsModule,
     ReviewsModule,
+    MercasistModule,
     OrdersModule,
     PaymentsModule,
     ErpSyncModule,

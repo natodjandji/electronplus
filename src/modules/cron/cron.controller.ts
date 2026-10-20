@@ -13,6 +13,8 @@ import { SyncService } from '../erp-sync/sync.service';
 import { ExpensesService } from '../expenses/expenses.service';
 import { FinanceService } from '../finance/finance.service';
 import { ReportsService } from '../reports/reports.service';
+import { MercasistClient } from '../mercasist/mercasist.client';
+import { MercasistSyncService } from '../mercasist/mercasist-sync.service';
 import { SecondStoreSyncService } from '../second-store/second-store-sync.service';
 
 /**
@@ -34,6 +36,8 @@ export class CronController {
     private readonly reports: ReportsService,
     private readonly expenses: ExpensesService,
     private readonly finance: FinanceService,
+    private readonly mercasistClient: MercasistClient,
+    private readonly mercasist: MercasistSyncService,
   ) {}
 
   /** Retries pending sale reports, then pulls the catalog. Both go through
@@ -57,6 +61,25 @@ export class CronController {
       return { status: 'skipped', reason: 'Bridge de la tienda secundaria no configurado' };
     }
     return { status: 'success', ...(await this.secondStoreSync.runInboundSync()) };
+  }
+
+  /** Sends the Mercado Libre publications in Mercasist what changed on the
+   * web (price, stock, pauses) and picks up new sales. Its own job, a few
+   * minutes after erp-sync, so a slow or failing Mercasist never holds up
+   * the store's own catalog. */
+  @Post('mercasist-sync')
+  @HttpCode(200)
+  async runMercasistSync() {
+    if (!this.mercasistClient.isConfigured()) {
+      return { status: 'skipped', reason: 'Token de la API de Mercasist no configurado' };
+    }
+    if (!(await this.mercasist.readSettings()).enabled) {
+      return { status: 'skipped', reason: 'Sincronización con Mercasist desactivada en el panel' };
+    }
+    const result = await this.mercasist.run();
+    return result.skipped
+      ? { status: 'skipped', reason: result.skipped }
+      : { status: 'success', ...result.summary };
   }
 
   /** The once-a-day jobs. Each catches and logs its own errors (they were

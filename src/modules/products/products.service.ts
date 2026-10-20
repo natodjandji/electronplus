@@ -191,6 +191,12 @@ export class ProductsService {
     return new PaginatedResult(products.slice(skip, skip + limit), products.length, page, limit);
   }
 
+  /** Every product, hidden ones included, by name, from the catalog
+   * snapshot — what a marketplace sync compares against. */
+  async allForMarketplace(): Promise<Product[]> {
+    return this.viewsOf(await this.catalog.load(OPS_CATALOG_LOAD)).all;
+  }
+
   /** Every active product, by name — the storefront's whole catalog. */
   async activeCatalog(): Promise<Product[]> {
     return this.viewsOf(await this.catalog.load({ maxAgeMs: PUBLIC_CATALOG_MAX_AGE_MS })).active;
