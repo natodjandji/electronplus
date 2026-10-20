@@ -1,5 +1,6 @@
 import { Link } from "@tanstack/react-router";
 import type { ReactNode } from "react";
+import { MapPin } from "lucide-react";
 import { ElectronLogo } from "./electron-logo";
 import { WhatsappIcon } from "./whatsapp-icon";
 import { CONTACT_INFO } from "@/lib/contact-info";
@@ -25,6 +26,23 @@ export function SiteFooter() {
             Tu proveedor confiable de iluminación, cables y materiales eléctricos. Atención detal,
             mayorista y proyectos.
           </p>
+          <address className="mt-4 max-w-sm text-sm not-italic text-white/70">
+            <a
+              href={CONTACT_INFO.mapsHref}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="inline-flex items-start gap-1.5 transition-colors hover:text-white"
+            >
+              <MapPin className="mt-0.5 h-3.5 w-3.5 shrink-0" aria-hidden />
+              <span>
+                {CONTACT_INFO.addressLines.map((line) => (
+                  <span key={line} className="block">
+                    {line}
+                  </span>
+                ))}
+              </span>
+            </a>
+          </address>
         </div>
 
         <FooterCol title="Tienda">

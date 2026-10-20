@@ -73,6 +73,15 @@ const ORGANIZATION_JSON_LD = {
   areaServed: { "@type": "Country", name: "Venezuela" },
   currenciesAccepted: "USD, VES",
   openingHours: "Mo-Sa 09:00-17:00",
+  address: {
+    "@type": "PostalAddress",
+    streetAddress: CONTACT_INFO.address.street,
+    addressLocality: CONTACT_INFO.address.locality,
+    addressRegion: CONTACT_INFO.address.region,
+    postalCode: CONTACT_INFO.address.postalCode,
+    addressCountry: CONTACT_INFO.address.country,
+  },
+  hasMap: CONTACT_INFO.mapsHref,
   contactPoint: {
     "@type": "ContactPoint",
     contactType: "sales",
