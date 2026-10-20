@@ -11,6 +11,8 @@ export interface MercasistSyncSummary {
   failed: number;
   deferred: number;
   newSales: number;
+  /** Products ready to publish that aren't on Mercado Libre yet. */
+  readyToPublish?: number;
   errors?: { sku: string; message: string }[];
 }
 
@@ -20,6 +22,10 @@ export interface MercasistStatus {
   enabled: boolean;
   syncPrice: boolean;
   syncStock: boolean;
+  /** Name and description changes on the web go to the publication. */
+  syncContent: boolean;
+  /** Admins get an email when products are ready to publish. */
+  notifyNewProducts: boolean;
   safetyStock: number;
   listingType: string;
   lastSync?: MercasistSyncSummary & { at: string };
@@ -35,7 +41,14 @@ export interface MercasistChange {
   sku: string;
   title: string;
   kind: "update" | "pause" | "activate";
-  body: { precio?: number; moneda?: string; disponibilidad?: number; status?: string };
+  body: {
+    precio?: number;
+    moneda?: string;
+    disponibilidad?: number;
+    status?: string;
+    titulo?: string;
+    descripcion?: string;
+  };
   /** What Mercasist shows now; `currency` is its symbol ("U$S", "Bs"). */
   current: { price: number | null; currency?: string; stock: number | null; status: string };
 }

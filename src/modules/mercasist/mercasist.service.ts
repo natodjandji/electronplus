@@ -49,6 +49,8 @@ export class MercasistService {
       enabled: Boolean(settings.enabled),
       syncPrice: settings.syncPrice !== false,
       syncStock: settings.syncStock !== false,
+      syncContent: settings.syncContent !== false,
+      notifyNewProducts: settings.notifyNewProducts !== false,
       safetyStock: settings.safetyStock ?? 0,
       listingType: settings.listingType ?? DEFAULT_LISTING_TYPE,
       lastSync: settings.lastSync,

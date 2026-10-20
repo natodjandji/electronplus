@@ -60,6 +60,14 @@ export interface MercasistSettings extends FirestoreDoc {
   /** Each half can be turned off on its own (both on by default). */
   syncPrice?: boolean;
   syncStock?: boolean;
+  /** Name and description changes on the web go to the publication too (on by default). */
+  syncContent?: boolean;
+  /** Admins get an email when products are ready to publish (on by default). */
+  notifyNewProducts?: boolean;
+  /** Products already announced as ready to publish (ids), and when the
+   * last such email went out (ISO). */
+  announcedProducts?: string[];
+  newProductsNoticeAt?: string;
   /** Units kept back from Mercado Libre, so the last ones aren't sold twice. */
   safetyStock?: number;
   /** Mercado Libre's listing type for the bulk-publisher Excel. */
@@ -85,6 +93,8 @@ export interface MercasistSyncSummary {
   /** Changes left for the next run (per-run cap, or a rate limit). */
   deferred: number;
   newSales: number;
+  /** Products ready to publish that aren't on Mercado Libre yet. */
+  readyToPublish?: number;
   /** The first few refusals, for the panel. */
   errors?: { sku: string; message: string }[];
 }

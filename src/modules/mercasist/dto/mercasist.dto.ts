@@ -16,6 +16,14 @@ export class UpdateMercasistSettingsDto {
   syncStock?: boolean;
 
   @IsOptional()
+  @IsBoolean()
+  syncContent?: boolean;
+
+  @IsOptional()
+  @IsBoolean()
+  notifyNewProducts?: boolean;
+
+  @IsOptional()
   @IsInt()
   @Min(0)
   @Max(1000)

@@ -3,9 +3,18 @@ import { EventEmitter2 } from '@nestjs/event-emitter';
 import type { DocumentReference, Firestore } from 'firebase-admin/firestore';
 import { FIRESTORE } from '../../firebase/firebase.constants';
 import { Collections } from '../../firebase/firestore-collections';
+import { Product } from '../products/entities/product.entity';
 import { ProductsService } from '../products/products.service';
 import { MercasistClient, MercasistError } from './mercasist.client';
-import { heldUnits, orderTime, PlanOp, planSync } from './mercasist-plan';
+import {
+  ContentSeen,
+  exportBlocker,
+  heldUnits,
+  normalizeSku,
+  orderTime,
+  PlanOp,
+  planSync,
+} from './mercasist-plan';
 import {
   MercasistOrder,
   MercasistPublication,
@@ -17,10 +26,28 @@ import {
 
 export const MERCASIST_SETTINGS_DOC = 'mercasist';
 export const MERCASIST_SNAPSHOT_DOC = 'mercasist-publications';
+export const MERCASIST_CONTENT_DOC = 'mercasist-content';
 
 /** A sale came in on Mercado Libre — the admins get an email. */
 export const MERCASIST_SALE_EVENT = 'mercasist.sale';
 export type MercasistSaleEvent = Omit<MercasistSale, 'createdAt' | 'updatedAt'>;
+
+/** Products on the web are ready to go on Mercado Libre — the admins get
+ * an email to upload them with the bulk publisher. */
+export const MERCASIST_NEW_PRODUCTS_EVENT = 'mercasist.new-products';
+export interface MercasistNewProductsEvent {
+  /** Ready and not announced before. */
+  fresh: { name: string; sku: string }[];
+  /** All ready to publish, announced or not. */
+  totalReady: number;
+}
+
+/** At most one "new products" email this often: while Profit loads a big
+ * catalog over several syncs, the admins get one email, not one an hour. */
+const NEW_PRODUCTS_NOTICE_EVERY_MS = 12 * 60 * 60 * 1000;
+/** The fields whose refusal makes an edit count as failed (Mercasist's
+ * names, as in its "actualizado"); a refused title or description doesn't. */
+const STOCK_AND_PRICE_FIELDS = ['precio', 'disponibilidad', 'status'] as const;
 
 /** Mercasist applies each publication edit on Mercado Libre right away and
  * allows 60 a minute; this keeps under that. */
@@ -71,6 +98,7 @@ export class MercasistSyncService {
   private readonly logger = new Logger(MercasistSyncService.name);
   private readonly settingsRef: DocumentReference;
   private readonly snapshotRef: DocumentReference;
+  private readonly contentRef: DocumentReference;
   private running: Promise<MercasistRunResult> | null = null;
 
   constructor(
@@ -81,6 +109,7 @@ export class MercasistSyncService {
   ) {
     this.settingsRef = firestore.collection(Collections.SETTINGS).doc(MERCASIST_SETTINGS_DOC);
     this.snapshotRef = firestore.collection(Collections.SNAPSHOTS).doc(MERCASIST_SNAPSHOT_DOC);
+    this.contentRef = firestore.collection(Collections.SNAPSHOTS).doc(MERCASIST_CONTENT_DOC);
   }
 
   async readSettings(): Promise<MercasistSettings> {
@@ -115,8 +144,9 @@ export class MercasistSyncService {
       };
     }
 
-    const [settings, products, active, paused, orders] = await Promise.all([
+    const [settings, contentDoc, products, active, paused, orders] = await Promise.all([
       this.readSettings(),
+      this.contentRef.get(),
       this.productsService.allForMarketplace(),
       this.listPublications('Activo'),
       this.listPublications('Pausado'),
@@ -137,7 +167,10 @@ export class MercasistSyncService {
       syncStock,
       safetyStock: settings.safetyStock ?? 0,
       pausedBySync: settings.pausedBySync ?? [],
+      syncContent: settings.syncContent !== false,
+      contentSeen: (contentDoc.data() as { seen?: ContentSeen } | undefined)?.seen ?? {},
     });
+    const contentSeen = plan.contentSeen;
     const summary: MercasistSyncSummary = {
       ...emptySummary(),
       publications: plan.rows.length,
@@ -184,16 +217,30 @@ export class MercasistSyncService {
         }
         if (i > 0) await this.client.sleep(WRITE_SPACING_MS);
         try {
-          const result = await this.client.patch<{ data?: { errores?: string[] } }>(
-            `/publicaciones/${op.publicationId}`,
-            op.body,
-          );
+          const result = await this.client.patch<{
+            data?: { actualizado?: string[]; errores?: string[] };
+          }>(`/publicaciones/${op.publicationId}`, op.body);
           const partial = result?.data?.errores?.filter(Boolean) ?? [];
-          if (partial.length > 0) throw new MercasistError(207, partial.join('; '));
+          // Without its list of what changed, an answer with errors counts as
+          // nothing done; a clean one as everything.
+          const done = new Set(
+            result?.data?.actualizado ?? (partial.length > 0 ? [] : Object.keys(op.body)),
+          );
+          // Mercasist answered: the name/description it got is recorded even
+          // if Mercado Libre refused it (a title locks once an item sold),
+          // so it isn't sent again on every run.
+          if (op.content) recordContent(contentSeen, op);
+          const missing = STOCK_AND_PRICE_FIELDS.filter((f) => f in op.body && !done.has(f));
+          if (partial.length > 0 && missing.length > 0) {
+            throw new MercasistError(207, partial.join('; '));
+          }
+          if (partial.length > 0 && errors.length < MAX_ERRORS_KEPT) {
+            errors.push({ sku: op.sku, message: partial.join('; ') });
+          }
           if (op.kind === 'pause') summary.paused++;
           else if (op.kind === 'activate') summary.activated++;
           else summary.updated++;
-          applyToRow(rowById.get(op.publicationId), op);
+          applyToRow(rowById.get(op.publicationId), op, done);
         } catch (error) {
           summary.failed++;
           undo(op, pausedBySync, previouslyPaused);
@@ -205,6 +252,12 @@ export class MercasistSyncService {
         }
       }
       summary.newSales = await this.recordSales(orders, settings, now);
+      summary.readyToPublish = await this.announceNewProducts(
+        products,
+        publications,
+        settings,
+        now,
+      );
     } finally {
       if (errors.length > 0) summary.errors = errors;
       await Promise.all([
@@ -216,12 +269,56 @@ export class MercasistSyncService {
           { merge: true },
         ),
         this.saveSnapshot(plan.rows, now),
+        this.contentRef.set({ seen: contentSeen }),
       ]);
     }
     this.logger.log(
       `Mercasist: ${summary.updated} actualizadas, ${summary.paused} pausadas, ${summary.activated} reactivadas, ${summary.failed} con error, ${summary.deferred} para la próxima, ${summary.newSales} ventas nuevas`,
     );
     return { summary };
+  }
+
+  /**
+   * Products ready to go on Mercado Libre (on sale, with a SKU, a photo and
+   * stock) that no publication has yet: the admins get one email about
+   * the ones not announced before, at most every 12 hours. Returns how
+   * many are ready in all.
+   */
+  private async announceNewProducts(
+    products: Product[],
+    publications: MercasistPublication[],
+    settings: MercasistSettings,
+    now: Date,
+  ): Promise<number> {
+    const listed = new Set(publications.map((p) => normalizeSku(p.sku)).filter(Boolean));
+    const safety = settings.safetyStock ?? 0;
+    const ready = products.filter(
+      (p) => !listed.has(normalizeSku(p.sku)) && !exportBlocker(p, safety),
+    );
+    const readyIds = new Set(ready.map((p) => p.id));
+    const announced = (settings.announcedProducts ?? []).filter((id) => readyIds.has(id));
+    const fresh = ready.filter((p) => !announced.includes(p.id));
+    const lastNotice = settings.newProductsNoticeAt ? Date.parse(settings.newProductsNoticeAt) : 0;
+
+    if (
+      fresh.length > 0 &&
+      settings.notifyNewProducts !== false &&
+      now.getTime() - lastNotice >= NEW_PRODUCTS_NOTICE_EVERY_MS
+    ) {
+      const event: MercasistNewProductsEvent = {
+        fresh: fresh.map((p) => ({ name: p.name, sku: p.sku })),
+        totalReady: ready.length,
+      };
+      this.events.emit(MERCASIST_NEW_PRODUCTS_EVENT, event);
+      await this.settingsRef.set(
+        { announcedProducts: [...readyIds], newProductsNoticeAt: now.toISOString() },
+        { merge: true },
+      );
+    } else {
+      // Published (or no longer ready) ones drop out; the fresh wait.
+      await this.settingsRef.set({ announcedProducts: announced }, { merge: true });
+    }
+    return ready.length;
   }
 
   private async listPublications(status: string): Promise<MercasistPublication[]> {
@@ -295,11 +392,23 @@ function undo(op: PlanOp, paused: Set<number>, before: Set<number>): void {
   else if (!before.has(op.publicationId)) paused.delete(op.publicationId);
 }
 
-function applyToRow(row: MercasistPublicationRow | undefined, op: PlanOp): void {
+function applyToRow(row: MercasistPublicationRow | undefined, op: PlanOp, done: Set<string>): void {
   if (!row) return;
-  if (op.body.precio !== undefined) row.price = op.body.precio;
-  if (op.body.disponibilidad !== undefined) row.stock = op.body.disponibilidad;
-  if (op.body.status) row.status = op.body.status;
+  if (op.body.precio !== undefined && done.has('precio')) row.price = op.body.precio;
+  if (op.body.disponibilidad !== undefined && done.has('disponibilidad')) {
+    row.stock = op.body.disponibilidad;
+  }
+  if (op.body.status && done.has('status')) row.status = op.body.status;
+  if (op.body.titulo && done.has('titulo')) row.title = op.body.titulo;
+}
+
+function recordContent(seen: ContentSeen, op: PlanOp): void {
+  const entry = seen[op.publicationId];
+  if (!entry || !op.content) return;
+  seen[op.publicationId] = {
+    t: op.content.t ?? entry.t,
+    d: op.content.d ?? entry.d,
+  };
 }
 
 /** Mercasist's currency symbol ("U$S", "Bs") as a code. */

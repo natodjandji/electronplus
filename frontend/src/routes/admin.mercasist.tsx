@@ -88,6 +88,7 @@ function summaryText(s: MercasistSyncSummary) {
     s.failed && `${s.failed} con error`,
     s.deferred && `${s.deferred} para la próxima`,
     s.newSales && `${s.newSales} ventas nuevas`,
+    s.readyToPublish && `${s.readyToPublish} productos por publicar`,
   ].filter(Boolean);
   return parts.length ? parts.join(" · ") : "Todo estaba al día";
 }
@@ -288,6 +289,20 @@ function SyncCard({ status }: { status: MercasistStatus }) {
           disabled={settings.isPending}
           onChange={(syncStock) => settings.mutate({ syncStock })}
         />
+        <SettingRow
+          title="Nombre y descripción"
+          hint="Si cambias el nombre o la descripción de un producto en la web, su publicación se actualiza. Mercado Libre no deja cambiar el título de una publicación que ya tuvo ventas."
+          checked={status.syncContent}
+          disabled={settings.isPending}
+          onChange={(syncContent) => settings.mutate({ syncContent })}
+        />
+        <SettingRow
+          title="Avisar de productos nuevos"
+          hint="Correo a los administradores cuando haya productos listos para publicar, con el Excel preparado (como mucho uno cada 12 horas)."
+          checked={status.notifyNewProducts}
+          disabled={settings.isPending}
+          onChange={(notifyNewProducts) => settings.mutate({ notifyNewProducts })}
+        />
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div>
             <p className="text-sm font-medium text-brand-navy">Stock de seguridad</p>
@@ -415,6 +430,8 @@ function changeText(change: MercasistChange) {
   if (body.disponibilidad !== undefined) {
     parts.push(`Stock ${current.stock ?? "—"} → ${body.disponibilidad}`);
   }
+  if (body.titulo !== undefined) parts.push(`Título → «${body.titulo}»`);
+  if (body.descripcion !== undefined) parts.push("Descripción nueva");
   if (body.status === "Pausado") parts.push("Se pausa");
   if (body.status === "Activo") parts.push("Se reactiva");
   return parts.join(" · ");

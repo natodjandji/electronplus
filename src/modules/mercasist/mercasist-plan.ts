@@ -1,3 +1,4 @@
+import { createHash } from 'crypto';
 import { round2, TAX_RATE } from '../../common/utils/money';
 import { Product } from '../products/entities/product.entity';
 import { MercasistOrder, MercasistPublication, MercasistPublicationRow } from './mercasist.types';
@@ -80,10 +81,25 @@ export interface PlanOp {
   sku: string;
   title: string;
   productId?: string;
-  body: { precio?: number; moneda?: string; disponibilidad?: number; status?: string };
+  body: {
+    precio?: number;
+    moneda?: string;
+    disponibilidad?: number;
+    status?: string;
+    titulo?: string;
+    descripcion?: string;
+  };
   /** What the change does, for the summary and the preview. */
   kind: 'update' | 'pause' | 'activate';
+  /** The web's name/description this op sends, as digests: recorded as
+   * seen once Mercasist answered (see ContentSeen). */
+  content?: { t?: string; d?: string };
 }
+
+/** Per publication id: digests of the web's name (`t`) and description
+ * (`d`) as last seen or sent. Only a change on the web is sent, so an edit
+ * made on Mercado Libre itself stays until the web changes again. */
+export type ContentSeen = Record<string, { t: string; d: string }>;
 
 export interface Plan {
   ops: PlanOp[];
@@ -91,6 +107,18 @@ export interface Plan {
   rows: MercasistPublicationRow[];
   /** Publications this app has paused or emptied, after this run's plan. */
   pausedBySync: Set<number>;
+  /** With publications seen for the first time added (their starting point)
+   * and gone ones dropped; the ops' own changes are applied after a run. */
+  contentSeen: ContentSeen;
+}
+
+/** A product's description for Mercado Libre: its specs, or its name. */
+export function listingDescription(product: Pick<Product, 'name' | 'specs'>): string {
+  return product.specs?.trim() || product.name.trim();
+}
+
+export function digest(text: string): string {
+  return createHash('sha1').update(text).digest('base64url').slice(0, 12);
 }
 
 /**
@@ -98,7 +126,9 @@ export interface Plan {
  * of the same SKU on the web: the price with IVA in dollars, the stock
  * (Profit's, less open sales and the safety stock), a pause when the
  * product left the web or lost its price, and its return once it's back
- * (also after Mercado Libre paused it for selling out).
+ * (also after Mercado Libre paused it for selling out). When the web's name
+ * or description of a product changes, the publication gets the new title
+ * and description too (see ContentSeen).
  * Only what differs from what Mercasist shows goes out. Stock changes go
  * first, since they are the ones that prevent selling what isn't there.
  * Publications with variations, or without a matching product, are left
@@ -112,9 +142,12 @@ export function planSync(input: {
   syncStock: boolean;
   safetyStock: number;
   pausedBySync: Iterable<number>;
+  syncContent?: boolean;
+  contentSeen?: ContentSeen;
 }): Plan {
   const bySku = productsBySku(input.products);
   const paused = new Set(input.pausedBySync);
+  const contentSeen: ContentSeen = {};
   const stockOps: PlanOp[] = [];
   const priceOps: PlanOp[] = [];
   const rows: MercasistPublicationRow[] = [];
@@ -147,6 +180,11 @@ export function planSync(input: {
       continue;
     }
     const base = { publicationId: pub.id, sku: row.sku, title: pub.titulo, productId: product.id };
+    const title = listingTitle(product.name);
+    const description = listingDescription(product);
+    const now = { t: digest(title), d: digest(description) };
+    const before = input.contentSeen?.[pub.id];
+    contentSeen[pub.id] = before ?? now;
 
     const reason = offSaleReason(product);
     if (reason) {
@@ -183,14 +221,31 @@ export function planSync(input: {
     // Emptied by this run: Mercado Libre pauses it, and this app brings it back.
     if (body.disponibilidad === 0) paused.add(pub.id);
 
+    const content: PlanOp['content'] = {};
+    if (input.syncContent && before) {
+      if (before.t !== now.t) {
+        body.titulo = title;
+        content.t = now.t;
+      }
+      if (before.d !== now.d) {
+        body.descripcion = description;
+        content.d = now.d;
+      }
+    }
+
     if (Object.keys(body).length === 0) continue;
-    const op: PlanOp = { ...base, kind: activate ? 'activate' : 'update', body };
+    const op: PlanOp = {
+      ...base,
+      kind: activate ? 'activate' : 'update',
+      body,
+      ...(Object.keys(content).length > 0 && { content }),
+    };
     (body.disponibilidad !== undefined || activate ? stockOps : priceOps).push(op);
   }
 
   // A publication gone from Mercasist (finished or deleted) is forgotten.
   for (const id of paused) if (!seen.has(id)) paused.delete(id);
-  return { ops: [...stockOps, ...priceOps], rows, pausedBySync: paused };
+  return { ops: [...stockOps, ...priceOps], rows, pausedBySync: paused, contentSeen };
 }
 
 /** Why a product isn't ready for the bulk-publisher Excel, or undefined. */
@@ -244,7 +299,7 @@ export function exportRow(
   ].join('; ');
   return [
     listingTitle(product.name),
-    product.specs?.trim() || product.name.trim(),
+    listingDescription(product),
     mercasistPrice(product),
     listedQuantity(product, 0, safetyStock),
     'nuevo',

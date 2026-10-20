@@ -9,6 +9,7 @@ import { EMAIL_COLORS, EMAIL_CONTACT, emailFontUrl } from './brand';
 import { BRAND_ATTACHMENTS } from './brand-assets';
 import { expenseDueEmail } from './templates/expense-due-email';
 import { invoiceDueEmail } from './templates/invoice-due-email';
+import { mercasistNewProductsEmail } from './templates/mercasist-new-products-email';
 import { mercasistSaleEmail } from './templates/mercasist-sale-email';
 import { orderCreatedEmail } from './templates/order-created-email';
 import { orderStatusEmail } from './templates/order-status-email';
@@ -93,6 +94,16 @@ const ALL_EMAILS: Record<string, { subject: string; html: string }> = {
   ),
   expenseSoon: expenseDueEmail(
     { name: 'Alquiler', dueStatus: ExpenseDueStatus.DUE_SOON, dueDate: '2026-10-05' },
+    SITE,
+  ),
+  mercasistNewProducts: mercasistNewProductsEmail(
+    {
+      fresh: [
+        { name: 'Bombillo LED 9W', sku: 'E27-9W' },
+        { name: 'Panel LED 18W', sku: 'PAN-18' },
+      ],
+      totalReady: 5,
+    },
     SITE,
   ),
   mercasistSale: mercasistSaleEmail(
@@ -184,6 +195,17 @@ describe('email content safety', () => {
     expect(html).toContain('https://www.mercadolibre.com.ve/ventas/2000112345/detalle');
     expect(html).toContain(`${SITE}/admin/mercasist`);
     expect(subject).toBe(`Venta en Mercado Libre: ${evil} (1 unidad)`);
+  });
+
+  it('escapes product names in the new-products email and links to the panel', () => {
+    const evil = '<img src=x onerror=alert(1)>';
+    const { subject, html } = mercasistNewProductsEmail(
+      { fresh: [{ name: evil, sku: evil }], totalReady: 1 },
+      SITE,
+    );
+    expect(html).not.toContain(evil);
+    expect(html).toContain(`${SITE}/admin/mercasist`);
+    expect(subject).toBe(`Producto nuevo para Mercado Libre: ${evil}`);
   });
 
   it('escapes product names in order lines and alert previews', () => {

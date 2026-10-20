@@ -21,7 +21,12 @@ import { STOCK_ALERT_RAISED_EVENT, StockAlertRaisedEvent } from '../inventory/in
 import { INVOICE_DUE_ALERT_EVENT, InvoiceDueAlertEvent } from '../finance/finance.service';
 import { EXPENSE_DUE_ALERT_EVENT, ExpenseDueAlertEvent } from '../expenses/expenses.service';
 import { REVIEW_CREATED_EVENT, ReviewCreatedEvent } from '../reviews/reviews.service';
-import { MERCASIST_SALE_EVENT, MercasistSaleEvent } from '../mercasist/mercasist-sync.service';
+import {
+  MERCASIST_NEW_PRODUCTS_EVENT,
+  MERCASIST_SALE_EVENT,
+  MercasistNewProductsEvent,
+  MercasistSaleEvent,
+} from '../mercasist/mercasist-sync.service';
 import {
   EMAIL_VERIFICATION_REQUESTED_EVENT,
   EmailVerificationRequestedEvent,
@@ -30,6 +35,7 @@ import {
 import { EmailService } from './email.service';
 import { expenseDueEmail } from './templates/expense-due-email';
 import { invoiceDueEmail } from './templates/invoice-due-email';
+import { mercasistNewProductsEmail } from './templates/mercasist-new-products-email';
 import { mercasistSaleEmail } from './templates/mercasist-sale-email';
 import { orderCreatedEmail } from './templates/order-created-email';
 import { orderStatusEmail } from './templates/order-status-email';
@@ -214,6 +220,18 @@ export class EmailListener {
         `Failed to send Mercado Libre sale email for ${payload.id}`,
         error as Error,
       );
+    }
+  }
+
+  /** Products ready to go on Mercado Libre: the admins upload them with
+   * Mercasist's bulk publisher (its API can't create listings). */
+  @OnEvent(MERCASIST_NEW_PRODUCTS_EVENT)
+  async handleMercasistNewProductsEmail(payload: MercasistNewProductsEvent): Promise<void> {
+    try {
+      const { subject, html } = mercasistNewProductsEmail(payload, this.siteUrl);
+      await this.emailEveryAdmin(subject, html);
+    } catch (error) {
+      this.logger.error('Failed to send Mercado Libre new products email', error as Error);
     }
   }
 }
