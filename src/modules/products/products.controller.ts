@@ -32,7 +32,6 @@ import { UpdateProductDto } from './dto/update-product.dto';
 import { toCatalogDto } from './mappers/product.mapper';
 import { PricingService } from './pricing.service';
 import { ProductsService } from './products.service';
-import { WarehousesService } from './warehouses.service';
 
 @ApiTags('products')
 @Controller()
@@ -41,7 +40,6 @@ export class ProductsController {
     private readonly productsService: ProductsService,
     private readonly pricingService: PricingService,
     private readonly categoriesService: CategoriesService,
-    private readonly warehousesService: WarehousesService,
   ) {}
 
   @Get('categories')
@@ -56,14 +54,6 @@ export class ProductsController {
   @ApiBearerAuth()
   createCategory(@Body() dto: CreateCategoryDto) {
     return this.categoriesService.create(dto.code, dto.label);
-  }
-
-  @Get('warehouses')
-  @UseGuards(FirebaseAuthGuard, RolesGuard)
-  @Roles(Role.ADMIN)
-  @ApiBearerAuth()
-  warehouses() {
-    return this.warehousesService.findAll();
   }
 
   @Get('products')
@@ -164,13 +154,5 @@ export class ProductsController {
   @ApiBearerAuth()
   adjustStock(@Param('id') id: string, @Body() dto: AdjustStockDto) {
     return this.productsService.adjustStock(id, dto);
-  }
-
-  @Get('products/:id/stock-by-warehouse')
-  @UseGuards(FirebaseAuthGuard, RolesGuard)
-  @Roles(Role.ADMIN)
-  @ApiBearerAuth()
-  stockByWarehouse(@Param('id') id: string) {
-    return this.productsService.stockByWarehouse(id);
   }
 }

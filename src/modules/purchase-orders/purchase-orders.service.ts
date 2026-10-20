@@ -84,7 +84,6 @@ export class PurchaseOrdersService {
       notes: dto.notes,
       status: PurchaseOrderStatus.DRAFT,
       amountPaid: 0,
-      warehouseId: dto.warehouseId,
       createdBy: user.id,
     });
   }
@@ -243,18 +242,11 @@ export class PurchaseOrdersService {
         ? await this.financeService.getPayableForUpdate(tx, order.linkedPayableId)
         : undefined;
 
-      // One batch (product docs + stock-level docs, plus at most one shared
-      // warehouse-doc read) instead of up to 3 round trips per line item.
+      // One batch read of the product docs instead of a round trip per line item.
       const productIds = order.items.map((item) => item.productId);
       const stockContextsById = !fullyPaid
         ? new Map<string, StockUpdateContext>()
-        : order.warehouseId
-          ? await this.productsService.getStockForUpdateManyForWarehouse(
-              tx,
-              productIds,
-              order.warehouseId,
-            )
-          : await this.productsService.getStockForUpdateMany(tx, productIds);
+        : await this.productsService.getStockForUpdateMany(tx, productIds);
 
       // ---- writes ----
       const paidAt = new Date();

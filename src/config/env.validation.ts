@@ -73,13 +73,6 @@ export const envSchema = z.object({
   CASHEA_API_URL: z.string().url().default('https://external.cashea.app'),
   CASHEA_CHECKOUT_URL: z.string().url().default('https://web.cashea.app'),
 
-  // Mercasist (Mercado Libre Venezuela through mercasist.com). The token is
-  // the account's (Mercasist → user menu → Token de API); until it's set the
-  // panel shows the setup steps and the cron tick skips.
-  MERCASIST_API_TOKEN: z.string().optional(),
-  // Overridable only to point local tests at a stand-in server.
-  MERCASIST_API_URL: z.string().url().default('https://api.mercasist.com'),
-
   CORS_ORIGIN: z.string().default('*'),
 
   // Transactional email (welcome, order confirmation, fulfillment updates).

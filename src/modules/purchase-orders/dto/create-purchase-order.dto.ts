@@ -44,8 +44,4 @@ export class CreatePurchaseOrderDto {
   @IsString()
   @MaxLength(2_000)
   notes?: string;
-
-  @IsOptional()
-  @IsString()
-  warehouseId?: string;
 }

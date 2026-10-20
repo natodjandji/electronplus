@@ -1,9 +1,7 @@
 export const Collections = {
   USERS: 'users',
   CATEGORIES: 'categories',
-  WAREHOUSES: 'warehouses',
   PRODUCTS: 'products',
-  STOCK_LEVELS: 'stockLevels', // subcollection of products/{id}
   QUOTES: 'quotes',
   ORDERS: 'orders',
   PAYMENTS: 'payments',
@@ -30,9 +28,6 @@ export const Collections = {
   COUNTERS: 'counters',
   /** Customer reviews left through the store's QR (see ReviewsService). */
   REVIEWS: 'reviews',
-  /** Mercado Libre sales seen through Mercasist, one doc per Mercasist order
-   * id (see MercasistSyncService). */
-  MERCASIST_SALES: 'mercasistSales',
   /** App settings an admin edits, one doc per feature (e.g. "reviews"). */
   SETTINGS: 'settings',
   /** Server-only read indexes (see CollectionSnapshot) — no client rule

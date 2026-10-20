@@ -17,7 +17,6 @@ function product(id: string, sku: string): Product {
     retailPrice: 1,
     wholesalePrice: 1,
     stock: 1,
-    warehouse: "",
     image: "",
     thumbnail: "",
     specs: "",

@@ -25,7 +25,6 @@ export function toProduct(p: ApiProduct): Product {
     retailPrice: p.retailPrice,
     wholesalePrice: p.wholesalePrice,
     stock: p.stock,
-    warehouse: "",
     image: p.imageUrl ?? "",
     thumbnail: p.thumbnailUrl ?? p.imageUrl ?? "",
     specs: p.specs ?? "",

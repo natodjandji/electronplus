@@ -5,7 +5,6 @@ import { AppModule } from '../../app.module';
 import { CategoriesService } from '../../modules/products/categories.service';
 import { QueryProductsDto } from '../../modules/products/dto/query-products.dto';
 import { ProductsService } from '../../modules/products/products.service';
-import { WarehousesService } from '../../modules/products/warehouses.service';
 
 const logger = new Logger('Seed');
 
@@ -15,12 +14,6 @@ const CATEGORIES = [
   { code: 'tableros', label: 'Tableros' },
   { code: 'tomas', label: 'Tomas e interruptores' },
   { code: 'proteccion', label: 'Protección' },
-];
-
-const WAREHOUSES = [
-  { code: 'DEP-A', name: 'Depósito A' },
-  { code: 'DEP-B', name: 'Depósito B' },
-  { code: 'DEP-C', name: 'Depósito C' },
 ];
 
 const PRODUCTS = [
@@ -118,7 +111,6 @@ async function run() {
   const app = await NestFactory.createApplicationContext(AppModule, { logger: ['error', 'warn'] });
 
   const categoriesService = app.get(CategoriesService);
-  const warehousesService = app.get(WarehousesService);
   const productsService = app.get(ProductsService);
 
   logger.log('Seeding categories…');
@@ -126,14 +118,6 @@ async function run() {
   for (const c of CATEGORIES) {
     const category = await categoriesService.findOrCreateByCode(c.code, c.label);
     categoryByCode.set(c.code, category.id);
-  }
-
-  logger.log('Seeding warehouses…');
-  const existingWarehouses = await warehousesService.findAll();
-  for (const w of WAREHOUSES) {
-    if (!existingWarehouses.some((existing) => existing.code === w.code)) {
-      await warehousesService.create(w.code, w.name);
-    }
   }
 
   logger.log('Seeding products…');

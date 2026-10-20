@@ -6,7 +6,12 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { EventEmitter2 } from '@nestjs/event-emitter';
-import type { DocumentReference, Firestore, Transaction } from 'firebase-admin/firestore';
+import type {
+  DocumentData,
+  DocumentReference,
+  Firestore,
+  Transaction,
+} from 'firebase-admin/firestore';
 import { FieldValue, Timestamp } from 'firebase-admin/firestore';
 import { FIRESTORE } from '../../firebase/firebase.constants';
 import { Collections } from '../../firebase/firestore-collections';
@@ -28,8 +33,6 @@ import { QueryProductsDto } from './dto/query-products.dto';
 import { UpdateProductDto } from './dto/update-product.dto';
 import { Category } from './entities/category.entity';
 import { Product } from './entities/product.entity';
-import { StockLevel } from './entities/stock-level.entity';
-import { Warehouse } from './entities/warehouse.entity';
 
 const REVENUE_STATUSES = [
   OrderStatus.PAID,
@@ -61,11 +64,7 @@ export type ErpCatalogChanges = Required<
 export interface StockUpdateContext {
   productId: string;
   productRef: DocumentReference;
-  levelRef?: DocumentReference;
   currentStock: number;
-  currentLevelQty: number;
-  levelExists: boolean;
-  warehouseInfo?: { id: string; code: string; name: string };
   sku: string;
   name: string;
   minStockThreshold?: number;
@@ -147,7 +146,6 @@ interface CatalogViews {
 export class ProductsService {
   private readonly repo: FirestoreRepository<Product>;
   private readonly categoriesRepo: FirestoreRepository<Category>;
-  private readonly warehousesRepo: FirestoreRepository<Warehouse>;
   /** Every product packed into a few docs — see CollectionSnapshot. Backs
    * every whole-catalog read: public listing and search, admin lists, ERP
    * matching, best-seller resolution. */
@@ -162,7 +160,6 @@ export class ProductsService {
   ) {
     this.repo = new FirestoreRepository<Product>(firestore, Collections.PRODUCTS);
     this.categoriesRepo = new FirestoreRepository<Category>(firestore, Collections.CATEGORIES);
-    this.warehousesRepo = new FirestoreRepository<Warehouse>(firestore, Collections.WAREHOUSES);
     this.catalog = new CollectionSnapshot<Product>(firestore, Collections.PRODUCTS, () =>
       this.repo.collection(),
     );
@@ -189,12 +186,6 @@ export class ProductsService {
       );
     }
     return new PaginatedResult(products.slice(skip, skip + limit), products.length, page, limit);
-  }
-
-  /** Every product, hidden ones included, by name, from the catalog
-   * snapshot — what a marketplace sync compares against. */
-  async allForMarketplace(): Promise<Product[]> {
-    return this.viewsOf(await this.catalog.load(OPS_CATALOG_LOAD)).all;
   }
 
   /** Every active product, by name — the storefront's whole catalog. */
@@ -364,31 +355,6 @@ export class ProductsService {
     return products;
   }
 
-  async stockByWarehouse(productId: string): Promise<StockLevel[]> {
-    const productRef = this.repo.doc(productId); // throws if productId isn't a valid single-segment id
-    const levelsRepo = new FirestoreRepository<StockLevel>(
-      this.firestore,
-      `${productRef.path}/${Collections.STOCK_LEVELS}`,
-    );
-    return levelsRepo.findAll();
-  }
-
-  async stockInWarehouse(warehouseId: string): Promise<StockLevel[]> {
-    const snap = await this.firestore
-      .collectionGroup(Collections.STOCK_LEVELS)
-      .where('warehouseId', '==', warehouseId)
-      .get();
-    return snap.docs.map((d) => {
-      const data = d.data();
-      return {
-        ...data,
-        id: d.id,
-        createdAt: data.createdAt?.toDate?.() ?? data.createdAt,
-        updatedAt: data.updatedAt?.toDate?.() ?? data.updatedAt,
-      } as StockLevel;
-    });
-  }
-
   /** Inserts a product under an id slugified from its name — that id is also
    * its public URL (/product/{id}) and is embedded in printed QR labels, so
    * it must never change afterwards (a later name edit leaves it alone).
@@ -479,12 +445,6 @@ export class ProductsService {
         'Este producto viene de Profit Plus: para quitarlo, anúlalo o bórralo en Profit, o desactívalo aquí.',
       );
     }
-    const stockLevels = await this.firestore.collection(`products/${id}/stockLevels`).get();
-    if (!stockLevels.empty) {
-      const batch = this.firestore.batch();
-      for (const doc of stockLevels.docs) batch.delete(doc.ref);
-      await batch.commit();
-    }
     await this.repo.delete(id);
     await this.catalog.apply({ remove: [id] });
   }
@@ -519,12 +479,12 @@ export class ProductsService {
     throw new NotFoundException('Product not found');
   }
 
-  /** Manual admin stock adjustment (+ restock / - shrinkage), optionally
-   * scoped to a warehouse. Not for products synced from Profit Plus: their
-   * stock comes only from Profit, where every sale is invoiced. */
+  /** Manual admin stock adjustment (+ restock / - shrinkage). Not for
+   * products synced from Profit Plus: their stock comes only from Profit,
+   * where every sale is invoiced. */
   async adjustStock(id: string, dto: AdjustStockDto): Promise<Product> {
     const changed = await this.firestore.runTransaction(async (tx) => {
-      const ctx = await this.getStockForUpdate(tx, id, dto.warehouseId);
+      const ctx = await this.getStockForUpdate(tx, id);
       if (ctx.fromErp) {
         throw new BadRequestException(
           'El stock de este producto viene de Profit Plus y solo cambia con la sincronización.',
@@ -544,47 +504,16 @@ export class ProductsService {
   // same as getForUpdateMany/reserveStock below — call getStockForUpdate for
   // every item first, then applyStockDelta for every item.
 
-  async getStockForUpdate(
-    tx: Transaction,
-    id: string,
-    warehouseId?: string,
-  ): Promise<StockUpdateContext> {
+  async getStockForUpdate(tx: Transaction, id: string): Promise<StockUpdateContext> {
     const productRef = this.repo.doc(id);
-    const levelRef = warehouseId
-      ? productRef.collection(Collections.STOCK_LEVELS).doc(warehouseId)
-      : undefined;
-
     const productSnap = await tx.get(productRef);
     if (!productSnap.exists) throw new NotFoundException('Product not found');
-    const levelSnap = levelRef ? await tx.get(levelRef) : undefined;
-    const warehouseSnap =
-      levelRef && !levelSnap?.exists
-        ? await tx.get(this.warehousesRepo.doc(warehouseId!))
-        : undefined;
-
-    const data = productSnap.data()!;
-    return {
-      productId: id,
-      productRef,
-      levelRef,
-      currentStock: data.stock as number,
-      currentLevelQty: levelSnap?.exists ? (levelSnap.data()!.quantity as number) : 0,
-      levelExists: Boolean(levelSnap?.exists),
-      warehouseInfo:
-        warehouseSnap?.exists && warehouseId
-          ? { id: warehouseId, code: warehouseSnap.data()!.code, name: warehouseSnap.data()!.name }
-          : undefined,
-      sku: data.sku as string,
-      name: data.name as string,
-      minStockThreshold: data.minStockThreshold as number | undefined,
-      fromErp: Boolean(data.erpExternalId),
-    };
+    return stockContext(id, productRef, productSnap.data()!);
   }
 
   /** Batched equivalent of calling getStockForUpdate per item — one
-   * tx.getAll() instead of N sequential tx.get() round trips. Only for
-   * callers that never pass a warehouseId (Orders' compensate/cancel).
-   * With `skipMissing`, a product deleted since is left out instead of
+   * tx.getAll() instead of N sequential tx.get() round trips (Orders'
+   * compensate/cancel, a purchase order's stock-in). With `skipMissing`, a product deleted since is left out instead of
    * failing the whole call: there's no stock left to give it back. */
   async getStockForUpdateMany(
     tx: Transaction,
@@ -599,71 +528,7 @@ export class ProductsService {
         if (skipMissing) return;
         throw new NotFoundException('Product not found');
       }
-      const data = snap.data()!;
-      result.set(productIds[idx], {
-        productId: productIds[idx],
-        productRef: refs[idx],
-        levelRef: undefined,
-        currentStock: data.stock as number,
-        currentLevelQty: 0,
-        levelExists: false,
-        warehouseInfo: undefined,
-        sku: data.sku as string,
-        name: data.name as string,
-        minStockThreshold: data.minStockThreshold as number | undefined,
-        fromErp: Boolean(data.erpExternalId),
-      });
-    });
-    return result;
-  }
-
-  /** Batched equivalent for callers where every item shares the same
-   * warehouse (PurchaseOrdersService's stock-in on settlement — one PO, one
-   * warehouseId, N line items). One tx.getAll() for the product docs, one
-   * for the per-product stock-level docs, and at most a single extra read
-   * for the warehouse doc — the old per-item getStockForUpdate() call
-   * re-fetched that same warehouse doc again for every item whose level
-   * didn't exist yet, instead of once for the whole batch. */
-  async getStockForUpdateManyForWarehouse(
-    tx: Transaction,
-    productIds: string[],
-    warehouseId: string,
-  ): Promise<Map<string, StockUpdateContext>> {
-    const productRefs = productIds.map((id) => this.repo.doc(id));
-    const levelRefs = productRefs.map((ref) =>
-      ref.collection(Collections.STOCK_LEVELS).doc(warehouseId),
-    );
-
-    const productSnaps = productRefs.length > 0 ? await tx.getAll(...productRefs) : [];
-    const levelSnaps = levelRefs.length > 0 ? await tx.getAll(...levelRefs) : [];
-
-    const needsWarehouseDoc = levelSnaps.some((snap) => !snap.exists);
-    const warehouseSnap = needsWarehouseDoc
-      ? await tx.get(this.warehousesRepo.doc(warehouseId))
-      : undefined;
-    const warehouseInfo = warehouseSnap?.exists
-      ? { id: warehouseId, code: warehouseSnap.data()!.code, name: warehouseSnap.data()!.name }
-      : undefined;
-
-    const result = new Map<string, StockUpdateContext>();
-    productIds.forEach((id, idx) => {
-      const productSnap = productSnaps[idx];
-      if (!productSnap.exists) throw new NotFoundException('Product not found');
-      const data = productSnap.data()!;
-      const levelSnap = levelSnaps[idx];
-      result.set(id, {
-        productId: id,
-        productRef: productRefs[idx],
-        levelRef: levelRefs[idx],
-        currentStock: data.stock as number,
-        currentLevelQty: levelSnap.exists ? (levelSnap.data()!.quantity as number) : 0,
-        levelExists: levelSnap.exists,
-        warehouseInfo: !levelSnap.exists ? warehouseInfo : undefined,
-        sku: data.sku as string,
-        name: data.name as string,
-        minStockThreshold: data.minStockThreshold as number | undefined,
-        fromErp: Boolean(data.erpExternalId),
-      });
+      result.set(productIds[idx], stockContext(productIds[idx], refs[idx], snap.data()!));
     });
     return result;
   }
@@ -671,23 +536,6 @@ export class ProductsService {
   applyStockDelta(tx: Transaction, ctx: StockUpdateContext, delta: number): StockChangedEvent {
     const nextStock = Math.max(0, ctx.currentStock + delta);
     tx.update(ctx.productRef, { stock: nextStock, updatedAt: FieldValue.serverTimestamp() });
-
-    if (ctx.levelRef) {
-      const nextQty = Math.max(0, ctx.currentLevelQty + delta);
-      if (ctx.levelExists) {
-        tx.update(ctx.levelRef, { quantity: nextQty, updatedAt: FieldValue.serverTimestamp() });
-      } else if (ctx.warehouseInfo) {
-        tx.set(ctx.levelRef, {
-          productId: ctx.productId,
-          warehouseId: ctx.warehouseInfo.id,
-          warehouse: ctx.warehouseInfo,
-          quantity: nextQty,
-          createdAt: FieldValue.serverTimestamp(),
-          updatedAt: FieldValue.serverTimestamp(),
-        });
-      }
-    }
-
     return {
       productId: ctx.productId,
       sku: ctx.sku,
@@ -917,4 +765,20 @@ export class ProductsService {
 
     return { product: saved, wrote: true };
   }
+}
+
+function stockContext(
+  productId: string,
+  productRef: DocumentReference,
+  data: DocumentData,
+): StockUpdateContext {
+  return {
+    productId,
+    productRef,
+    currentStock: data.stock as number,
+    sku: data.sku as string,
+    name: data.name as string,
+    minStockThreshold: data.minStockThreshold as number | undefined,
+    fromErp: Boolean(data.erpExternalId),
+  };
 }

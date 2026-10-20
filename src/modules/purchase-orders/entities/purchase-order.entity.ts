@@ -48,8 +48,6 @@ export interface PurchaseOrder extends FirestoreDoc {
   amountPaid: number;
   paymentDetails?: PurchaseOrderPaymentDetails;
 
-  /** Which warehouse receives the stock when the order is fully paid. */
-  warehouseId?: string;
   /** suppliers_payables/{id} created when the order is issued, kept in sync as payments are registered. */
   linkedPayableId?: string;
 

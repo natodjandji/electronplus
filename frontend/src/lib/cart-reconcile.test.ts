@@ -11,7 +11,6 @@ function product(overrides: Partial<Product> = {}): Product {
     retailPrice: 10,
     wholesalePrice: 8,
     stock: 20,
-    warehouse: "",
     image: "",
     thumbnail: "",
     specs: "",

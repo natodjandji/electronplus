@@ -64,13 +64,7 @@ describe('SchedulerAuthGuard', () => {
 });
 
 describe('CronController', () => {
-  function controller(
-    overrides: {
-      erpConfigured?: boolean;
-      rollup?: object | undefined;
-      mercasist?: { configured?: boolean; enabled?: boolean; skipped?: string };
-    } = {},
-  ) {
+  function controller(overrides: { erpConfigured?: boolean; rollup?: object | undefined } = {}) {
     const erpSync = {
       isConfigured: () => overrides.erpConfigured ?? false,
       runInboundSync: jest.fn().mockResolvedValue({ status: 'success', itemsProcessed: 3 }),
@@ -90,18 +84,9 @@ describe('CronController', () => {
     const erpExport = {
       exportPending: jest.fn().mockResolvedValue({ exported: 1, failed: 0, waiting: 0 }),
     };
-    const mercasistClient = { isConfigured: () => overrides.mercasist?.configured ?? false };
-    const mercasist = {
-      readSettings: jest.fn().mockResolvedValue({ enabled: overrides.mercasist?.enabled }),
-      run: jest.fn().mockResolvedValue({
-        summary: { publications: 5, matched: 4, updated: 2, newSales: 1 },
-        ...(overrides.mercasist?.skipped && { skipped: overrides.mercasist.skipped }),
-      }),
-    };
     return {
       erpSync,
       erpExport,
-      mercasist,
       cron: new CronController(
         erpSync as never,
         erpExport as never,
@@ -109,8 +94,6 @@ describe('CronController', () => {
         reports as never,
         dueChecks as never,
         dueChecks as never,
-        mercasistClient as never,
-        mercasist as never,
       ),
     };
   }
@@ -151,44 +134,6 @@ describe('CronController', () => {
     expect(await controller().cron.runDaily()).toEqual({
       status: 'success',
       salesRollup: '2026-10-02',
-    });
-  });
-
-  describe('mercasist-sync', () => {
-    it('skips until the token is set', async () => {
-      const { cron, mercasist } = controller();
-      expect(await cron.runMercasistSync()).toMatchObject({ status: 'skipped' });
-      expect(mercasist.run).not.toHaveBeenCalled();
-    });
-
-    it("skips while an admin hasn't turned it on", async () => {
-      const { cron, mercasist } = controller({ mercasist: { configured: true, enabled: false } });
-      expect(await cron.runMercasistSync()).toMatchObject({
-        status: 'skipped',
-        reason: expect.stringContaining('desactivada'),
-      });
-      expect(mercasist.run).not.toHaveBeenCalled();
-    });
-
-    it('runs and reports the summary once on', async () => {
-      const { cron } = controller({ mercasist: { configured: true, enabled: true } });
-      expect(await cron.runMercasistSync()).toEqual({
-        status: 'success',
-        publications: 5,
-        matched: 4,
-        updated: 2,
-        newSales: 1,
-      });
-    });
-
-    it("reports a run that waited for tomorrow's quota as skipped", async () => {
-      const { cron } = controller({
-        mercasist: { configured: true, enabled: true, skipped: 'Quedan 10 solicitudes' },
-      });
-      expect(await cron.runMercasistSync()).toEqual({
-        status: 'skipped',
-        reason: 'Quedan 10 solicitudes',
-      });
     });
   });
 });

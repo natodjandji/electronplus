@@ -51,8 +51,6 @@ describe('OrdersService.cancel', () => {
               productId: 'p1',
               productRef: { id: 'p1' },
               currentStock: 10,
-              currentLevelQty: 0,
-              levelExists: false,
               sku: 'SKU-1',
               name: 'Product 1',
             },

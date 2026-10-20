@@ -30,7 +30,7 @@ const PRESERVED_ADMIN_EMAIL = 'electronplusve@gmail.com';
  * dev-cleanup command.
  *
  * Deliberately NEVER touches (unless --include-products is also passed):
- *   - categories / warehouses / suppliers / paymentMethods / shippingRates /
+ *   - categories / suppliers / paymentMethods / shippingRates /
  *     discountCodes — this is store config, not "test data"; wiping it
  *     breaks checkout until it's reconfigured. If any of these genuinely
  *     hold placeholder rows, remove those specific documents by hand from
@@ -168,15 +168,6 @@ async function run() {
   }
 
   if (includeProducts) {
-    const stockLevelCount = await deleteSubcollections(
-      firestore,
-      Collections.PRODUCTS,
-      Collections.STOCK_LEVELS,
-      dryRun,
-    );
-    logger.log(
-      `products/*/${Collections.STOCK_LEVELS}: ${stockLevelCount} doc(s)${dryRun ? ' would be deleted' : ' deleted'}`,
-    );
     const productCount = await deleteCollection(firestore, Collections.PRODUCTS, dryRun);
     logger.log(
       `${Collections.PRODUCTS}: ${productCount} doc(s)${dryRun ? ' would be deleted' : ' deleted'}`,
@@ -194,7 +185,7 @@ async function run() {
   );
 
   logger.log(
-    `Left untouched: ${includeProducts ? '' : 'products, '}categories, warehouses, suppliers, ` +
+    `Left untouched: ${includeProducts ? '' : 'products, '}categories, suppliers, ` +
       'paymentMethods, shippingRates, discountCodes, and Storage products/*.',
   );
 

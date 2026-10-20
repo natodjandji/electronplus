@@ -122,8 +122,4 @@ export class InventoryService {
       stock: payload.stock,
     } satisfies StockAlertRaisedEvent);
   }
-
-  stockInWarehouse(warehouseId: string) {
-    return this.productsService.stockInWarehouse(warehouseId);
-  }
 }

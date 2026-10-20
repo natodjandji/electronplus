@@ -7,9 +7,5 @@ export class AdjustStockDto {
 
   @IsOptional()
   @IsString()
-  warehouseId?: string;
-
-  @IsOptional()
-  @IsString()
   reason?: string;
 }

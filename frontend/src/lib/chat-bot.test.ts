@@ -12,7 +12,6 @@ const product = (id: string, name: string, stock = 10, category = "cables"): Pro
     retailPrice: 5,
     wholesalePrice: 4,
     stock,
-    warehouse: "",
     image: "",
     thumbnail: "",
     specs: "",
