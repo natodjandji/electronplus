@@ -28,6 +28,12 @@ export interface Quote extends FirestoreDoc {
   status: QuoteStatus;
   /** How the customer expects to pay — informs the admin's pricing/discount decision. */
   expectedPaymentMethod?: PaymentMethod;
+  /** Which configured method that is (payment-methods id), and its name
+   * when chosen: several share one type (an admin's methods are all
+   * "other"), so the type alone can't say which. Null when only the type
+   * was given. */
+  expectedPaymentMethodId?: string | null;
+  expectedPaymentMethodLabel?: string | null;
   /** Set by an admin when approving (or at any point before a final decision) — the "special discount". */
   globalDiscountPct: number;
   rejectionReason?: string;

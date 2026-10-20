@@ -99,6 +99,7 @@ describe('QuotePdfService', () => {
       {} as never,
       {} as never,
       new EventEmitter2(),
+      {} as never,
     );
     const exchange = { getBcvRate: () => Promise.resolve({ rate: 200 }) };
     return {

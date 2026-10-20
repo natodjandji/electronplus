@@ -1,4 +1,10 @@
-import { ForbiddenException, Inject, Injectable, NotFoundException } from '@nestjs/common';
+import {
+  BadRequestException,
+  ForbiddenException,
+  Inject,
+  Injectable,
+  NotFoundException,
+} from '@nestjs/common';
 import { randomUUID } from 'crypto';
 import { EventEmitter2 } from '@nestjs/event-emitter';
 import type { Firestore } from 'firebase-admin/firestore';
@@ -8,11 +14,12 @@ import { newestFirst, periodWhere } from '../../common/dto/period-query.dto';
 import { FirestoreRepository, WhereClause } from '../../firebase/firestore.repository';
 import { Role } from '../../common/enums/role.enum';
 import { AuthenticatedUser } from '../../common/interfaces/authenticated-user.interface';
-import { PaymentMethod } from '../payments/entities/payment.entity';
+import { PaymentMethodsService } from '../payment-methods/payment-methods.service';
 import { PricingService } from '../products/pricing.service';
 import { ProductsService } from '../products/products.service';
 import { AddQuoteLineDto } from './dto/add-quote-line.dto';
 import { CreateQuoteDto } from './dto/create-quote.dto';
+import { SetPaymentMethodDto } from './dto/set-payment-method.dto';
 import { QueryQuotesDto } from './dto/query-quotes.dto';
 import { UpdateQuoteLineDto } from './dto/update-quote-line.dto';
 import { Quote, QuoteItem, QuoteStatus } from './entities/quote.entity';
@@ -36,6 +43,7 @@ export class QuotesService {
     private readonly productsService: ProductsService,
     private readonly pricingService: PricingService,
     private readonly events: EventEmitter2,
+    private readonly paymentMethods: PaymentMethodsService,
   ) {
     this.repo = new FirestoreRepository<Quote>(firestore, Collections.QUOTES);
   }
@@ -165,10 +173,26 @@ export class QuotesService {
   async setPaymentMethod(
     id: string,
     user: AuthenticatedUser,
-    expectedPaymentMethod: PaymentMethod,
+    dto: SetPaymentMethodDto,
   ): Promise<Quote> {
     await this.assertEditable(id, user);
-    return this.repo.update(id, { expectedPaymentMethod });
+    if (dto.paymentMethodId) {
+      const method = await this.paymentMethods.findById(dto.paymentMethodId);
+      if (!method?.enabled) {
+        throw new BadRequestException('Ese método de pago no está disponible.');
+      }
+      return this.repo.update(id, {
+        expectedPaymentMethod: method.backendMethod,
+        expectedPaymentMethodId: method.id,
+        expectedPaymentMethodLabel: method.label,
+      });
+    }
+    if (!dto.expectedPaymentMethod) throw new BadRequestException('Indica el método de pago.');
+    return this.repo.update(id, {
+      expectedPaymentMethod: dto.expectedPaymentMethod,
+      expectedPaymentMethodId: null,
+      expectedPaymentMethodLabel: null,
+    });
   }
 
   /** Drafts only — once sent, a quote is a real request under review and can't be deleted. */

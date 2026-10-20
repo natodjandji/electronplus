@@ -29,7 +29,7 @@ import { apiFetch, reportError } from "@/lib/api-client";
 import { openCustomerQuotePdf } from "@/lib/open-pdf";
 import { formatMoneyAdmin } from "@/lib/electron-store";
 import { formatDate } from "@/lib/format";
-import { paymentMethodLabel, usePaymentMethods } from "@/lib/payment-methods";
+import { quotePaymentMethodName, usePaymentMethods } from "@/lib/payment-methods";
 import { computeTotal, computeWholesaleTotal } from "@/lib/quote-totals";
 import { toast } from "sonner";
 
@@ -65,6 +65,8 @@ interface Quote {
   globalDiscountPct: number;
   rejectionReason?: string;
   expectedPaymentMethod?: string;
+  expectedPaymentMethodId?: string | null;
+  expectedPaymentMethodLabel?: string | null;
   items: QuoteLine[];
   createdAt: string;
 }
@@ -314,7 +316,7 @@ function QuoteDetailDialog({ id, onClose }: { id: string; onClose: () => void })
           <div className="flex items-center gap-1.5 text-xs text-brand-navy">
             <span className="text-muted-foreground">Método de pago que planea usar:</span>
             <span className="font-semibold">
-              {paymentMethodLabel(paymentMethods, quote.expectedPaymentMethod) ?? "No indicado"}
+              {quotePaymentMethodName(paymentMethods, quote) ?? "No indicado"}
             </span>
           </div>
 

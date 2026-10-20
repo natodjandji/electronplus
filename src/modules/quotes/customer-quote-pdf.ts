@@ -80,7 +80,7 @@ export function customerQuotePdf(
         lines: [
           quote.customerTaxId ? `RIF/C.I.: ${quote.customerTaxId}` : '',
           quote.expectedPaymentMethod
-            ? `Pago previsto: ${PAYMENT_METHOD_LABEL[quote.expectedPaymentMethod] ?? quote.expectedPaymentMethod}`
+            ? `Pago previsto: ${quote.expectedPaymentMethodLabel ?? PAYMENT_METHOD_LABEL[quote.expectedPaymentMethod] ?? quote.expectedPaymentMethod}`
             : '',
         ].filter(Boolean),
       },

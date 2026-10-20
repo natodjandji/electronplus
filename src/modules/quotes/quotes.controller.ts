@@ -118,7 +118,7 @@ export class QuotesController {
     @CurrentUser() user: AuthenticatedUser,
     @Body() dto: SetPaymentMethodDto,
   ) {
-    return this.quotesService.setPaymentMethod(id, user, dto.expectedPaymentMethod);
+    return this.quotesService.setPaymentMethod(id, user, dto);
   }
 
   @Post(':id/wholesale')

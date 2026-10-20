@@ -49,7 +49,11 @@ import { useAuth } from "@/lib/auth-context";
 import { formatMoney } from "@/lib/electron-store";
 import { formatDate } from "@/lib/format";
 import { catalogQuery } from "@/lib/product-api";
-import { paymentMethodLabel, usePaymentMethods } from "@/lib/payment-methods";
+import {
+  quotePaymentMethodId,
+  quotePaymentMethodName,
+  usePaymentMethods,
+} from "@/lib/payment-methods";
 import { openCustomerQuotePdf } from "@/lib/open-pdf";
 import { computeTotal, computeWholesaleTotal } from "@/lib/quote-totals";
 import { formatBs, useBcvRate } from "@/lib/use-bcv-rate";
@@ -98,6 +102,8 @@ interface Quote {
   globalDiscountPct: number;
   rejectionReason?: string;
   expectedPaymentMethod?: string;
+  expectedPaymentMethodId?: string | null;
+  expectedPaymentMethodLabel?: string | null;
   items: QuoteLine[];
   createdAt: string;
   convertedOrderId?: string;
@@ -561,11 +567,11 @@ function QuoteBuilder({ id, onBack }: { id: string; onBack: () => void }) {
     }
   };
 
-  const updatePaymentMethod = async (method: string) => {
+  const updatePaymentMethod = async (paymentMethodId: string) => {
     try {
       const updated = await apiFetch<Quote>(`/quotes/${id}/payment-method`, {
         method: "PATCH",
-        body: { expectedPaymentMethod: method },
+        body: { paymentMethodId },
       });
       applyQuote(updated);
     } catch (error) {
@@ -625,7 +631,7 @@ function QuoteBuilder({ id, onBack }: { id: string; onBack: () => void }) {
             )}
             {!isDraft && quote.expectedPaymentMethod && (
               <div className="text-xs text-muted-foreground">
-                Método de pago: {paymentMethodLabel(paymentMethods, quote.expectedPaymentMethod)}
+                Método de pago: {quotePaymentMethodName(paymentMethods, quote)}
               </div>
             )}
           </div>
@@ -739,7 +745,7 @@ function QuoteBuilder({ id, onBack }: { id: string; onBack: () => void }) {
                   Método de pago que planeas usar
                 </Label>
                 <Select
-                  value={quote.expectedPaymentMethod ?? ""}
+                  value={quotePaymentMethodId(enabledPaymentMethods, quote)}
                   onValueChange={(v) => updatePaymentMethod(v)}
                   disabled={enabledPaymentMethods.length === 0}
                 >
@@ -748,7 +754,7 @@ function QuoteBuilder({ id, onBack }: { id: string; onBack: () => void }) {
                   </SelectTrigger>
                   <SelectContent>
                     {enabledPaymentMethods.map((m) => (
-                      <SelectItem key={m.id} value={m.backendMethod}>
+                      <SelectItem key={m.id} value={m.id}>
                         {m.label}
                       </SelectItem>
                     ))}
