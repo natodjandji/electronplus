@@ -515,6 +515,11 @@ function PublishCard({ status }: { status: MercasistStatus }) {
                 .
               </p>
             )}
+            {ready === 0 && summary.data.published === 0 && summary.data.blocked.length === 0 && (
+              <p className="text-xs text-muted-foreground">
+                La web todavía no tiene productos: aparecen aquí cuando se cargan en Profit.
+              </p>
+            )}
             {!summary.data.snapshotAt && status.configured && (
               <p className="flex items-center gap-1 text-xs text-amber-700">
                 <AlertTriangle className="h-3.5 w-3.5" /> Haz una vista previa primero: así el Excel
@@ -548,7 +553,8 @@ function PublishCard({ status }: { status: MercasistStatus }) {
         <div>
           <p className="mb-1 text-xs font-medium text-brand-navy">Archivo</p>
           <Select
-            value={inBatches ? String(batch) : "all"}
+            value={ready === 0 ? "none" : inBatches ? String(batch) : "all"}
+            disabled={ready === 0}
             onValueChange={(v) => {
               setInBatches(v !== "all");
               if (v !== "all") setLote(Number(v));
@@ -558,13 +564,19 @@ function PublishCard({ status }: { status: MercasistStatus }) {
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
-              {Array.from({ length: batches }, (_, i) => (
-                <SelectItem key={i} value={String(i + 1)}>
-                  Lote {i + 1}: productos {i * TRIAL_BATCH + 1}–
-                  {Math.min((i + 1) * TRIAL_BATCH, Math.max(ready, 1))}
-                </SelectItem>
-              ))}
-              <SelectItem value="all">Todos en un archivo ({ready})</SelectItem>
+              {ready === 0 ? (
+                <SelectItem value="none">Ningún producto por publicar</SelectItem>
+              ) : (
+                <>
+                  {Array.from({ length: batches }, (_, i) => (
+                    <SelectItem key={i} value={String(i + 1)}>
+                      Lote {i + 1}: productos {i * TRIAL_BATCH + 1}–
+                      {Math.min((i + 1) * TRIAL_BATCH, ready)}
+                    </SelectItem>
+                  ))}
+                  <SelectItem value="all">Todos en un archivo ({ready})</SelectItem>
+                </>
+              )}
             </SelectContent>
           </Select>
         </div>
