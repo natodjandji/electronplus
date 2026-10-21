@@ -171,6 +171,9 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
       { name: "twitter:card", content: "summary_large_image" },
       { name: "twitter:image", content: OG_IMAGE },
       { name: "twitter:image:alt", content: OG_IMAGE_ALT },
+      // Meta Business domain verification for electronplus.com.ve. Meta reads
+      // it from the prerendered HTML, so it has to stay in this static head.
+      { name: "facebook-domain-verification", content: "z9m7pb4vjdmq2x725ux1hmw1u1rgs4" },
     ],
     links: [
       { rel: "stylesheet", href: appCss },
