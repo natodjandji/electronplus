@@ -3,6 +3,7 @@
 #!include:.gitignore
 .git/
 .claude/
+.github/
 frontend/
 profit-plus-bridge-principal/
 profit-plus-bridge-secundaria/

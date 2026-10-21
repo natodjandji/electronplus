@@ -118,8 +118,9 @@ Frontend (`frontend/`):
 - Frontend: `frontend/dist/client` → Firebase Hosting (`firebase.json`; todo reescribe a `/_shell.html`,
   `/sitemap.xml` se reenvía a Cloud Run).
 - Bridges: corren en la red de cada tienda; ver su `README.md` (usuario SQL de solo lectura, `API_KEY` ≥ 32 caracteres).
-- Desde una sesión de Claude: `scripts/deploy.sh check|api|web|rules`, con la clave de la cuenta de servicio en
-  `GCP_SA_KEY_BASE64`. Pasos, chequeos previos y cómo volver atrás: `.claude/skills/deploy/SKILL.md`.
+- Deploys: workflow **Deploy** de GitHub Actions (`.github/workflows/deploy.yml`, lanzado a mano con
+  `target` check/api/web/rules), que corre `scripts/deploy.sh`. Pasos, configuración y cómo volver atrás:
+  `.claude/skills/deploy/SKILL.md`.
 
 ## Cómo se usan los bridges
 - **Principal**: Profit Plus de la tienda principal es donde se factura todo lo que se vende. Su sincronización

@@ -5,65 +5,83 @@ description: Deploy de Electron Plus a producción — la API a Cloud Run, la ti
 
 # Deploy de Electron Plus
 
-Todo pasa por `scripts/deploy.sh`, que inicia sesión con la cuenta de servicio
-de deploy y corre la herramienta que toca. Producción la usan clientes reales:
-**confirma con el usuario qué parte se despliega antes de correrlo**, salvo que
-ya lo haya dicho en esta conversación.
+Los deploys corren en GitHub Actions, con el workflow **Deploy**
+(`.github/workflows/deploy.yml`). Usa la clave de la cuenta de servicio
+`github-action-1308971196@electronplus-ve.iam.gserviceaccount.com`, guardada en
+GitHub como el secreto `FIREBASE_SERVICE_ACCOUNT_ELECTRONPLUS_VE`. La clave
+nunca pasa por la sesión de Claude: tú lanzas el workflow y lees sus logs con
+las herramientas de GitHub (`mcp__github__*`).
 
-| Comando | Despliega | Tarda |
+Producción la usan clientes reales: **confirma con el usuario qué parte se
+despliega, y desde qué rama, antes de lanzarlo**, salvo que ya lo haya dicho
+en esta conversación.
+
+| `target` | Despliega | Tarda |
 |---|---|---|
-| `scripts/deploy.sh check` | nada — inicia sesión y muestra la URL y revisión de la API, y los sitios de Hosting | segundos |
-| `scripts/deploy.sh api` | la API (`electronplus-api`, Cloud Run, us-central1), construida desde el Dockerfile por Cloud Build | 3–6 min |
-| `scripts/deploy.sh web` | la tienda (`frontend/`, Firebase Hosting) | 2–4 min |
-| `scripts/deploy.sh rules` | `firestore.rules`, `firestore.indexes.json`, `storage.rules` | ~1 min |
+| `check` | nada — inicia sesión y muestra la URL y revisión de la API, y los sitios de Hosting | ~1 min |
+| `api` | la API (`electronplus-api`, Cloud Run, us-central1), construida desde el Dockerfile por Cloud Build | 5–8 min |
+| `web` | la tienda (`frontend/`, Firebase Hosting) | 3–5 min |
+| `rules` | `firestore.rules`, `firestore.indexes.json`, `storage.rules` | ~1 min |
 
-## Antes del deploy
+El workflow corre los chequeos de la parte que despliega (tipos, lint,
+pruebas) y se detiene si alguno falla.
 
-1. Despliega lo que está en la rama que pidió el usuario, con commit y push —
-   nunca cambios sin commit.
-2. Corre los chequeos de la parte que se despliega y detente si alguno falla:
-   - API: `npx jest`, `npx tsc --noEmit -p tsconfig.json`, `npx eslint "src/**/*.ts"`
-   - Tienda: `cd frontend && npx vitest run && npx tsc --noEmit && npx eslint .`
-3. Si un cambio toca las dos, despliega primero la API: la tienda puede llamar
-   endpoints que la API vieja no tiene.
+## Cómo desplegar
 
-## Requisitos
-
-- `GCP_SA_KEY_BASE64` en el entorno: la clave JSON de la cuenta de servicio de
-  deploy, en base64 en una sola línea. Sin ella el script se detiene y lo dice;
-  dile al usuario que va en la configuración del entorno cloud (nunca le pidas
-  pegar una clave en el chat).
-- Para `web`: los valores `VITE_*` de producción (la lista está en `WEB_VARS`
-  dentro del script), desde el entorno o `frontend/.env.production`. El script
-  no construye sin ellos: el build saldría bien igual, pero con una tienda que
-  apunta a localhost.
-- La configuración de la API en producción (variables, secretos, cuenta de
-  servicio) vive en el servicio de Cloud Run. `deploy.sh api` la deja como
-  está; cámbiala solo si el usuario lo pide, con `gcloud run services update`.
+1. Lo que se despliega es lo que está en GitHub en la rama elegida: todo con
+   commit y push. Por defecto `main`; otra rama solo si el usuario lo pide.
+2. Lanza el workflow:
+   `mcp__github__actions_run_trigger` con `method: run_workflow`,
+   `owner: natodjandji`, `repo: electronplus`, `workflow_id: deploy.yml`,
+   `ref: <rama>`, `inputs: { target: <check|api|web|rules> }`.
+3. Busca la ejecución con `mcp__github__actions_list`
+   (`method: list_workflow_runs`, `resource_id: deploy.yml`) y espera a que
+   termine sin hacer polling seguido: una revisión cada pocos minutos basta.
+4. Si falla, lee el log con `mcp__github__get_job_logs`
+   (`run_id`, `failed_only: true`, `return_content: true`).
+5. Si un cambio toca API y tienda, despliega primero `api` y después `web`:
+   la tienda puede llamar endpoints que la API vieja no tiene.
 
 ## Después del deploy
 
 - API: `curl -s -o /dev/null -w "%{http_code}" <url del servicio>/api/categories`
-  debe responder 200, y `scripts/deploy.sh check` muestra la revisión nueva.
-- Tienda: el sitio (`VITE_PUBLIC_SITE_URL`) carga y el catálogo muestra productos.
-- Dile al usuario qué se desplegó (commit, revisión) y cómo quedó.
+  debe responder 200. La URL y la revisión nueva salen en el log del paso
+  Deploy, o lanzando `target: check`.
+- Tienda: el sitio (`https://electronplus.com.ve`) carga y el catálogo muestra
+  productos.
+- Dile al usuario qué se desplegó (rama, commit, revisión) y cómo quedó, con
+  el enlace a la ejecución en Actions.
+
+## Configuración que el workflow necesita
+
+- Secreto `FIREBASE_SERVICE_ACCOUNT_ELECTRONPLUS_VE`: la clave JSON de la
+  cuenta de servicio. Sin él, el paso Deploy falla con "no deploy key".
+- Variables de repositorio `VITE_*` (Settings → Secrets and variables →
+  Actions → Variables) para `web`: la lista está en `WEB_VARS` de
+  `scripts/deploy.sh`. Si falta alguna, el script no construye la tienda, en
+  vez de publicar una que apunte a localhost.
+- Roles de la cuenta de servicio: Hosting Admin y Cloud Run Viewer (de
+  `firebase init hosting:github`), más Cloud Run Source Developer, Service
+  Account User y Service Usage Consumer para `api`, y Firebase Rules Admin y
+  Cloud Datastore Index Admin para `rules`. Un 403 en el log suele ser un rol
+  que falta: dile al usuario cuál.
+- La configuración de la API en producción (variables, secretos, cuenta de
+  servicio) vive en el servicio de Cloud Run. `api` la deja como está.
 
 ## Volver atrás
 
-- API: manda el tráfico a la revisión anterior —
-  `gcloud run revisions list --service electronplus-api --region us-central1`,
-  luego
-  `gcloud run services update-traffic electronplus-api --region us-central1 --to-revisions <revisión>=100`.
-  Corre antes `scripts/deploy.sh check` para que gcloud tenga la sesión iniciada.
+- API: manda el tráfico a la revisión anterior desde la consola de Cloud Run
+  (pestaña Revisiones → Administrar tráfico), o con
+  `gcloud run services update-traffic electronplus-api --region us-central1 --to-revisions <revisión>=100`
+  desde una máquina con acceso.
 - Tienda: el historial de versiones de Hosting en la consola de Firebase tiene
-  un botón Rollback para cada versión anterior; o despliega de nuevo el commit
+  un botón Rollback para cada versión anterior; o lanza `web` sobre el commit
   anterior.
 
-## Límites de la sesión cloud
+## Sin GitHub Actions
 
-- `*.docker.pkg.dev` está bloqueado, así que las imágenes las construye Cloud
-  Build (`--source .`) y nunca se suben desde aquí. `.gcloudignore` limita lo
-  que se sube a lo que el Dockerfile necesita.
-- El Admin SDK de Firestore usa gRPC, que el proxy de la sesión no transporta:
-  los scripts que leen o escriben datos de producción (seeds, recálculos) no
-  se pueden correr desde aquí.
+`scripts/deploy.sh check|api|web|rules` hace lo mismo desde cualquier shell
+con la clave en `GCP_SA_KEY_JSON` o `GCP_SA_KEY_BASE64`. En una sesión cloud de
+Claude: `*.docker.pkg.dev` está bloqueado (por eso la imagen la construye
+Cloud Build) y el proxy no transporta gRPC, así que los scripts que tocan
+datos de Firestore en producción no corren desde ahí.
