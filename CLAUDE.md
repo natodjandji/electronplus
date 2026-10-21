@@ -75,7 +75,7 @@ Frontend (`frontend/`):
 |---|---|
 | `products` | Catálogo desde el snapshot en memoria (`/products/catalog`, `/products`, best-sellers), CRUD admin, categorías, reserva/ajuste de stock. Emite `stock.changed`. |
 | `orders` | Checkout: reserva stock, descuento, envío, IVA, crea el pago; `compensate()` revierte si el pago falla. Estados `pending_payment_verification → paid → preparing → shipped \| ready_for_pickup → fulfilled` o `cancelled`. Máx. 5 pedidos sin pagar por cliente. Pedido desde cotización aprobada. |
-| `payments` | Manuales (transferencia, pago móvil, Zelle, efectivo, otros) verificados por admin; PayPal (captura por API); Cashea (inicial, retorno, confirmación, cancelación); crédito B2B con `creditLimit`. |
+| `payments` | Manuales (transferencia, pago móvil, Zelle, efectivo, otros) verificados por admin; PayPal (captura por API); Cashea (inicial, retorno, confirmación, cancelación). Solo acepta métodos activos en el panel de métodos de pago (`assertMethodOffered`). |
 | `erp-sync` | Sync de la tienda principal vía `ProfitPlusAdapter` (`ApiProfitPlusAdapter`): solo escribe lo que cambió, oculta productos retirados (`erpRemovedAt`), marcas → proveedores. `ErpExportService` reporta ventas pagadas con reintentos/backoff. |
 | `second-store` | Sync de la tienda secundaria; emparejamiento por código/descripción (`second-store-matching.ts`); enlace manual a productos del catálogo. |
 | `quotes` | Cotizaciones del cliente `draft → sent → approved/rejected`; descuento global o precio mayorista por el admin; PDF por token. |
