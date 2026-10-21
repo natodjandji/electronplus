@@ -62,12 +62,6 @@ const NAV_GROUPS: {
     ],
   },
   {
-    label: "Ventas",
-    items: [
-      { to: "/admin/in-store-sales", label: "Ventas en tienda", icon: ScanLine, exact: false },
-    ],
-  },
-  {
     label: "Inventario",
     items: [
       { to: "/admin/inventory", label: "Inventario", icon: Boxes, exact: false },
@@ -80,6 +74,12 @@ const NAV_GROUPS: {
       { to: "/admin/suppliers", label: "Proveedores", icon: Building2, exact: false },
       { to: "/admin/stock", label: "Alertas de stock", icon: AlertTriangle, exact: false },
       { to: "/admin/labels", label: "Etiquetas QR", icon: QrCode, exact: false },
+    ],
+  },
+  {
+    label: "Ventas",
+    items: [
+      { to: "/admin/in-store-sales", label: "Ventas en tienda", icon: ScanLine, exact: false },
     ],
   },
   {
