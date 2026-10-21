@@ -203,6 +203,15 @@ export async function runSalesTool(
       const args = searchInput.safeParse(input);
       if (!args.success) return fail('Entrada inválida: falta "consulta".');
       const found = searchCatalog(await deps.catalog(), args.data.consulta, args.data.limite ?? 6);
+      // Said here too, where it applies: an empty search is no license to
+      // answer "yes, we carry that" from general knowledge.
+      if (found.length === 0) {
+        return json({
+          total: 0,
+          resultados: [],
+          nota: 'Sin resultados en el catálogo. No digas que tenemos este producto. Prueba sinónimos o menos palabras; si sigue sin aparecer, ofrece pasar con un asesor.',
+        });
+      }
       return json({ total: found.length, resultados: found.map(summary) });
     }
     case 'ver_producto': {

@@ -57,6 +57,13 @@ describe('runSalesTool', () => {
     ]);
   });
 
+  it('tells the model not to claim a product the search did not find', async () => {
+    const { run } = setup();
+    const { data } = await run('buscar_productos', { consulta: 'cable thhn' });
+    expect(data.total).toBe(0);
+    expect(data.nota).toMatch(/No digas que tenemos/);
+  });
+
   it('sends the products it knows and reports the rest', async () => {
     const { run, sendProducts } = setup();
     const { data } = await run('enviar_productos', { ids: ['p1', 'nope', 'p1'] });
