@@ -14,7 +14,8 @@ type NotificationType =
   | "invoice_overdue"
   | "expense_due_soon"
   | "expense_overdue"
-  | "sync_error";
+  | "sync_error"
+  | "chat_handoff";
 
 interface AppNotification {
   id: string;
@@ -40,6 +41,8 @@ function targetFor(notification: AppNotification): string {
       return "/admin/expenses";
     case "sync_error":
       return "/admin/settings?tab=erp-sync";
+    case "chat_handoff":
+      return "/admin/conversations";
   }
 }
 

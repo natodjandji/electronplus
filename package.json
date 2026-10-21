@@ -18,6 +18,7 @@
     "set-user-role": "ts-node -r tsconfig-paths/register src/database/seeds/set-user-role.ts"
   },
   "dependencies": {
+    "@anthropic-ai/sdk": "^0.137.0",
     "@google-cloud/storage": "^8.2.0",
     "@nestjs/common": "^11.1.28",
     "@nestjs/config": "^4.0.4",

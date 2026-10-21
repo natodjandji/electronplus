@@ -22,6 +22,7 @@ import { Route as RegisterRouteImport } from './routes/register'
 import { Route as ResenaRouteImport } from './routes/resena'
 import { Route as VendedorRouteImport } from './routes/vendedor'
 import { Route as AdminIndexRouteImport } from './routes/admin.index'
+import { Route as AdminConversationsRouteImport } from './routes/admin.conversations'
 import { Route as AdminExpensesRouteImport } from './routes/admin.expenses'
 import { Route as AdminInStoreSalesRouteImport } from './routes/admin.in-store-sales'
 import { Route as AdminInventoryRouteImport } from './routes/admin.inventory'
@@ -107,6 +108,11 @@ const VendedorRoute = VendedorRouteImport.update({
 const AdminIndexRoute = AdminIndexRouteImport.update({
   id: '/',
   path: '/',
+  getParentRoute: () => AdminRoute,
+} as any)
+const AdminConversationsRoute = AdminConversationsRouteImport.update({
+  id: '/conversations',
+  path: '/conversations',
   getParentRoute: () => AdminRoute,
 } as any)
 const AdminExpensesRoute = AdminExpensesRouteImport.update({
@@ -229,6 +235,7 @@ export interface FileRoutesByFullPath {
   '/register': typeof RegisterRoute
   '/resena': typeof ResenaRoute
   '/vendedor': typeof VendedorRouteWithChildren
+  '/admin/conversations': typeof AdminConversationsRoute
   '/admin/expenses': typeof AdminExpensesRoute
   '/admin/in-store-sales': typeof AdminInStoreSalesRoute
   '/admin/inventory': typeof AdminInventoryRoute
@@ -263,6 +270,7 @@ export interface FileRoutesByTo {
   '/quotes': typeof QuotesRoute
   '/register': typeof RegisterRoute
   '/resena': typeof ResenaRoute
+  '/admin/conversations': typeof AdminConversationsRoute
   '/admin/expenses': typeof AdminExpensesRoute
   '/admin/in-store-sales': typeof AdminInStoreSalesRoute
   '/admin/inventory': typeof AdminInventoryRoute
@@ -300,6 +308,7 @@ export interface FileRoutesById {
   '/register': typeof RegisterRoute
   '/resena': typeof ResenaRoute
   '/vendedor': typeof VendedorRouteWithChildren
+  '/admin/conversations': typeof AdminConversationsRoute
   '/admin/expenses': typeof AdminExpensesRoute
   '/admin/in-store-sales': typeof AdminInStoreSalesRoute
   '/admin/inventory': typeof AdminInventoryRoute
@@ -338,6 +347,7 @@ export interface FileRouteTypes {
     | '/register'
     | '/resena'
     | '/vendedor'
+    | '/admin/conversations'
     | '/admin/expenses'
     | '/admin/in-store-sales'
     | '/admin/inventory'
@@ -372,6 +382,7 @@ export interface FileRouteTypes {
     | '/quotes'
     | '/register'
     | '/resena'
+    | '/admin/conversations'
     | '/admin/expenses'
     | '/admin/in-store-sales'
     | '/admin/inventory'
@@ -408,6 +419,7 @@ export interface FileRouteTypes {
     | '/register'
     | '/resena'
     | '/vendedor'
+    | '/admin/conversations'
     | '/admin/expenses'
     | '/admin/in-store-sales'
     | '/admin/inventory'
@@ -542,6 +554,13 @@ declare module '@tanstack/react-router' {
       path: '/'
       fullPath: '/admin/'
       preLoaderRoute: typeof AdminIndexRouteImport
+      parentRoute: typeof AdminRoute
+    }
+    '/admin/conversations': {
+      id: '/admin/conversations'
+      path: '/conversations'
+      fullPath: '/admin/conversations'
+      preLoaderRoute: typeof AdminConversationsRouteImport
       parentRoute: typeof AdminRoute
     }
     '/admin/expenses': {
@@ -695,6 +714,7 @@ declare module '@tanstack/react-router' {
 }
 
 interface AdminRouteChildren {
+  AdminConversationsRoute: typeof AdminConversationsRoute
   AdminExpensesRoute: typeof AdminExpensesRoute
   AdminInStoreSalesRoute: typeof AdminInStoreSalesRoute
   AdminInventoryRoute: typeof AdminInventoryRoute
@@ -713,6 +733,7 @@ interface AdminRouteChildren {
 }
 
 const AdminRouteChildren: AdminRouteChildren = {
+  AdminConversationsRoute: AdminConversationsRoute,
   AdminExpensesRoute: AdminExpensesRoute,
   AdminInStoreSalesRoute: AdminInStoreSalesRoute,
   AdminInventoryRoute: AdminInventoryRoute,

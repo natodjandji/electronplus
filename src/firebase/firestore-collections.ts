@@ -28,6 +28,10 @@ export const Collections = {
   COUNTERS: 'counters',
   /** Customer reviews left through the store's QR (see ReviewsService). */
   REVIEWS: 'reviews',
+  /** WhatsApp and Instagram chats the sales assistant answers, one doc per
+   * customer and channel (see MessagingService). */
+  CHAT_CONVERSATIONS: 'chatConversations',
+  CHAT_MESSAGES: 'messages', // subcollection of chatConversations/{id}
   /** App settings an admin edits, one doc per feature (e.g. "reviews"). */
   SETTINGS: 'settings',
   /** Server-only read indexes (see CollectionSnapshot) — no client rule

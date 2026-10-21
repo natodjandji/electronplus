@@ -18,6 +18,7 @@ import {
   Store,
   ScanLine,
   Star,
+  MessagesSquare,
 } from "lucide-react";
 import { ElectronLogo } from "./electron-logo";
 import { PageTransition } from "./motion-primitives";
@@ -55,9 +56,15 @@ const NAV_GROUPS: {
     items: [
       { to: "/admin/orders", label: "Pedidos", icon: Truck, exact: false },
       { to: "/admin/quotes", label: "Cotizaciones", icon: FileCheck2, exact: false },
-      { to: "/admin/in-store-sales", label: "Ventas en tienda", icon: ScanLine, exact: false },
+      { to: "/admin/conversations", label: "Conversaciones", icon: MessagesSquare, exact: false },
       { to: "/admin/reviews", label: "Reseñas", icon: Star, exact: false },
       { to: "/admin/users", label: "Usuarios", icon: Users, exact: false },
+    ],
+  },
+  {
+    label: "Ventas",
+    items: [
+      { to: "/admin/in-store-sales", label: "Ventas en tienda", icon: ScanLine, exact: false },
     ],
   },
   {

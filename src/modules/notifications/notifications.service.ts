@@ -13,6 +13,7 @@ import { ExpenseDueStatus } from '../expenses/entities/expense.entity';
 import { STOCK_ALERT_RAISED_EVENT, StockAlertRaisedEvent } from '../inventory/inventory.service';
 import { StockAlertLevel } from '../inventory/entities/stock-alert.entity';
 import { STOCK_CHANGED_EVENT, StockChangedEvent } from '../products/products.service';
+import { CHAT_HANDOFF_EVENT, ChatHandoffEvent } from '../messaging/messaging.events';
 import { Notification, NotificationType } from './entities/notification.entity';
 import { NotificationsGateway } from './notifications.gateway';
 
@@ -163,6 +164,22 @@ export class NotificationsService {
       );
     } catch (error) {
       this.logger.error('Failed to create ERP sync error notification', error as Error);
+    }
+  }
+
+  @OnEvent(CHAT_HANDOFF_EVENT)
+  async handleChatHandoff(payload: ChatHandoffEvent): Promise<void> {
+    try {
+      const channel = payload.channel === 'whatsapp' ? 'WhatsApp' : 'Instagram';
+      await this.create(
+        NotificationType.CHAT_HANDOFF,
+        `Cliente esperando en ${channel}`,
+        `${payload.customerName ?? 'Un cliente'}: ${payload.reason}`,
+        [Role.ADMIN],
+        { ...payload },
+      );
+    } catch (error) {
+      this.logger.error('Failed to create chat handoff notification', error as Error);
     }
   }
 

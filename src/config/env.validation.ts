@@ -73,6 +73,25 @@ export const envSchema = z.object({
   CASHEA_API_URL: z.string().url().default('https://external.cashea.app'),
   CASHEA_CHECKOUT_URL: z.string().url().default('https://web.cashea.app'),
 
+  // WhatsApp and Instagram sales assistant (see MessagingService). Meta signs
+  // every webhook with the app secret and checks the subscription with the
+  // verify token; one system-user token sends on both channels (Instagram
+  // through the Facebook Page it's linked to). Each channel answers once its
+  // ids are set, and nothing replies without ANTHROPIC_API_KEY.
+  META_APP_ID: z.string().optional(),
+  META_APP_SECRET: z.string().optional(),
+  META_WEBHOOK_VERIFY_TOKEN: z.string().optional(),
+  META_ACCESS_TOKEN: z.string().optional(),
+  META_GRAPH_VERSION: z.string().default('v25.0'),
+  WHATSAPP_PHONE_NUMBER_ID: z.string().optional(),
+  INSTAGRAM_PAGE_ID: z.string().optional(),
+  ANTHROPIC_API_KEY: z.string().optional(),
+  // Cloud Tasks queue that runs each reply, full name
+  // (projects/…/locations/…/queues/…). The task calls back with an OIDC
+  // token for SCHEDULER_INVOKER_EMAIL, like Cloud Scheduler does. Unset
+  // (local dev): replies run in-process after the same short wait.
+  MESSAGING_TASKS_QUEUE: z.string().optional(),
+
   CORS_ORIGIN: z.string().default('*'),
 
   // Transactional email (welcome, order confirmation, fulfillment updates).

@@ -9,6 +9,8 @@ export enum NotificationType {
   EXPENSE_DUE_SOON = 'expense_due_soon',
   EXPENSE_OVERDUE = 'expense_overdue',
   SYNC_ERROR = 'sync_error',
+  /** The WhatsApp/Instagram assistant handed a chat to the staff. */
+  CHAT_HANDOFF = 'chat_handoff',
 }
 
 export interface Notification extends FirestoreDoc {

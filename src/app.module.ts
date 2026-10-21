@@ -32,6 +32,7 @@ import { UploadsModule } from './modules/uploads/uploads.module';
 import { ClientErrorsModule } from './modules/client-errors/client-errors.module';
 import { EmailModule } from './modules/email/email.module';
 import { ReviewsModule } from './modules/reviews/reviews.module';
+import { MessagingModule } from './modules/messaging/messaging.module';
 
 @Module({
   imports: [
@@ -69,6 +70,7 @@ import { ReviewsModule } from './modules/reviews/reviews.module';
     UploadsModule,
     ClientErrorsModule,
     EmailModule,
+    MessagingModule,
   ],
   providers: [{ provide: APP_GUARD, useClass: ThrottlerGuard }],
 })

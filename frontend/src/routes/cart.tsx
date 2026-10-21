@@ -18,6 +18,7 @@ import { apiFetch, ApiError } from "@/lib/api-client";
 import { formatBs, useBcvRate } from "@/lib/use-bcv-rate";
 import { formatMoney, useElectronStore } from "@/lib/electron-store";
 import { useCartCatalogSync } from "@/lib/use-cart-sync";
+import { useCartLinkImport } from "@/lib/cart-link";
 import { toast } from "sonner";
 
 interface DiscountValidation {
@@ -30,6 +31,10 @@ interface DiscountValidation {
 }
 
 export const Route = createFileRoute("/cart")({
+  // A cart the WhatsApp/Instagram assistant built for the customer.
+  validateSearch: (search: Record<string, unknown>): { agregar?: string } => ({
+    agregar: typeof search.agregar === "string" ? search.agregar : undefined,
+  }),
   head: () => ({
     meta: [
       { title: "Carrito · Electron Plus" },
@@ -69,6 +74,7 @@ function CartPage() {
   const total = taxableBase + taxAmount;
 
   useCartCatalogSync();
+  useCartLinkImport(Route.useSearch().agregar);
 
   const applyCode = useMutation({
     mutationFn: () =>

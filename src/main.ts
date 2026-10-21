@@ -16,7 +16,16 @@ async function bootstrap() {
   // base64 payment-proof image) replace Nest's default 100kb parser
   // instead of stacking behind it.
   const app = await NestFactory.create(AppModule, { bodyParser: false });
-  app.use(json({ limit: '2mb' }));
+  app.use(
+    json({
+      limit: '2mb',
+      // Meta signs the exact bytes it sends; the WhatsApp/Instagram webhook
+      // checks the signature against them, not against re-serialized JSON.
+      verify: (req, _res, buf) => {
+        if (req.url?.includes('/messaging/webhook')) (req as { rawBody?: Buffer }).rawBody = buf;
+      },
+    }),
+  );
   app.use(urlencoded({ limit: '2mb', extended: true }));
   // Sets standard defensive headers (X-Content-Type-Options, X-Frame-Options,
   // etc.) that Cloud Run/GFE don't add on their own. CSP is left at helmet's
