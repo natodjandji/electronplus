@@ -28,6 +28,10 @@ export default defineConfig({
   },
   nitro: false,
   vite: {
+    // The prerender step serves the build through `vite preview`, which
+    // otherwise listens on "::" — and fails on machines without IPv6 (cloud
+    // build containers among them), taking the whole build down with it.
+    preview: { host: "127.0.0.1" },
     build: {
       rollupOptions: {
         output: {

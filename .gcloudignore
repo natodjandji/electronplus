@@ -1,0 +1,10 @@
+# What `gcloud run deploy --source .` uploads to Cloud Build: the API only.
+# The Dockerfile needs package*.json, the tsconfig/nest-cli files and src/.
+#!include:.gitignore
+.git/
+.claude/
+frontend/
+profit-plus-bridge-principal/
+profit-plus-bridge-secundaria/
+scripts/
+coverage/
