@@ -92,8 +92,6 @@ interface MyProfile {
   address?: string;
   city?: string;
   state?: string;
-  /** Set by an admin for wholesale accounts — the only ones that may pay on credit. */
-  creditLimit?: number;
 }
 
 interface ShippingQuote {
@@ -149,8 +147,11 @@ function CheckoutPage() {
       item.unitPrice * (1 - item.discountPct / 100) * (1 - (quote?.globalDiscountPct ?? 0) / 100),
     ),
   }));
-  const quoteSubtotal = round2(
-    quoteItemsPriced.reduce((s, i) => s + i.effectiveUnitPrice * i.qty, 0),
+  // Line by line, rounded like the server (OrdersService.createFromQuote),
+  // so the total shown is the one charged.
+  const quoteSubtotal = quoteItemsPriced.reduce(
+    (s, i) => round2(s + round2(i.effectiveUnitPrice * i.qty)),
+    0,
   );
   const effectiveTaxableBase = isQuoteCheckout ? quoteSubtotal : taxableBase;
   const effectiveTaxAmount = isQuoteCheckout ? round2(quoteSubtotal * TAX_RATE) : taxAmount;
@@ -206,15 +207,12 @@ function CheckoutPage() {
   // PayPal needs the SDK client id wired in on this build to actually
   // render a working button — if that's not configured yet, hide it from
   // checkout rather than let a customer pick a payment method with no way
-  // to complete it. Credit is likewise only offered to accounts with an
-  // approved credit line — the API refuses it for anyone else.
-  const hasCreditLine = (myProfile?.creditLimit ?? 0) > 0;
+  // to complete it.
   const enabledMethods = (paymentMethods ?? []).filter(
     (m) =>
       m.enabled &&
       (m.backendMethod !== "paypal" || PAYPAL_CLIENT_ID) &&
-      (m.backendMethod !== "cashea" || casheaConfig?.available) &&
-      (m.backendMethod !== "credit_b2b" || hasCreditLine),
+      (m.backendMethod !== "cashea" || casheaConfig?.available),
   );
 
   useEffect(() => {
@@ -232,7 +230,7 @@ function CheckoutPage() {
     enabled: !isPickup && !!state && !!city,
   });
   const shippingCost = !isPickup && state && city ? (shippingQuote?.amount ?? 0) : 0;
-  const total = effectiveTaxableBase + effectiveTaxAmount + shippingCost;
+  const total = round2(effectiveTaxableBase + effectiveTaxAmount + shippingCost);
 
   // First purchase: prefill just the name. Once an address has been saved
   // from a previous order, prefill everything from it (still all editable).

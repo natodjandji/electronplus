@@ -199,11 +199,17 @@ export class FinanceService {
   // PurchaseOrdersService can settle the payable atomically alongside their
   // own writes (stock increments, PO status) in a single transaction.
 
-  async getPayableForUpdate(tx: Transaction, invoiceId: string): Promise<SupplierPayable> {
+  /** With `allowPaid`, a fully paid invoice is returned instead of refused —
+   * check isPayableSettled() before applying a payment to it. */
+  async getPayableForUpdate(
+    tx: Transaction,
+    invoiceId: string,
+    { allowPaid = false }: { allowPaid?: boolean } = {},
+  ): Promise<SupplierPayable> {
     const snap = await tx.get(this.payablesRepo.doc(invoiceId));
     if (!snap.exists) throw new NotFoundException('Supplier invoice not found');
     const data = snap.data()!;
-    if (data.status === SupplierPayableStatus.PAID) {
+    if (data.status === SupplierPayableStatus.PAID && !allowPaid) {
       throw new BadRequestException('This invoice is already fully paid');
     }
     return {
@@ -212,6 +218,10 @@ export class FinanceService {
       createdAt: data.createdAt?.toDate?.() ?? data.createdAt,
       updatedAt: data.updatedAt?.toDate?.() ?? data.updatedAt,
     } as SupplierPayable;
+  }
+
+  isPayableSettled(invoice: SupplierPayable): boolean {
+    return invoice.status === SupplierPayableStatus.PAID;
   }
 
   applyPayablePayment(
@@ -236,7 +246,9 @@ export class FinanceService {
     });
 
     const newAmountPaid = invoice.amountPaid + dto.amount;
-    const fullyPaid = newAmountPaid >= invoice.amount;
+    // Half-cent tolerance, same as a purchase order's settlement: float
+    // drift mustn't leave an invoice pending once its order counts as paid.
+    const fullyPaid = newAmountPaid >= invoice.amount - 0.005;
     tx.update(this.payablesRepo.doc(invoiceId), {
       amountPaid: newAmountPaid,
       status: fullyPaid ? SupplierPayableStatus.PAID : SupplierPayableStatus.PENDING,

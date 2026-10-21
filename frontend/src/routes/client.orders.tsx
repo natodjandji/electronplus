@@ -35,12 +35,7 @@ import { compressImageToBase64 } from "@/lib/image-compress";
 import { formatMoney } from "@/lib/electron-store";
 import { toast } from "sonner";
 import { formatDate } from "@/lib/format";
-import {
-  PAYMENT_METHOD_LABEL,
-  useHasCreditLine,
-  usePaymentMethods,
-  type PaymentMethod,
-} from "@/lib/payment-methods";
+import { PAYMENT_METHOD_LABEL, usePaymentMethods, type PaymentMethod } from "@/lib/payment-methods";
 import { CasheaButton } from "@/components/cashea-button";
 import { CasheaDownPaymentForm } from "@/components/cashea-down-payment";
 import {
@@ -376,17 +371,11 @@ function RetryPaymentForm({ order }: { order: Order }) {
   const queryClient = useQueryClient();
   const { data: paymentMethods } = usePaymentMethods();
   const { data: casheaConfig } = useCasheaConfig();
-  const hasCreditLine = useHasCreditLine();
   const casheaFits =
     Boolean(casheaConfig?.available) &&
     (casheaConfig?.minAmount == null || order.totalAmount >= casheaConfig.minAmount);
   const enabledMethods =
-    paymentMethods?.filter(
-      (m) =>
-        m.enabled &&
-        (m.backendMethod !== "credit_b2b" || hasCreditLine) &&
-        (m.backendMethod !== "cashea" || casheaFits),
-    ) ?? [];
+    paymentMethods?.filter((m) => m.enabled && (m.backendMethod !== "cashea" || casheaFits)) ?? [];
 
   const [methodId, setMethodId] = useState<string | null>(null);
   const [reference, setReference] = useState("");

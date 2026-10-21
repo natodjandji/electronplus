@@ -56,3 +56,31 @@ describe('PaymentMethodsService · Cashea', () => {
     expect(methods.map((m) => m.id)).toEqual(['pago-movil']);
   });
 });
+
+describe('PaymentMethodsService · retired methods', () => {
+  it('never offers a credit B2B method left over from before it was removed', async () => {
+    const firestore = new FakeFirestore();
+    for (const [id, backendMethod] of [
+      ['efectivo', PaymentMethod.CASH],
+      ['credito', 'credit_b2b'],
+    ]) {
+      firestore.seed(Collections.PAYMENT_METHODS, id, {
+        backendMethod,
+        label: id,
+        details: [],
+        needsReference: false,
+        needsProof: false,
+        enabled: true,
+        createdAt: new Date(),
+        updatedAt: new Date(),
+      });
+    }
+    const service = new PaymentMethodsService(
+      firestore as never,
+      { get: () => undefined } as never,
+    );
+
+    expect((await service.list()).map((m) => m.id)).toEqual(['efectivo']);
+    expect(await service.findById('credito')).toBeNull();
+  });
+});

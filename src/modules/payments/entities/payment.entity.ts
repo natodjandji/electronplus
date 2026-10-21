@@ -6,7 +6,6 @@ export enum PaymentMethod {
   CASH = 'cash',
   ZELLE = 'zelle',
   PAYPAL = 'paypal',
-  CREDIT_B2B = 'credit_b2b',
   /** Buy now, pay in installments: Cashea finances the purchase once the
    * store confirms the customer's down payment (see CasheaPayment). */
   CASHEA = 'cashea',

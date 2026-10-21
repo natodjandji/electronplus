@@ -12,9 +12,12 @@ import { CreatePaymentMethodDto } from './dto/create-payment-method.dto';
 import { UpdatePaymentMethodDto } from './dto/update-payment-method.dto';
 import { PaymentMethodConfig } from './entities/payment-method.entity';
 
-const DISPLAY_ORDER = ['transferencia', 'pago-movil', 'efectivo', 'cashea', 'credito', 'paypal'];
+const DISPLAY_ORDER = ['transferencia', 'pago-movil', 'efectivo', 'cashea', 'paypal'];
 
 const CASHEA_ID = 'cashea';
+/** Credit B2B was taken out of the store; a method seeded for it before
+ * then is never offered again. */
+const RETIRED_METHODS: readonly string[] = ['credit_b2b'];
 /** Added once Cashea's credentials are set — switched off, so an admin
  * turns it on after trying it. */
 const CASHEA_DEFAULT: Omit<PaymentMethodConfig, 'id' | 'createdAt' | 'updatedAt'> = {
@@ -56,14 +59,6 @@ const DEFAULTS: Record<string, Omit<PaymentMethodConfig, 'id' | 'createdAt' | 'u
     backendMethod: PaymentMethod.CASH,
     label: 'Efectivo en tienda',
     details: ['Paga en efectivo al retirar tu pedido en tienda o al recibirlo.'],
-    needsReference: false,
-    needsProof: false,
-    enabled: true,
-  },
-  credito: {
-    backendMethod: PaymentMethod.CREDIT_B2B,
-    label: 'Crédito B2B (mayoristas)',
-    details: ['Se factura a tu línea de crédito aprobada — sin pago inmediato.'],
     needsReference: false,
     needsProof: false,
     enabled: true,
@@ -120,12 +115,16 @@ export class PaymentMethodsService {
   }
 
   async findById(id: string): Promise<PaymentMethodConfig | null> {
-    return this.repo.findById(id);
+    const method = await this.repo.findById(id);
+    return method && !RETIRED_METHODS.includes(method.backendMethod) ? method : null;
   }
 
   async list(): Promise<PaymentMethodConfig[]> {
     await this.ensureSeeded();
-    const all = await this.withCashea(await this.repo.findAll());
+    const current = (await this.repo.findAll()).filter(
+      (m) => !RETIRED_METHODS.includes(m.backendMethod),
+    );
+    const all = await this.withCashea(current);
     return all.sort((a, b) => {
       const ai = DISPLAY_ORDER.indexOf(a.id);
       const bi = DISPLAY_ORDER.indexOf(b.id);

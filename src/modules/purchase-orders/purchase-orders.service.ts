@@ -68,7 +68,20 @@ export class PurchaseOrdersService {
     return map;
   }
 
+  /** One line per product. Settling adds each line's units to stock in one
+   * transaction, where a second write to the same product replaces the
+   * first instead of adding to it. */
+  private assertNoRepeatedProducts(items: { productId: string }[]): void {
+    const ids = items.map((item) => item.productId);
+    if (new Set(ids).size !== ids.length) {
+      throw new BadRequestException(
+        'Un producto aparece en más de una línea: junta sus cantidades en una sola.',
+      );
+    }
+  }
+
   async create(dto: CreatePurchaseOrderDto, user: AuthenticatedUser): Promise<PurchaseOrder> {
+    this.assertNoRepeatedProducts(dto.items);
     const products = await this.loadProductsByIds(dto.items.map((i) => i.productId));
 
     const items = buildItems(dto.items, products);
@@ -127,6 +140,7 @@ export class PurchaseOrdersService {
       throw new ForbiddenException('Only draft purchase orders can have their items edited');
     }
 
+    this.assertNoRepeatedProducts(dto.items);
     const products = await this.loadProductsByIds(dto.items.map((i) => i.productId));
     const items = buildItems(dto.items, products);
     const totals = computeTotals(items, dto.globalDiscount ?? order.globalDiscount);
@@ -163,30 +177,48 @@ export class PurchaseOrdersService {
     return this.repo.update(id, { paymentTerms: dto.paymentTerms, notes: dto.notes });
   }
 
-  /** draft -> issued: locks item editing and opens a matching entry in accounts payable. */
+  /** draft -> issued: locks item editing and opens a matching entry in
+   * accounts payable. The status changes first, in a transaction, so a
+   * double click can't open two payables for one order. */
   async issue(id: string): Promise<PurchaseOrder> {
-    const order = await this.findById(id);
-    if (order.status !== PurchaseOrderStatus.DRAFT) {
-      throw new ForbiddenException('Only draft purchase orders can be issued');
+    const ref = this.repo.doc(id);
+    const issuedAt = new Date();
+    const order = await this.firestore.runTransaction(async (tx) => {
+      const snap = await tx.get(ref);
+      if (!snap.exists) throw new NotFoundException('Purchase order not found');
+      const current = { ...snap.data(), id: snap.id } as PurchaseOrder;
+      if (current.status !== PurchaseOrderStatus.DRAFT) {
+        throw new ForbiddenException('Only draft purchase orders can be issued');
+      }
+      tx.update(ref, {
+        status: PurchaseOrderStatus.ISSUED,
+        issuedAt,
+        updatedAt: FieldValue.serverTimestamp(),
+      });
+      return current;
+    });
+
+    const issueDate = storeDay(issuedAt);
+    let payableId: string;
+    try {
+      ({ id: payableId } = await this.financeService.createInvoice({
+        supplierId: order.supplierId,
+        supplierName: order.supplierName,
+        invoiceNumber: `PO-${order.id.slice(0, 8).toUpperCase()}`,
+        amount: order.totals.totalAmount,
+        issueDate,
+        dueDate: addDays(issueDate, DEFAULT_PAYABLE_TERM_DAYS),
+      }));
+    } catch (error) {
+      // No payable was opened: back to draft, so it can be issued again.
+      await this.repo.patch(id, {
+        status: PurchaseOrderStatus.DRAFT,
+        issuedAt: FieldValue.delete() as never,
+      });
+      throw error;
     }
 
-    const issuedAt = new Date();
-    const issueDate = storeDay(issuedAt);
-
-    const payable = await this.financeService.createInvoice({
-      supplierId: order.supplierId,
-      supplierName: order.supplierName,
-      invoiceNumber: `PO-${order.id.slice(0, 8).toUpperCase()}`,
-      amount: order.totals.totalAmount,
-      issueDate,
-      dueDate: addDays(issueDate, DEFAULT_PAYABLE_TERM_DAYS),
-    });
-
-    return this.repo.update(id, {
-      status: PurchaseOrderStatus.ISSUED,
-      issuedAt,
-      linkedPayableId: payable.id,
-    });
+    return this.repo.update(id, { linkedPayableId: payableId });
   }
 
   /**
@@ -238,15 +270,29 @@ export class PurchaseOrdersService {
       // twice.
       const fullyPaid = amountPaid >= order.totals.totalAmount - 0.005;
 
+      // A payable already settled from Finanzas takes no more payments; the
+      // order still settles and its stock still comes in.
       const payable = order.linkedPayableId
-        ? await this.financeService.getPayableForUpdate(tx, order.linkedPayableId)
+        ? await this.financeService.getPayableForUpdate(tx, order.linkedPayableId, {
+            allowPaid: true,
+          })
         : undefined;
 
-      // One batch read of the product docs instead of a round trip per line item.
-      const productIds = order.items.map((item) => item.productId);
+      // Each product once, with the units of all its lines (orders saved
+      // before lines were kept unique can repeat one). A product deleted
+      // since has no stock to add, and doesn't block settling the order.
+      const unitsByProduct = new Map<string, number>();
+      for (const item of order.items) {
+        unitsByProduct.set(
+          item.productId,
+          (unitsByProduct.get(item.productId) ?? 0) + item.quantityOrdered,
+        );
+      }
       const stockContextsById = !fullyPaid
         ? new Map<string, StockUpdateContext>()
-        : await this.productsService.getStockForUpdateMany(tx, productIds);
+        : await this.productsService.getStockForUpdateMany(tx, [...unitsByProduct.keys()], {
+            skipMissing: true,
+          });
 
       // ---- writes ----
       const paidAt = new Date();
@@ -262,7 +308,7 @@ export class PurchaseOrdersService {
         updatedAt: now,
       });
 
-      if (payable && order.linkedPayableId) {
+      if (payable && order.linkedPayableId && !this.financeService.isPayableSettled(payable)) {
         this.financeService.applyPayablePayment(tx, order.linkedPayableId, payable, dto, user.id);
       }
 
@@ -273,12 +319,11 @@ export class PurchaseOrdersService {
         updatedAt: now,
       });
 
-      if (fullyPaid) {
-        order.items.forEach((item) => {
-          const ctx = stockContextsById.get(item.productId)!;
-          if (ctx.fromErp) return;
-          stockChanges.push(this.productsService.applyStockDelta(tx, ctx, item.quantityOrdered));
-        });
+      for (const ctx of stockContextsById.values()) {
+        if (ctx.fromErp) continue;
+        stockChanges.push(
+          this.productsService.applyStockDelta(tx, ctx, unitsByProduct.get(ctx.productId)!),
+        );
       }
     });
 

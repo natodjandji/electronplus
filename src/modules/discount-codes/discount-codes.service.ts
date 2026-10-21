@@ -161,13 +161,19 @@ export class DiscountCodesService {
     code: string,
     userId: string,
     orderId: string,
+    orderCreatedAt?: Date,
   ): Promise<() => void> {
     const ref = this.repo.doc(normalize(code));
     const redemptionRef = this.redemptionRef(normalize(code), userId);
     const [snap, redemptionSnap] = await tx.getAll(ref, redemptionRef);
     return () => {
-      // A code deleted since has no count left to give back to.
+      // A code deleted since has no count left to give back to — nor does
+      // one re-created under the same name after the order used the old
+      // one: that's a new promotion, with uses of its own.
       if (!snap.exists) return;
+      const raw = snap.data()?.createdAt as Date | { toDate?: () => Date } | undefined;
+      const createdAt = raw instanceof Date ? raw : raw?.toDate?.();
+      if (createdAt && orderCreatedAt && createdAt > orderCreatedAt) return;
       const usedCount = (snap.data() as DiscountCode).usedCount ?? 0;
       tx.update(ref, { usedCount: Math.max(0, usedCount - 1) });
 

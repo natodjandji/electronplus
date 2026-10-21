@@ -5,7 +5,7 @@ import { apiFetch } from "./api-client";
  * mirrored here since there's no shared package between backend and
  * frontend in this repo. */
 export type PaymentMethod =
-  "bank_transfer" | "pago_movil" | "cash" | "zelle" | "paypal" | "credit_b2b" | "cashea" | "other";
+  "bank_transfer" | "pago_movil" | "cash" | "zelle" | "paypal" | "cashea" | "other";
 
 /** Generic fallback covers every payment channel an admin adds through the
  * payment-methods panel (all tagged "other" server-side) — the panel's own
@@ -17,7 +17,6 @@ export const PAYMENT_METHOD_LABEL: Record<PaymentMethod, string> = {
   cash: "Efectivo",
   zelle: "Zelle",
   paypal: "PayPal",
-  credit_b2b: "Crédito B2B",
   cashea: "Cashea",
   other: "Otro",
 };
@@ -81,15 +80,4 @@ export function quotePaymentMethodName(
   return (
     quote.expectedPaymentMethodLabel ?? paymentMethodLabel(methods, quote.expectedPaymentMethod)
   );
-}
-
-/** Whether the signed-in customer may pay on credit: only accounts an admin
- * granted a credit line (the API refuses credit_b2b for anyone else). */
-export function useHasCreditLine(): boolean {
-  const { data } = useQuery({
-    queryKey: ["users", "me", "credit-line"],
-    queryFn: () => apiFetch<{ creditLimit?: number }>("/users/me"),
-    staleTime: 5 * 60_000,
-  });
-  return (data?.creditLimit ?? 0) > 0;
 }
