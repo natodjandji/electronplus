@@ -81,7 +81,10 @@ export function SiteFooter() {
         </FooterCol>
       </div>
       <div className="border-t border-white/10 px-4 py-4 text-center text-xs text-white/60 sm:px-6">
-        © {new Date().getFullYear()} Electron Plus. Todos los derechos reservados.
+        © {new Date().getFullYear()} Electron Plus. Todos los derechos reservados. ·{" "}
+        <Link to="/privacidad" className="transition-colors hover:text-white">
+          Política de privacidad
+        </Link>
       </div>
     </footer>
   );

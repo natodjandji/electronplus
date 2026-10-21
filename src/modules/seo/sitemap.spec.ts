@@ -22,6 +22,7 @@ describe('buildSitemap', () => {
       'https://electronplus.com.ve/',
       'https://electronplus.com.ve/catalog',
       'https://electronplus.com.ve/collections',
+      'https://electronplus.com.ve/privacidad',
       'https://electronplus.com.ve/product/breaker-20a',
       'https://electronplus.com.ve/product/cable-12-awg',
     ]);

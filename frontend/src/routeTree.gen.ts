@@ -17,6 +17,7 @@ import { Route as CheckoutRouteImport } from './routes/checkout'
 import { Route as ClientRouteImport } from './routes/client'
 import { Route as CollectionsRouteImport } from './routes/collections'
 import { Route as LoginRouteImport } from './routes/login'
+import { Route as PrivacidadRouteImport } from './routes/privacidad'
 import { Route as QuotesRouteImport } from './routes/quotes'
 import { Route as RegisterRouteImport } from './routes/register'
 import { Route as ResenaRouteImport } from './routes/resena'
@@ -83,6 +84,11 @@ const CollectionsRoute = CollectionsRouteImport.update({
 const LoginRoute = LoginRouteImport.update({
   id: '/login',
   path: '/login',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const PrivacidadRoute = PrivacidadRouteImport.update({
+  id: '/privacidad',
+  path: '/privacidad',
   getParentRoute: () => rootRouteImport,
 } as any)
 const QuotesRoute = QuotesRouteImport.update({
@@ -231,6 +237,7 @@ export interface FileRoutesByFullPath {
   '/client': typeof ClientRouteWithChildren
   '/collections': typeof CollectionsRoute
   '/login': typeof LoginRoute
+  '/privacidad': typeof PrivacidadRoute
   '/quotes': typeof QuotesRoute
   '/register': typeof RegisterRoute
   '/resena': typeof ResenaRoute
@@ -267,6 +274,7 @@ export interface FileRoutesByTo {
   '/client': typeof ClientRouteWithChildren
   '/collections': typeof CollectionsRoute
   '/login': typeof LoginRoute
+  '/privacidad': typeof PrivacidadRoute
   '/quotes': typeof QuotesRoute
   '/register': typeof RegisterRoute
   '/resena': typeof ResenaRoute
@@ -304,6 +312,7 @@ export interface FileRoutesById {
   '/client': typeof ClientRouteWithChildren
   '/collections': typeof CollectionsRoute
   '/login': typeof LoginRoute
+  '/privacidad': typeof PrivacidadRoute
   '/quotes': typeof QuotesRoute
   '/register': typeof RegisterRoute
   '/resena': typeof ResenaRoute
@@ -343,6 +352,7 @@ export interface FileRouteTypes {
     | '/client'
     | '/collections'
     | '/login'
+    | '/privacidad'
     | '/quotes'
     | '/register'
     | '/resena'
@@ -379,6 +389,7 @@ export interface FileRouteTypes {
     | '/client'
     | '/collections'
     | '/login'
+    | '/privacidad'
     | '/quotes'
     | '/register'
     | '/resena'
@@ -415,6 +426,7 @@ export interface FileRouteTypes {
     | '/client'
     | '/collections'
     | '/login'
+    | '/privacidad'
     | '/quotes'
     | '/register'
     | '/resena'
@@ -453,6 +465,7 @@ export interface RootRouteChildren {
   ClientRoute: typeof ClientRouteWithChildren
   CollectionsRoute: typeof CollectionsRoute
   LoginRoute: typeof LoginRoute
+  PrivacidadRoute: typeof PrivacidadRoute
   QuotesRoute: typeof QuotesRoute
   RegisterRoute: typeof RegisterRoute
   ResenaRoute: typeof ResenaRoute
@@ -519,6 +532,13 @@ declare module '@tanstack/react-router' {
       path: '/login'
       fullPath: '/login'
       preLoaderRoute: typeof LoginRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/privacidad': {
+      id: '/privacidad'
+      path: '/privacidad'
+      fullPath: '/privacidad'
+      preLoaderRoute: typeof PrivacidadRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/quotes': {
@@ -787,6 +807,7 @@ const rootRouteChildren: RootRouteChildren = {
   ClientRoute: ClientRouteWithChildren,
   CollectionsRoute: CollectionsRoute,
   LoginRoute: LoginRoute,
+  PrivacidadRoute: PrivacidadRoute,
   QuotesRoute: QuotesRoute,
   RegisterRoute: RegisterRoute,
   ResenaRoute: ResenaRoute,

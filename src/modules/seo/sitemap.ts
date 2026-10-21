@@ -7,6 +7,7 @@ export const STATIC_PAGES = [
   { path: '/', changefreq: 'weekly', priority: '1.0' },
   { path: '/catalog', changefreq: 'daily', priority: '0.9' },
   { path: '/collections', changefreq: 'weekly', priority: '0.7' },
+  { path: '/privacidad', changefreq: 'yearly', priority: '0.2' },
 ] as const;
 
 /** The sitemap protocol's cap per file. A catalog that ever outgrows it
