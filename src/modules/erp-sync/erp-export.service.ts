@@ -4,7 +4,7 @@ import { FieldValue, type Firestore } from 'firebase-admin/firestore';
 import { FIRESTORE } from '../../firebase/firebase.constants';
 import { Collections } from '../../firebase/firestore-collections';
 import { FirestoreRepository, snapshotToEntity } from '../../firebase/firestore.repository';
-import { Order } from '../orders/entities/order.entity';
+import { Order, OrderStatus } from '../orders/entities/order.entity';
 import { PROFIT_PLUS_ADAPTER, ProfitPlusAdapter } from './adapters/profit-plus-adapter.interface';
 import { SyncDirection, SyncLog, SyncStatus, syncLogExpiresAt } from './entities/sync-log.entity';
 import { ERP_SYNC_ERROR_EVENT, ErpSyncErrorEvent } from './sync.service';
@@ -181,6 +181,13 @@ export class ErpExportService {
       if (!snap.exists) return null;
       const order = snapshotToEntity<Order>(snap);
       if (!order.erpExportPending) return null;
+      // Cancelled after it was paid: the sale is off, nothing to report.
+      // OrdersService.cancel() clears the flag; this covers orders cancelled
+      // before it did.
+      if (order.status === OrderStatus.CANCELLED) {
+        tx.update(ref, { erpExportPending: false, erpExportNextAttemptAt: null });
+        return null;
+      }
       if (order.erpExportClaimedUntil && order.erpExportClaimedUntil.getTime() > Date.now()) {
         return null;
       }

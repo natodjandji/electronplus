@@ -13,6 +13,7 @@ const REVENUE_STATUSES = [
   OrderStatus.PAID,
   OrderStatus.PREPARING,
   OrderStatus.SHIPPED,
+  OrderStatus.READY_FOR_PICKUP,
   OrderStatus.FULFILLED,
 ];
 
@@ -240,7 +241,11 @@ export class ReportsService {
         };
         bucket.unitsSold += item.qty;
         bucket.revenue += item.lineTotal;
-        bucket.margin += (item.unitPrice - (item.unitCost ?? 0)) * item.qty;
+        // Without a cost there's no known margin — counting the whole price
+        // as margin inflated it for every product with no cost entered.
+        if (item.unitCost !== undefined && item.unitCost !== null) {
+          bucket.margin += (item.unitPrice - item.unitCost) * item.qty;
+        }
         byProduct.set(item.productId, bucket);
       }
     }

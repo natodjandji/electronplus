@@ -18,7 +18,7 @@ import { FirestoreRepository, WhereClause } from '../../firebase/firestore.repos
 import { Role } from '../../common/enums/role.enum';
 import { AuthenticatedUser } from '../../common/interfaces/authenticated-user.interface';
 import { DiscountCodesService } from '../discount-codes/discount-codes.service';
-import { Payment, PaymentMethod, PaymentStatus } from '../payments/entities/payment.entity';
+import { PaymentMethod, PaymentStatus } from '../payments/entities/payment.entity';
 import { casheaIdentificationNumber } from '../payments/cashea-payload';
 import { PaymentsService } from '../payments/payments.service';
 import { PricingService } from '../products/pricing.service';
@@ -71,6 +71,13 @@ function unitsByProduct(items: { productId: string; qty: number }[]): Map<string
   const units = new Map<string, number>();
   for (const item of items) units.set(item.productId, (units.get(item.productId) ?? 0) + item.qty);
   return units;
+}
+
+/** An order's createdAt, read either through the repository (a Date) or
+ * raw inside a transaction (a Firestore Timestamp). */
+function toDate(value: unknown): Date | undefined {
+  if (value instanceof Date) return value;
+  return (value as { toDate?: () => Date } | undefined)?.toDate?.();
 }
 
 export interface OrderPaidEvent {
@@ -131,22 +138,6 @@ export class OrdersService {
     }
   }
 
-  /** Credit B2B is marked paid on the spot — there's no payment to check —
-   * so it's only for accounts an admin granted a credit line (creditLimit
-   * on PATCH /users/:id), and only up to it. Resolves the line for that
-   * method, undefined for every other. */
-  private async creditLineFor(userId: string, method: PaymentMethod): Promise<number | undefined> {
-    if (method !== PaymentMethod.CREDIT_B2B) return undefined;
-    const snap = await this.firestore.collection(Collections.USERS).doc(userId).get();
-    const creditLimit = Number(snap.data()?.creditLimit ?? 0);
-    if (!(creditLimit > 0)) {
-      throw new ForbiddenException(
-        'Tu cuenta no tiene una línea de crédito aprobada. Elige otro método de pago.',
-      );
-    }
-    return creditLimit;
-  }
-
   /** The order was dropped because its payment couldn't start. A refusal
    * the buyer can act on (Cashea's minimum purchase, say) keeps its own
    * message and status; a provider that failed is a 502. */
@@ -162,18 +153,10 @@ export class OrdersService {
     if (method === PaymentMethod.CASHEA) casheaIdentificationNumber(taxId);
   }
 
-  private assertWithinCreditLine(creditLine: number | undefined, totalAmount: number): void {
-    if (creditLine !== undefined && totalAmount > creditLine) {
-      throw new ForbiddenException(
-        'El total del pedido supera tu línea de crédito. Elige otro método de pago.',
-      );
-    }
-  }
-
   async create(user: AuthenticatedUser, dto: CreateOrderDto): Promise<Order> {
     await this.assertCanOpenOrder(user);
     this.assertPaymentPrerequisites(dto.paymentMethod, dto.shipping.taxId);
-    const creditLine = await this.creditLineFor(user.id, dto.paymentMethod);
+    await this.paymentsService.assertMethodOffered(dto.paymentMethod);
     const productIds = dto.items.map((i) => i.productId);
     if (new Set(productIds).size !== productIds.length) {
       throw new BadRequestException(
@@ -237,7 +220,6 @@ export class OrdersService {
       const fulfillmentMethod = dto.fulfillmentMethod ?? FulfillmentMethod.DELIVERY;
       const shippingCost = await this.resolveShippingCost(fulfillmentMethod, dto.shipping);
       const totalAmount = round2(taxableBase + taxAmount + shippingCost);
-      this.assertWithinCreditLine(creditLine, totalAmount);
 
       const now = FieldValue.serverTimestamp();
       tx.set(orderRef, {
@@ -268,9 +250,8 @@ export class OrdersService {
     await this.productsService.stockCommitted(stockChanges);
     const order = await this.repo.getOrThrow(orderId);
 
-    let payment: Payment;
     try {
-      payment = await this.paymentsService.initiate(
+      await this.paymentsService.initiate(
         order.id,
         dto.paymentMethod,
         order.totalAmount,
@@ -286,13 +267,6 @@ export class OrdersService {
     }
 
     this.events.emit(ORDER_CREATED_EVENT, { orderId: order.id } satisfies OrderCreatedEvent);
-
-    // Credit-B2B is auto-verified synchronously by PaymentsService — reflect
-    // that on the order immediately instead of relying on the fire-and-forget
-    // event listener to have run before we respond.
-    if (payment.status === PaymentStatus.VERIFIED) {
-      return this.markPaid(order.id);
-    }
     return this.findById(order.id, user);
   }
 
@@ -308,7 +282,7 @@ export class OrdersService {
     const quote = await this.quotesService.findOneForUser(quoteId, user);
     await this.assertCanOpenOrder(user);
     this.assertPaymentPrerequisites(dto.paymentMethod, dto.shipping.taxId);
-    const creditLine = await this.creditLineFor(user.id, dto.paymentMethod);
+    await this.paymentsService.assertMethodOffered(dto.paymentMethod);
     if (quote.status !== QuoteStatus.APPROVED) {
       throw new BadRequestException('Only an approved quote can be checked out');
     }
@@ -378,7 +352,6 @@ export class OrdersService {
       const fulfillmentMethod = dto.fulfillmentMethod ?? FulfillmentMethod.DELIVERY;
       const shippingCost = await this.resolveShippingCost(fulfillmentMethod, dto.shipping);
       const totalAmount = round2(subtotal + taxAmount + shippingCost);
-      this.assertWithinCreditLine(creditLine, totalAmount);
 
       const orderRef = this.repo.collection().doc();
       const now = FieldValue.serverTimestamp();
@@ -411,9 +384,8 @@ export class OrdersService {
     await this.productsService.stockCommitted(stockChanges);
     const order = await this.repo.getOrThrow(orderId);
 
-    let payment: Payment;
     try {
-      payment = await this.paymentsService.initiate(
+      await this.paymentsService.initiate(
         order.id,
         dto.paymentMethod,
         order.totalAmount,
@@ -428,10 +400,6 @@ export class OrdersService {
     }
 
     this.events.emit(ORDER_CREATED_EVENT, { orderId: order.id } satisfies OrderCreatedEvent);
-
-    if (payment.status === PaymentStatus.VERIFIED) {
-      return this.markPaid(order.id);
-    }
     return this.findById(order.id, user);
   }
 
@@ -455,24 +423,17 @@ export class OrdersService {
       throw new BadRequestException('Only a rejected payment can be retried');
     }
     this.assertPaymentPrerequisites(dto.paymentMethod, order.shippingTaxId);
-    this.assertWithinCreditLine(
-      await this.creditLineFor(order.userId, dto.paymentMethod),
-      order.totalAmount,
-    );
+    await this.paymentsService.assertMethodOffered(dto.paymentMethod);
     if (leavingCashea) await this.paymentsService.withdrawCashea(orderId);
 
     await this.repo.update(orderId, { paymentMethod: dto.paymentMethod });
-    const payment = await this.paymentsService.initiate(
+    await this.paymentsService.initiate(
       orderId,
       dto.paymentMethod,
       order.totalAmount,
       dto.paymentReference,
       dto.paymentProofBase64,
     );
-
-    if (payment.status === PaymentStatus.VERIFIED) {
-      return this.markPaid(orderId);
-    }
     return this.findById(orderId, user);
   }
 
@@ -514,7 +475,13 @@ export class OrdersService {
       skipMissing: true,
     });
     const releaseDiscount = order.discountCode
-      ? await this.discountCodesService.beginRelease(tx, order.discountCode, order.userId, order.id)
+      ? await this.discountCodesService.beginRelease(
+          tx,
+          order.discountCode,
+          order.userId,
+          order.id,
+          toDate(order.createdAt),
+        )
       : undefined;
     return () => {
       releaseDiscount?.();
@@ -573,9 +540,8 @@ export class OrdersService {
     return order;
   }
 
-  /** Idempotent: a payment can be confirmed twice (credit B2B is verified
-   * at checkout and its payment.verified event arrives as well). Only the
-   * first call moves the order to paid, flags the sale for the ERP and fires
+  /** Idempotent: a payment can be confirmed more than once (two admins, a
+   * retried request). Only the first call moves the order to paid, flags the sale for the ERP and fires
    * the events, so the sale is reported and the customer notified once.
    *
    * A cancelled order stays cancelled: its stock was already released, so
@@ -615,18 +581,26 @@ export class OrdersService {
   }
 
   /** Steps a paid order forward one stage in the fulfillment pipeline
-   * (paid -> preparing -> shipped -> fulfilled). */
+   * (paid -> preparing -> shipped -> fulfilled). In a transaction, like
+   * cancel(): a cancel landing between the status check and the write would
+   * otherwise be overwritten, reviving an order whose stock went back. */
   async advanceStatus(orderId: string): Promise<Order> {
-    const order = await this.findById(orderId);
-    const pipeline = fulfillmentPipeline(order.fulfillmentMethod ?? FulfillmentMethod.DELIVERY);
-    const idx = pipeline.indexOf(order.status);
-    if (idx === -1) {
-      throw new BadRequestException('This order is not in an advanceable state');
-    }
-    if (idx === pipeline.length - 1) {
-      throw new BadRequestException('This order has already reached its final stage');
-    }
-    const updated = await this.repo.update(orderId, { status: pipeline[idx + 1] });
+    const ref = this.repo.doc(orderId);
+    await this.firestore.runTransaction(async (tx) => {
+      const snap = await tx.get(ref);
+      if (!snap.exists) throw new NotFoundException('Order not found');
+      const order = snap.data() as Order;
+      const pipeline = fulfillmentPipeline(order.fulfillmentMethod ?? FulfillmentMethod.DELIVERY);
+      const idx = pipeline.indexOf(order.status);
+      if (idx === -1) {
+        throw new BadRequestException('This order is not in an advanceable state');
+      }
+      if (idx === pipeline.length - 1) {
+        throw new BadRequestException('This order has already reached its final stage');
+      }
+      tx.update(ref, { status: pipeline[idx + 1], updatedAt: FieldValue.serverTimestamp() });
+    });
+    const updated = await this.repo.getOrThrow(orderId, 'Order not found');
     this.events.emit(ORDER_STATUS_CHANGED_EVENT, {
       orderId: updated.id,
       status: updated.status,
@@ -652,8 +626,12 @@ export class OrdersService {
 
       // Phase 2 — ALL writes.
       const changes = release();
+      // A cancelled sale isn't reported to Profit Plus, even when it was
+      // paid and still waiting to go (see ErpExportService).
       tx.update(orderRef, {
         status: OrderStatus.CANCELLED,
+        erpExportPending: false,
+        erpExportNextAttemptAt: null,
         updatedAt: FieldValue.serverTimestamp(),
       });
       return changes;

@@ -38,6 +38,7 @@ const REVENUE_STATUSES = [
   OrderStatus.PAID,
   OrderStatus.PREPARING,
   OrderStatus.SHIPPED,
+  OrderStatus.READY_FOR_PICKUP,
   OrderStatus.FULFILLED,
 ];
 

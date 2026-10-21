@@ -60,6 +60,25 @@ const order = (category: string, total: number) => ({
 });
 
 describe('ReportsService', () => {
+  it('counts pickup orders waiting to be collected as sales', async () => {
+    const stub = stubFirestore({ orders: [] });
+    await new ReportsService(stub.firestore as never).rollupDay(new Date('2026-10-10T15:00:00Z'));
+    const statuses = stub.wheres.find((w) => w[1] === 'status')?.[3] as string[];
+    expect(statuses).toContain('ready_for_pickup');
+  });
+
+  it('adds no margin for a sale whose product had no cost', async () => {
+    const noCost = order('Cables', 30);
+    delete (noCost.items[0] as { unitCost?: number }).unitCost;
+    const stub = stubFirestore({ orders: [noCost, order('Breakers', 10)] });
+    const profit = await new ReportsService(stub.firestore as never).profitability(
+      new Date('2026-09-01T00:00:00Z'),
+      new Date('2026-10-01T00:00:00Z'),
+    );
+    expect(profit.find((p) => p.productId === 'Cables')).toMatchObject({ revenue: 30, margin: 0 });
+    expect(profit.find((p) => p.productId === 'Breakers')).toMatchObject({ margin: 9 });
+  });
+
   it('reads a range of orders once for the reports the dashboard asks for together', async () => {
     const stub = stubFirestore({ orders: [order('Cables', 30), order('Breakers', 10)] });
     const reports = new ReportsService(stub.firestore as never);

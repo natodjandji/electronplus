@@ -1,4 +1,4 @@
-import { BadRequestException, ConflictException, ForbiddenException } from '@nestjs/common';
+import { BadRequestException, ConflictException } from '@nestjs/common';
 import { EventEmitter2 } from '@nestjs/event-emitter';
 import { FakeFirestore } from '../../test/fake-firestore';
 import { Collections } from '../../firebase/firestore-collections';
@@ -66,6 +66,49 @@ describe('OrdersService.cancel', () => {
       stockCommitted: jest.fn().mockResolvedValue(undefined),
     };
   }
+
+  it('takes a cancelled sale off the ERP queue', async () => {
+    const firestore = new FakeFirestore();
+    firestore.seed(Collections.ORDERS, orderId, {
+      userId: 'user-1',
+      status: OrderStatus.PAID,
+      erpExportPending: true,
+      items: [{ productId: 'p1', qty: 2 }],
+      createdAt: new Date(),
+      updatedAt: new Date(),
+    });
+    const service = buildService(firestore, fakeProductsService());
+
+    await service.cancel(orderId);
+
+    expect(firestore.read(Collections.ORDERS, orderId)).toMatchObject({
+      status: OrderStatus.CANCELLED,
+      erpExportPending: false,
+    });
+  });
+
+  it('never advances an order that was cancelled', async () => {
+    const firestore = new FakeFirestore();
+    firestore.seed(Collections.ORDERS, orderId, {
+      userId: 'user-1',
+      status: OrderStatus.CANCELLED,
+      items: [],
+      createdAt: new Date(),
+      updatedAt: new Date(),
+    });
+    const service = buildService(firestore, fakeProductsService());
+
+    await expect(service.advanceStatus(orderId)).rejects.toThrow(BadRequestException);
+    expect(firestore.read(Collections.ORDERS, orderId)?.status).toBe(OrderStatus.CANCELLED);
+  });
+
+  it('advances a paid order one stage', async () => {
+    const firestore = new FakeFirestore();
+    seedPaidOrder(firestore);
+    const service = buildService(firestore, fakeProductsService());
+
+    expect((await service.advanceStatus(orderId)).status).toBe(OrderStatus.PREPARING);
+  });
 
   it('cancels a paid order and credits stock back exactly once', async () => {
     const firestore = new FakeFirestore();
@@ -168,7 +211,7 @@ describe('OrdersService checkout guards', () => {
       reserveStock: jest.fn().mockReturnValue(9),
       stockCommitted: jest.fn().mockResolvedValue(undefined),
     };
-    const paymentsService = { initiate: jest.fn() };
+    const paymentsService = { initiate: jest.fn(), assertMethodOffered: jest.fn() };
     const service = new OrdersService(
       firestore as unknown as ConstructorParameters<typeof OrdersService>[0],
       productsService as unknown as ConstructorParameters<typeof OrdersService>[1],
@@ -182,35 +225,22 @@ describe('OrdersService checkout guards', () => {
     return { service, productsService, paymentsService };
   }
 
-  it('refuses credit_b2b for an account without a credit line, before reserving stock', async () => {
+  it('refuses a payment method the store switched off, before reserving stock', async () => {
     const firestore = new FakeFirestore();
-    firestore.seed(Collections.USERS, client.id, { role: Role.CLIENT });
-    const { service, productsService } = build(firestore);
+    const { service, productsService, paymentsService } = build(firestore);
+    paymentsService.assertMethodOffered.mockRejectedValue(
+      new BadRequestException('Ese método de pago no está disponible. Elige otro.'),
+    );
 
     await expect(
       service.create(client, {
         items: [{ productId: 'p1', qty: 1 }],
-        paymentMethod: PaymentMethod.CREDIT_B2B,
+        paymentMethod: PaymentMethod.ZELLE,
         fulfillmentMethod: FulfillmentMethod.PICKUP,
         shipping: pickup,
       }),
-    ).rejects.toThrow(ForbiddenException);
+    ).rejects.toThrow('no está disponible');
     expect(productsService.getForUpdateMany).not.toHaveBeenCalled();
-  });
-
-  it('refuses credit_b2b above the account credit line', async () => {
-    const firestore = new FakeFirestore();
-    firestore.seed(Collections.USERS, client.id, { role: Role.CLIENT, creditLimit: 50 });
-    const { service, paymentsService } = build(firestore);
-
-    await expect(
-      service.create(client, {
-        items: [{ productId: 'p1', qty: 1 }],
-        paymentMethod: PaymentMethod.CREDIT_B2B,
-        fulfillmentMethod: FulfillmentMethod.PICKUP,
-        shipping: pickup,
-      }),
-    ).rejects.toThrow('supera tu línea de crédito');
     expect(paymentsService.initiate).not.toHaveBeenCalled();
   });
 
@@ -280,9 +310,9 @@ describe('OrdersService checkout guards', () => {
   });
 });
 
-/** A payment can be confirmed twice (credit B2B is verified at checkout and
- * its payment.verified event arrives as well). Only the first confirmation
- * may flag the sale for the ERP and fire the paid events. */
+/** A payment can be confirmed more than once (two admins, a retried
+ * request). Only the first confirmation may flag the sale for the ERP and
+ * fire the paid events. */
 describe('OrdersService.markPaid', () => {
   function build(status: OrderStatus, extra: Record<string, unknown> = {}) {
     const firestore = new FakeFirestore();
@@ -368,7 +398,10 @@ describe('OrdersService stock per product', () => {
       firestore as never,
       productsService,
       { priceFor: (p: { retailPrice: number }) => p.retailPrice } as never,
-      { initiate: jest.fn().mockResolvedValue({ status: 'pending' }) } as never,
+      {
+        initiate: jest.fn().mockResolvedValue({ status: 'pending' }),
+        assertMethodOffered: jest.fn(),
+      } as never,
       {} as never,
       new DiscountCodesService(firestore as never),
       quotesService as never,
@@ -496,7 +529,7 @@ describe('OrdersService · Cashea', () => {
       firestore as never,
       productsService as never,
       {} as never,
-      payments as never,
+      { assertMethodOffered: jest.fn(), ...payments } as never,
       {} as never,
       new DiscountCodesService(firestore as never),
       {} as never,

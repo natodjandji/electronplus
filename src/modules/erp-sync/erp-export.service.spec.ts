@@ -49,6 +49,13 @@ describe('ErpExportService', () => {
     expect(reportSale).toHaveBeenCalledTimes(1);
   });
 
+  it('never reports a sale cancelled after it was paid', async () => {
+    const { service, reportSale, read } = build({ status: 'cancelled' });
+    expect(await service.exportOrder('o1')).toBe('skipped');
+    expect(reportSale).not.toHaveBeenCalled();
+    expect(read().erpExportPending).toBe(false);
+  });
+
   it('leaves an order alone while another attempt holds it', async () => {
     const { service, reportSale } = build({ erpExportClaimedUntil: new Date(Date.now() + 60_000) });
     expect(await service.exportOrder('o1')).toBe('skipped');

@@ -31,6 +31,10 @@ import {
 } from './entities/payment.entity';
 import { PayPalClient } from './paypal.client';
 
+/** Emitted with emitAsync and awaited: its listener marks the order paid,
+ * and on Cloud Run work left running after the response may never finish
+ * (the instance loses its CPU), leaving a verified payment on an order
+ * still waiting for payment. */
 export const PAYMENT_VERIFIED_EVENT = 'payment.verified';
 const CASHEA_STATUS_TTL_MS = 60_000;
 
@@ -98,7 +102,21 @@ export class PaymentsService {
     }
   }
 
-  /** Records a manual-reconciliation or credit-B2B payment intent for an order. */
+  /** Refuses a method the store doesn't offer: the API takes the method
+   * from the request, so without this one switched off in the
+   * payment-methods panel could still be used. Checked before the order
+   * reserves any stock. */
+  async assertMethodOffered(method: PaymentMethod): Promise<void> {
+    const offered = (await this.paymentMethods.list()).some(
+      (m) => m.enabled && m.backendMethod === method,
+    );
+    if (!offered) {
+      throw new BadRequestException('Ese método de pago no está disponible. Elige otro.');
+    }
+  }
+
+  /** Records a manual-reconciliation payment intent for an order (or starts
+   * its PayPal or Cashea checkout). */
   async initiate(
     orderId: string,
     method: PaymentMethod,
@@ -107,7 +125,6 @@ export class PaymentsService {
     proofBase64?: string,
   ): Promise<Payment> {
     const isManual = MANUAL_RECONCILIATION_METHODS.includes(method);
-    const isCredit = method === PaymentMethod.CREDIT_B2B;
 
     if (method === PaymentMethod.CASHEA) return this.startCashea(orderId);
 
@@ -122,7 +139,7 @@ export class PaymentsService {
       });
     }
 
-    if (!isManual && !isCredit) {
+    if (!isManual) {
       throw new BadRequestException(`Unsupported payment method: ${method}`);
     }
 
@@ -130,26 +147,14 @@ export class PaymentsService {
       ? await this.uploadsService.uploadPaymentProof(proofBase64)
       : undefined;
 
-    const saved = await this.repo.create({
+    return this.repo.create({
       orderId,
       method,
       amount,
       reference,
       proofUrl,
-      // Credit B2B is an internally-extended line of credit — it settles on
-      // agreed terms, not via upfront verification, so it's auto-verified.
-      status: isCredit ? PaymentStatus.VERIFIED : PaymentStatus.PENDING,
-      verifiedAt: isCredit ? new Date() : undefined,
+      status: PaymentStatus.PENDING,
     });
-
-    if (isCredit) {
-      this.events.emit(PAYMENT_VERIFIED_EVENT, {
-        orderId,
-        paymentId: saved.id,
-      } satisfies PaymentVerifiedEvent);
-    }
-
-    return saved;
   }
 
   async findByOrder(orderId: string, user: AuthenticatedUser): Promise<Payment[]> {
@@ -198,7 +203,7 @@ export class PaymentsService {
       tx.update(ref, patch);
       return { ...payment, ...patch };
     });
-    this.events.emit(PAYMENT_VERIFIED_EVENT, {
+    await this.events.emitAsync(PAYMENT_VERIFIED_EVENT, {
       orderId: saved.orderId,
       paymentId: saved.id,
     } satisfies PaymentVerifiedEvent);
@@ -304,7 +309,7 @@ export class PaymentsService {
     });
 
     if (verifiedNow) {
-      this.events.emit(PAYMENT_VERIFIED_EVENT, {
+      await this.events.emitAsync(PAYMENT_VERIFIED_EVENT, {
         orderId: saved.orderId,
         paymentId: saved.id,
       } satisfies PaymentVerifiedEvent);
@@ -563,7 +568,7 @@ export class PaymentsService {
       return { saved: { ...current, ...patch }, verifiedNow: true };
     });
     if (verifiedNow) {
-      this.events.emit(PAYMENT_VERIFIED_EVENT, {
+      await this.events.emitAsync(PAYMENT_VERIFIED_EVENT, {
         orderId: saved.orderId,
         paymentId: saved.id,
       } satisfies PaymentVerifiedEvent);

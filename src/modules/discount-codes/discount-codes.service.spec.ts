@@ -97,6 +97,19 @@ describe('DiscountCodesService limits', () => {
     expect(firestore.read(Collections.DISCOUNT_CODES, 'GONE')).toBeUndefined();
   });
 
+  it('gives nothing back to a code re-created after the order used the old one', async () => {
+    const { firestore, service, tx } = build({ usedCount: 3, createdAt: new Date('2026-10-10') });
+    const release = await service.beginRelease(
+      await tx(),
+      'PROMO',
+      'u1',
+      'o1',
+      new Date('2026-10-01'),
+    );
+    release();
+    expect(firestore.read(Collections.DISCOUNT_CODES, 'PROMO')?.usedCount).toBe(3);
+  });
+
   it('refuses a percentage above 100', async () => {
     const { service } = build({});
     await expect(service.update('PROMO', { value: 150 })).rejects.toThrow(BadRequestException);

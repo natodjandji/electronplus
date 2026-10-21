@@ -18,7 +18,5 @@ export interface User extends FirestoreDoc {
 
   role: Role;
 
-  creditLimit?: number;
-  creditTermDays?: number;
   active: boolean;
 }

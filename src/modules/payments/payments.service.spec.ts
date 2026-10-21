@@ -258,3 +258,58 @@ describe('PaymentsService', () => {
     });
   });
 });
+
+describe('PaymentsService · offered methods and confirmation', () => {
+  function build(
+    firestore: FakeFirestore,
+    methods: { backendMethod: PaymentMethod; enabled: boolean }[],
+    events = new EventEmitter2(),
+  ) {
+    return new PaymentsService(
+      firestore as never,
+      {} as never,
+      events,
+      {} as never,
+      {} as never,
+      { list: jest.fn().mockResolvedValue(methods) } as never,
+      {} as never,
+    );
+  }
+
+  it('accepts only a method the store has switched on', async () => {
+    const service = build(new FakeFirestore(), [
+      { backendMethod: PaymentMethod.PAGO_MOVIL, enabled: true },
+      { backendMethod: PaymentMethod.CASH, enabled: false },
+    ]);
+    await expect(service.assertMethodOffered(PaymentMethod.PAGO_MOVIL)).resolves.toBeUndefined();
+    await expect(service.assertMethodOffered(PaymentMethod.CASH)).rejects.toThrow(
+      'no está disponible',
+    );
+    await expect(service.assertMethodOffered(PaymentMethod.ZELLE)).rejects.toThrow(
+      BadRequestException,
+    );
+  });
+
+  it('answers a verification only once the order has been marked paid', async () => {
+    const firestore = new FakeFirestore();
+    firestore.seed(Collections.ORDERS, 'order-1', { userId: 'user-1' });
+    firestore.seed(Collections.PAYMENTS, 'payment-1', {
+      orderId: 'order-1',
+      method: PaymentMethod.BANK_TRANSFER,
+      amount: 100,
+      status: PaymentStatus.PENDING,
+      createdAt: new Date(),
+      updatedAt: new Date(),
+    });
+    const events = new EventEmitter2();
+    let orderPaid = false;
+    events.on('payment.verified', async () => {
+      await new Promise((resolve) => setTimeout(resolve, 10));
+      orderPaid = true;
+    });
+
+    await build(firestore, [], events).verifyManual('payment-1', 'admin-1');
+
+    expect(orderPaid).toBe(true);
+  });
+});
