@@ -43,6 +43,7 @@ import {
   type CatalogSort,
 } from "@/lib/catalog-sort";
 import { catalogQuery, toProduct } from "@/lib/product-api";
+import { CONTACT_INFO } from "@/lib/contact-info";
 import { formatMoney, useElectronStore } from "@/lib/electron-store";
 import { formatBs, useBcvRate } from "@/lib/use-bcv-rate";
 import { absoluteUrl } from "@/lib/site-url";
@@ -375,14 +376,46 @@ function CatalogPage() {
             </div>
             <p className="mt-1 text-sm text-muted-foreground">Intenta de nuevo en unos minutos.</p>
           </Card>
-        ) : filtered.length === 0 ? (
+        ) : !products?.length ? (
+          <Card className="p-10 text-center">
+            <div className="text-sm font-semibold text-brand-navy">
+              Estamos cargando nuestro catálogo
+            </div>
+            <p className="mt-1 text-sm text-muted-foreground">
+              Muy pronto verás aquí todos nuestros productos. Mientras tanto, escríbenos y te
+              ayudamos a cotizar.
+            </p>
+            <Button asChild className="mt-4 bg-brand-blue text-white hover:bg-brand-blue/90">
+              <a href={CONTACT_INFO.whatsappHref} target="_blank" rel="noopener noreferrer">
+                Escríbenos por WhatsApp
+              </a>
+            </Button>
+          </Card>
+        ) : filtered.length === 0 && activeFilterCount > 0 ? (
           <Card className="p-10 text-center">
             <div className="text-sm font-semibold text-brand-navy">
               Sin resultados con estos filtros
             </div>
             <p className="mt-1 text-sm text-muted-foreground">
-              Prueba ampliando el rango de precio o quitando alguna categoría.
+              Prueba quitando alguno de los filtros.
             </p>
+            <Button variant="outline" className="mt-4" onClick={clearFilters}>
+              Limpiar filtros
+            </Button>
+          </Card>
+        ) : filtered.length === 0 ? (
+          <Card className="p-10 text-center">
+            <div className="text-sm font-semibold text-brand-navy">
+              Sin resultados para «{q.trim()}»
+            </div>
+            <p className="mt-1 text-sm text-muted-foreground">
+              Prueba con otras palabras o escríbenos y te ayudamos a encontrarlo.
+            </p>
+            <Button asChild className="mt-4 bg-brand-blue text-white hover:bg-brand-blue/90">
+              <a href={CONTACT_INFO.whatsappHref} target="_blank" rel="noopener noreferrer">
+                Escríbenos por WhatsApp
+              </a>
+            </Button>
           </Card>
         ) : (
           <>

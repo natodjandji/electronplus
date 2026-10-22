@@ -128,10 +128,14 @@ function PrivacyPage() {
               dirección de la página y el error para poder corregirlo. Tu carrito y tu sesión se
               guardan en tu propio navegador.
             </li>
+            <li>
+              <strong>Estadísticas de visitas:</strong> usamos Cloudflare Web Analytics para saber
+              qué páginas se visitan y qué tan rápido cargan. Recoge la página visitada, de qué
+              página vienes, el tipo de navegador y dispositivo y el país, sin cookies y sin
+              identificarte.
+            </li>
           </List>
-          <p className="mt-3">
-            No usamos herramientas de analítica ni píxeles o cookies de publicidad.
-          </p>
+          <p className="mt-3">No usamos píxeles ni cookies de publicidad.</p>
         </Section>
 
         <Section id="usos">
@@ -176,7 +180,8 @@ function PrivacyPage() {
               datos, inicio de sesión y almacenamiento de archivos.
             </li>
             <li>
-              <strong>Cloudflare:</strong> entrega de la página y protección contra ataques.
+              <strong>Cloudflare:</strong> entrega de la página, protección contra ataques y
+              estadísticas de visitas.
             </li>
             <li>
               <strong>Meta (WhatsApp e Instagram):</strong> el envío y la recepción de los mensajes

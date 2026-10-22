@@ -28,6 +28,9 @@ function NotFoundComponent() {
           real page. React hoists it into <head>; alongside the root's
           "index, follow", search engines honour the stricter noindex. */}
       <meta name="robots" content="noindex" />
+      {/* Hoisted the same way; React puts it ahead of the root's title, so
+          the tab doesn't keep the store's generic one. */}
+      <title>Página no encontrada · Electron Plus</title>
       <div className="max-w-md text-center">
         <h1 className="text-7xl font-bold text-brand-navy">404</h1>
         <h2 className="mt-4 text-xl font-semibold text-brand-navy">Página no encontrada</h2>
