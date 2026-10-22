@@ -84,7 +84,7 @@ describe('AdminAlertsService', () => {
     expect(sent).toEqual([
       {
         to: ADMIN,
-        name: 'alerta_stock_varios',
+        name: 'alerta_inventario_varios',
         body: [
           'Bombillo LED 9W (LED9): agotado · Cable THHN 12 (CAB12): agotado · Breaker 20A (BRK20): quedan 3',
           '3',
@@ -101,10 +101,10 @@ describe('AdminAlertsService', () => {
     const out = stockSummary([{ ...product, level: StockAlertLevel.OUT, stock: 0 }]);
     const low = stockSummary([{ ...product, level: StockAlertLevel.LOW, stock: 2 }]);
     expect(renderTemplate(out.template, out.params)).toBe(
-      '*Producto agotado*\nBombillo LED 9W (LED9) se quedó sin unidades disponibles.',
+      '*Producto agotado*\nEl inventario de tu cuenta registró 0 existencias del artículo Bombillo LED 9W (LED9) en su último movimiento.',
     );
     expect(renderTemplate(low.template, low.params)).toBe(
-      '*Stock bajo*\nBombillo LED 9W (LED9) tiene solo 2 unidades disponibles.',
+      '*Stock bajo*\nEl inventario de tu cuenta registró 2 existencias del artículo Bombillo LED 9W (LED9), por debajo del mínimo configurado.',
     );
   });
 
@@ -165,7 +165,7 @@ describe('AdminAlertsService', () => {
     });
     expect(sent.map(({ name, body }) => ({ name, body }))).toEqual([
       {
-        name: 'alerta_resena_para_atender',
+        name: 'alerta_resena_baja',
         body: ['"Me atendieron tarde"', 'Luis (0412-5550000)', '1'],
       },
       {
@@ -198,7 +198,7 @@ describe('AdminAlertsService', () => {
       sent: 1,
       failed: [{ phone: '15551975075', error: 'Meta messages respondió 400: not in allowed list' }],
     });
-    expect(sent).toEqual([{ to: ADMIN, name: 'alerta_prueba', body: [] }]);
+    expect(sent).toEqual([{ to: ADMIN, name: 'alerta_prueba_numero', body: [] }]);
   });
 });
 

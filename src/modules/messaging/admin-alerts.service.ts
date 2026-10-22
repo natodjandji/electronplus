@@ -276,7 +276,7 @@ export function stockSummary(
     const product = `${only.name} (${only.sku})`;
     return only.level === StockAlertLevel.OUT
       ? { template: STOCK_OUT, params: [product] }
-      : { template: STOCK_LOW, params: [product, String(only.stock)] };
+      : { template: STOCK_LOW, params: [String(only.stock), product] };
   }
   const byName = (a: { name: string }, b: { name: string }) => a.name.localeCompare(b.name, 'es');
   const out = alerts.filter((a) => a.level === StockAlertLevel.OUT).sort(byName);

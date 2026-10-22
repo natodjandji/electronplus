@@ -6,29 +6,32 @@ import type { WhatsappTemplate } from './whatsapp-template';
  * notification itself — the title in bold, then what happened. A template
  * can't be parameters alone: Meta rejects one that starts or ends with a
  * parameter (a closing period doesn't count) or has few words per
- * parameter, so each ends with a few fixed words of its own. The button
- * opens the panel page the alert is about.
+ * parameter, so each ends with a few fixed words of its own. Meta files
+ * one as marketing when it reads like product news (an item running out),
+ * and an approved template's category can't change, so those are worded as
+ * the account updates they are ("el inventario de tu cuenta registró…").
+ * The button opens the panel page the alert is about.
  */
 
 const panel = (text: string, page: string) => ({ text, path: `/admin/${page}` });
 
 export const STOCK_OUT: WhatsappTemplate = {
-  name: 'alerta_producto_agotado',
-  body: '*Producto agotado*\n{{1}} se quedó sin unidades disponibles.',
+  name: 'alerta_inventario_agotado',
+  body: '*Producto agotado*\nEl inventario de tu cuenta registró 0 existencias del artículo {{1}} en su último movimiento.',
   example: ['Bombillo LED 9W (LED-9W)'],
   button: panel('Ver inventario', 'stock'),
 };
 
 export const STOCK_LOW: WhatsappTemplate = {
-  name: 'alerta_stock_bajo',
-  body: '*Stock bajo*\n{{1}} tiene solo {{2}} unidades disponibles.',
-  example: ['Breaker 20A (BRK-20)', '3'],
+  name: 'alerta_inventario_bajo',
+  body: '*Stock bajo*\nEl inventario de tu cuenta registró {{1}} existencias del artículo {{2}}, por debajo del mínimo configurado.',
+  example: ['3', 'Breaker 20A (BRK-20)'],
   button: panel('Ver inventario', 'stock'),
 };
 
 export const STOCK_GROUPED: WhatsappTemplate = {
-  name: 'alerta_stock_varios',
-  body: '*Alertas de stock*\n{{1}}\nEn total, {{2}} productos necesitan reposición.',
+  name: 'alerta_inventario_varios',
+  body: '*Alertas de stock*\n{{1}}\nEl inventario de tu cuenta registró {{2}} artículos agotados o por debajo del mínimo configurado.',
   example: ['Bombillo LED 9W (LED-9W): agotado · Breaker 20A (BRK-20): quedan 3', '2'],
   button: panel('Ver inventario', 'stock'),
 };
@@ -47,6 +50,10 @@ export const INVOICE_OVERDUE: WhatsappTemplate = {
   button: panel('Ver compras', 'purchases'),
 };
 
+/** Still the first wording, which Meta filed as marketing. The utility one,
+ * alerta_gasto_proximo — "*Gasto por vencer*\nRecordatorio de pago: el
+ * gasto {{1}} registrado en tu cuenta vence el {{2}} y sigue pendiente." —
+ * is in Meta's review; swap it in once approved (same parameters). */
 export const EXPENSE_DUE_SOON: WhatsappTemplate = {
   name: 'alerta_gasto_por_vencer',
   body: '*Gasto por vencer*\nEl gasto {{1}} vence el {{2}} y sigue pendiente de pago.',
@@ -69,8 +76,8 @@ export const REVIEW_NEW: WhatsappTemplate = {
 };
 
 export const REVIEW_TO_HANDLE: WhatsappTemplate = {
-  name: 'alerta_resena_para_atender',
-  body: '*Reseña para atender*\n{{1}}\n{{2}} calificó la atención con {{3}} de 5 estrellas.',
+  name: 'alerta_resena_baja',
+  body: '*Reseña para atender*\n{{1}}\nEl formulario de reseñas de tu tienda registró la calificación de {{2}} con {{3}} de 5 estrellas.',
   example: ['"Me atendieron tarde"', 'Luis (0412-5550000)', '1'],
   button: panel('Ver reseñas', 'reviews'),
 };
@@ -97,8 +104,8 @@ export const SYNC_ERROR: WhatsappTemplate = {
 };
 
 export const TEST_ALERT: WhatsappTemplate = {
-  name: 'alerta_prueba',
-  body: '*Alerta de prueba*\nSi ves este mensaje, las alertas del panel llegan a este número.',
+  name: 'alerta_prueba_numero',
+  body: '*Alerta de prueba*\nConfirmación de configuración: este número recibe las alertas de tu cuenta del panel de Electron Plus.',
   example: [],
   button: panel('Abrir el panel', 'conversations'),
 };
