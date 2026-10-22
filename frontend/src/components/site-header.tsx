@@ -200,11 +200,6 @@ export function SiteHeader() {
             >
               Cotizar
             </MobileNavLink>
-            <RoleGate allow={["seller", "admin"]}>
-              <MobileNavLink to="/vendedor" icon={ScanLine} onNavigate={closeMobileNav}>
-                Ventas en tienda
-              </MobileNavLink>
-            </RoleGate>
             <RoleGate allow={["admin"]}>
               <MobileNavLink to="/admin" icon={LayoutDashboard} onNavigate={closeMobileNav}>
                 Panel
