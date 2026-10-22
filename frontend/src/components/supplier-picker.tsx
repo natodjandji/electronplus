@@ -116,7 +116,7 @@ export function CreateSupplierDialog({
   const [taxIdPrefix, setTaxIdPrefix] = useState<TaxIdPrefix>("J");
   const [taxIdNumber, setTaxIdNumber] = useState("");
   const [contactEmail, setContactEmail] = useState("");
-  const [phonePrefix, setPhonePrefix] = useState<PhonePrefix>("0212");
+  const [phonePrefix, setPhonePrefix] = useState<PhonePrefix>("0412");
   const [phoneNumber, setPhoneNumber] = useState("");
 
   const taxIdValid = validateTaxIdNumber(taxIdPrefix, taxIdNumber).valid;

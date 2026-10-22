@@ -1,19 +1,11 @@
+/** Mobile lines only: these numbers are for reaching people on WhatsApp,
+ * which a landline can't receive. */
 export const PHONE_PREFIXES = [
-  // Mobile
-  { value: "0412", label: "0412 (móvil)" },
-  { value: "0414", label: "0414 (móvil)" },
-  { value: "0416", label: "0416 (móvil)" },
-  { value: "0424", label: "0424 (móvil)" },
-  { value: "0426", label: "0426 (móvil)" },
-  // Common landline area codes
-  { value: "0212", label: "0212 (Caracas)" },
-  { value: "0241", label: "0241 (Valencia)" },
-  { value: "0243", label: "0243 (Maracay)" },
-  { value: "0251", label: "0251 (Barquisimeto)" },
-  { value: "0261", label: "0261 (Maracaibo)" },
-  { value: "0271", label: "0271 (San Cristóbal)" },
-  { value: "0281", label: "0281 (Puerto La Cruz)" },
-  { value: "0286", label: "0286 (Ciudad Guayana)" },
+  { value: "0412", label: "0412" },
+  { value: "0414", label: "0414" },
+  { value: "0416", label: "0416" },
+  { value: "0424", label: "0424" },
+  { value: "0426", label: "0426" },
 ] as const;
 
 export type PhonePrefix = (typeof PHONE_PREFIXES)[number]["value"];

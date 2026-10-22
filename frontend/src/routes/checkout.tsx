@@ -302,14 +302,11 @@ function CheckoutPage() {
     }
   };
 
-  // Only a mobile line gets WhatsApp.
-  const whatsappCapable = phonePrefix.startsWith("04");
-
   const buildShipping = () => ({
     fullName: fullName.trim(),
     phone: formatPhone(phonePrefix, phoneNumber)!,
     taxId: formatTaxId(taxIdPrefix, taxIdNumber),
-    whatsappUpdates: whatsappCapable && whatsappUpdates,
+    whatsappUpdates,
     ...(isPickup ? {} : { address: address.trim(), city, state }),
   });
 
@@ -630,16 +627,14 @@ function CheckoutPage() {
                           number={phoneNumber}
                           onNumberChange={setPhoneNumber}
                         />
-                        {whatsappCapable && (
-                          <label className="flex items-start gap-2 text-xs text-muted-foreground">
-                            <Checkbox
-                              checked={whatsappUpdates}
-                              onCheckedChange={(v) => setWhatsappUpdates(v === true)}
-                              className="mt-px"
-                            />
-                            Recibir las actualizaciones de mi pedido por WhatsApp
-                          </label>
-                        )}
+                        <label className="flex items-start gap-2 text-xs text-muted-foreground">
+                          <Checkbox
+                            checked={whatsappUpdates}
+                            onCheckedChange={(v) => setWhatsappUpdates(v === true)}
+                            className="mt-px"
+                          />
+                          Recibir las actualizaciones de mi pedido por WhatsApp
+                        </label>
                       </div>
                       <Field className="grid gap-1.5">
                         <Label className="text-xs font-medium text-brand-navy">Correo</Label>
