@@ -25,9 +25,8 @@ import {
   ORDER_STATUS_TEMPLATES,
   QUOTE_APPROVED,
   QUOTE_REJECTED,
-  renderTemplate,
-  type CustomerTemplate,
 } from './meta/customer-templates';
+import { renderTemplate, type WhatsappTemplate } from './meta/whatsapp-template';
 
 const PARAM_LIMIT = 60;
 
@@ -99,7 +98,7 @@ export class CustomerUpdatesService {
 
   private async sendForOrder(
     order: Order,
-    template: CustomerTemplate,
+    template: WhatsappTemplate,
     extra: string[] = [],
   ): Promise<void> {
     const to = order.whatsappUpdates ? whatsappNumber(order.shippingPhone) : null;
@@ -112,7 +111,7 @@ export class CustomerUpdatesService {
 
   private async send(
     to: string,
-    template: CustomerTemplate,
+    template: WhatsappTemplate,
     message: { body: string[]; button?: string; customerName?: string },
   ): Promise<void> {
     // They asked in the chat to stop getting these.

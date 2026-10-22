@@ -5,23 +5,27 @@ import { SyncDirection } from '../erp-sync/entities/sync-log.entity';
 import { StockAlertLevel } from '../inventory/entities/stock-alert.entity';
 import { FulfillmentMethod } from '../orders/entities/order.entity';
 import { PaymentMethod } from '../payments/entities/payment.entity';
-import { AdminAlertsService, stockSummary, type AdminAlert } from './admin-alerts.service';
+import { AdminAlertsService, stockSummary } from './admin-alerts.service';
 import { MessagingSettingsService } from './messaging-settings.service';
-import { ALERT_DETAIL_LIMIT } from './meta/alert-template';
+import { ALERT_PARAMS_BUDGET, ALERT_TEMPLATES } from './meta/alert-templates';
+import { CUSTOMER_TEMPLATES } from './meta/customer-templates';
+import { renderTemplate } from './meta/whatsapp-template';
 
 const ADMIN = '584141610929';
 // 12:00:30 → wait at least a minute → the window ending at 12:02.
 const NOW = Date.parse('2026-10-21T12:00:30Z');
+// Template parameters are one plain line: the price's non-breaking space too.
+const TOTAL = formatMoney(45.5).replace(/\s/g, ' ');
 
 function setup(settings: Record<string, unknown> = { alertPhones: [ADMIN] }) {
   const firestore = new FakeFirestore();
   firestore.seed(Collections.SETTINGS, 'messaging', settings);
-  const sent: { to: string; alert: AdminAlert }[] = [];
+  const sent: { to: string; name: string; body: string[] }[] = [];
   const channels = {
     isConfigured: () => true,
-    sendAlert: jest.fn(async (to: string, alert: AdminAlert) => {
+    sendTemplate: jest.fn(async (to: string, name: string, params: { body: string[] }) => {
       if (to.startsWith('1')) throw new Error('Meta messages respondió 400: not in allowed list');
-      sent.push({ to, alert });
+      sent.push({ to, name, body: params.body });
       return 'wamid.out';
     }),
   };
@@ -80,12 +84,11 @@ describe('AdminAlertsService', () => {
     expect(sent).toEqual([
       {
         to: ADMIN,
-        alert: {
-          title: '2 productos agotados y 1 con stock bajo',
-          detail:
-            'Bombillo LED 9W (LED9): agotado · Cable THHN 12 (CAB12): agotado · Breaker 20A (BRK20): quedan 3',
-          panelPath: 'stock',
-        },
+        name: 'alerta_stock_varios',
+        body: [
+          'Bombillo LED 9W (LED9): agotado · Cable THHN 12 (CAB12): agotado · Breaker 20A (BRK20): quedan 3',
+          '3',
+        ],
       },
     ]);
     // Nothing left for the next window's send.
@@ -93,16 +96,16 @@ describe('AdminAlertsService', () => {
     expect(sent).toHaveLength(1);
   });
 
-  it('words a lone stock alert like the panel’s bell', () => {
-    expect(
-      stockSummary([
-        { sku: 'LED9', name: 'Bombillo LED 9W', level: StockAlertLevel.OUT, stock: 0 },
-      ]),
-    ).toEqual({
-      title: 'Producto agotado',
-      detail: 'Bombillo LED 9W (LED9): 0 unidades disponibles',
-      panelPath: 'stock',
-    });
+  it('sends a lone stock alert as itself', () => {
+    const product = { sku: 'LED9', name: 'Bombillo LED 9W' };
+    const out = stockSummary([{ ...product, level: StockAlertLevel.OUT, stock: 0 }]);
+    const low = stockSummary([{ ...product, level: StockAlertLevel.LOW, stock: 2 }]);
+    expect(renderTemplate(out.template, out.params)).toBe(
+      '*Producto agotado*\nBombillo LED 9W (LED9) se quedó sin unidades disponibles.',
+    );
+    expect(renderTemplate(low.template, low.params)).toBe(
+      '*Stock bajo*\nBombillo LED 9W (LED9) tiene solo 2 unidades disponibles.',
+    );
   });
 
   it('lists as many products as fit and counts the rest', () => {
@@ -112,11 +115,13 @@ describe('AdminAlertsService', () => {
       level: StockAlertLevel.LOW,
       stock: 1,
     }));
-    const { title, detail } = stockSummary(many);
-    expect(title).toBe('60 con stock bajo');
-    expect(detail.length).toBeLessThanOrEqual(ALERT_DETAIL_LIMIT);
-    const shown = detail.split(' · ').length - 1;
-    expect(detail).toMatch(new RegExp(` · y ${60 - shown} más$`));
+    const {
+      params: [list, count],
+    } = stockSummary(many);
+    expect(count).toBe('60');
+    expect(list.length).toBeLessThanOrEqual(ALERT_PARAMS_BUDGET / 2);
+    const shown = list.split(' · ').length - 1;
+    expect(list).toMatch(new RegExp(` · y ${60 - shown} más$`));
   });
 
   it('queues and sends nothing while no number is set', async () => {
@@ -131,11 +136,13 @@ describe('AdminAlertsService', () => {
   it('tells about a new order with who, how much, how it’s paid and where it goes', async () => {
     const { service, sent } = setup();
     await service.handleOrderCreated({ orderId: 'o1' });
-    expect(sent[0].alert).toEqual({
-      title: `Pedido nuevo · ${formatMoney(45.5)}`,
-      detail: 'Ana Pérez · 3 productos · Pago móvil · Envío a Chacao, Miranda',
-      panelPath: 'orders',
-    });
+    expect(sent).toEqual([
+      {
+        to: ADMIN,
+        name: 'alerta_pedido_nuevo',
+        body: ['Ana Pérez · 3 productos · Pago móvil · Envío a Chacao, Miranda', TOTAL],
+      },
+    ]);
   });
 
   it('flags a bad review and a chat waiting for a person', async () => {
@@ -156,16 +163,14 @@ describe('AdminAlertsService', () => {
       reason: 'Quiere pagar en efectivo al retirar',
       summary: '',
     });
-    expect(sent.map((s) => s.alert)).toEqual([
+    expect(sent.map(({ name, body }) => ({ name, body }))).toEqual([
       {
-        title: 'Reseña para atender: 1/5',
-        detail: 'Luis (0412-5550000) · "Me atendieron tarde"',
-        panelPath: 'reviews',
+        name: 'alerta_resena_para_atender',
+        body: ['"Me atendieron tarde"', 'Luis (0412-5550000)', '1'],
       },
       {
-        title: 'Cliente esperando en WhatsApp',
-        detail: 'María: Quiere pagar en efectivo al retirar',
-        panelPath: 'conversations',
+        name: 'alerta_cliente_esperando',
+        body: ['María', 'Quiere pagar en efectivo al retirar', 'WhatsApp'],
       },
     ]);
   });
@@ -176,11 +181,11 @@ describe('AdminAlertsService', () => {
     await service.handleErpSyncError(error);
     await service.handleErpSyncError(error);
     await service.handleErpSyncError({ ...error, message: 'Credenciales inválidas' });
-    expect(sent.map((s) => s.alert.detail)).toEqual([
-      'El bridge no respondió',
-      'Credenciales inválidas',
+    expect(sent.map((s) => s.body)).toEqual([
+      ['El bridge no respondió'],
+      ['Credenciales inválidas'],
     ]);
-    expect(sent[0].alert.panelPath).toBe('settings?tab=erp-sync');
+    expect(sent[0].name).toBe('alerta_error_profit');
 
     jest.setSystemTime(NOW + 7 * 60 * 60 * 1000);
     await service.handleErpSyncError(error);
@@ -193,6 +198,24 @@ describe('AdminAlertsService', () => {
       sent: 1,
       failed: [{ phone: '15551975075', error: 'Meta messages respondió 400: not in allowed list' }],
     });
-    expect(sent.map((s) => s.to)).toEqual([ADMIN]);
+    expect(sent).toEqual([{ to: ADMIN, name: 'alerta_prueba', body: [] }]);
+  });
+});
+
+describe('WhatsApp templates', () => {
+  it('follow Meta’s rules: text before the first parameter and words after the last', () => {
+    for (const template of [...ALERT_TEMPLATES, ...CUSTOMER_TEMPLATES]) {
+      const params = template.body.match(/\{\{\d+\}\}/g) ?? [];
+      expect(template.example).toHaveLength(params.length);
+      expect(template.body).not.toMatch(/^\{\{/);
+      // A closing period after the last parameter doesn't count as text.
+      if (params.length > 0) expect(template.body.split('}}').pop()).toMatch(/\p{L}/u);
+      expect(renderTemplate(template, template.example)).not.toContain('{{');
+    }
+  });
+
+  it('don’t repeat a name', () => {
+    const names = [...ALERT_TEMPLATES, ...CUSTOMER_TEMPLATES].map((t) => t.name);
+    expect(new Set(names).size).toBe(names.length);
   });
 });

@@ -6,7 +6,6 @@ import { QuoteStatus } from '../quotes/entities/quote.entity';
 import { ChatStoreService } from './chat-store.service';
 import { CustomerUpdatesService, whatsappNumber } from './customer-updates.service';
 import { MessagingSettingsService } from './messaging-settings.service';
-import { CUSTOMER_TEMPLATES, renderTemplate } from './meta/customer-templates';
 
 const CUSTOMER = '584121112233';
 const CHAT = `whatsapp_${CUSTOMER}`;
@@ -171,14 +170,5 @@ describe('whatsappNumber', () => {
     expect(whatsappNumber('0212-5551234')).toBeNull();
     expect(whatsappNumber('0414-12345')).toBeNull();
     expect(whatsappNumber(undefined)).toBeNull();
-  });
-});
-
-describe('customer templates', () => {
-  it('start and end with text, as Meta requires', () => {
-    for (const template of CUSTOMER_TEMPLATES) {
-      expect(template.body).not.toMatch(/^\{\{|\}\}[.!]?$/);
-      expect(renderTemplate(template, template.example)).not.toContain('{{');
-    }
   });
 });

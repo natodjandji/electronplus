@@ -2,12 +2,7 @@ import { Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { EnvConfig } from '../../../config/env.validation';
 import type { ChatChannel, ChatMedia } from '../entities/chat.entity';
-import {
-  ALERT_DETAIL_LIMIT,
-  ALERT_TEMPLATE_LANGUAGE,
-  ALERT_TEMPLATE_NAME,
-  ALERT_TITLE_LIMIT,
-} from './alert-template';
+import { TEMPLATE_LANGUAGE } from './whatsapp-template';
 import { fetchMedia, graphRequest } from './graph-api';
 
 /** A product as a card: WhatsApp sends an image with a button, Instagram a
@@ -114,21 +109,6 @@ export class ChatChannelsService {
     return ids;
   }
 
-  /** An admin alert on WhatsApp, through the approved template (see
-   * alert-template.ts): it reaches the number even with no open chat. */
-  async sendAlert(
-    to: string,
-    alert: { title: string; detail: string; panelPath: string },
-  ): Promise<string | undefined> {
-    return this.sendTemplate(to, ALERT_TEMPLATE_NAME, {
-      body: [
-        templateParam(alert.title, ALERT_TITLE_LIMIT),
-        templateParam(alert.detail, ALERT_DETAIL_LIMIT),
-      ],
-      button: alert.panelPath,
-    });
-  }
-
   /** An approved WhatsApp template (Spanish): its body parameters in order,
    * and the end of its URL button's address when the button takes one. */
   async sendTemplate(
@@ -140,7 +120,7 @@ export class ChatChannelsService {
       type: 'template',
       template: {
         name,
-        language: { code: ALERT_TEMPLATE_LANGUAGE },
+        language: { code: TEMPLATE_LANGUAGE },
         components: [
           {
             type: 'body',

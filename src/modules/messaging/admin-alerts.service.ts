@@ -26,16 +26,31 @@ import { PAYMENT_METHOD_LABEL } from '../quotes/customer-quote-pdf';
 import { REVIEW_CREATED_EVENT, type ReviewCreatedEvent } from '../reviews/reviews.service';
 import { CHAT_HANDOFF_EVENT, type ChatHandoffEvent } from './messaging.events';
 import { MessagingSettingsService } from './messaging-settings.service';
-import { ALERT_DETAIL_LIMIT } from './meta/alert-template';
-import { ChatChannelsService } from './meta/chat-channels.service';
+import {
+  ALERT_PARAMS_BUDGET,
+  CUSTOMER_WAITING,
+  EXPENSE_DUE_SOON,
+  EXPENSE_OVERDUE,
+  INVOICE_DUE_SOON,
+  INVOICE_OVERDUE,
+  ORDER_NEW,
+  REVIEW_NEW,
+  REVIEW_TO_HANDLE,
+  STOCK_GROUPED,
+  STOCK_LOW,
+  STOCK_OUT,
+  SYNC_ERROR,
+  TEST_ALERT,
+} from './meta/alert-templates';
+import { ChatChannelsService, templateParam } from './meta/chat-channels.service';
+import type { WhatsappTemplate } from './meta/whatsapp-template';
 import { ReplyQueueService } from './reply-queue.service';
 
-/** An alert as it reaches WhatsApp: the template's title and detail, and
- * the admin page its button opens (the part after /admin/). */
+/** An alert as it reaches WhatsApp: its kind's template (alert-templates.ts)
+ * and that template's parameters, in order. */
 export interface AdminAlert {
-  title: string;
-  detail: string;
-  panelPath: string;
+  template: WhatsappTemplate;
+  params: string[];
 }
 
 export interface AlertDelivery {
@@ -51,7 +66,6 @@ const STOCK_WINDOW_MS = 2 * 60_000;
 /** A Profit Plus error repeats on every sync tick until someone fixes it;
  * the same one goes out at most this often. */
 const SYNC_ERROR_COOLDOWN_MS = 6 * 60 * 60 * 1000;
-const RATING_LABELS = ['', 'Muy mala', 'Mala', 'Regular', 'Buena', 'Excelente'];
 
 interface PendingStockAlert extends FirestoreDoc {
   sku: string;
@@ -99,25 +113,23 @@ export class AdminAlertsService implements OnModuleInit {
   /** To every alert number; one that fails doesn't stop the rest. */
   async send(alert: AdminAlert): Promise<AlertDelivery> {
     const delivery: AlertDelivery = { sent: 0, failed: [] };
+    const limit = Math.floor(ALERT_PARAMS_BUDGET / Math.max(1, alert.params.length));
+    const body = alert.params.map((p) => templateParam(p, limit));
     for (const phone of await this.recipients()) {
       try {
-        await this.channels.sendAlert(phone, alert);
+        await this.channels.sendTemplate(phone, alert.template.name, { body });
         delivery.sent++;
       } catch (error) {
         const message = (error as Error).message;
         delivery.failed.push({ phone, error: message });
-        this.logger.error(`WhatsApp alert "${alert.title}" to ${phone} failed: ${message}`);
+        this.logger.error(`WhatsApp alert ${alert.template.name} to ${phone} failed: ${message}`);
       }
     }
     return delivery;
   }
 
   sendTest(): Promise<AlertDelivery> {
-    return this.send({
-      title: 'Alerta de prueba',
-      detail: 'Si ves este mensaje, las alertas del panel llegan a este número.',
-      panelPath: 'conversations',
-    });
+    return this.send({ template: TEST_ALERT, params: [] });
   }
 
   private async recipients(): Promise<string[]> {
@@ -171,10 +183,9 @@ export class AdminAlertsService implements OnModuleInit {
   async handleInvoiceDue(payload: InvoiceDueAlertEvent): Promise<void> {
     await this.safely(`invoice ${payload.invoiceNumber}`, () =>
       this.send({
-        title:
-          payload.dueStatus === PayableDueStatus.OVERDUE ? 'Factura vencida' : 'Factura por vencer',
-        detail: `${payload.supplierName} · Factura ${payload.invoiceNumber} vence el ${payload.dueDate}`,
-        panelPath: 'purchases',
+        template:
+          payload.dueStatus === PayableDueStatus.OVERDUE ? INVOICE_OVERDUE : INVOICE_DUE_SOON,
+        params: [payload.invoiceNumber, payload.supplierName, payload.dueDate],
       }),
     );
   }
@@ -183,10 +194,9 @@ export class AdminAlertsService implements OnModuleInit {
   async handleExpenseDue(payload: ExpenseDueAlertEvent): Promise<void> {
     await this.safely(`expense ${payload.name}`, () =>
       this.send({
-        title:
-          payload.dueStatus === ExpenseDueStatus.OVERDUE ? 'Gasto vencido' : 'Gasto por vencer',
-        detail: `${payload.name} vence el ${payload.dueDate}`,
-        panelPath: 'expenses',
+        template:
+          payload.dueStatus === ExpenseDueStatus.OVERDUE ? EXPENSE_OVERDUE : EXPENSE_DUE_SOON,
+        params: [payload.name, payload.dueDate],
       }),
     );
   }
@@ -200,9 +210,12 @@ export class AdminAlertsService implements OnModuleInit {
   async handleChatHandoff(payload: ChatHandoffEvent): Promise<void> {
     await this.safely(`handoff ${payload.conversationId}`, () =>
       this.send({
-        title: `Cliente esperando en ${payload.channel === 'whatsapp' ? 'WhatsApp' : 'Instagram'}`,
-        detail: `${payload.customerName ?? 'Un cliente'}: ${payload.reason}`,
-        panelPath: 'conversations',
+        template: CUSTOMER_WAITING,
+        params: [
+          payload.customerName ?? 'Un cliente',
+          payload.reason,
+          payload.channel === 'whatsapp' ? 'WhatsApp' : 'Instagram',
+        ],
       }),
     );
   }
@@ -218,14 +231,16 @@ export class AdminAlertsService implements OnModuleInit {
           ? 'Retiro en tienda'
           : `Envío a ${[order.shippingCity, order.shippingState].filter(Boolean).join(', ') || 'domicilio'}`;
       await this.send({
-        title: `Pedido nuevo · ${formatMoney(order.totalAmount)}`,
-        detail: [
-          order.shippingFullName,
-          `${units} ${units === 1 ? 'producto' : 'productos'}`,
-          PAYMENT_METHOD_LABEL[order.paymentMethod] ?? order.paymentMethod,
-          delivery,
-        ].join(' · '),
-        panelPath: 'orders',
+        template: ORDER_NEW,
+        params: [
+          [
+            order.shippingFullName,
+            `${units} ${units === 1 ? 'producto' : 'productos'}`,
+            PAYMENT_METHOD_LABEL[order.paymentMethod] ?? order.paymentMethod,
+            delivery,
+          ].join(' · '),
+          formatMoney(order.totalAmount),
+        ],
       });
     });
   }
@@ -238,11 +253,7 @@ export class AdminAlertsService implements OnModuleInit {
       const last = await this.cooldowns.findById(key);
       if (last && Date.now() - last.sentAt.getTime() < SYNC_ERROR_COOLDOWN_MS) return;
       await this.cooldowns.patch(key, { sentAt: new Date() });
-      await this.send({
-        title: 'Error de sincronización con Profit Plus',
-        detail: payload.message,
-        panelPath: 'settings?tab=erp-sync',
-      });
+      await this.send({ template: SYNC_ERROR, params: [payload.message] });
     });
   }
 
@@ -255,37 +266,28 @@ export class AdminAlertsService implements OnModuleInit {
   }
 }
 
-/** The waiting stock alerts as one message: out of stock first, then low,
- * as many as fit. */
+/** The waiting stock alerts as one message: a lone one as itself, several
+ * as a list, out of stock first, as many as fit. */
 export function stockSummary(
   alerts: Pick<PendingStockAlert, 'sku' | 'name' | 'level' | 'stock'>[],
 ): AdminAlert {
+  if (alerts.length === 1) {
+    const [only] = alerts;
+    const product = `${only.name} (${only.sku})`;
+    return only.level === StockAlertLevel.OUT
+      ? { template: STOCK_OUT, params: [product] }
+      : { template: STOCK_LOW, params: [product, String(only.stock)] };
+  }
   const byName = (a: { name: string }, b: { name: string }) => a.name.localeCompare(b.name, 'es');
   const out = alerts.filter((a) => a.level === StockAlertLevel.OUT).sort(byName);
   const low = alerts.filter((a) => a.level !== StockAlertLevel.OUT).sort(byName);
-
-  if (alerts.length === 1) {
-    const [only] = alerts;
-    return {
-      title: only.level === StockAlertLevel.OUT ? 'Producto agotado' : 'Stock bajo',
-      detail: `${only.name} (${only.sku}): ${only.stock} unidades disponibles`,
-      panelPath: 'stock',
-    };
-  }
-
-  const counts = [
-    out.length > 0 &&
-      `${out.length} ${out.length === 1 ? 'producto agotado' : 'productos agotados'}`,
-    low.length > 0 && `${low.length} con stock bajo`,
-  ].filter(Boolean);
   const lines = [
     ...out.map((a) => `${a.name} (${a.sku}): agotado`),
     ...low.map((a) => `${a.name} (${a.sku}): quedan ${a.stock}`),
   ];
   return {
-    title: counts.join(' y '),
-    detail: fitList(lines, ALERT_DETAIL_LIMIT),
-    panelPath: 'stock',
+    template: STOCK_GROUPED,
+    params: [fitList(lines, Math.floor(ALERT_PARAMS_BUDGET / 2)), String(alerts.length)],
   };
 }
 
@@ -301,22 +303,17 @@ function fitList(items: string[], max: number): string {
 }
 
 function reviewAlert(review: ReviewCreatedEvent): AdminAlert {
-  const label = RATING_LABELS[review.rating] ?? '';
   const who = review.customerName
     ? `${review.customerName}${review.customerPhone ? ` (${review.customerPhone})` : ''}`
-    : 'Cliente sin nombre';
+    : 'Un cliente sin nombre';
+  const comment = [
+    review.message ? `"${review.message}"` : 'Sin comentario',
+    review.sellerName && `Atendió ${review.sellerName}`,
+  ]
+    .filter(Boolean)
+    .join(' · ');
   return {
-    title:
-      review.rating <= 2
-        ? `Reseña para atender: ${review.rating}/5`
-        : `Reseña nueva: ${review.rating}/5 (${label})`,
-    detail: [
-      who,
-      review.message ? `"${review.message}"` : 'Sin comentario',
-      review.sellerName && `Atendió ${review.sellerName}`,
-    ]
-      .filter(Boolean)
-      .join(' · '),
-    panelPath: 'reviews',
+    template: review.rating <= 2 ? REVIEW_TO_HANDLE : REVIEW_NEW,
+    params: [comment, who, String(review.rating)],
   };
 }
