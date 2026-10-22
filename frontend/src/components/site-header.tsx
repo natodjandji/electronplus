@@ -200,6 +200,12 @@ export function SiteHeader() {
             >
               Cotizar
             </MobileNavLink>
+            {/* Sellers only: admins reach in-store sales from the panel. */}
+            <RoleGate allow={["seller"]}>
+              <MobileNavLink to="/vendedor" icon={ScanLine} onNavigate={closeMobileNav}>
+                Ventas en tienda
+              </MobileNavLink>
+            </RoleGate>
             <RoleGate allow={["admin"]}>
               <MobileNavLink to="/admin" icon={LayoutDashboard} onNavigate={closeMobileNav}>
                 Panel
