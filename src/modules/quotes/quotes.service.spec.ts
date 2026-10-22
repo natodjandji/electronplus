@@ -116,3 +116,71 @@ describe('QuotesService.setPaymentMethod', () => {
     });
   });
 });
+
+describe('QuotesService.create', () => {
+  const client = { id: 'client-1', email: 'c@example.com', role: Role.CLIENT };
+
+  function setup() {
+    const firestore = new FakeFirestore();
+    const events = new EventEmitter2();
+    const service = new QuotesService(
+      firestore as never,
+      new ProductsService(firestore as never, events, noLinkedStock),
+      new PricingService(),
+      events,
+      {} as never,
+    );
+    const quotes = async () =>
+      (await firestore.collection(Collections.QUOTES).get()).docs.map((d) => ({
+        id: d.id,
+        ...(d.data() as Record<string, unknown>),
+      }));
+    return { firestore, service, quotes };
+  }
+
+  const draft = (userId: string, items: unknown[] = []) => ({
+    userId,
+    customerName: 'Antes',
+    customerTaxId: 'V-111',
+    status: QuoteStatus.DRAFT,
+    globalDiscountPct: 0,
+    items,
+    createdAt: new Date('2026-09-01T12:00:00Z'),
+    updatedAt: new Date('2026-09-01T12:00:00Z'),
+  });
+
+  it('reuses the customer’s empty draft instead of leaving another one', async () => {
+    const { service, quotes } = setup();
+    const first = await service.create(client, { customerName: 'Andrés Márquez' });
+    const second = await service.create(client, { customerName: 'Ferretería Andrés' });
+
+    expect(second.id).toBe(first.id);
+    expect(await quotes()).toEqual([
+      expect.objectContaining({ id: first.id, customerName: 'Ferretería Andrés', items: [] }),
+    ]);
+  });
+
+  it('writes the reused draft afresh: the new request’s data, dated now', async () => {
+    const { firestore, service } = setup();
+    firestore.seed(Collections.QUOTES, 'q-old', draft(client.id));
+
+    const quote = await service.create(client, { customerName: 'Andrés Márquez' });
+
+    expect(quote.id).toBe('q-old');
+    expect(quote.customerName).toBe('Andrés Márquez');
+    // The old request's tax id doesn't carry over.
+    expect(quote.customerTaxId).toBeUndefined();
+    expect(quote.createdAt).not.toEqual(new Date('2026-09-01T12:00:00Z'));
+  });
+
+  it('starts a new quote when the draft has products, or the empty one is someone else’s', async () => {
+    const { firestore, service, quotes } = setup();
+    firestore.seed(Collections.QUOTES, 'q-with-items', draft(client.id, [{ productId: 'p1' }]));
+    firestore.seed(Collections.QUOTES, 'q-other-user', draft('client-2'));
+
+    const quote = await service.create(client, { customerName: 'Andrés Márquez' });
+
+    expect(['q-with-items', 'q-other-user']).not.toContain(quote.id);
+    expect(await quotes()).toHaveLength(3);
+  });
+});

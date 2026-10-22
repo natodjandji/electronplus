@@ -48,16 +48,30 @@ export class QuotesService {
     this.repo = new FirestoreRepository<Quote>(firestore, Collections.QUOTES);
   }
 
+  /** A customer who starts a request and leaves it without adding anything
+   * left an empty draft each time, filling the admin's list with them. A new
+   * request takes the place of their empty draft instead: same id, written
+   * afresh, dated now. */
   async create(user: AuthenticatedUser, dto: CreateQuoteDto): Promise<Quote> {
-    return this.repo.create({
-      userId: user.id,
-      customerName: dto.customerName,
-      customerTaxId: dto.customerTaxId,
-      expectedPaymentMethod: dto.expectedPaymentMethod,
-      status: QuoteStatus.DRAFT,
-      globalDiscountPct: 0,
-      items: [],
+    const drafts = await this.repo.findAll({
+      where: [
+        { field: 'userId', op: '==', value: user.id },
+        { field: 'status', op: '==', value: QuoteStatus.DRAFT },
+      ],
     });
+    const empty = drafts.find((quote) => quote.items.length === 0);
+    return this.repo.create(
+      {
+        userId: user.id,
+        customerName: dto.customerName,
+        customerTaxId: dto.customerTaxId,
+        expectedPaymentMethod: dto.expectedPaymentMethod,
+        status: QuoteStatus.DRAFT,
+        globalDiscountPct: 0,
+        items: [],
+      },
+      empty?.id,
+    );
   }
 
   findMine(user: AuthenticatedUser): Promise<Quote[]> {
