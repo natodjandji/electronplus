@@ -5,6 +5,7 @@ import { FinanceService } from '../finance/finance.service';
 import { ProductsService } from '../products/products.service';
 import { ErpInventoryItem } from './adapters/profit-plus-adapter.interface';
 import { ERP_SYNC_ERROR_EVENT, SyncService } from './sync.service';
+import { noLinkedStock } from '../../test/no-linked-stock';
 
 /** Principal store: products Profit Plus stops sending leave the store
  * (deactivated, not deleted) and come back if they return. */
@@ -51,7 +52,7 @@ describe('SyncService and products removed in Profit Plus', () => {
     const sync = new SyncService(
       adapter as never,
       firestore as never,
-      new ProductsService(firestore as never, events),
+      new ProductsService(firestore as never, events, noLinkedStock),
       categories as never,
       new FinanceService(firestore as never, events, {} as never),
       {} as never,

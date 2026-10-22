@@ -3,6 +3,7 @@ import { EventEmitter2 } from '@nestjs/event-emitter';
 import { FakeFirestore } from '../../test/fake-firestore';
 import { Collections } from '../../firebase/firestore-collections';
 import { ProductsService } from './products.service';
+import { noLinkedStock } from '../../test/no-linked-stock';
 
 /** Regression coverage for getForUpdateMany/getStockForUpdateMany — the
  * batched tx.getAll() replacements for what used to be one tx.get() per
@@ -13,6 +14,7 @@ describe('ProductsService batched transaction reads', () => {
     return new ProductsService(
       firestore as unknown as ConstructorParameters<typeof ProductsService>[0],
       new EventEmitter2(),
+      noLinkedStock,
     );
   }
 
@@ -116,6 +118,7 @@ describe('ProductsService slug ids', () => {
     const service = new ProductsService(
       firestore as unknown as ConstructorParameters<typeof ProductsService>[0],
       new EventEmitter2(),
+      noLinkedStock,
     );
     const create = (name: string) =>
       service.create({
@@ -208,6 +211,7 @@ describe('ProductsService catalog snapshot', () => {
     return new ProductsService(
       firestore as unknown as ConstructorParameters<typeof ProductsService>[0],
       new EventEmitter2(),
+      noLinkedStock,
     );
   }
 

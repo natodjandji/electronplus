@@ -35,6 +35,11 @@ export interface OrderItem {
   /** Snapshot of the product's cost at sale time — keeps historical margin reporting accurate even if cost changes later. */
   unitCost?: number;
   lineTotal: number;
+  /** Units the main store didn't have, sold from the second store's linked
+   * stock (LinkedStockService): the store brings them over with a dispatch
+   * note. Only the rest came off the main store's stock. Shown to the staff,
+   * never to the customer. */
+  secondStoreQty?: number;
 }
 
 export interface Order extends FirestoreDoc {

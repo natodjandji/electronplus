@@ -4,6 +4,7 @@ import { Collections } from '../../firebase/firestore-collections';
 import { ProductsService } from '../products/products.service';
 import { PurchaseOrderStatus } from './entities/purchase-order.entity';
 import { PurchaseOrdersService } from './purchase-orders.service';
+import { noLinkedStock } from '../../test/no-linked-stock';
 
 describe('PurchaseOrdersService stock-in on settlement', () => {
   function seedProduct(firestore: FakeFirestore, id: string, overrides: Record<string, unknown>) {
@@ -47,7 +48,7 @@ describe('PurchaseOrdersService stock-in on settlement', () => {
     });
     const service = new PurchaseOrdersService(
       firestore as never,
-      new ProductsService(firestore as never, new EventEmitter2()),
+      new ProductsService(firestore as never, new EventEmitter2(), noLinkedStock),
       {} as never,
     );
 

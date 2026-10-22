@@ -7,6 +7,7 @@ import { OrderStatus } from '../../modules/orders/entities/order.entity';
 import { QueryOrdersDto } from '../../modules/orders/dto/query-orders.dto';
 import { QueryInvoicesDto } from '../../modules/finance/dto/query-invoices.dto';
 import { periodWhere } from './period-query.dto';
+import { noLinkedStock } from '../../test/no-linked-stock';
 
 describe('periodWhere', () => {
   it('is empty when no period was asked for', () => {
@@ -53,6 +54,7 @@ describe('OrdersService.findAll — month view and pending view', () => {
       {} as never,
       {} as never,
       new EventEmitter2(),
+      noLinkedStock,
     );
     return { firestore, service };
   }

@@ -153,10 +153,16 @@ function CartScreen({ cart }: { cart: SalesCart }) {
   const createCart = useCreateSalesCart();
   const catalog = useCatalogIndex();
   const { data: secondStock } = useSecondStoreStock();
-  const stockOf = (productId: string): StoreStock => ({
-    principal: catalog.byId.get(productId)?.stock,
-    secondary: secondStock ? (secondStock[productId] ?? null) : undefined,
-  });
+  // The catalog's stock is what can be sold, linked second-store units
+  // included; the seller sees each store's part.
+  const stockOf = (productId: string): StoreStock => {
+    const sold = catalog.byId.get(productId)?.stock;
+    const secondary = secondStock ? (secondStock[productId] ?? null) : undefined;
+    return {
+      principal: sold === undefined ? undefined : Math.max(0, sold - (secondary ?? 0)),
+      secondary,
+    };
+  };
   const [scanning, setScanning] = useState(false);
   const [shareLink, setShareLink] = useState<SharedQuoteLink | null>(null);
   const [finishing, setFinishing] = useState(false);

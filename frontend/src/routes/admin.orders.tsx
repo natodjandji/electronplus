@@ -1,7 +1,7 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useMemo, useRef, useState } from "react";
-import { AlertCircle, Ban, Check, ChevronRight, FileText, Loader2, X } from "lucide-react";
+import { AlertCircle, Ban, Check, ChevronRight, FileText, Loader2, Store, X } from "lucide-react";
 import { AdminShell } from "@/components/admin-shell";
 import { CardListSkeleton } from "@/components/table-skeleton";
 import { MonthYearPicker, useMonthPeriod } from "@/components/month-pager";
@@ -61,6 +61,9 @@ interface OrderItem {
   qty: number;
   unitPrice: number;
   lineTotal: number;
+  /** Units sold from the second store's linked stock, brought over with a
+   * dispatch note. Staff-only. */
+  secondStoreQty?: number;
 }
 
 interface Order {
@@ -374,6 +377,12 @@ function OrderDetailDialog({ orderId, onClose }: { orderId: string; onClose: () 
                   <td className="px-3 py-2">
                     <div className="font-medium text-brand-navy">{item.name}</div>
                     <div className="text-xs text-muted-foreground">{item.sku}</div>
+                    {item.secondStoreQty ? (
+                      <div className="mt-1 flex items-center gap-1 text-xs font-medium text-amber-700">
+                        <Store className="h-3 w-3 shrink-0" aria-hidden />
+                        {item.secondStoreQty} de la tienda secundaria
+                      </div>
+                    ) : null}
                   </td>
                   <td className="px-3 py-2 text-right">{item.qty}</td>
                   <td className="px-3 py-2 text-right">{formatMoneyAdmin(item.unitPrice)}</td>

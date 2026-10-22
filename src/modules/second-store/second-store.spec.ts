@@ -4,6 +4,7 @@ import type { Firestore } from 'firebase-admin/firestore';
 import { FakeDocRef, FakeFirestore } from '../../test/fake-firestore';
 import { Collections } from '../../firebase/firestore-collections';
 import { ProductsService } from '../products/products.service';
+import { LinkedStockService } from './linked-stock.service';
 import { SecondStoreIndex } from './second-store-index';
 import { SecondStoreService } from './second-store.service';
 import { SecondStoreSyncService } from './second-store-sync.service';
@@ -26,9 +27,10 @@ function instance(firestore: FakeFirestore) {
     { get: (key: string) => BRIDGE_ENV[key] } as never,
     index,
   );
-  const products = new ProductsService(fs, new EventEmitter2());
-  const service = new SecondStoreService(fs, products, index);
-  return { sync, service };
+  const linkedStock = new LinkedStockService(index);
+  const products = new ProductsService(fs, new EventEmitter2(), linkedStock);
+  const service = new SecondStoreService(fs, products, index, linkedStock);
+  return { sync, service, products };
 }
 
 function bridgeReturns(productos: object[]) {
@@ -355,6 +357,44 @@ describe('Second store sync and records removed in Profit Plus', () => {
     firestore.reads.length = 0;
     await service.stockByLinkedProduct();
     expect(firestore.reads).toEqual([]);
+  });
+
+  it('sells linked units as part of the public stock, while ops screens keep the main store’s', async () => {
+    const firestore = new FakeFirestore();
+    const product = (id: string, stock: number) =>
+      firestore.seed(Collections.PRODUCTS, id, {
+        sku: id,
+        name: id,
+        category: { id: 'c', code: 'c', label: 'C' },
+        retailPrice: 10,
+        stock,
+        active: true,
+      });
+    product('breaker', 2);
+    product('cable', 1);
+    for (const [id, stock] of [
+      ['a', 4],
+      ['b', 3],
+    ] as const) {
+      firestore.seed(Collections.SECOND_STORE_PRODUCTS, id, {
+        name: id,
+        stock,
+        linkedProductId: 'breaker',
+        createdAt: new Date(),
+        updatedAt: new Date(),
+      });
+    }
+
+    const { products } = instance(firestore);
+    const sold = new Map((await products.activeCatalog()).map((p) => [p.id, p.stock]));
+    expect(sold).toEqual(
+      new Map([
+        ['breaker', 9],
+        ['cable', 1],
+      ]),
+    );
+    expect((await products.findPublicById('breaker')).stock).toBe(9);
+    expect((await products.catalogLookup()).get('breaker')!.stock).toBe(2);
   });
 
   it('marks records an admin creates as manual', async () => {

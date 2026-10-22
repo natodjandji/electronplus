@@ -6,6 +6,7 @@ import { PricingService } from '../products/pricing.service';
 import { ProductsService } from '../products/products.service';
 import { QuoteStatus } from './entities/quote.entity';
 import { QuotesService } from './quotes.service';
+import { noLinkedStock } from '../../test/no-linked-stock';
 
 describe('QuotesService.addLine', () => {
   const client = { id: 'client-1', email: 'c@example.com', role: Role.CLIENT };
@@ -32,7 +33,7 @@ describe('QuotesService.addLine', () => {
     const events = new EventEmitter2();
     const service = new QuotesService(
       firestore as never,
-      new ProductsService(firestore as never, events),
+      new ProductsService(firestore as never, events, noLinkedStock),
       new PricingService(),
       events,
       {} as never,
@@ -74,7 +75,7 @@ describe('QuotesService.setPaymentMethod', () => {
     const events = new EventEmitter2();
     const service = new QuotesService(
       firestore as never,
-      new ProductsService(firestore as never, events),
+      new ProductsService(firestore as never, events, noLinkedStock),
       new PricingService(),
       events,
       paymentMethods as never,

@@ -21,10 +21,12 @@ import { DiscountCodesService } from '../discount-codes/discount-codes.service';
 import { Payment, PaymentMethod, PaymentStatus } from '../payments/entities/payment.entity';
 import { casheaIdentificationNumber } from '../payments/cashea-payload';
 import { PaymentsService } from '../payments/payments.service';
+import { Product } from '../products/entities/product.entity';
 import { PricingService } from '../products/pricing.service';
 import { ProductsService, StockChangedEvent } from '../products/products.service';
 import { Quote, QuoteStatus } from '../quotes/entities/quote.entity';
 import { QuotesService } from '../quotes/quotes.service';
+import { LinkedStockService } from '../second-store/linked-stock.service';
 import { ShippingRatesService } from '../shipping-rates/shipping-rates.service';
 import { CreateOrderFromQuoteDto } from './dto/create-order-from-quote.dto';
 import { CreateOrderDto, ShippingInfoDto } from './dto/create-order.dto';
@@ -100,8 +102,32 @@ export class OrdersService {
     private readonly discountCodesService: DiscountCodesService,
     private readonly quotesService: QuotesService,
     private readonly events: EventEmitter2,
+    private readonly linkedStock: LinkedStockService,
   ) {
     this.repo = new FirestoreRepository<Order>(firestore, Collections.ORDERS);
+  }
+
+  /** Takes an order's units off the main store's stock as far as it goes;
+   * the rest are sold from the second store's linked units, which the store
+   * brings over with a dispatch note. Profit Plus keeps that stock, not the
+   * web, so here it's only checked to be there. */
+  private reserve(
+    tx: Transaction,
+    ref: DocumentReference,
+    product: Product,
+    qty: number,
+    linkedUnits: number,
+  ): { nextStock: number; secondStoreQty: number } {
+    const fromMain = Math.min(qty, Math.max(0, product.stock));
+    const secondStoreQty = qty - fromMain;
+    if (secondStoreQty > linkedUnits) {
+      throw new ConflictException(
+        `Insufficient stock for ${product.sku}: ${fromMain + linkedUnits} available, ${qty} requested`,
+      );
+    }
+    const nextStock =
+      fromMain > 0 ? this.productsService.reserveStock(tx, ref, product, fromMain) : product.stock;
+    return { nextStock, secondStoreQty };
   }
 
   /** Pickup orders skip delivery entirely; delivery orders need a real
@@ -180,6 +206,7 @@ export class OrdersService {
         'Duplicate product in order items — merge quantities into a single line instead',
       );
     }
+    const linked = await this.linkedStock.unitsByProduct();
 
     const { orderId, stockChanges } = await this.firestore.runTransaction(async (tx) => {
       // Phase 1 — ALL reads (Firestore requires every read in a transaction
@@ -202,7 +229,13 @@ export class OrdersService {
       reads.forEach(({ ref, product }, idx) => {
         const line = dto.items[idx];
         this.productsService.assertPurchasable(product);
-        const nextStock = this.productsService.reserveStock(tx, ref, product, line.qty);
+        const { nextStock, secondStoreQty } = this.reserve(
+          tx,
+          ref,
+          product,
+          line.qty,
+          linked[product.id] ?? 0,
+        );
         const unitPrice = this.pricingService.priceFor(product);
         const lineTotal = round2(unitPrice * line.qty);
         subtotal = round2(subtotal + lineTotal);
@@ -215,6 +248,7 @@ export class OrdersService {
           unitPrice,
           unitCost: product.cost,
           lineTotal,
+          ...(secondStoreQty > 0 && { secondStoreQty }),
         });
         stockChanges.push({
           productId: product.id,
@@ -320,6 +354,7 @@ export class OrdersService {
     }
 
     const quoteRef = this.firestore.collection(Collections.QUOTES).doc(quote.id);
+    const linked = await this.linkedStock.unitsByProduct();
 
     const { orderId, stockChanges } = await this.firestore.runTransaction(async (tx) => {
       // Phase 1 — ALL reads before ANY writes (Firestore transaction rule).
@@ -340,10 +375,18 @@ export class OrdersService {
       // units of all its lines; a product the store stopped selling since
       // the quote was approved can't be bought through it.
       const stockChanges: StockChangedEvent[] = [];
+      const fromSecondStore = new Map<string, number>();
       for (const [productId, qty] of units) {
         const { ref, product } = productsById.get(productId)!;
         this.productsService.assertPurchasable(product);
-        const nextStock = this.productsService.reserveStock(tx, ref, product, qty);
+        const { nextStock, secondStoreQty } = this.reserve(
+          tx,
+          ref,
+          product,
+          qty,
+          linked[productId] ?? 0,
+        );
+        fromSecondStore.set(productId, secondStoreQty);
         stockChanges.push({
           productId: product.id,
           sku: product.sku,
@@ -362,6 +405,10 @@ export class OrdersService {
         );
         const lineTotal = round2(unitPrice * line.qty);
         subtotal = round2(subtotal + lineTotal);
+        // A product's second-store units go on its first lines.
+        const left = fromSecondStore.get(line.productId) ?? 0;
+        const secondStoreQty = Math.min(line.qty, left);
+        fromSecondStore.set(line.productId, left - secondStoreQty);
         items.push({
           productId: product.id,
           sku: product.sku,
@@ -371,6 +418,7 @@ export class OrdersService {
           unitPrice,
           unitCost: product.cost,
           lineTotal,
+          ...(secondStoreQty > 0 && { secondStoreQty }),
         });
       });
 
@@ -509,7 +557,18 @@ export class OrdersService {
    * none to get back, and doesn't block cancelling the order. A limited-use
    * discount code gets back the use the order took. */
   private async beginRelease(tx: Transaction, order: Order): Promise<() => StockChangedEvent[]> {
-    const units = unitsByProduct(order.items);
+    // Only what came off the main store goes back to it: an order's
+    // second-store units were never held here.
+    const units = new Map(
+      [
+        ...unitsByProduct(
+          order.items.map((item) => ({
+            productId: item.productId,
+            qty: item.qty - (item.secondStoreQty ?? 0),
+          })),
+        ),
+      ].filter(([, qty]) => qty > 0),
+    );
     const contexts = await this.productsService.getStockForUpdateMany(tx, [...units.keys()], {
       skipMissing: true,
     });

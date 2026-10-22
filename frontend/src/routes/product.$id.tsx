@@ -143,6 +143,7 @@ interface SecondStoreProduct {
   id: string;
   name: string;
   stock: number;
+  missingFromErpSince?: string | null;
 }
 
 function NotFound() {
@@ -183,6 +184,15 @@ function ProductPage() {
   const secondStoreStock = isSeller
     ? sellerSecondStock && (sellerSecondStock[product.id] ?? null)
     : secondStoreLink && secondStoreLink.stock;
+  // product.stock is what can be sold, linked second-store units included
+  // (a record Profit Plus no longer sends doesn't count); the main store's
+  // own is the rest.
+  const linkedUnits = isSeller
+    ? (secondStoreStock ?? 0)
+    : secondStoreLink && !secondStoreLink.missingFromErpSince
+      ? Math.max(0, secondStoreLink.stock)
+      : 0;
+  const mainStoreStock = Math.max(0, product.stock - linkedUnits);
   const out = product.stock === 0;
   const low = product.stock > 0 && product.stock <= 10;
   const [qty, setQty] = useState(1);
@@ -297,7 +307,7 @@ function ProductPage() {
                   <InfoRow
                     icon={Package}
                     label="Stock tienda principal"
-                    value={`${product.stock} uds`}
+                    value={`${mainStoreStock} uds`}
                   />
                   <InfoRow
                     icon={Store}

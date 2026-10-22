@@ -26,6 +26,7 @@ import { FirestoreRepository } from '../../firebase/firestore.repository';
 import { PaginatedResult } from '../../common/dto/pagination.dto';
 import { slugify } from '../../common/utils/slug';
 import { OrderStatus } from '../orders/entities/order.entity';
+import { LinkedStockService } from '../second-store/linked-stock.service';
 import { AdjustStockDto } from './dto/adjust-stock.dto';
 import { AdminQueryProductsDto } from './dto/admin-query-products.dto';
 import { CreateProductDto } from './dto/create-product.dto';
@@ -142,6 +143,13 @@ interface CatalogViews {
   byId: Map<string, Product>;
 }
 
+/** A product with its stock as sold: the main store's plus the second
+ * store's units linked to it (LinkedStockService). */
+function withLinkedStock(product: Product, linked: Record<string, number>): Product {
+  const units = linked[product.id];
+  return units ? { ...product, stock: Math.max(0, product.stock) + units } : product;
+}
+
 @Injectable()
 export class ProductsService {
   private readonly repo: FirestoreRepository<Product>;
@@ -151,12 +159,18 @@ export class ProductsService {
    * matching, best-seller resolution. */
   private readonly catalog: CollectionSnapshot<Product>;
   private catalogViews: CatalogViews | null = null;
+  private soldViews: {
+    views: CatalogViews;
+    linked: Record<string, number>;
+    result: CatalogViews;
+  } | null = null;
   private bestSellers: { ids: string[]; checkedAt: number } | null = null;
   private bestSellersInflight: Promise<string[]> | null = null;
 
   constructor(
     @Inject(FIRESTORE) private readonly firestore: Firestore,
     private readonly events: EventEmitter2,
+    private readonly linkedStock: LinkedStockService,
   ) {
     this.repo = new FirestoreRepository<Product>(firestore, Collections.PRODUCTS);
     this.categoriesRepo = new FirestoreRepository<Category>(firestore, Collections.CATEGORIES);
@@ -190,14 +204,44 @@ export class ProductsService {
 
   /** Every active product, by name — the storefront's whole catalog. */
   async activeCatalog(): Promise<Product[]> {
-    return this.viewsOf(await this.catalog.load({ maxAgeMs: PUBLIC_CATALOG_MAX_AGE_MS })).active;
+    return (await this.soldCatalog()).active;
   }
 
   /** Public product page. Served from the snapshot; falls back to the doc
    * itself for a product created on another instance within the window. */
   async findPublicById(id: string): Promise<Product> {
-    const views = this.viewsOf(await this.catalog.load({ maxAgeMs: PUBLIC_CATALOG_MAX_AGE_MS }));
-    return views.byId.get(id) ?? this.findById(id);
+    const product = (await this.soldCatalog()).byId.get(id);
+    if (product) return product;
+    const [fresh, linked] = await Promise.all([
+      this.findById(id),
+      this.linkedStock.unitsByProduct(),
+    ]);
+    return withLinkedStock(fresh, linked);
+  }
+
+  /** The catalog as customers and the sales assistant see it: each product's
+   * stock is what can be sold, linked second-store units included. Admin
+   * screens and the ERP sync keep the main store's own stock. */
+  private async soldCatalog(): Promise<CatalogViews> {
+    const [items, linked] = await Promise.all([
+      this.catalog.load({ maxAgeMs: PUBLIC_CATALOG_MAX_AGE_MS }),
+      this.linkedStock.unitsByProduct(),
+    ]);
+    const views = this.viewsOf(items);
+    if (this.soldViews?.views !== views || this.soldViews.linked !== linked) {
+      const all = views.all.map((p) => withLinkedStock(p, linked));
+      this.soldViews = {
+        views,
+        linked,
+        result: {
+          source: items,
+          all,
+          active: all.filter((p) => p.active),
+          byId: new Map(all.map((p) => [p.id, p])),
+        },
+      };
+    }
+    return this.soldViews.result;
   }
 
   /** Every product (active or not) by id, current as of this call — for ops
@@ -258,11 +302,7 @@ export class ProductsService {
       ? Math.min(Math.max(Math.trunc(limitInput), 1), TOP_SELLING_MAX_LIMIT)
       : TOP_SELLING_DEFAULT_LIMIT;
 
-    const [rankedIds, items] = await Promise.all([
-      this.bestSellerRanking(),
-      this.catalog.load({ maxAgeMs: PUBLIC_CATALOG_MAX_AGE_MS }),
-    ]);
-    const views = this.viewsOf(items);
+    const [rankedIds, views] = await Promise.all([this.bestSellerRanking(), this.soldCatalog()]);
     const ranked = rankedIds
       .map((id) => views.byId.get(id))
       .filter((p): p is Product => Boolean(p?.active))

@@ -9,6 +9,7 @@ import { OrderStatus, FulfillmentMethod } from './entities/order.entity';
 import { Role } from '../../common/enums/role.enum';
 import { PaymentMethod, PaymentStatus } from '../payments/entities/payment.entity';
 import { QuoteStatus } from '../quotes/entities/quote.entity';
+import { noLinkedStock } from '../../test/no-linked-stock';
 
 /** Regression tests for cancel() running as a single Firestore transaction
  * instead of a check-then-write outside one — the bug was that two
@@ -27,6 +28,7 @@ describe('OrdersService.cancel', () => {
       new DiscountCodesService(firestore as never),
       {} as ConstructorParameters<typeof OrdersService>[6],
       new EventEmitter2(),
+      noLinkedStock,
     );
   }
 
@@ -178,6 +180,7 @@ describe('OrdersService checkout guards', () => {
       {} as never,
       quotesService as never,
       new EventEmitter2(),
+      noLinkedStock,
     );
     return { service, productsService, paymentsService };
   }
@@ -306,6 +309,7 @@ describe('OrdersService.markPaid', () => {
       new DiscountCodesService(firestore as never),
       {} as never,
       events,
+      noLinkedStock,
     );
     return { service, paid, read: () => firestore.read(Collections.ORDERS, 'order-1')! };
   }
@@ -349,7 +353,8 @@ describe('OrdersService stock per product', () => {
   const client = { id: 'client-1', email: 'c@example.com', role: Role.CLIENT };
   const pickup = { fullName: 'Cliente', phone: '0414' };
 
-  function setup() {
+  function setup(linked: Record<string, number> = {}) {
+    const linkedStock = { unitsByProduct: async () => linked } as never;
     const firestore = new FakeFirestore();
     const product = (id: string, stock: number) =>
       firestore.seed(Collections.PRODUCTS, id, {
@@ -362,7 +367,7 @@ describe('OrdersService stock per product', () => {
         active: true,
       });
     const events = new EventEmitter2();
-    const productsService = new ProductsService(firestore as never, events);
+    const productsService = new ProductsService(firestore as never, events, linkedStock);
     const quotesService = { findOneForUser: jest.fn() };
     const service = new OrdersService(
       firestore as never,
@@ -373,6 +378,7 @@ describe('OrdersService stock per product', () => {
       new DiscountCodesService(firestore as never),
       quotesService as never,
       events,
+      linkedStock,
     );
     const stock = (id: string) => firestore.read(Collections.PRODUCTS, id)!.stock;
     return { firestore, product, service, quotesService, stock };
@@ -472,6 +478,77 @@ describe('OrdersService stock per product', () => {
     expect((await service.cancel('o1')).status).toBe(OrderStatus.CANCELLED);
     expect(stock('p1')).toBe(6);
   });
+
+  it("sells what the main store lacks from the second store's linked units", async () => {
+    const { product, service, stock } = setup({ p1: 5 });
+    product('p1', 3);
+
+    const order = await service.create(client, {
+      items: [{ productId: 'p1', qty: 7 }],
+      paymentMethod: PaymentMethod.CASH,
+      fulfillmentMethod: FulfillmentMethod.PICKUP,
+      shipping: pickup,
+    });
+
+    expect(stock('p1')).toBe(0);
+    expect(order.items[0]).toEqual(expect.objectContaining({ qty: 7, secondStoreQty: 4 }));
+  });
+
+  it('refuses more than both stores hold together', async () => {
+    const { product, service, stock } = setup({ p1: 2 });
+    product('p1', 3);
+
+    await expect(
+      service.create(client, {
+        items: [{ productId: 'p1', qty: 6 }],
+        paymentMethod: PaymentMethod.CASH,
+        fulfillmentMethod: FulfillmentMethod.PICKUP,
+        shipping: pickup,
+      }),
+    ).rejects.toThrow('5 available, 6 requested');
+    expect(stock('p1')).toBe(3);
+  });
+
+  it("puts a quote's second-store units on the product's first lines", async () => {
+    const { firestore, product, service, quotesService, stock } = setup({ p1: 5 });
+    product('p1', 2);
+    const quote = {
+      id: 'q1',
+      userId: client.id,
+      status: QuoteStatus.APPROVED,
+      globalDiscountPct: 0,
+      items: [
+        { id: 'l1', productId: 'p1', qty: 3, unitPrice: 10, discountPct: 0 },
+        { id: 'l2', productId: 'p1', qty: 3, unitPrice: 10, discountPct: 0 },
+      ],
+    };
+    firestore.seed(Collections.QUOTES, 'q1', quote);
+    quotesService.findOneForUser.mockResolvedValue(quote);
+
+    const order = await service.createFromQuote('q1', client, {
+      paymentMethod: PaymentMethod.CASH,
+      fulfillmentMethod: FulfillmentMethod.PICKUP,
+      shipping: pickup,
+    });
+
+    expect(stock('p1')).toBe(0);
+    expect(order.items.map((i) => i.secondStoreQty)).toEqual([3, 1]);
+  });
+
+  it('gives the main store back only the units that came off it', async () => {
+    const { firestore, product, service, stock } = setup();
+    product('p1', 0);
+    firestore.seed(Collections.ORDERS, 'o1', {
+      userId: client.id,
+      status: OrderStatus.PENDING_PAYMENT_VERIFICATION,
+      items: [{ productId: 'p1', qty: 7, secondStoreQty: 4 }],
+      createdAt: new Date(),
+      updatedAt: new Date(),
+    });
+
+    await service.cancel('o1');
+    expect(stock('p1')).toBe(3);
+  });
 });
 
 /** Cashea: the buyer's cédula is checked before an order exists, and an
@@ -501,6 +578,7 @@ describe('OrdersService · Cashea', () => {
       new DiscountCodesService(firestore as never),
       {} as never,
       new EventEmitter2(),
+      noLinkedStock,
     );
     return { service, productsService, firestore };
   }
