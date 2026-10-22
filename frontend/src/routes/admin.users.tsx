@@ -335,6 +335,9 @@ function AdminUsersPage() {
 /** A warehouse operator or seller, with the way back to a client account. */
 function StaffCard({ user }: { user: AppUser }) {
   const queryClient = useQueryClient();
+  // The same second step as handing the role out.
+  const [confirming, setConfirming] = useState(false);
+  const role = STAFF_ROLE[user.role as StaffRole];
 
   const demote = useMutation({
     mutationFn: () => apiFetch(`/users/${user.id}`, { method: "PATCH", body: { role: "client" } }),
@@ -353,26 +356,52 @@ function StaffCard({ user }: { user: AppUser }) {
         variant="outline"
         className="gap-2"
         disabled={demote.isPending}
-        onClick={() => demote.mutate()}
+        onClick={() => setConfirming(true)}
       >
         <Users className="h-3.5 w-3.5" /> Volver a cliente
       </Button>
+
+      <AlertDialog open={confirming} onOpenChange={setConfirming}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>
+              ¿Volver a {user.displayName || user.email} al rol de cliente?
+            </AlertDialogTitle>
+            <AlertDialogDescription>
+              {role ? `${role.loses} ` : ""}Puedes volver a darle el rol cuando quieras desde su
+              ficha de cliente.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancelar</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={() => demote.mutate()}
+              className="bg-destructive text-white hover:bg-destructive/90"
+            >
+              Sí, volver a cliente
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </Card>
   );
 }
 
 type StaffRole = "warehouse_operator" | "seller";
 
-/** What the confirmation tells the admin each role opens up. */
-const STAFF_ROLE: Record<StaffRole, { name: string; access: string }> = {
+/** What the confirmations tell the admin each role opens up, or takes away. */
+const STAFF_ROLE: Record<StaffRole, { name: string; access: string; loses: string }> = {
   warehouse_operator: {
     name: "operador de almacén",
     access: "Podrá ver el stock detallado de ambas tiendas y los productos ocultos del catálogo.",
+    loses:
+      "Dejará de ver el stock detallado de ambas tiendas y los productos ocultos del catálogo.",
   },
   seller: {
     name: "vendedor",
     access:
       "Podrá entrar a Ventas en tienda para armar carritos a los clientes del local y compartirles cotizaciones.",
+    loses: "Ya no podrá entrar a Ventas en tienda ni armar carritos a los clientes del local.",
   },
 };
 
