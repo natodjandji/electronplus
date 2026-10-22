@@ -40,6 +40,19 @@ export function usePaymentMethods(options?: { enabled?: boolean }) {
   });
 }
 
+/** The names of the methods anyone can pay with (GET
+ * /payment-methods/public, no sign-in, no account details), for the chat
+ * assistant. Undefined while unknown, and if the API doesn't answer. */
+export function usePublicPaymentMethods(options?: { enabled?: boolean }) {
+  return useQuery({
+    queryKey: ["payment-methods", "public"],
+    queryFn: async () => (await apiFetch<{ labels: string[] }>("/payment-methods/public")).labels,
+    staleTime: 5 * 60_000,
+    retry: false,
+    enabled: options?.enabled,
+  });
+}
+
 export function paymentMethodLabel(
   methods: PaymentMethodConfig[] | undefined,
   backendMethod?: string,

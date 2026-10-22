@@ -1,5 +1,4 @@
-import { useQuery } from "@tanstack/react-query";
-import { apiFetch } from "@/lib/api-client";
+import { useCasheaStatus } from "@/lib/cashea";
 import { formatMoney } from "@/lib/electron-store";
 import { cn } from "@/lib/utils";
 import { CasheaMark } from "./cashea-mark";
@@ -16,11 +15,7 @@ const STEPS = ["Pagas una inicial", "El resto en cuotas sin interés", "Te lo ll
  * says so — /cashea/status — so the banner changes with no new release).
  */
 export function CasheaBanner({ className }: { className?: string }) {
-  const { data } = useQuery({
-    queryKey: ["cashea", "status"],
-    queryFn: () => apiFetch<{ online: boolean; minAmount: number | null }>("/cashea/status"),
-    staleTime: 5 * 60_000,
-  });
+  const { data } = useCasheaStatus();
   const online = data?.online ?? false;
 
   return (

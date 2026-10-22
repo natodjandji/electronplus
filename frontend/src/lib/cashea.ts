@@ -46,6 +46,23 @@ export function isCasheaTaxIdPrefix(prefix: string): boolean {
   return prefix === "V" || prefix === "E";
 }
 
+/** Whether Cashea takes payments on the web too, or only at the store
+ * (GET /cashea/status, public): the catalog's banner and the chat assistant
+ * say the same thing from it. */
+export interface CasheaStatus {
+  online: boolean;
+  minAmount: number | null;
+}
+
+export function useCasheaStatus(options?: { enabled?: boolean }) {
+  return useQuery({
+    queryKey: ["cashea", "status"],
+    queryFn: () => apiFetch<CasheaStatus>("/cashea/status"),
+    staleTime: 5 * 60_000,
+    enabled: options?.enabled,
+  });
+}
+
 export function useCasheaConfig(options?: { enabled?: boolean }) {
   return useQuery({
     queryKey: ["payments", "cashea", "config"],

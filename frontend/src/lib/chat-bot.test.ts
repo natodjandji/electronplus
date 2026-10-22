@@ -29,6 +29,8 @@ const ctx = (overrides: Partial<ChatCtx> = {}): ChatCtx => ({
   ],
   categoryLabel: { cables: "Cables", iluminacion: "Iluminación", proteccion: "Protección" },
   formatMoney: (n) => `REF ${n.toFixed(2)}`,
+  cashea: { online: false, minAmount: null },
+  paymentMethods: ["Pago Móvil", "Efectivo", "Binance", "PayPal"],
   ...overrides,
 });
 
@@ -121,5 +123,64 @@ describe("chat-bot buildReply — session-aware intents", () => {
 
   it("ignores empty input", () => {
     expect(buildReply("   ", ctx())).toEqual([]);
+  });
+});
+
+describe("chat-bot buildReply — Cashea", () => {
+  it("says Cashea is taken at the store while it isn't on the web", () => {
+    const r = reply("aceptan cashea?");
+    expect(r.text).toContain("Aceptamos Cashea en nuestra tienda");
+    expect(r.text).toContain("no está disponible para compras en la web");
+    expect(r.links?.map((l) => l.href)).toEqual([CONTACT_INFO.mapsHref, CONTACT_INFO.whatsappHref]);
+  });
+
+  it("answers the same before the status loads, like the catalog's banner", () => {
+    expect(reply("se puede pagar con cashea", ctx({ cashea: null })).text).toContain(
+      "en nuestra tienda",
+    );
+  });
+
+  it("points to checkout, with the minimum, once Cashea is on the web", () => {
+    const r = reply("Hola, trabajan con Cashea?", ctx({ cashea: { online: true, minAmount: 20 } }));
+    expect(r.text).toContain("pagar con Cashea en la web");
+    expect(r.text).toContain("compra mínima de REF 20.00");
+    expect(r.quickReplies?.[0].send).toBe("__nav:/cart");
+  });
+
+  it("understands it misspelled or asked as paying in installments", () => {
+    for (const message of ["tienen cachea", "puedo pagar en cuotas?", "hay financiamiento"]) {
+      expect(reply(message).text).toContain("Cashea");
+    }
+  });
+});
+
+describe("chat-bot buildReply — payment methods", () => {
+  it("lists the active methods, the BCV rate and Cashea at the store", () => {
+    const r = reply("que metodos de pago tienen?");
+    expect(r.text).toContain("Puedes pagar con Pago Móvil, Efectivo, Binance y PayPal.");
+    expect(r.text).toContain("tasa oficial del BCV");
+    expect(r.text).toContain("En nuestra tienda también aceptamos Cashea");
+  });
+
+  it("confirms a method asked by name, and lists the rest", () => {
+    expect(reply("aceptan pago movil?").text).toContain(
+      "¡Sí! Aceptamos Pago Móvil. También puedes pagar con Efectivo, Binance y PayPal.",
+    );
+  });
+
+  it("says plainly when a method isn't taken", () => {
+    expect(reply("se puede pagar con zelle?").text).toContain(
+      "Por ahora no aceptamos Zelle. Puedes pagar con Pago Móvil, Efectivo, Binance y PayPal.",
+    );
+  });
+
+  it("sends to checkout and WhatsApp when the list isn't known", () => {
+    const r = reply("formas de pago", ctx({ paymentMethods: null }));
+    expect(r.text).toContain("Al pagar tu pedido ves todos los métodos disponibles");
+    expect(r.links?.[0].href).toBe(CONTACT_INFO.whatsappHref);
+  });
+
+  it("still answers Cashea questions with Cashea", () => {
+    expect(reply("se puede pagar con cashea").text).toContain("Aceptamos Cashea en nuestra tienda");
   });
 });

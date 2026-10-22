@@ -135,6 +135,20 @@ export class PaymentMethodsService {
     });
   }
 
+  /** The names of the methods anyone can pay with, for the storefront's
+   * chat assistant — no account details. Credit is only for approved
+   * accounts, and Cashea has its own public status (/cashea/status). */
+  async publicLabels(): Promise<string[]> {
+    return (await this.list())
+      .filter(
+        (m) =>
+          m.enabled &&
+          m.backendMethod !== PaymentMethod.CREDIT_B2B &&
+          m.backendMethod !== PaymentMethod.CASHEA,
+      )
+      .map((m) => m.label);
+  }
+
   /** Every method an admin adds through this endpoint is reconciled the same
    * way (an admin checks the reference/proof against their own records and
    * verifies or rejects it) — so it always gets PaymentMethod.OTHER rather

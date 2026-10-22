@@ -6,7 +6,9 @@ import { Send, X, ShoppingCart } from "lucide-react";
 import { toast } from "sonner";
 import { type Product } from "@/lib/product";
 import { catalogQuery, toProduct } from "@/lib/product-api";
+import { useCasheaStatus } from "@/lib/cashea";
 import { useCategories } from "@/lib/categories";
+import { usePublicPaymentMethods } from "@/lib/payment-methods";
 import { useElectronStore, formatMoney } from "@/lib/electron-store";
 import mascotIdle from "@/assets/mascot/mascot-idle.webp";
 import { buildReply, welcomeReply, type QuickReply, type BotReplyContent } from "@/lib/chat-bot";
@@ -36,6 +38,8 @@ export function ChatPanel({ open, onClose }: { open: boolean; onClose: () => voi
   // before the widget opens, this reuses that cache instead of refetching.
   const { data: productsResp } = useQuery({ ...catalogQuery, enabled: open });
   const { data: categories } = useCategories({ enabled: open });
+  const { data: casheaStatus } = useCasheaStatus({ enabled: open });
+  const { data: paymentMethods } = usePublicPaymentMethods({ enabled: open });
   const products = useMemo(() => productsResp?.data.map(toProduct) ?? [], [productsResp]);
   const categoryLabel = useMemo(
     () => Object.fromEntries((categories ?? []).map((c) => [c.code, c.label])),
@@ -74,6 +78,8 @@ export function ChatPanel({ open, onClose }: { open: boolean; onClose: () => voi
             products,
             categoryLabel,
             formatMoney,
+            cashea: casheaStatus ?? null,
+            paymentMethods: paymentMethods ?? null,
           }).map(toMessage),
         ]);
       },

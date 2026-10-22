@@ -1,3 +1,4 @@
+import { type CasheaStatus } from "@/lib/cashea";
 import { type Product } from "@/lib/product";
 import { CONTACT_INFO } from "@/lib/contact-info";
 import { type UserRole } from "@/lib/electron-store";
@@ -30,6 +31,10 @@ export type ChatCtx = {
   products: Product[];
   categoryLabel: Record<string, string>;
   formatMoney: (n: number) => string;
+  /** Null until the API answers; then it's in-store only, like the banner. */
+  cashea: CasheaStatus | null;
+  /** The names of the active payment methods; null while unknown. */
+  paymentMethods: string[] | null;
 };
 
 const MAIN_MENU: QuickReply[] = [
@@ -171,6 +176,53 @@ function prependGreeting(reply: BotReplyContent): BotReplyContent {
   return { ...reply, text: reply.text ? `¡Hola! ${reply.text}` : reply.text };
 }
 
+// ---- Payments -----------------------------------------------------------
+
+/** Methods a customer might ask about by name, with how they're written. */
+const NAMED_METHODS: { asked: string; name: string }[] = [
+  { asked: "pago movil", name: "Pago Móvil" },
+  { asked: "zelle", name: "Zelle" },
+  { asked: "transferencia", name: "transferencia bancaria" },
+  { asked: "binance", name: "Binance" },
+  { asked: "paypal", name: "PayPal" },
+  { asked: "efectivo", name: "efectivo" },
+];
+
+function listInSpanish(items: string[]): string {
+  return items.length > 1 ? `${items.slice(0, -1).join(", ")} y ${items.at(-1)}` : items[0];
+}
+
+function paymentReply(ctx: ChatCtx, t: string): BotReplyContent {
+  const bcv =
+    "Los precios están en REF y puedes pagar en bolívares a la tasa oficial del BCV del día.";
+  const cashea = ctx.cashea?.online
+    ? "También puedes pagar con Cashea en cuotas sin interés."
+    : "En nuestra tienda también aceptamos Cashea, en cuotas sin interés.";
+  const methods = ctx.paymentMethods;
+  if (!methods?.length) {
+    return {
+      text: `${bcv} Al pagar tu pedido ves todos los métodos disponibles; si quieres confirmarlo antes, escríbenos por WhatsApp. ${cashea}`,
+      links: [{ label: `💬 WhatsApp: ${CONTACT_INFO.phone}`, href: CONTACT_INFO.whatsappHref }],
+    };
+  }
+  // Asked about one by name: say plainly whether it's there.
+  const asked = NAMED_METHODS.find((m) => t.includes(m.asked));
+  const has = (m: { asked: string }) => methods.some((label) => normalize(label).includes(m.asked));
+  const others = asked ? methods.filter((l) => !normalize(l).includes(asked.asked)) : methods;
+  const opening = !asked
+    ? `Puedes pagar con ${listInSpanish(methods)}.`
+    : has(asked)
+      ? `¡Sí! Aceptamos ${asked.name}.${others.length ? ` También puedes pagar con ${listInSpanish(others)}.` : ""}`
+      : `Por ahora no aceptamos ${asked.name}. Puedes pagar con ${listInSpanish(methods)}.`;
+  return {
+    text: `${opening} ${bcv} ${cashea}`,
+    quickReplies: [
+      { label: "🛒 Ir al carrito", send: "__nav:/cart" },
+      { label: "☎️ Hablar con un asesor", send: "hablar con un asesor" },
+    ],
+  };
+}
+
 // ---- Intent table -----------------------------------------------------
 // Checked in order; first one that scores > 0 wins (specific intents come
 // before more generic ones so a message matching both resolves sensibly).
@@ -178,7 +230,9 @@ function prependGreeting(reply: BotReplyContent): BotReplyContent {
 type Intent = {
   id: string;
   keywords: string[];
-  reply: (ctx: ChatCtx) => BotReplyContent;
+  /** `t` is the normalized message, for replies that depend on what exactly
+   * was asked. */
+  reply: (ctx: ChatCtx, t: string) => BotReplyContent;
 };
 
 const INTENTS: Intent[] = [
@@ -262,6 +316,64 @@ const INTENTS: Intent[] = [
         { label: "🔎 Ver catálogo", send: "__nav:/catalog" },
       ],
     }),
+  },
+  {
+    id: "cashea",
+    keywords: [
+      "cashea",
+      "cachea",
+      "kashea",
+      "casshea",
+      "cuotas",
+      "financiamiento",
+      "financiar",
+      "pagar en partes",
+    ],
+    reply: (ctx) => {
+      const steps = "das una inicial, te lo llevas y el resto lo pagas en cuotas sin interés";
+      if (ctx.cashea?.online) {
+        const minimum = ctx.cashea.minAmount
+          ? ` (compra mínima de ${ctx.formatMoney(ctx.cashea.minAmount)})`
+          : "";
+        return {
+          text: `¡Sí! Puedes pagar con Cashea en la web: elige Cashea al pagar tu pedido${minimum}, ${steps}. También lo aceptamos en nuestra tienda.`,
+          quickReplies: [
+            { label: "🛒 Ir al carrito", send: "__nav:/cart" },
+            { label: "🔎 Ver catálogo", send: "__nav:/catalog" },
+          ],
+        };
+      }
+      return {
+        text: `¡Sí! Aceptamos Cashea en nuestra tienda: ${steps}. Por ahora no está disponible para compras en la web.\nEstamos en ${CONTACT_INFO.addressLines.join(", ")}. Horario: ${CONTACT_INFO.hours}.`,
+        links: [
+          { label: "📍 Cómo llegar", href: CONTACT_INFO.mapsHref },
+          { label: `💬 WhatsApp: ${CONTACT_INFO.phone}`, href: CONTACT_INFO.whatsappHref },
+        ],
+      };
+    },
+  },
+  {
+    id: "pagos",
+    keywords: [
+      "metodo de pago",
+      "metodos de pago",
+      "forma de pago",
+      "formas de pago",
+      "como pago",
+      "como puedo pagar",
+      "como se paga",
+      "como pagar",
+      "pagar con",
+      "pago movil",
+      "zelle",
+      "transferencia",
+      "binance",
+      "paypal",
+      "efectivo",
+      "divisas",
+      "bolivares",
+    ],
+    reply: paymentReply,
   },
   {
     id: "envios",
@@ -459,7 +571,7 @@ export function buildReply(raw: string, ctx: ChatCtx): BotReplyContent[] {
   for (const intent of INTENTS) {
     const score = matchScore(t, tokens, intent.keywords);
     if (score > 0 && (!best || score > best.score)) {
-      best = { reply: intent.reply(ctx), score };
+      best = { reply: intent.reply(ctx, t), score };
     }
   }
   if (best) {

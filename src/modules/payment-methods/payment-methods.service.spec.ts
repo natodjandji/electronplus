@@ -56,3 +56,30 @@ describe('PaymentMethodsService · Cashea', () => {
     expect(methods.map((m) => m.id)).toEqual(['pago-movil']);
   });
 });
+
+describe('PaymentMethodsService · public labels', () => {
+  it('names the methods anyone can use, without credit, Cashea or switched-off ones', async () => {
+    const firestore = new FakeFirestore();
+    const method = (id: string, backendMethod: PaymentMethod, label: string, enabled = true) =>
+      firestore.seed(Collections.PAYMENT_METHODS, id, {
+        backendMethod,
+        label,
+        details: ['Cuenta 0102-…'],
+        needsReference: true,
+        needsProof: true,
+        enabled,
+        createdAt: new Date(),
+        updatedAt: new Date(),
+      });
+    method('pago-movil', PaymentMethod.PAGO_MOVIL, 'Pago Móvil');
+    method('efectivo', PaymentMethod.CASH, 'Efectivo');
+    method('zelle', PaymentMethod.ZELLE, 'Zelle', false);
+    method('credito', PaymentMethod.CREDIT_B2B, 'Crédito B2B');
+    method('cashea', PaymentMethod.CASHEA, 'Cashea');
+    const service = new PaymentMethodsService(
+      firestore as never,
+      { get: (key: string) => CONFIGURED[key] } as never,
+    );
+    expect(await service.publicLabels()).toEqual(['Pago Móvil', 'Efectivo']);
+  });
+});
