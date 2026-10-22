@@ -12,6 +12,16 @@ import {
   Warehouse,
 } from "lucide-react";
 import { AdminShell } from "@/components/admin-shell";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { PaginationBar, usePagination } from "@/components/pagination";
 import { CardListSkeleton } from "@/components/table-skeleton";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
@@ -351,9 +361,27 @@ function StaffCard({ user }: { user: AppUser }) {
   );
 }
 
+type StaffRole = "warehouse_operator" | "seller";
+
+/** What the confirmation tells the admin each role opens up. */
+const STAFF_ROLE: Record<StaffRole, { name: string; access: string }> = {
+  warehouse_operator: {
+    name: "operador de almacén",
+    access: "Podrá ver el stock detallado de ambas tiendas y los productos ocultos del catálogo.",
+  },
+  seller: {
+    name: "vendedor",
+    access:
+      "Podrá entrar a Ventas en tienda para armar carritos a los clientes del local y compartirles cotizaciones.",
+  },
+};
+
 function ClientDetailDialog({ user, onClose }: { user: AppUser; onClose: () => void }) {
   const queryClient = useQueryClient();
   const [quotesOpen, setQuotesOpen] = useState(false);
+  // A second step before handing out staff access: one tap was enough to
+  // turn any client into a seller or warehouse operator.
+  const [confirmRole, setConfirmRole] = useState<StaffRole | null>(null);
   const [ordersOpen, setOrdersOpen] = useState(false);
 
   const { data: quotes, isLoading: quotesLoading } = useQuery({
@@ -366,7 +394,7 @@ function ClientDetailDialog({ user, onClose }: { user: AppUser; onClose: () => v
   });
 
   const promote = useMutation({
-    mutationFn: (role: "warehouse_operator" | "seller") =>
+    mutationFn: (role: StaffRole) =>
       apiFetch(`/users/${user.id}`, { method: "PATCH", body: { role } }),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["admin", "users"] });
@@ -442,7 +470,7 @@ function ClientDetailDialog({ user, onClose }: { user: AppUser; onClose: () => v
               variant="outline"
               className="justify-self-start gap-2"
               disabled={promote.isPending}
-              onClick={() => promote.mutate("warehouse_operator")}
+              onClick={() => setConfirmRole("warehouse_operator")}
             >
               <Warehouse className="h-3.5 w-3.5" /> Convertir en operador de almacén
             </Button>
@@ -451,13 +479,44 @@ function ClientDetailDialog({ user, onClose }: { user: AppUser; onClose: () => v
               variant="outline"
               className="justify-self-start gap-2"
               disabled={promote.isPending}
-              onClick={() => promote.mutate("seller")}
+              onClick={() => setConfirmRole("seller")}
             >
               <ScanLine className="h-3.5 w-3.5" /> Convertir en vendedor
             </Button>
           </div>
         </DialogContent>
       </Dialog>
+
+      <AlertDialog
+        open={confirmRole !== null}
+        onOpenChange={(open) => !open && setConfirmRole(null)}
+      >
+        {confirmRole && (
+          <AlertDialogContent>
+            <AlertDialogHeader>
+              <AlertDialogTitle>
+                ¿Convertir a {user.displayName || user.email} en {STAFF_ROLE[confirmRole].name}?
+              </AlertDialogTitle>
+              <AlertDialogDescription>
+                {STAFF_ROLE[confirmRole].access} Puedes devolverle el rol de cliente cuando quieras
+                desde la lista del equipo.
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+              <AlertDialogCancel>Cancelar</AlertDialogCancel>
+              <AlertDialogAction
+                onClick={() => {
+                  promote.mutate(confirmRole);
+                  setConfirmRole(null);
+                }}
+                className="bg-brand-blue text-white hover:bg-brand-blue/90"
+              >
+                Sí, convertir en {STAFF_ROLE[confirmRole].name}
+              </AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        )}
+      </AlertDialog>
 
       <Dialog open={quotesOpen} onOpenChange={setQuotesOpen}>
         <DialogContent className="max-h-[80vh] max-w-md overflow-y-auto">
