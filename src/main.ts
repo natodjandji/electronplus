@@ -47,10 +47,14 @@ async function bootstrap() {
   app.getHttpAdapter().getInstance().set('trust proxy', 1);
 
   const apiPrefix = config.get('API_PREFIX', { infer: true });
-  // /sitemap.xml is fetched through the storefront domain (a Firebase
-  // Hosting rewrite keeps the path as-is), so it lives at the root.
+  // /sitemap.xml and /meta-catalog.csv are fetched through the storefront
+  // domain (a Firebase Hosting rewrite keeps the path as-is), so they live
+  // at the root.
   app.setGlobalPrefix(apiPrefix, {
-    exclude: [{ path: 'sitemap.xml', method: RequestMethod.GET }],
+    exclude: [
+      { path: 'sitemap.xml', method: RequestMethod.GET },
+      { path: 'meta-catalog.csv', method: RequestMethod.GET },
+    ],
   });
 
   // Auth is a Bearer token in the Authorization header, not a cookie, so

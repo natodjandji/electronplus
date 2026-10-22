@@ -16,6 +16,13 @@
         }
       },
       {
+        "source": "/meta-catalog.csv",
+        "run": {
+          "serviceId": "electronplus-api",
+          "region": "us-central1"
+        }
+      },
+      {
         "source": "**",
         "destination": "/_shell.html"
       }
