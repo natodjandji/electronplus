@@ -94,7 +94,6 @@ function LoginPage() {
   return (
     <AuthLayout
       title="Iniciar sesión"
-      subtitle="Clientes y administradores acceden desde aquí."
       footer={
         <>
           ¿No tienes cuenta?{" "}

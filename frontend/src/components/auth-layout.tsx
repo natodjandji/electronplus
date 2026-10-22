@@ -18,7 +18,7 @@ export function AuthLayout({
   footer,
 }: {
   title: string;
-  subtitle: string;
+  subtitle?: string;
   children: ReactNode;
   footer: ReactNode;
 }) {
@@ -48,7 +48,7 @@ export function AuthLayout({
           <Card className="p-6 sm:p-8">
             <div className="text-center">
               <h1 className="text-2xl font-bold text-brand-navy">{title}</h1>
-              <p className="mt-1 text-sm text-muted-foreground">{subtitle}</p>
+              {subtitle && <p className="mt-1 text-sm text-muted-foreground">{subtitle}</p>}
             </div>
             <div className="mt-6">{children}</div>
           </Card>
