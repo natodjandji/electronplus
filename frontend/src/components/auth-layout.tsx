@@ -39,8 +39,11 @@ export function AuthLayout({
         Volver a la tienda
       </Link>
 
-      <PageTransition>
-        <div className="relative w-full max-w-md">
+      {/* The width lives outside the animation: as a centered flex item it
+          shrank to its content, so a card without a subtitle (sign-in) came
+          out narrower than one with (sign-up). */}
+      <div className="relative w-full max-w-md">
+        <PageTransition>
           <div className="mb-6 flex justify-center">
             <ElectronLogo layout="full" tone="white" className="h-9" />
           </div>
@@ -54,8 +57,8 @@ export function AuthLayout({
           </Card>
 
           <p className="mt-5 text-center text-sm text-white/60">{footer}</p>
-        </div>
-      </PageTransition>
+        </PageTransition>
+      </div>
     </div>
   );
 }
