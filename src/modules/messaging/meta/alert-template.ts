@@ -6,7 +6,7 @@
  *
  * It lives in the WhatsApp Business account of the sending number. A new
  * number in another account needs it created there too:
- *   npm run whatsapp:alert-template -- <WABA_ID>
+ *   npm run whatsapp:templates -- <WABA_ID>
  */
 export const ALERT_TEMPLATE_NAME = 'alerta_panel';
 export const ALERT_TEMPLATE_LANGUAGE = 'es';

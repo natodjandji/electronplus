@@ -123,7 +123,8 @@ export class MessagingAdminController {
   @Patch('conversations/:id')
   @HttpCode(204)
   async update(@Param('id') id: string, @Body() dto: UpdateConversationDto) {
-    await this.messaging.setPaused(id, dto.paused);
+    if (dto.paused !== undefined) await this.messaging.setPaused(id, dto.paused);
+    if (dto.noticesOff !== undefined) await this.messaging.setNoticesOff(id, dto.noticesOff);
   }
 
   @Get('settings')

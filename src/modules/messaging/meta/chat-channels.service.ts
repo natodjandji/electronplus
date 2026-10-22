@@ -120,25 +120,42 @@ export class ChatChannelsService {
     to: string,
     alert: { title: string; detail: string; panelPath: string },
   ): Promise<string | undefined> {
+    return this.sendTemplate(to, ALERT_TEMPLATE_NAME, {
+      body: [
+        templateParam(alert.title, ALERT_TITLE_LIMIT),
+        templateParam(alert.detail, ALERT_DETAIL_LIMIT),
+      ],
+      button: alert.panelPath,
+    });
+  }
+
+  /** An approved WhatsApp template (Spanish): its body parameters in order,
+   * and the end of its URL button's address when the button takes one. */
+  async sendTemplate(
+    to: string,
+    name: string,
+    params: { body: string[]; button?: string },
+  ): Promise<string | undefined> {
     return this.whatsappSend(to, {
       type: 'template',
       template: {
-        name: ALERT_TEMPLATE_NAME,
+        name,
         language: { code: ALERT_TEMPLATE_LANGUAGE },
         components: [
           {
             type: 'body',
-            parameters: [
-              { type: 'text', text: templateParam(alert.title, ALERT_TITLE_LIMIT) },
-              { type: 'text', text: templateParam(alert.detail, ALERT_DETAIL_LIMIT) },
-            ],
+            parameters: params.body.map((text) => ({ type: 'text', text })),
           },
-          {
-            type: 'button',
-            sub_type: 'url',
-            index: '0',
-            parameters: [{ type: 'text', text: alert.panelPath }],
-          },
+          ...(params.button
+            ? [
+                {
+                  type: 'button',
+                  sub_type: 'url',
+                  index: '0',
+                  parameters: [{ type: 'text', text: params.button }],
+                },
+              ]
+            : []),
         ],
       },
     });

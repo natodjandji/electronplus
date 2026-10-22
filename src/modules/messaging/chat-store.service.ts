@@ -6,6 +6,7 @@ import { FirestoreRepository, snapshotToEntity } from '../../firebase/firestore.
 import {
   conversationId,
   type ChatAuthor,
+  type ChatChannel,
   type ChatConversation,
   type ChatMessage,
   type ChatMessageKind,
@@ -157,6 +158,38 @@ export class ChatStoreService {
     });
   }
 
+  /** A message the store sent on its own (an order update): kept in the
+   * customer's chat, which it opens if they never wrote, so the panel shows
+   * it and the assistant has it in mind if they answer. */
+  async recordNotice(notice: {
+    channel: ChatChannel;
+    customerId: string;
+    customerName?: string;
+    text: string;
+    externalId?: string;
+  }): Promise<void> {
+    const id = conversationId(notice.channel, notice.customerId);
+    const existing = await this.conversations.findById(id);
+    await this.conversations.doc(id).set(
+      {
+        channel: notice.channel,
+        customerId: notice.customerId,
+        // The name WhatsApp gives once they write wins over the order's.
+        ...(!existing?.customerName && notice.customerName
+          ? { customerName: notice.customerName }
+          : {}),
+        updatedAt: FieldValue.serverTimestamp(),
+      },
+      { merge: true },
+    );
+    await this.recordOutbound(id, {
+      author: 'bot',
+      kind: 'text',
+      text: notice.text,
+      externalIds: notice.externalId ? [notice.externalId] : [],
+    });
+  }
+
   /** The newest messages, oldest first. */
   async history(id: string, limit = HISTORY_LIMIT): Promise<ChatMessage[]> {
     const snap = await this.messages(id).orderBy('at', 'desc').limit(limit).get();
@@ -199,6 +232,10 @@ export class ChatStoreService {
       pauseReason: reason,
       ...(reason === 'handoff' ? { needsAttention: true, handoffSummary: summary ?? null } : {}),
     });
+  }
+
+  async setNoticesOff(id: string, off: boolean): Promise<void> {
+    await this.conversations.patch(id, { noticesOff: off });
   }
 
   async resume(id: string): Promise<void> {

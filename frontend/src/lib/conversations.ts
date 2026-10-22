@@ -13,6 +13,8 @@ export interface ChatConversation {
   pauseReason?: "human_reply" | "handoff" | "manual" | null;
   needsAttention?: boolean;
   handoffSummary?: string | null;
+  /** The customer asked not to get order and quote updates on WhatsApp. */
+  noticesOff?: boolean;
 }
 
 export interface ChatMessage {
@@ -34,6 +36,8 @@ export interface MessagingSettings {
   extraInstructions: string;
   /** WhatsApp numbers the panel's alerts go to: country code and digits. */
   alertPhones: string[];
+  /** Order and quote updates to customers who agreed at checkout. */
+  customerUpdatesEnabled: boolean;
 }
 
 /** Which parts the server has credentials for. */

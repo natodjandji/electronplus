@@ -17,6 +17,7 @@ import { PublicShell } from "@/components/public-shell";
 import { EASE_OUT_QUINT } from "@/components/motion-primitives";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
+import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Field } from "@/components/ui/field";
@@ -88,6 +89,7 @@ interface MyProfile {
   email: string;
   displayName?: string;
   phone?: string;
+  whatsappUpdates?: boolean;
   taxId?: string;
   address?: string;
   city?: string;
@@ -172,6 +174,8 @@ function CheckoutPage() {
   const [taxIdNumber, setTaxIdNumber] = useState("");
   const [phonePrefix, setPhonePrefix] = useState<PhonePrefix>("0412");
   const [phoneNumber, setPhoneNumber] = useState("");
+  // Order updates on WhatsApp: on unless they turned it off at a past checkout.
+  const [whatsappUpdates, setWhatsappUpdates] = useState(true);
   const [address, setAddress] = useState("");
   const [state, setState] = useState("");
   const [city, setCity] = useState("");
@@ -249,6 +253,7 @@ function CheckoutPage() {
       setPhonePrefix(parsed.prefix);
       setPhoneNumber(parsed.number);
     }
+    if (myProfile.whatsappUpdates !== undefined) setWhatsappUpdates(myProfile.whatsappUpdates);
     if (myProfile.address) setAddress(myProfile.address);
     if (myProfile.state) setState(myProfile.state);
     if (myProfile.city) setCity(myProfile.city);
@@ -297,28 +302,36 @@ function CheckoutPage() {
     }
   };
 
+  // Only a mobile line gets WhatsApp.
+  const whatsappCapable = phonePrefix.startsWith("04");
+
   const buildShipping = () => ({
     fullName: fullName.trim(),
     phone: formatPhone(phonePrefix, phoneNumber)!,
     taxId: formatTaxId(taxIdPrefix, taxIdNumber),
+    whatsappUpdates: whatsappCapable && whatsappUpdates,
     ...(isPickup ? {} : { address: address.trim(), city, state }),
   });
 
-  /** Saves the shipping info for next time (delivery orders). */
+  /** Saves the phone and the WhatsApp choice for next time (quote updates
+   * use them too) and, for delivery orders, the rest of the shipping info. */
   const saveShippingProfile = (shipping: ReturnType<typeof buildShipping>) => {
-    if (!isPickup) {
-      apiFetch("/users/me", {
-        method: "PATCH",
-        body: {
-          displayName: shipping.fullName,
-          phone: shipping.phone,
-          taxId: shipping.taxId,
-          address: address.trim(),
-          city,
-          state,
-        },
-      }).catch(() => {});
-    }
+    apiFetch("/users/me", {
+      method: "PATCH",
+      body: {
+        phone: shipping.phone,
+        whatsappUpdates: shipping.whatsappUpdates,
+        ...(isPickup
+          ? {}
+          : {
+              displayName: shipping.fullName,
+              taxId: shipping.taxId,
+              address: address.trim(),
+              city,
+              state,
+            }),
+      },
+    }).catch(() => {});
   };
 
   /** Common tail for every successful payment, PayPal included — saves the
@@ -610,12 +623,24 @@ function CheckoutPage() {
                         number={taxIdNumber}
                         onNumberChange={setTaxIdNumber}
                       />
-                      <PhoneField
-                        prefix={phonePrefix}
-                        onPrefixChange={setPhonePrefix}
-                        number={phoneNumber}
-                        onNumberChange={setPhoneNumber}
-                      />
+                      <div className="grid gap-2">
+                        <PhoneField
+                          prefix={phonePrefix}
+                          onPrefixChange={setPhonePrefix}
+                          number={phoneNumber}
+                          onNumberChange={setPhoneNumber}
+                        />
+                        {whatsappCapable && (
+                          <label className="flex items-start gap-2 text-xs text-muted-foreground">
+                            <Checkbox
+                              checked={whatsappUpdates}
+                              onCheckedChange={(v) => setWhatsappUpdates(v === true)}
+                              className="mt-px"
+                            />
+                            Recibir las actualizaciones de mi pedido por WhatsApp
+                          </label>
+                        )}
+                      </div>
                       <Field className="grid gap-1.5">
                         <Label className="text-xs font-medium text-brand-navy">Correo</Label>
                         <Input value={email} disabled className="bg-brand-surface" />

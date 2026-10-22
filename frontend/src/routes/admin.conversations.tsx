@@ -3,6 +3,8 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useMemo, useRef, useState } from "react";
 import {
   ArrowLeft,
+  Bell,
+  BellOff,
   Bot,
   CircleAlert,
   ExternalLink,
@@ -344,6 +346,23 @@ function ConversationThread({
     onError: (error) => reportError(error),
   });
 
+  const setNoticesOff = useMutation({
+    mutationFn: (off: boolean) =>
+      apiFetch<void>(`/admin/messaging/conversations/${encodeURIComponent(c.id)}`, {
+        method: "PATCH",
+        body: { noticesOff: off },
+      }),
+    onSuccess: (_, off) => {
+      void queryClient.invalidateQueries({ queryKey: conversationsKey });
+      toast.success(
+        off
+          ? "Este cliente ya no recibirá avisos de pedidos ni cotizaciones"
+          : "Este cliente vuelve a recibir avisos de pedidos y cotizaciones",
+      );
+    },
+    onError: (error) => reportError(error),
+  });
+
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ block: "end" });
   }, [messages?.length]);
@@ -373,6 +392,19 @@ function ConversationThread({
               <ExternalLink className="h-3.5 w-3.5" />
               WhatsApp
             </a>
+          </Button>
+        )}
+        {c.channel === "whatsapp" && (
+          <Button
+            size="sm"
+            variant="outline"
+            className="gap-1.5"
+            title="Avisos de pedidos y cotizaciones por WhatsApp"
+            disabled={setNoticesOff.isPending}
+            onClick={() => setNoticesOff.mutate(!c.noticesOff)}
+          >
+            {c.noticesOff ? <Bell className="h-4 w-4" /> : <BellOff className="h-4 w-4" />}
+            {c.noticesOff ? "Activar avisos" : "Desactivar avisos"}
           </Button>
         )}
         <Button
@@ -657,6 +689,24 @@ function SettingsDialog({
                 Enviar alerta de prueba
               </Button>
             </div>
+          </Field>
+
+          <Field className="flex items-start justify-between gap-3">
+            <div className="grid gap-1">
+              <Label className="flex items-center gap-2">
+                <WhatsappIcon className="h-4 w-4" /> Avisar a los clientes por WhatsApp
+              </Label>
+              <p className="text-xs text-muted-foreground">
+                Pedido recibido, pago confirmado, enviado o listo para retirar, entregado o
+                cancelado, y cotizaciones aprobadas o rechazadas, a quienes marcan la casilla al
+                pagar. Enciéndelo cuando esté conectado el número de la tienda: el de prueba solo
+                llega a sus destinatarios de prueba.
+              </p>
+            </div>
+            <Switch
+              checked={draft.customerUpdatesEnabled}
+              onCheckedChange={(v) => set("customerUpdatesEnabled", v)}
+            />
           </Field>
         </div>
 

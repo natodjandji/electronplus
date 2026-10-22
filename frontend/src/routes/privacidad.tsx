@@ -6,7 +6,7 @@ import { CONTACT_INFO } from "@/lib/contact-info";
 import { absoluteUrl } from "@/lib/site-url";
 
 /** Shown under the title; change it whenever the text below changes. */
-const LAST_UPDATED = "21 de octubre de 2026";
+const LAST_UPDATED = "22 de octubre de 2026";
 
 /** Meta asks for a data deletion URL next to the privacy policy one; this
  * section's anchor is that URL. */
@@ -147,6 +147,12 @@ function PrivacyPage() {
             <li>
               Enviarte correos sobre tu cuenta y tus pedidos, como la confirmación de compra y los
               cambios de estado.
+            </li>
+            <li>
+              Si marcas la casilla al pagar, enviarte por WhatsApp, al teléfono de tu pedido, los
+              avisos de tu pedido (recibido, pago confirmado, enviado o listo para retirar,
+              entregado o cancelado) y de tus cotizaciones. Puedes desmarcarla en tu próxima compra
+              o pedirnos por el mismo chat que dejemos de enviarlos.
             </li>
             <li>Responder tus consultas por WhatsApp, Instagram, correo o en la tienda.</li>
             <li>Prevenir fraudes y mantener la seguridad de la tienda y de tu cuenta.</li>

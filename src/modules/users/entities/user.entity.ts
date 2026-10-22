@@ -8,6 +8,9 @@ export interface User extends FirestoreDoc {
   displayName?: string;
   photoURL?: string;
   phone?: string;
+  /** Agreed at checkout to get order and quote updates on WhatsApp at
+   * `phone` (see CustomerUpdatesService). */
+  whatsappUpdates?: boolean;
   taxId?: string; // RIF / cédula
 
   // Shipping address saved from the first completed checkout, reused to

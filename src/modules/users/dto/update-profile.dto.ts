@@ -1,4 +1,4 @@
-import { IsOptional, IsString, MaxLength } from 'class-validator';
+import { IsBoolean, IsOptional, IsString, MaxLength } from 'class-validator';
 
 /** Self-service profile update — deliberately excludes role/credit/active,
  * which only an admin may change via PATCH /users/:id. Lengths match the
@@ -13,6 +13,12 @@ export class UpdateProfileDto {
   @IsString()
   @MaxLength(50)
   phone?: string;
+
+  /** Order and quote updates on WhatsApp at `phone`, set from the checkout's
+   * checkbox. */
+  @IsOptional()
+  @IsBoolean()
+  whatsappUpdates?: boolean;
 
   @IsOptional()
   @IsString()

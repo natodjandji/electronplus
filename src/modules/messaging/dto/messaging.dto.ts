@@ -30,8 +30,14 @@ export class ReplyJobDto {
 }
 
 export class UpdateConversationDto {
+  @IsOptional()
   @IsBoolean()
-  paused: boolean;
+  paused?: boolean;
+
+  /** Stops (or restarts) the order and quote updates to this customer. */
+  @IsOptional()
+  @IsBoolean()
+  noticesOff?: boolean;
 }
 
 export class UpdateMessagingSettingsDto {
@@ -72,4 +78,8 @@ export class UpdateMessagingSettingsDto {
   @ArrayMaxSize(5)
   @Matches(/^[1-9]\d{9,14}$/, { each: true })
   alertPhones?: string[];
+
+  @IsOptional()
+  @IsBoolean()
+  customerUpdatesEnabled?: boolean;
 }

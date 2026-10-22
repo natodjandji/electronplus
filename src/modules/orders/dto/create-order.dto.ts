@@ -3,6 +3,7 @@ import {
   ArrayMaxSize,
   ArrayMinSize,
   IsArray,
+  IsBoolean,
   IsEnum,
   IsInt,
   IsOptional,
@@ -53,6 +54,11 @@ export class ShippingInfoDto {
   @IsString()
   @MaxLength(200)
   state?: string;
+
+  /** The customer agreed to get this order's updates on WhatsApp. */
+  @IsOptional()
+  @IsBoolean()
+  whatsappUpdates?: boolean;
 }
 
 export class CreateOrderDto {

@@ -5,11 +5,14 @@ import { EnvConfig } from '../../config/env.validation';
 import { ExchangeRateModule } from '../exchange-rate/exchange-rate.module';
 import { OrdersModule } from '../orders/orders.module';
 import { PaymentMethodsModule } from '../payment-methods/payment-methods.module';
+import { QuotesModule } from '../quotes/quotes.module';
 import { ProductsModule } from '../products/products.module';
 import { ShippingRatesModule } from '../shipping-rates/shipping-rates.module';
+import { UsersModule } from '../users/users.module';
 import { AdminAlertsService } from './admin-alerts.service';
 import { ANTHROPIC_CLIENT, SalesAgentService } from './agent/sales-agent.service';
 import { ChatStoreService } from './chat-store.service';
+import { CustomerUpdatesService } from './customer-updates.service';
 import {
   MessagingAdminController,
   MessagingTasksController,
@@ -27,6 +30,8 @@ import { ReplyQueueService } from './reply-queue.service';
     ShippingRatesModule,
     ExchangeRateModule,
     OrdersModule,
+    QuotesModule,
+    UsersModule,
   ],
   controllers: [MetaWebhookController, MessagingTasksController, MessagingAdminController],
   providers: [
@@ -46,6 +51,7 @@ import { ReplyQueueService } from './reply-queue.service';
     MessagingService,
     ReplyQueueService,
     AdminAlertsService,
+    CustomerUpdatesService,
   ],
 })
 export class MessagingModule {}

@@ -64,6 +64,9 @@ export interface Order extends FirestoreDoc {
   shippingAddress?: string;
   shippingCity?: string;
   shippingState?: string;
+  /** The customer agreed at checkout to get this order's updates on
+   * WhatsApp, at shippingPhone (see CustomerUpdatesService). */
+  whatsappUpdates?: boolean;
 
   items: OrderItem[];
 

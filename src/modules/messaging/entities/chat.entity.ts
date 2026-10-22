@@ -27,6 +27,9 @@ export interface ChatConversation extends FirestoreDoc {
   pauseReason?: ChatPauseReason | null;
   /** Raised by a handoff, cleared when an admin resumes the assistant. */
   needsAttention?: boolean;
+  /** The customer asked not to get order and quote updates here; set by an
+   * admin (see CustomerUpdatesService). */
+  noticesOff?: boolean;
   handoffSummary?: string | null;
   /** Lock held while a run answers this chat. */
   processingUntil?: Date | null;
@@ -104,6 +107,10 @@ export interface MessagingSettings {
    * panel's alerts go to (see AdminAlertsService). The assistant doesn't
    * answer them. */
   alertPhones: string[];
+  /** Order and quote updates to customers who agreed at checkout (see
+   * CustomerUpdatesService). Off until the store's own number is connected:
+   * the test number only reaches its few registered recipients. */
+  customerUpdatesEnabled: boolean;
 }
 
 export const DEFAULT_MESSAGING_SETTINGS: MessagingSettings = {
@@ -115,6 +122,7 @@ export const DEFAULT_MESSAGING_SETTINGS: MessagingSettings = {
   humanPauseHours: 12,
   extraInstructions: '',
   alertPhones: [],
+  customerUpdatesEnabled: false,
 };
 
 export function conversationId(channel: ChatChannel, customerId: string): string {
