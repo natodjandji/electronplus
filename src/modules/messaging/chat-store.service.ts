@@ -19,6 +19,8 @@ import type { EchoedChatMessage, InboundChatMessage } from './meta/webhook-event
 const HISTORY_LIMIT = 40;
 const PREVIEW_LENGTH = 120;
 const ADMIN_LIST_LIMIT = 100;
+/** Under Firestore's 500 writes per batch. */
+const DELETE_BATCH = 400;
 
 export interface OutboundChatMessage {
   author: Exclude<ChatAuthor, 'customer'>;
@@ -232,6 +234,31 @@ export class ChatStoreService {
       pauseReason: reason,
       ...(reason === 'handoff' ? { needsAttention: true, handoffSummary: summary ?? null } : {}),
     });
+  }
+
+  /** Removes the chat and its messages from the panel. A customer who asked
+   * not to get order updates keeps that: the chat's doc stays with only it,
+   * which leaves it out of the list (ordered by lastMessageAt) until they
+   * write again. */
+  async deleteConversation(id: string): Promise<void> {
+    const messages = this.messages(id);
+    for (;;) {
+      const snap = await messages.limit(DELETE_BATCH).get();
+      if (snap.docs.length === 0) break;
+      const batch = this.firestore.batch();
+      for (const doc of snap.docs) batch.delete(messages.doc(doc.id));
+      await batch.commit();
+    }
+    const conversation = await this.conversations.findById(id);
+    if (conversation?.noticesOff) {
+      await this.conversations.doc(id).set({
+        channel: conversation.channel,
+        customerId: conversation.customerId,
+        noticesOff: true,
+      });
+    } else {
+      await this.conversations.delete(id);
+    }
   }
 
   async setNoticesOff(id: string, off: boolean): Promise<void> {

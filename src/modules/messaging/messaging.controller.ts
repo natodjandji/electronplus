@@ -1,6 +1,7 @@
 import {
   Body,
   Controller,
+  Delete,
   ForbiddenException,
   Get,
   Headers,
@@ -125,6 +126,14 @@ export class MessagingAdminController {
   async update(@Param('id') id: string, @Body() dto: UpdateConversationDto) {
     if (dto.paused !== undefined) await this.messaging.setPaused(id, dto.paused);
     if (dto.noticesOff !== undefined) await this.messaging.setNoticesOff(id, dto.noticesOff);
+  }
+
+  /** Removes the chat and its messages from the panel; the customer's own
+   * WhatsApp or Instagram keeps them. */
+  @Delete('conversations/:id')
+  @HttpCode(204)
+  async remove(@Param('id') id: string) {
+    await this.messaging.deleteConversation(id);
   }
 
   @Get('settings')

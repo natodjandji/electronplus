@@ -328,6 +328,10 @@ export class MessagingService implements OnModuleInit {
     }
   }
 
+  deleteConversation(id: string): Promise<void> {
+    return this.store.deleteConversation(id);
+  }
+
   async setNoticesOff(id: string, off: boolean): Promise<void> {
     await this.store.setNoticesOff(id, off);
   }

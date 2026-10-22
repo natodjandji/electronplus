@@ -15,9 +15,21 @@ import {
   PlayCircle,
   Settings2,
   ShoppingBag,
+  Trash2,
 } from "lucide-react";
 import { toast } from "sonner";
 import { AdminShell } from "@/components/admin-shell";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from "@/components/ui/alert-dialog";
 import { CardListSkeleton } from "@/components/table-skeleton";
 import { WhatsappIcon } from "@/components/whatsapp-icon";
 import { Button } from "@/components/ui/button";
@@ -363,6 +375,19 @@ function ConversationThread({
     onError: (error) => reportError(error),
   });
 
+  const remove = useMutation({
+    mutationFn: () =>
+      apiFetch<void>(`/admin/messaging/conversations/${encodeURIComponent(c.id)}`, {
+        method: "DELETE",
+      }),
+    onSuccess: () => {
+      onBack();
+      void queryClient.invalidateQueries({ queryKey: conversationsKey });
+      toast.success("Chat eliminado");
+    },
+    onError: (error) => reportError(error),
+  });
+
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ block: "end" });
   }, [messages?.length]);
@@ -417,6 +442,43 @@ function ConversationThread({
           {paused ? <PlayCircle className="h-4 w-4" /> : <PauseCircle className="h-4 w-4" />}
           {paused ? "Reanudar asistente" : "Pausar asistente"}
         </Button>
+        <AlertDialog>
+          <AlertDialogTrigger asChild>
+            <Button
+              size="icon"
+              variant="outline"
+              className="h-8 w-8 text-destructive hover:text-destructive"
+              disabled={remove.isPending}
+              aria-label="Eliminar chat"
+              title="Eliminar chat"
+            >
+              {remove.isPending ? (
+                <Loader2 className="h-4 w-4 animate-spin" />
+              ) : (
+                <Trash2 className="h-4 w-4" />
+              )}
+            </Button>
+          </AlertDialogTrigger>
+          <AlertDialogContent>
+            <AlertDialogHeader>
+              <AlertDialogTitle>¿Eliminar el chat con {customerLabel(c)}?</AlertDialogTitle>
+              <AlertDialogDescription>
+                Se borran del panel todos sus mensajes y no se puede deshacer. El cliente conserva
+                la conversación en su {c.channel === "whatsapp" ? "WhatsApp" : "Instagram"}, y si
+                vuelve a escribir se abre un chat nuevo.
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+              <AlertDialogCancel>Cancelar</AlertDialogCancel>
+              <AlertDialogAction
+                onClick={() => remove.mutate()}
+                className="bg-destructive text-white hover:bg-destructive/90"
+              >
+                Eliminar
+              </AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
       </div>
 
       {paused && c.pauseReason && (
@@ -577,25 +639,33 @@ function SettingsDialog({
           </div>
 
           <div className="grid gap-4 sm:grid-cols-[minmax(0,1fr)_9rem]">
-            <Field className="grid gap-1.5">
+            {/* min-w-0: a grid item won't shrink below its content otherwise,
+                and the trigger ran over the next column. */}
+            <Field className="grid min-w-0 gap-1.5">
               <Label className="text-xs font-medium text-brand-navy">Modelo</Label>
               <Select
                 value={draft.model}
                 onValueChange={(v) => set("model", v as MessagingSettings["model"])}
               >
                 <SelectTrigger>
-                  <SelectValue />
+                  {/* The name only; the list adds what each one is for. */}
+                  <SelectValue>
+                    {MODEL_OPTIONS.find((o) => o.value === draft.model)?.label}
+                  </SelectValue>
                 </SelectTrigger>
                 <SelectContent>
                   {MODEL_OPTIONS.map((o) => (
                     <SelectItem key={o.value} value={o.value}>
-                      {o.label} · {o.hint}
+                      <span className="flex flex-col">
+                        <span>{o.label}</span>
+                        <span className="text-xs text-muted-foreground">{o.hint}</span>
+                      </span>
                     </SelectItem>
                   ))}
                 </SelectContent>
               </Select>
             </Field>
-            <Field className="grid gap-1.5">
+            <Field className="grid min-w-0 gap-1.5">
               <Label className="text-xs font-medium text-brand-navy">Respuesta</Label>
               <Select
                 value={draft.effort}

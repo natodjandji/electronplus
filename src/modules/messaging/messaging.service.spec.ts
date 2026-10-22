@@ -149,6 +149,31 @@ describe('MessagingService', () => {
     expect(await messages()).toEqual([]);
   });
 
+  it('deletes a chat with its messages', async () => {
+    const { service, firestore, messages } = setup();
+    await service.handleWebhook(whatsappText('wamid.1', 'Hola'));
+    await service.handleWebhook(whatsappText('wamid.2', '¿Tienen cables?'));
+
+    await service.deleteConversation(CONVERSATION);
+    expect(await messages()).toEqual([]);
+    expect(firestore.read(Collections.CHAT_CONVERSATIONS, CONVERSATION)).toBeUndefined();
+  });
+
+  it('keeps a customer’s "no order updates" when their chat is deleted', async () => {
+    const { service, firestore, messages, store } = setup();
+    await service.handleWebhook(whatsappText('wamid.1', 'No me manden más avisos'));
+    await store.setNoticesOff(CONVERSATION, true);
+
+    await service.deleteConversation(CONVERSATION);
+    expect(await messages()).toEqual([]);
+    // Without lastMessageAt the chat list (ordered by it) leaves it out.
+    expect(firestore.read(Collections.CHAT_CONVERSATIONS, CONVERSATION)).toEqual({
+      channel: 'whatsapp',
+      customerId: '584141234567',
+      noticesOff: true,
+    });
+  });
+
   it('answers a burst of messages once, in the run of the newest', async () => {
     const { service, agentCalls, messages } = setup();
     await service.handleWebhook(whatsappText('wamid.1', 'Hola'));
