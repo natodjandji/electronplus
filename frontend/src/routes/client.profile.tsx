@@ -1,5 +1,5 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useMutation } from "@tanstack/react-query";
 import { useEffect, useMemo, useState, type ReactNode } from "react";
 import { Loader2, MapPin, Plus, Trash2, UserRound } from "lucide-react";
 import { toast } from "sonner";
@@ -21,14 +21,8 @@ import {
 } from "@/components/ui/select";
 import { Skeleton } from "@/components/ui/skeleton";
 import { apiFetch, reportError } from "@/lib/api-client";
-import { useAuth } from "@/lib/auth-context";
-import {
-  addressState,
-  toDraft,
-  toProfileUpdate,
-  type Account,
-  type Draft,
-} from "@/lib/profile-form";
+import { useAccountSaved, useMyAccount, type MyAccount } from "@/lib/my-account";
+import { addressState, toDraft, toProfileUpdate, type Draft } from "@/lib/profile-form";
 import { VENEZUELA_STATE_NAMES, citiesForState } from "@/lib/venezuela-locations";
 import { validatePhoneNumber } from "@/lib/venezuelan-phone";
 import { validateTaxIdNumber } from "@/lib/venezuelan-tax-id";
@@ -44,15 +38,9 @@ export const Route = createFileRoute("/client/profile")({
   component: ProfilePage,
 });
 
-const ACCOUNT_KEY = ["users", "me"] as const;
-
 function ProfilePage() {
-  const queryClient = useQueryClient();
-  const { applySavedProfile } = useAuth();
-  const { data: account, isLoading } = useQuery({
-    queryKey: [...ACCOUNT_KEY, "profile"],
-    queryFn: () => apiFetch<Account>("/users/me"),
-  });
+  const accountSaved = useAccountSaved();
+  const { data: account, isLoading } = useMyAccount();
 
   const [draft, setDraft] = useState<Draft | null>(null);
   // The address fields stay folded away until there is an address or the
@@ -70,16 +58,12 @@ function ProfilePage() {
 
   const save = useMutation({
     mutationFn: (d: Draft) =>
-      apiFetch<Account>("/users/me", {
+      apiFetch<MyAccount>("/users/me", {
         method: "PATCH",
         body: toProfileUpdate(d),
       }),
     onSuccess: (updated) => {
-      queryClient.setQueryData([...ACCOUNT_KEY, "profile"], updated);
-      // The checkout prefills from the same profile; this page already has
-      // the saved one, so nothing refetches under the customer's typing.
-      void queryClient.invalidateQueries({ queryKey: ACCOUNT_KEY, refetchType: "none" });
-      applySavedProfile(updated);
+      accountSaved(updated);
       setAddingAddress(false);
       toast.success("Perfil actualizado");
     },

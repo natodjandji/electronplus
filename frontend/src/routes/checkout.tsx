@@ -33,6 +33,7 @@ import {
 import { TaxIdField } from "@/components/tax-id-field";
 import { PhoneField } from "@/components/phone-field";
 import { apiFetch, ApiError } from "@/lib/api-client";
+import { useAccountSaved, useMyAccount, type MyAccount } from "@/lib/my-account";
 import { useAuth } from "@/lib/auth-context";
 import { formatMoney, TAX_RATE, useElectronStore } from "@/lib/electron-store";
 import { formatBs, useBcvRate } from "@/lib/use-bcv-rate";
@@ -83,20 +84,6 @@ const STEPS = [
   { id: 2, label: "Pago", icon: CreditCard },
   { id: 3, label: "Confirmación", icon: ClipboardCheck },
 ];
-
-interface MyProfile {
-  uid: string;
-  email: string;
-  displayName?: string;
-  phone?: string;
-  whatsappUpdates?: boolean;
-  taxId?: string;
-  address?: string;
-  city?: string;
-  state?: string;
-  /** Set by an admin for wholesale accounts — the only ones that may pay on credit. */
-  creditLimit?: number;
-}
 
 interface ShippingQuote {
   amount: number;
@@ -199,11 +186,10 @@ function CheckoutPage() {
     paypalOrderId: string;
   } | null>(null);
 
-  const { data: myProfile } = useQuery({
-    queryKey: ["users", "me", "checkout"],
-    queryFn: () => apiFetch<MyProfile>("/users/me"),
-    enabled: !!user,
-  });
+  // The profile page's own cache entry: what was just saved there is what
+  // fills in here.
+  const { data: myProfile } = useMyAccount(!!user);
+  const accountSaved = useAccountSaved();
 
   const { data: paymentMethods } = usePaymentMethods({ enabled: !!user });
   const { data: casheaConfig } = useCasheaConfig({ enabled: !!user });
@@ -313,7 +299,7 @@ function CheckoutPage() {
   /** Saves the phone and the WhatsApp choice for next time (quote updates
    * use them too) and, for delivery orders, the rest of the shipping info. */
   const saveShippingProfile = (shipping: ReturnType<typeof buildShipping>) => {
-    apiFetch("/users/me", {
+    apiFetch<MyAccount>("/users/me", {
       method: "PATCH",
       body: {
         phone: shipping.phone,
@@ -328,7 +314,9 @@ function CheckoutPage() {
               state,
             }),
       },
-    }).catch(() => {});
+    })
+      .then(accountSaved)
+      .catch(() => {});
   };
 
   /** Common tail for every successful payment, PayPal included — saves the

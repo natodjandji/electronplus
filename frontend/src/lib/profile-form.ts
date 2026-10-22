@@ -1,16 +1,6 @@
-import type { UserProfile } from "@/lib/auth-context";
+import type { MyAccount } from "@/lib/my-account";
 import { formatPhone, parsePhone, type PhonePrefix } from "@/lib/venezuelan-phone";
 import { formatTaxId, parseTaxId, type TaxIdPrefix } from "@/lib/venezuelan-tax-id";
-
-/** What GET /users/me returns that the profile page shows. */
-export interface Account extends UserProfile {
-  phone?: string;
-  whatsappUpdates?: boolean;
-  taxId?: string;
-  address?: string;
-  city?: string;
-  state?: string;
-}
 
 /** The profile form's values, as its fields hold them. */
 export interface Draft {
@@ -25,7 +15,7 @@ export interface Draft {
   address: string;
 }
 
-export function toDraft(account: Account): Draft {
+export function toDraft(account: MyAccount): Draft {
   const taxId = parseTaxId(account.taxId);
   const phone = parsePhone(account.phone);
   return {

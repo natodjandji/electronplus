@@ -57,7 +57,13 @@ import {
 import { openCustomerQuotePdf } from "@/lib/open-pdf";
 import { computeTotal, computeWholesaleTotal } from "@/lib/quote-totals";
 import { formatBs, useBcvRate } from "@/lib/use-bcv-rate";
-import { formatTaxId, validateTaxIdNumber, type TaxIdPrefix } from "@/lib/venezuelan-tax-id";
+import { useMyAccount } from "@/lib/my-account";
+import {
+  formatTaxId,
+  parseTaxId,
+  validateTaxIdNumber,
+  type TaxIdPrefix,
+} from "@/lib/venezuelan-tax-id";
 import { TaxIdField } from "@/components/tax-id-field";
 import { ProductSearchSelect } from "@/components/product-search-select";
 import { toast } from "sonner";
@@ -166,13 +172,30 @@ function QuotesPage() {
     if (startNew) setView("new");
   }, [startNew]);
 
-  // Prefill with the requester's own name — still editable in case the
-  // quote is for someone else.
+  // Prefill with the requester's own name and cédula/RIF from their
+  // profile — still editable in case the quote is for someone else.
   useEffect(() => {
     if (view === "new") {
       setCustomerName((prev) => prev || profile?.displayName || user?.displayName || "");
     }
   }, [view, profile?.displayName, user?.displayName]);
+
+  const { data: account } = useMyAccount(!!user);
+  // Once per new request: a cédula the customer clears stays cleared, and
+  // one they typed before the profile loaded isn't replaced.
+  const taxIdPrefilled = useRef(false);
+  useEffect(() => {
+    if (view !== "new") {
+      taxIdPrefilled.current = false;
+      return;
+    }
+    if (taxIdPrefilled.current || !account) return;
+    taxIdPrefilled.current = true;
+    if (!account.taxId || taxIdNumber) return;
+    const saved = parseTaxId(account.taxId);
+    setTaxIdPrefix(saved.prefix);
+    setTaxIdNumber(saved.number);
+  }, [view, account, taxIdNumber]);
 
   const invalidateMine = () => queryClient.invalidateQueries({ queryKey: ["quotes", "mine"] });
 
