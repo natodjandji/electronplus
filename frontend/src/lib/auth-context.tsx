@@ -62,6 +62,9 @@ type AuthContextValue = {
    * what AdminGuard offers when sessionError is true instead of silently
    * redirecting a real admin away on a transient failure. */
   retrySession: () => Promise<void>;
+  /** Puts a profile the API just saved (PATCH /users/me) in place, so the
+   * header shows a new name at once. */
+  applySavedProfile: (saved: UserProfile) => void;
   /** Set once, right after mount, if a pending signInWithRedirect() came back with an error (e.g. the user denied consent). */
   redirectError: unknown;
   signInWithGoogle: () => Promise<void>;
@@ -216,6 +219,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         loading,
         sessionError,
         retrySession,
+        applySavedProfile: setProfile,
         redirectError,
         signInWithGoogle,
         signInWithEmail,

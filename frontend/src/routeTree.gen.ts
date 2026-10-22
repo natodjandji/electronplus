@@ -39,6 +39,7 @@ import { Route as AdminStockRouteImport } from './routes/admin.stock'
 import { Route as AdminSuppliersRouteImport } from './routes/admin.suppliers'
 import { Route as AdminUsersRouteImport } from './routes/admin.users'
 import { Route as ClientOrdersRouteImport } from './routes/client.orders'
+import { Route as ClientProfileRouteImport } from './routes/client.profile'
 import { Route as CotizacionTokenRouteImport } from './routes/cotizacion.$token'
 import { Route as ProductIdRouteImport } from './routes/product.$id'
 import { Route as VendedorIndexRouteImport } from './routes/vendedor.index'
@@ -197,6 +198,11 @@ const ClientOrdersRoute = ClientOrdersRouteImport.update({
   path: '/orders',
   getParentRoute: () => ClientRoute,
 } as any)
+const ClientProfileRoute = ClientProfileRouteImport.update({
+  id: '/profile',
+  path: '/profile',
+  getParentRoute: () => ClientRoute,
+} as any)
 const CotizacionTokenRoute = CotizacionTokenRouteImport.update({
   id: '/cotizacion/$token',
   path: '/cotizacion/$token',
@@ -258,6 +264,7 @@ export interface FileRoutesByFullPath {
   '/admin/suppliers': typeof AdminSuppliersRoute
   '/admin/users': typeof AdminUsersRoute
   '/client/orders': typeof ClientOrdersRoute
+  '/client/profile': typeof ClientProfileRoute
   '/cotizacion/$token': typeof CotizacionTokenRoute
   '/product/$id': typeof ProductIdRoute
   '/admin/': typeof AdminIndexRoute
@@ -294,6 +301,7 @@ export interface FileRoutesByTo {
   '/admin/suppliers': typeof AdminSuppliersRoute
   '/admin/users': typeof AdminUsersRoute
   '/client/orders': typeof ClientOrdersRoute
+  '/client/profile': typeof ClientProfileRoute
   '/cotizacion/$token': typeof CotizacionTokenRoute
   '/product/$id': typeof ProductIdRoute
   '/admin': typeof AdminIndexRoute
@@ -333,6 +341,7 @@ export interface FileRoutesById {
   '/admin/suppliers': typeof AdminSuppliersRoute
   '/admin/users': typeof AdminUsersRoute
   '/client/orders': typeof ClientOrdersRoute
+  '/client/profile': typeof ClientProfileRoute
   '/cotizacion/$token': typeof CotizacionTokenRoute
   '/product/$id': typeof ProductIdRoute
   '/admin/': typeof AdminIndexRoute
@@ -373,6 +382,7 @@ export interface FileRouteTypes {
     | '/admin/suppliers'
     | '/admin/users'
     | '/client/orders'
+    | '/client/profile'
     | '/cotizacion/$token'
     | '/product/$id'
     | '/admin/'
@@ -409,6 +419,7 @@ export interface FileRouteTypes {
     | '/admin/suppliers'
     | '/admin/users'
     | '/client/orders'
+    | '/client/profile'
     | '/cotizacion/$token'
     | '/product/$id'
     | '/admin'
@@ -447,6 +458,7 @@ export interface FileRouteTypes {
     | '/admin/suppliers'
     | '/admin/users'
     | '/client/orders'
+    | '/client/profile'
     | '/cotizacion/$token'
     | '/product/$id'
     | '/admin/'
@@ -688,6 +700,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ClientOrdersRouteImport
       parentRoute: typeof ClientRoute
     }
+    '/client/profile': {
+      id: '/client/profile'
+      path: '/profile'
+      fullPath: '/client/profile'
+      preLoaderRoute: typeof ClientProfileRouteImport
+      parentRoute: typeof ClientRoute
+    }
     '/cotizacion/$token': {
       id: '/cotizacion/$token'
       path: '/cotizacion/$token'
@@ -775,10 +794,12 @@ const AdminRouteWithChildren = AdminRoute._addFileChildren(AdminRouteChildren)
 
 interface ClientRouteChildren {
   ClientOrdersRoute: typeof ClientOrdersRoute
+  ClientProfileRoute: typeof ClientProfileRoute
 }
 
 const ClientRouteChildren: ClientRouteChildren = {
   ClientOrdersRoute: ClientOrdersRoute,
+  ClientProfileRoute: ClientProfileRoute,
 }
 
 const ClientRouteWithChildren =

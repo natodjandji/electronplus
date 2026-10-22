@@ -10,6 +10,7 @@ import {
   Menu,
   Boxes,
   ScanLine,
+  UserRound,
 } from "lucide-react";
 import { ElectronLogo } from "./electron-logo";
 import { useElectronStore, type UserRole } from "@/lib/electron-store";
@@ -134,6 +135,12 @@ export function SiteHeader() {
                 <DropdownMenuLabel>{ROLE_LABEL[role]}</DropdownMenuLabel>
                 <DropdownMenuSeparator />
                 <DropdownMenuItem asChild className="gap-2">
+                  <Link to="/client/profile">
+                    <UserRound className="h-4 w-4" />
+                    Editar perfil
+                  </Link>
+                </DropdownMenuItem>
+                <DropdownMenuItem asChild className="gap-2">
                   <Link to="/client/orders">
                     <PackageSearch className="h-4 w-4" />
                     Mis pedidos
@@ -206,6 +213,9 @@ export function SiteHeader() {
             {user && (
               <>
                 <div className="my-2 border-t border-border" />
+                <MobileNavLink to="/client/profile" icon={UserRound} onNavigate={closeMobileNav}>
+                  Editar perfil
+                </MobileNavLink>
                 <MobileNavLink to="/client/orders" icon={PackageSearch} onNavigate={closeMobileNav}>
                   Mis pedidos
                 </MobileNavLink>
