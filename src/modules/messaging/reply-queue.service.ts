@@ -30,7 +30,7 @@ export class ChatBusyError extends Error {
  * task calling POST /internal/messaging/reply with an OIDC token (the
  * webhook must answer Meta at once, and only a request gets CPU); the queue
  * retries a busy or failed run. Without a queue the run happens in this
- * process after the same wait.
+ * process after the same wait. Grouped admin alerts go out the same way.
  */
 @Injectable()
 export class ReplyQueueService {
@@ -39,6 +39,7 @@ export class ReplyQueueService {
     scopes: ['https://www.googleapis.com/auth/cloud-platform'],
   });
   private inlineRunner: ((job: ReplyJob) => Promise<unknown>) | null = null;
+  private alertFlushRunner: (() => Promise<unknown>) | null = null;
 
   constructor(private readonly config: ConfigService<EnvConfig, true>) {}
 
@@ -47,7 +48,12 @@ export class ReplyQueueService {
     this.inlineRunner = runner;
   }
 
-  private cloudTasksTarget(): {
+  /** The in-process mode's grouped alert send (AdminAlertsService.flushStock). */
+  setAlertFlushRunner(runner: () => Promise<unknown>): void {
+    this.alertFlushRunner = runner;
+  }
+
+  private cloudTasksTarget(path: string): {
     queue: string;
     url: string;
     email: string;
@@ -62,19 +68,47 @@ export class ReplyQueueService {
       queue,
       email,
       audience,
-      url: `${audience.replace(/\/$/, '')}/${prefix}/internal/messaging/reply`,
+      url: `${audience.replace(/\/$/, '')}/${prefix}/internal/messaging/${path}`,
     };
   }
 
   async schedule(job: ReplyJob, delayMs = REPLY_DELAY_MS): Promise<void> {
-    const target = this.cloudTasksTarget();
+    const target = this.cloudTasksTarget('reply');
     if (!target) {
       this.scheduleInline(job, delayMs, 1);
       return;
     }
     // Named after the message, so a webhook Meta delivers twice can't
     // schedule two replies (Cloud Tasks refuses a repeated name).
-    const name = `${target.queue}/tasks/reply-${createHash('sha256').update(job.triggerId).digest('hex').slice(0, 40)}`;
+    const id = `reply-${createHash('sha256').update(job.triggerId).digest('hex').slice(0, 40)}`;
+    await this.createTask(target, id, job, new Date(Date.now() + delayMs));
+  }
+
+  /** The grouped stock alerts' send (AdminAlertsService.flushStock), at
+   * `at`. Every alert of the same window asks for the same time, and so
+   * the same task name: the window sends once. */
+  async scheduleAlertFlush(at: Date): Promise<void> {
+    const target = this.cloudTasksTarget('alerts/flush');
+    if (!target) {
+      setTimeout(
+        () => {
+          this.alertFlushRunner?.().catch((error) =>
+            this.logger.error('Grouped alert send failed', error as Error),
+          );
+        },
+        Math.max(0, at.getTime() - Date.now()),
+      ).unref?.();
+      return;
+    }
+    await this.createTask(target, `alerts-${at.getTime()}`, {}, at);
+  }
+
+  private async createTask(
+    target: { queue: string; url: string; email: string; audience: string },
+    id: string,
+    body: object,
+    at: Date,
+  ): Promise<void> {
     const client = await this.auth.getClient();
     try {
       await client.request({
@@ -82,14 +116,14 @@ export class ReplyQueueService {
         method: 'POST',
         data: {
           task: {
-            name,
-            scheduleTime: new Date(Date.now() + delayMs).toISOString(),
+            name: `${target.queue}/tasks/${id}`,
+            scheduleTime: at.toISOString(),
             dispatchDeadline: '300s',
             httpRequest: {
               httpMethod: 'POST',
               url: target.url,
               headers: { 'Content-Type': 'application/json' },
-              body: Buffer.from(JSON.stringify(job)).toString('base64'),
+              body: Buffer.from(JSON.stringify(body)).toString('base64'),
               oidcToken: { serviceAccountEmail: target.email, audience: target.audience },
             },
           },

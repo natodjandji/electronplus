@@ -18,7 +18,7 @@ const STATUS_LABEL: Record<QuoteStatus, string> = {
 };
 
 /** The built-in methods' names (payment-methods.service.ts defaults). */
-const PAYMENT_METHOD_LABEL: Record<PaymentMethod, string> = {
+export const PAYMENT_METHOD_LABEL: Record<PaymentMethod, string> = {
   [PaymentMethod.BANK_TRANSFER]: 'Transferencia bancaria',
   [PaymentMethod.PAGO_MOVIL]: 'Pago móvil',
   [PaymentMethod.CASH]: 'Efectivo en tienda',

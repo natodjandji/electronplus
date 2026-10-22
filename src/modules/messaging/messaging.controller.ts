@@ -27,6 +27,7 @@ import {
   UpdateConversationDto,
   UpdateMessagingSettingsDto,
 } from './dto/messaging.dto';
+import { AdminAlertsService } from './admin-alerts.service';
 import { MessagingService } from './messaging.service';
 import { ChatBusyError } from './reply-queue.service';
 
@@ -73,7 +74,10 @@ export class MetaWebhookController {
 @UseGuards(SchedulerAuthGuard)
 @SkipThrottle()
 export class MessagingTasksController {
-  constructor(private readonly messaging: MessagingService) {}
+  constructor(
+    private readonly messaging: MessagingService,
+    private readonly alerts: AdminAlertsService,
+  ) {}
 
   @Post('reply')
   @HttpCode(200)
@@ -86,6 +90,13 @@ export class MessagingTasksController {
       throw error;
     }
   }
+
+  /** The grouped stock alerts' send (see AdminAlertsService). */
+  @Post('alerts/flush')
+  @HttpCode(200)
+  async flushAlerts() {
+    return { alerts: await this.alerts.flushStock() };
+  }
 }
 
 @ApiTags('messaging')
@@ -94,7 +105,10 @@ export class MessagingTasksController {
 @UseGuards(FirebaseAuthGuard, RolesGuard)
 @Roles(Role.ADMIN)
 export class MessagingAdminController {
-  constructor(private readonly messaging: MessagingService) {}
+  constructor(
+    private readonly messaging: MessagingService,
+    private readonly alerts: AdminAlertsService,
+  ) {}
 
   @Get('conversations')
   conversations() {
@@ -120,5 +134,13 @@ export class MessagingAdminController {
   @Put('settings')
   async updateSettings(@Body() dto: UpdateMessagingSettingsDto) {
     return { settings: await this.messaging.updateSettings(dto), status: this.messaging.status() };
+  }
+
+  /** A test alert to the saved alert numbers, with Meta's error for each
+   * that didn't get it. */
+  @Post('alerts/test')
+  @HttpCode(200)
+  testAlert() {
+    return this.alerts.sendTest();
   }
 }

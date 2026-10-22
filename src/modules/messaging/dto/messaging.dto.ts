@@ -1,4 +1,16 @@
-import { IsBoolean, IsIn, IsInt, IsOptional, IsString, Max, MaxLength, Min } from 'class-validator';
+import {
+  ArrayMaxSize,
+  IsArray,
+  IsBoolean,
+  IsIn,
+  IsInt,
+  IsOptional,
+  IsString,
+  Matches,
+  Max,
+  MaxLength,
+  Min,
+} from 'class-validator';
 import {
   CHAT_EFFORTS,
   CHAT_MODELS,
@@ -53,4 +65,11 @@ export class UpdateMessagingSettingsDto {
   @IsString()
   @MaxLength(4000)
   extraInstructions?: string;
+
+  /** Country code and number, digits only. */
+  @IsOptional()
+  @IsArray()
+  @ArrayMaxSize(5)
+  @Matches(/^[1-9]\d{9,14}$/, { each: true })
+  alertPhones?: string[];
 }

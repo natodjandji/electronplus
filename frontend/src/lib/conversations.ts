@@ -32,6 +32,8 @@ export interface MessagingSettings {
   effort: ChatEffort;
   humanPauseHours: number;
   extraInstructions: string;
+  /** WhatsApp numbers the panel's alerts go to: country code and digits. */
+  alertPhones: string[];
 }
 
 /** Which parts the server has credentials for. */
@@ -71,4 +73,30 @@ export function customerLabel(
 /** Opens the chat in WhatsApp (the business app on the phone or WhatsApp Web). */
 export function whatsappChatHref(customerId: string): string {
   return `https://wa.me/${customerId.replace(/\D/g, "")}`;
+}
+
+/** The alert numbers as typed: comma or line separated, with or without
+ * "+", spaces or dashes. A Venezuelan mobile written locally (0414… or
+ * 414…) gets its 58. What isn't a number with country code comes back as
+ * invalid. */
+export function parseAlertPhones(text: string): { phones: string[]; invalid: string[] } {
+  const phones: string[] = [];
+  const invalid: string[] = [];
+  for (const raw of text.split(/[,;\n]/)) {
+    const entry = raw.trim();
+    if (!entry) continue;
+    let digits = entry.replace(/\D/g, "");
+    if (digits.length === 11 && digits.startsWith("04")) digits = `58${digits.slice(1)}`;
+    else if (digits.length === 10 && digits.startsWith("4")) digits = `58${digits}`;
+    if (/^[1-9]\d{9,14}$/.test(digits)) {
+      if (!phones.includes(digits)) phones.push(digits);
+    } else {
+      invalid.push(entry);
+    }
+  }
+  return { phones, invalid };
+}
+
+export function formatAlertPhones(phones: string[]): string {
+  return phones.map((p) => `+${p}`).join(", ");
 }

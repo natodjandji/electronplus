@@ -15,7 +15,8 @@
     "test": "jest",
     "test:watch": "jest --watch",
     "seed": "ts-node -r tsconfig-paths/register src/database/seeds/run-seed.ts",
-    "set-user-role": "ts-node -r tsconfig-paths/register src/database/seeds/set-user-role.ts"
+    "set-user-role": "ts-node -r tsconfig-paths/register src/database/seeds/set-user-role.ts",
+    "whatsapp:alert-template": "ts-node -r tsconfig-paths/register src/database/seeds/create-whatsapp-alert-template.ts"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.137.0",

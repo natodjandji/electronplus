@@ -100,6 +100,10 @@ export interface MessagingSettings {
   /** Extra guidance from the store (promotions, policies), appended to the
    * assistant's instructions. */
   extraInstructions: string;
+  /** WhatsApp numbers (country code and digits, e.g. 584141234567) the
+   * panel's alerts go to (see AdminAlertsService). The assistant doesn't
+   * answer them. */
+  alertPhones: string[];
 }
 
 export const DEFAULT_MESSAGING_SETTINGS: MessagingSettings = {
@@ -110,6 +114,7 @@ export const DEFAULT_MESSAGING_SETTINGS: MessagingSettings = {
   effort: 'medium',
   humanPauseHours: 12,
   extraInstructions: '',
+  alertPhones: [],
 };
 
 export function conversationId(channel: ChatChannel, customerId: string): string {

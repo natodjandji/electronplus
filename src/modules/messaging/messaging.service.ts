@@ -94,6 +94,10 @@ export class MessagingService implements OnModuleInit {
 
     let stored = 0;
     for (const message of inbound) {
+      // The store's own alert numbers aren't customers: no chat, no reply.
+      if (message.channel === 'whatsapp' && settings.alertPhones.includes(message.customerId)) {
+        continue;
+      }
       const { conversationId, isNew } = await this.store.recordInbound(message);
       if (!isNew) continue;
       stored++;

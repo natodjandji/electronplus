@@ -32,6 +32,11 @@ export const Collections = {
    * customer and channel (see MessagingService). */
   CHAT_CONVERSATIONS: 'chatConversations',
   CHAT_MESSAGES: 'messages', // subcollection of chatConversations/{id}
+  /** Stock alerts waiting to go out together on WhatsApp, one doc per
+   * product (see AdminAlertsService). */
+  ADMIN_ALERT_QUEUE: 'adminAlertQueue',
+  /** When each repeating admin alert last went out on WhatsApp. */
+  ADMIN_ALERT_COOLDOWNS: 'adminAlertCooldowns',
   /** App settings an admin edits, one doc per feature (e.g. "reviews"). */
   SETTINGS: 'settings',
   /** Server-only read indexes (see CollectionSnapshot) — no client rule

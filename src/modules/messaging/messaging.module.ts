@@ -3,9 +3,11 @@ import { Module } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { EnvConfig } from '../../config/env.validation';
 import { ExchangeRateModule } from '../exchange-rate/exchange-rate.module';
+import { OrdersModule } from '../orders/orders.module';
 import { PaymentMethodsModule } from '../payment-methods/payment-methods.module';
 import { ProductsModule } from '../products/products.module';
 import { ShippingRatesModule } from '../shipping-rates/shipping-rates.module';
+import { AdminAlertsService } from './admin-alerts.service';
 import { ANTHROPIC_CLIENT, SalesAgentService } from './agent/sales-agent.service';
 import { ChatStoreService } from './chat-store.service';
 import {
@@ -19,7 +21,13 @@ import { ChatChannelsService } from './meta/chat-channels.service';
 import { ReplyQueueService } from './reply-queue.service';
 
 @Module({
-  imports: [ProductsModule, PaymentMethodsModule, ShippingRatesModule, ExchangeRateModule],
+  imports: [
+    ProductsModule,
+    PaymentMethodsModule,
+    ShippingRatesModule,
+    ExchangeRateModule,
+    OrdersModule,
+  ],
   controllers: [MetaWebhookController, MessagingTasksController, MessagingAdminController],
   providers: [
     {
@@ -37,6 +45,7 @@ import { ReplyQueueService } from './reply-queue.service';
     MessagingSettingsService,
     MessagingService,
     ReplyQueueService,
+    AdminAlertsService,
   ],
 })
 export class MessagingModule {}

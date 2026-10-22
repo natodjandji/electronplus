@@ -136,6 +136,19 @@ describe('MessagingService', () => {
     expect(await messages()).toHaveLength(1);
   });
 
+  it('ignores messages from the store’s alert numbers', async () => {
+    const { service, scheduled, messages } = setup({
+      botEnabled: true,
+      alertPhones: ['584141234567'],
+    });
+    expect(await service.handleWebhook(whatsappText('wamid.1', 'Hola'))).toEqual({
+      inbound: 0,
+      echoes: 0,
+    });
+    expect(scheduled).toEqual([]);
+    expect(await messages()).toEqual([]);
+  });
+
   it('answers a burst of messages once, in the run of the newest', async () => {
     const { service, agentCalls, messages } = setup();
     await service.handleWebhook(whatsappText('wamid.1', 'Hola'));

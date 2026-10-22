@@ -45,9 +45,11 @@ import {
   conversationsKey,
   customerLabel,
   EFFORT_OPTIONS,
+  formatAlertPhones,
   isPaused,
   messagingSettingsKey,
   MODEL_OPTIONS,
+  parseAlertPhones,
   whatsappChatHref,
   type ChatChannel,
   type ChatConversation,
@@ -163,6 +165,7 @@ function ConversationsPage() {
           open={settingsOpen}
           onOpenChange={setSettingsOpen}
           settings={config.settings}
+          whatsappReady={config.status.whatsapp}
         />
       )}
     </AdminShell>
@@ -454,16 +457,24 @@ function SettingsDialog({
   open,
   onOpenChange,
   settings,
+  whatsappReady,
 }: {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   settings: MessagingSettings;
+  whatsappReady: boolean;
 }) {
   const queryClient = useQueryClient();
   const [draft, setDraft] = useState(settings);
+  // Typed freely; the parsed numbers go into the draft as it changes.
+  const [phonesText, setPhonesText] = useState("");
   useEffect(() => {
-    if (open) setDraft(settings);
+    if (open) {
+      setDraft(settings);
+      setPhonesText(formatAlertPhones(settings.alertPhones));
+    }
   }, [open, settings]);
+  const invalidPhones = useMemo(() => parseAlertPhones(phonesText).invalid, [phonesText]);
   const changed = useMemo(
     () => JSON.stringify(draft) !== JSON.stringify(settings),
     [draft, settings],
@@ -479,6 +490,23 @@ function SettingsDialog({
       queryClient.setQueryData(messagingSettingsKey, data);
       toast.success("Ajustes guardados");
       onOpenChange(false);
+    },
+    onError: (error) => reportError(error),
+  });
+
+  const testAlert = useMutation({
+    mutationFn: () =>
+      apiFetch<{ sent: number; failed: { phone: string; error: string }[] }>(
+        "/admin/messaging/alerts/test",
+        { method: "POST" },
+      ),
+    onSuccess: ({ sent, failed }) => {
+      if (sent > 0) {
+        toast.success(
+          sent === 1 ? "Alerta de prueba enviada" : `Alerta de prueba enviada a ${sent} números`,
+        );
+      }
+      for (const f of failed) toast.error(`No llegó a +${f.phone}: ${f.error}`);
     },
     onError: (error) => reportError(error),
   });
@@ -586,13 +614,60 @@ function SettingsDialog({
               esos salen del inventario.
             </p>
           </Field>
+
+          <Field className="grid gap-1.5">
+            <Label className="flex items-center gap-2 text-xs font-medium text-brand-navy">
+              <WhatsappIcon className="h-4 w-4" /> Números que reciben las alertas del panel
+            </Label>
+            <Input
+              inputMode="tel"
+              value={phonesText}
+              onChange={(e) => {
+                setPhonesText(e.target.value);
+                set("alertPhones", parseAlertPhones(e.target.value).phones);
+              }}
+              placeholder="+58 414 1234567"
+              aria-invalid={invalidPhones.length > 0}
+            />
+            {invalidPhones.length > 0 ? (
+              <p className="text-xs text-destructive">
+                Revisa {invalidPhones.join(", ")}: escribe cada número con su código de país.
+              </p>
+            ) : (
+              <p className="text-xs text-muted-foreground">
+                Pedidos nuevos, clientes esperando, stock (agrupado), facturas y gastos por vencer,
+                reseñas y errores de Profit Plus. Separa varios con comas. El asistente no responde
+                a estos números.
+              </p>
+            )}
+            <div>
+              <Button
+                variant="outline"
+                size="sm"
+                className="gap-2"
+                onClick={() => testAlert.mutate()}
+                disabled={
+                  !whatsappReady ||
+                  settings.alertPhones.length === 0 ||
+                  changed ||
+                  testAlert.isPending
+                }
+              >
+                {testAlert.isPending && <Loader2 className="h-4 w-4 animate-spin" />}
+                Enviar alerta de prueba
+              </Button>
+            </div>
+          </Field>
         </div>
 
         <DialogFooter>
           <Button variant="outline" onClick={() => onOpenChange(false)}>
             Cancelar
           </Button>
-          <Button onClick={() => save.mutate()} disabled={!changed || save.isPending}>
+          <Button
+            onClick={() => save.mutate()}
+            disabled={!changed || invalidPhones.length > 0 || save.isPending}
+          >
             {save.isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
             Guardar
           </Button>

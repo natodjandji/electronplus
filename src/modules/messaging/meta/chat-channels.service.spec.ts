@@ -1,4 +1,4 @@
-import { splitText, stripWhatsappFormatting } from './chat-channels.service';
+import { splitText, stripWhatsappFormatting, templateParam } from './chat-channels.service';
 
 describe('splitText', () => {
   it('keeps a short text whole', () => {
@@ -22,5 +22,16 @@ describe('stripWhatsappFormatting', () => {
       'El Bombillo 9W está disponible',
     );
     expect(stripWhatsappFormatting('2 * 3 = 6')).toBe('2 * 3 = 6');
+  });
+});
+
+describe('templateParam', () => {
+  it('puts the text on one line, as Meta requires of a template parameter', () => {
+    expect(templateParam('Uno\n\ndos\t   tres     cuatro', 100)).toBe('Uno dos tres cuatro');
+  });
+
+  it('cuts it to the limit and never sends it empty', () => {
+    expect(templateParam('abcdefghij', 5)).toBe('abcd…');
+    expect(templateParam('  \n ', 5)).toBe('—');
   });
 });
