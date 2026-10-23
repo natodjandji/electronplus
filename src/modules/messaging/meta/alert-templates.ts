@@ -50,13 +50,10 @@ export const INVOICE_OVERDUE: WhatsappTemplate = {
   button: panel('Ver compras', 'purchases'),
 };
 
-/** Still the first wording, which Meta filed as marketing. The utility one,
- * alerta_gasto_proximo — "*Gasto por vencer*\nRecordatorio de pago: el
- * gasto {{1}} registrado en tu cuenta vence el {{2}} y sigue pendiente." —
- * is in Meta's review; swap it in once approved (same parameters). */
+/** Replaces alerta_gasto_por_vencer, which Meta filed as marketing. */
 export const EXPENSE_DUE_SOON: WhatsappTemplate = {
-  name: 'alerta_gasto_por_vencer',
-  body: '*Gasto por vencer*\nEl gasto {{1}} vence el {{2}} y sigue pendiente de pago.',
+  name: 'alerta_gasto_proximo',
+  body: '*Gasto por vencer*\nRecordatorio de pago: el gasto {{1}} registrado en tu cuenta vence el {{2}} y sigue pendiente.',
   example: ['Alquiler del local', '2026-10-30'],
   button: panel('Ver gastos', 'expenses'),
 };
