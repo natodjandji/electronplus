@@ -32,6 +32,9 @@ export const Collections = {
    * customer and channel (see MessagingService). */
   CHAT_CONVERSATIONS: 'chatConversations',
   CHAT_MESSAGES: 'messages', // subcollection of chatConversations/{id}
+  /** The sales assistant's replies and estimated cost per store day, for its
+   * daily budget (see ChatUsageService). */
+  MESSAGING_USAGE: 'messagingUsage',
   /** Stock alerts waiting to go out together on WhatsApp, one doc per
    * product (see AdminAlertsService). */
   ADMIN_ALERT_QUEUE: 'adminAlertQueue',

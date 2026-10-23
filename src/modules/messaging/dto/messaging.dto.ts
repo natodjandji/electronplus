@@ -4,6 +4,7 @@ import {
   IsBoolean,
   IsIn,
   IsInt,
+  IsNumber,
   IsOptional,
   IsString,
   Matches,
@@ -82,4 +83,23 @@ export class UpdateMessagingSettingsDto {
   @IsOptional()
   @IsBoolean()
   customerUpdatesEnabled?: boolean;
+
+  /** US dollars a day, all chats together. */
+  @IsOptional()
+  @IsNumber({ maxDecimalPlaces: 2 })
+  @Min(0.5)
+  @Max(500)
+  dailyBudgetUsd?: number;
+
+  @IsOptional()
+  @IsInt()
+  @Min(1)
+  @Max(100)
+  chatRepliesPerHour?: number;
+
+  @IsOptional()
+  @IsInt()
+  @Min(1)
+  @Max(500)
+  chatRepliesPerDay?: number;
 }

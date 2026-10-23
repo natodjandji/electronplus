@@ -1,6 +1,14 @@
 import Anthropic from '@anthropic-ai/sdk';
 import { Inject, Injectable, Logger } from '@nestjs/common';
 import type { ChatChannel, ChatMessage, MessagingSettings } from '../entities/chat.entity';
+import { emptyUsage, estimateCostUsd, type TokenUsage } from './model-pricing';
+import {
+  clipReply,
+  keepKnownLinks,
+  linkHost,
+  linkHosts,
+  truncateCustomerText,
+} from './reply-guards';
 import { formatRef, runSalesTool, SALES_TOOLS, type SalesToolDeps } from './sales-tools';
 import { chatContext, SALES_SYSTEM_PROMPT } from './system-prompt';
 
@@ -8,9 +16,15 @@ export const ANTHROPIC_CLIENT = 'ANTHROPIC_CLIENT';
 
 /** Rounds of tool calls in one reply. A sale takes two or three (search,
  * send, cart); past this something is looping. */
-const MAX_ROUNDS = 8;
+export const MAX_ROUNDS = 6;
 /** Thinking counts against this too; a chat reply itself is short. */
-const MAX_TOKENS = 8_000;
+const MAX_TOKENS = 6_000;
+/** A reply that has cost this much is going in circles: it stops before the
+ * next round. A normal one costs about 2 cents on Opus and a twentieth of a
+ * cent on Haiku. */
+export const MAX_REPLY_COST_USD = 0.25;
+/** Messages one reply sends at most; more than this is rambling. */
+export const MAX_TEXTS_PER_REPLY = 3;
 
 export interface CustomerImage {
   data: Buffer;
@@ -29,13 +43,17 @@ export interface SalesTurnInput {
   tools: SalesToolDeps;
   /** Sends a text to the customer right away. */
   sendText(text: string): Promise<void>;
+  /** Where the tokens add up as each round comes back, so a run that fails
+   * halfway still counts what it used. */
+  usage?: TokenUsage;
 }
 
 export interface SalesTurnResult {
   repliedWithText: boolean;
   handedOver: boolean;
+  /** Claude's, or "cost_limit" when the reply hit MAX_REPLY_COST_USD. */
   stopReason: string | null;
-  usage: { input: number; output: number; cacheRead: number; cacheWrite: number };
+  usage: TokenUsage;
 }
 
 /**
@@ -62,9 +80,15 @@ export class SalesAgentService {
       repliedWithText: false,
       handedOver: false,
       stopReason: null,
-      usage: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 },
+      usage: input.usage ?? emptyUsage(),
     };
     if (messages.length === 0 || messages[messages.length - 1].role !== 'user') return result;
+    // Links the reply may carry: the store's pages, plus whatever its tools
+    // return during the run.
+    const allowedHosts = new Set(
+      [linkHost(input.tools.siteUrl)].filter((h): h is string => h !== null),
+    );
+    let textsSent = 0;
 
     const system: Anthropic.TextBlockParam[] = [
       { type: 'text', text: SALES_SYSTEM_PROMPT, cache_control: { type: 'ephemeral' } },
@@ -80,6 +104,11 @@ export class SalesAgentService {
     ];
 
     for (let round = 0; round < MAX_ROUNDS; round++) {
+      if (estimateCostUsd(input.settings.model, result.usage) >= MAX_REPLY_COST_USD) {
+        this.logger.warn(`Reply stopped at its cost limit after ${round} rounds`);
+        result.stopReason = 'cost_limit';
+        break;
+      }
       const response = await this.client.messages.create({
         model: input.settings.model,
         max_tokens: MAX_TOKENS,
@@ -101,8 +130,13 @@ export class SalesAgentService {
         .map((b) => b.text.trim())
         .filter(Boolean)
         .join('\n\n');
-      if (text) {
-        await input.sendText(text);
+      const { text: safe, removed } = keepKnownLinks(text, allowedHosts);
+      if (removed.length > 0) {
+        this.logger.warn(`Removed links the store didn't provide: ${removed.join(', ')}`);
+      }
+      if (safe && textsSent < MAX_TEXTS_PER_REPLY) {
+        await input.sendText(clipReply(safe));
+        textsSent++;
         result.repliedWithText = true;
       }
 
@@ -126,6 +160,7 @@ export class SalesAgentService {
           };
         }
         if (outcome.handedOver) result.handedOver = true;
+        for (const host of linkHosts(outcome.content)) allowedHosts.add(host);
         results.push({
           type: 'tool_result',
           tool_use_id: call.id,
@@ -139,7 +174,7 @@ export class SalesAgentService {
   }
 }
 
-function addUsage(total: SalesTurnResult['usage'], usage: Anthropic.Usage): void {
+function addUsage(total: TokenUsage, usage: Anthropic.Usage): void {
   total.input += usage.input_tokens;
   total.output += usage.output_tokens;
   total.cacheRead += usage.cache_read_input_tokens ?? 0;
@@ -174,7 +209,7 @@ export function buildConversation(
         });
       }
       const text = message.text.trim() || (message.kind === 'image' ? (image ? '' : '[Foto]') : '');
-      if (text) blocks.push({ type: 'text', text });
+      if (text) blocks.push({ type: 'text', text: truncateCustomerText(text) });
     } else if (message.kind === 'products' && message.products?.length) {
       const list = message.products
         .map((p) => `${p.name} (id ${p.id}, ${formatRef(p.price)})`)

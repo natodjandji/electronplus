@@ -60,6 +60,7 @@ import {
   customerLabel,
   EFFORT_OPTIONS,
   formatAlertPhones,
+  formatUsd,
   isPaused,
   messagingSettingsKey,
   MODEL_OPTIONS,
@@ -70,6 +71,7 @@ import {
   type ChatMessage,
   type MessagingSettings,
   type MessagingStatus,
+  type MessagingUsage,
 } from "@/lib/conversations";
 import { formatMoney } from "@/lib/electron-store";
 import { cn } from "@/lib/utils";
@@ -90,6 +92,7 @@ export const Route = createFileRoute("/admin/conversations")({
 interface SettingsResponse {
   settings: MessagingSettings;
   status: MessagingStatus;
+  usage?: MessagingUsage;
 }
 
 function formatTime(iso: string) {
@@ -179,6 +182,7 @@ function ConversationsPage() {
           open={settingsOpen}
           onOpenChange={setSettingsOpen}
           settings={config.settings}
+          usage={config.usage}
           whatsappReady={config.status.whatsapp}
         />
       )}
@@ -551,11 +555,13 @@ function SettingsDialog({
   open,
   onOpenChange,
   settings,
+  usage,
   whatsappReady,
 }: {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   settings: MessagingSettings;
+  usage?: MessagingUsage;
   whatsappReady: boolean;
 }) {
   const queryClient = useQueryClient();
@@ -685,6 +691,46 @@ function SettingsDialog({
             </Field>
           </div>
 
+          <div className="grid gap-3 rounded-lg border border-border p-3">
+            <div className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-1">
+              <p className="text-sm font-medium text-brand-navy">Límites de uso</p>
+              {usage && (
+                <p className="text-xs tabular-nums text-muted-foreground">
+                  Hoy: {usage.replies} {usage.replies === 1 ? "respuesta" : "respuestas"} ·{" "}
+                  {formatUsd(usage.costUsd)} de {formatUsd(settings.dailyBudgetUsd)}
+                </p>
+              )}
+            </div>
+            <div className="grid gap-3 sm:grid-cols-3">
+              <LimitField
+                label="Gasto máximo al día (US$)"
+                value={draft.dailyBudgetUsd}
+                min={1}
+                max={500}
+                onChange={(v) => set("dailyBudgetUsd", v)}
+              />
+              <LimitField
+                label="Respuestas por chat en una hora"
+                value={draft.chatRepliesPerHour}
+                min={1}
+                max={100}
+                onChange={(v) => set("chatRepliesPerHour", v)}
+              />
+              <LimitField
+                label="Respuestas por chat en un día"
+                value={draft.chatRepliesPerDay}
+                min={1}
+                max={500}
+                onChange={(v) => set("chatRepliesPerDay", v)}
+              />
+            </div>
+            <p className="text-xs text-muted-foreground">
+              Al llegar a uno, el asistente deja de responder en ese chat (o en todos, si es el
+              gasto del día): le dice al cliente que una persona le escribirá y te avisa como
+              «cliente esperando».
+            </p>
+          </div>
+
           <Field className="grid gap-1.5">
             <Label className="text-xs font-medium text-brand-navy">
               Horas que espera el asistente cuando responde una persona
@@ -794,5 +840,37 @@ function SettingsDialog({
         </DialogFooter>
       </DialogContent>
     </Dialog>
+  );
+}
+
+/** A whole number kept within its range as it's typed. */
+function LimitField({
+  label,
+  value,
+  min,
+  max,
+  onChange,
+}: {
+  label: string;
+  value: number;
+  min: number;
+  max: number;
+  onChange: (value: number) => void;
+}) {
+  return (
+    <Field className="grid min-w-0 content-between gap-1.5">
+      <Label className="text-xs font-medium text-brand-navy">{label}</Label>
+      <Input
+        type="number"
+        min={min}
+        max={max}
+        step={1}
+        inputMode="numeric"
+        value={value}
+        onChange={(e) =>
+          onChange(Math.min(max, Math.max(min, Math.round(Number(e.target.value)) || min)))
+        }
+      />
+    </Field>
   );
 }

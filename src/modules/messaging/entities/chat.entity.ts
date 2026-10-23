@@ -33,6 +33,33 @@ export interface ChatConversation extends FirestoreDoc {
   handoffSummary?: string | null;
   /** Lock held while a run answers this chat. */
   processingUntil?: Date | null;
+  /** What the assistant has answered here lately, for its limits. */
+  replyUsage?: ChatReplyUsage | null;
+}
+
+/** The assistant's replies in one chat, counted for the per-chat limits
+ * (see ChatUsageService). A count belongs to the day or hour stored with it
+ * and starts over in the next. */
+export interface ChatReplyUsage {
+  /** The store's calendar day, YYYY-MM-DD. */
+  day: string;
+  repliesToday: number;
+  costTodayUsd: number;
+  /** The UTC hour, YYYY-MM-DDTHH. */
+  hour: string;
+  repliesThisHour: number;
+}
+
+/** messagingUsage/{YYYY-MM-DD}: the assistant's replies and their estimated
+ * cost over one store day, all chats together. */
+export interface DailyChatUsage {
+  day: string;
+  replies: number;
+  costUsd: number;
+  inputTokens: number;
+  outputTokens: number;
+  cacheReadTokens: number;
+  cacheWriteTokens: number;
 }
 
 export type ChatAuthor = 'customer' | 'bot' | 'human';
@@ -111,18 +138,30 @@ export interface MessagingSettings {
    * CustomerUpdatesService). Off until the store's own number is connected:
    * the test number only reaches its few registered recipients. */
   customerUpdatesEnabled: boolean;
+  /** The most the assistant may spend in a store day, all chats together, in
+   * US dollars (estimated from the tokens; see model-pricing.ts). Once it's
+   * reached, new messages go to a person until the next day. */
+  dailyBudgetUsd: number;
+  /** The most replies one chat gets in an hour and in a day. Past either,
+   * the chat goes to a person: a sale takes a handful, so a chat running
+   * past these is someone flooding it or the assistant going in circles. */
+  chatRepliesPerHour: number;
+  chatRepliesPerDay: number;
 }
 
 export const DEFAULT_MESSAGING_SETTINGS: MessagingSettings = {
   botEnabled: false,
   whatsappEnabled: true,
   instagramEnabled: true,
-  model: 'claude-opus-5-5',
-  effort: 'medium',
+  model: 'claude-haiku-5-5',
+  effort: 'low',
   humanPauseHours: 12,
   extraInstructions: '',
   alertPhones: [],
   customerUpdatesEnabled: false,
+  dailyBudgetUsd: 5,
+  chatRepliesPerHour: 20,
+  chatRepliesPerDay: 60,
 };
 
 export function conversationId(channel: ChatChannel, customerId: string): string {

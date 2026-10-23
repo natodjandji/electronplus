@@ -138,12 +138,20 @@ export class MessagingAdminController {
 
   @Get('settings')
   async settings() {
-    return { settings: await this.messaging.getSettings(), status: this.messaging.status() };
+    return {
+      settings: await this.messaging.getSettings(),
+      status: this.messaging.status(),
+      usage: await this.messaging.usageToday(),
+    };
   }
 
   @Put('settings')
   async updateSettings(@Body() dto: UpdateMessagingSettingsDto) {
-    return { settings: await this.messaging.updateSettings(dto), status: this.messaging.status() };
+    return {
+      settings: await this.messaging.updateSettings(dto),
+      status: this.messaging.status(),
+      usage: await this.messaging.usageToday(),
+    };
   }
 
   /** A test alert to the saved alert numbers, with Meta's error for each

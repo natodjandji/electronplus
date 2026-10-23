@@ -7,6 +7,7 @@ import { PaymentMethodsService } from '../payment-methods/payment-methods.servic
 import type { Product } from '../products/entities/product.entity';
 import { ProductsService } from '../products/products.service';
 import { ShippingRatesService } from '../shipping-rates/shipping-rates.service';
+import { emptyUsage, type TokenUsage } from './agent/model-pricing';
 import { SalesAgentService, type CustomerImage } from './agent/sales-agent.service';
 import {
   availability,
@@ -16,10 +17,12 @@ import {
   type SalesToolDeps,
 } from './agent/sales-tools';
 import { ChatStoreService } from './chat-store.service';
+import { ChatUsageService, type ChatLimit } from './chat-usage.service';
 import type {
   ChatChannel,
   ChatConversation,
   ChatMessage,
+  DailyChatUsage,
   MessagingSettings,
 } from './entities/chat.entity';
 import { ChatChannelsService } from './meta/chat-channels.service';
@@ -37,9 +40,36 @@ const HANDOFF_PAUSE_HOURS = 48;
 const MANUAL_PAUSE_DAYS = 365;
 const FALLBACK_TEXT =
   'Disculpe, en este momento no puedo responderle. Una persona de la tienda le escribirá por aquí en breve.';
+/** Photos the assistant looks at in one reply, the newest ones: each costs
+ * as much as a long message. */
+const MAX_IMAGES_PER_REPLY = 3;
+
+/** Why a chat went to a person instead of the assistant, for the staff. */
+const LIMIT_REASON: Record<ChatLimit, (settings: MessagingSettings) => string> = {
+  chat_hour: (s) => `El chat pasó de ${s.chatRepliesPerHour} respuestas del asistente en una hora.`,
+  chat_day: (s) => `El chat pasó de ${s.chatRepliesPerDay} respuestas del asistente en el día.`,
+  daily_budget: (s) =>
+    `El asistente llegó a su gasto máximo del día (US$ ${s.dailyBudgetUsd.toFixed(2)}).`,
+};
+
+/** Why a reply ended without a word to the customer. */
+function noReplyReason(stopReason: string | null): string {
+  switch (stopReason) {
+    case 'refusal':
+      return 'El asistente no quiso responder este mensaje.';
+    case 'cost_limit':
+      return 'La respuesta pasó del gasto máximo por respuesta del asistente.';
+    case 'max_tokens':
+      return 'La respuesta del asistente quedó incompleta.';
+    case 'tool_use':
+      return 'El asistente no llegó a una respuesta.';
+    default:
+      return 'El asistente no respondió.';
+  }
+}
 
 export type ReplyOutcome =
-  'missing' | 'superseded' | 'disabled' | 'paused' | 'nothing' | 'replied' | 'failed';
+  'missing' | 'superseded' | 'disabled' | 'paused' | 'nothing' | 'limited' | 'replied' | 'failed';
 
 /**
  * The WhatsApp and Instagram sales assistant. The webhook stores each
@@ -63,6 +93,7 @@ export class MessagingService implements OnModuleInit {
     private readonly exchangeRate: ExchangeRateService,
     private readonly config: ConfigService<EnvConfig, true>,
     private readonly events: EventEmitter2,
+    private readonly usage: ChatUsageService,
   ) {}
 
   onModuleInit(): void {
@@ -131,7 +162,10 @@ export class MessagingService implements OnModuleInit {
 
     if (!(await this.store.tryLock(conversation.id, LOCK_MS))) throw new ChatBusyError();
     try {
-      return await this.answer(conversation, settings);
+      // Read again under the lock: a run that just finished may have
+      // counted its reply after the read above.
+      const current = (await this.store.findConversation(conversation.id)) ?? conversation;
+      return await this.answer(current, settings);
     } finally {
       await this.store.unlock(conversation.id);
     }
@@ -144,6 +178,20 @@ export class MessagingService implements OnModuleInit {
     const history = await this.store.history(conversation.id);
     const { earlier, pending } = splitPending(history);
     if (pending.length === 0) return 'nothing';
+    const markAnswered = () =>
+      this.store.markAnswered(
+        conversation.id,
+        pending.map((m) => m.id),
+      );
+
+    const now = new Date();
+    const limit = await this.usage.limitReached(conversation, settings, now);
+    if (limit) {
+      this.logger.warn(`Chat ${conversation.id} reached a limit (${limit}): handed to a person`);
+      await this.fallBack(conversation, LIMIT_REASON[limit](settings));
+      await markAnswered();
+      return 'limited';
+    }
 
     await this.channels.showTyping(
       conversation.channel,
@@ -153,7 +201,9 @@ export class MessagingService implements OnModuleInit {
     const customerName = await this.customerName(conversation);
     const images = await this.loadImages(pending);
 
-    let sent = false;
+    // Whether the customer got anything (a text or product cards).
+    const run = { sent: false };
+    const tokens = emptyUsage();
     try {
       const result = await this.agent.reply({
         channel: conversation.channel,
@@ -163,34 +213,49 @@ export class MessagingService implements OnModuleInit {
         history: [...earlier, ...pending],
         images,
         settings,
-        now: new Date(),
-        tools: this.toolDeps(conversation),
+        now,
+        tools: this.toolDeps(conversation, run),
+        usage: tokens,
         sendText: async (text) => {
           await this.sendText(conversation, text);
-          sent = true;
+          run.sent = true;
         },
       });
       this.logger.log(
-        `Reply in ${conversation.id}: ${result.stopReason}, tokens in ${result.usage.input} (cache ${result.usage.cacheRead} read, ${result.usage.cacheWrite} written), out ${result.usage.output}`,
+        `Reply in ${conversation.id}: ${result.stopReason}, tokens in ${tokens.input} (cache ${tokens.cacheRead} read, ${tokens.cacheWrite} written), out ${tokens.output}`,
       );
-      if (!result.repliedWithText && !result.handedOver && result.stopReason === 'refusal') {
-        await this.fallBack(conversation, 'El asistente no quiso responder este mensaje.');
+      // Never leave the customer without an answer: whatever stopped the
+      // reply, a person takes the chat.
+      if (!run.sent && !result.handedOver) {
+        await this.fallBack(conversation, noReplyReason(result.stopReason));
       }
     } catch (error) {
       this.logger.error(`Reply in ${conversation.id} failed`, error as Error);
-      if (!sent)
+      if (!run.sent)
         await this.fallBack(conversation, `Error del asistente: ${(error as Error).message}`);
-      await this.store.markAnswered(
-        conversation.id,
-        pending.map((m) => m.id),
-      );
+      await markAnswered();
       return 'failed';
+    } finally {
+      await this.recordUsage(conversation, settings, tokens, now);
     }
-    await this.store.markAnswered(
-      conversation.id,
-      pending.map((m) => m.id),
-    );
+    await markAnswered();
     return 'replied';
+  }
+
+  /** Counts the reply toward the limits. A failure here is logged: the
+   * customer already has their answer. */
+  private async recordUsage(
+    conversation: ChatConversation,
+    settings: MessagingSettings,
+    tokens: TokenUsage,
+    now: Date,
+  ): Promise<void> {
+    if (tokens.input + tokens.output + tokens.cacheRead + tokens.cacheWrite === 0) return;
+    try {
+      await this.usage.record(conversation, settings.model, tokens, now);
+    } catch (error) {
+      this.logger.error(`Couldn't count the reply in ${conversation.id}`, error as Error);
+    }
   }
 
   private async customerName(conversation: ChatConversation): Promise<string | null> {
@@ -203,8 +268,10 @@ export class MessagingService implements OnModuleInit {
 
   private async loadImages(messages: ChatMessage[]): Promise<Map<string, CustomerImage>> {
     const images = new Map<string, CustomerImage>();
-    for (const message of messages) {
-      if (message.kind !== 'image' || !message.media) continue;
+    const photos = messages.filter((m) => m.kind === 'image' && m.media);
+    // The rest still reach the assistant, as "[Foto]".
+    for (const message of photos.slice(-MAX_IMAGES_PER_REPLY)) {
+      if (!message.media) continue;
       try {
         const image = await this.channels.loadImage(message.media);
         if (image) images.set(message.id, image);
@@ -215,7 +282,7 @@ export class MessagingService implements OnModuleInit {
     return images;
   }
 
-  private toolDeps(conversation: ChatConversation): SalesToolDeps {
+  private toolDeps(conversation: ChatConversation, run: { sent: boolean }): SalesToolDeps {
     return {
       catalog: () => this.products.activeCatalog(),
       paymentMethods: async () =>
@@ -225,7 +292,10 @@ export class MessagingService implements OnModuleInit {
       bcvRate: () => this.bcvRate(),
       shippingQuote: (state, city) => this.shipping.quote(state, city),
       siteUrl: this.config.get('PUBLIC_SITE_URL', { infer: true }),
-      sendProducts: (products) => this.sendProducts(conversation, products),
+      sendProducts: async (products) => {
+        await this.sendProducts(conversation, products);
+        run.sent = true;
+      },
       handOver: (reason, summary) => this.handOver(conversation, reason, summary),
     };
   }
@@ -338,6 +408,11 @@ export class MessagingService implements OnModuleInit {
 
   getSettings(): Promise<MessagingSettings> {
     return this.settings.get();
+  }
+
+  /** Today's replies and spend, against the daily budget in the panel. */
+  usageToday(): Promise<DailyChatUsage> {
+    return this.usage.today();
   }
 
   updateSettings(changes: Partial<MessagingSettings>): Promise<MessagingSettings> {

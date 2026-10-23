@@ -52,6 +52,12 @@ export async function fetchMedia(
     signal: AbortSignal.timeout(GRAPH_TIMEOUT_MS),
   });
   if (!res.ok) throw new Error(`La descarga del archivo respondió ${res.status}`);
+  // Refused before reading when the size is announced; checked again after,
+  // for a server that doesn't announce it.
+  if (Number(res.headers.get('content-length')) > maxBytes) {
+    await res.body?.cancel();
+    throw new Error('Archivo demasiado grande');
+  }
   const data = Buffer.from(await res.arrayBuffer());
   if (data.length > maxBytes) throw new Error('Archivo demasiado grande');
   return { data, mimeType: res.headers.get('content-type')?.split(';')[0] ?? '' };

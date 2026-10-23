@@ -38,6 +38,19 @@ export interface MessagingSettings {
   alertPhones: string[];
   /** Order and quote updates to customers who agreed at checkout. */
   customerUpdatesEnabled: boolean;
+  /** Most the assistant may spend in a day, all chats, in US dollars. */
+  dailyBudgetUsd: number;
+  /** Most replies one chat gets in an hour and in a day; past either a
+   * person takes the chat. */
+  chatRepliesPerHour: number;
+  chatRepliesPerDay: number;
+}
+
+/** The assistant's replies and estimated spend today (the store's day). */
+export interface MessagingUsage {
+  day: string;
+  replies: number;
+  costUsd: number;
 }
 
 /** Which parts the server has credentials for. */
@@ -52,10 +65,29 @@ export const conversationsKey = ["admin", "messaging", "conversations"] as const
 export const messagingSettingsKey = ["admin", "messaging", "settings"] as const;
 
 export const MODEL_OPTIONS: { value: ChatModel; label: string; hint: string }[] = [
-  { value: "claude-opus-5-5", label: "Claude Opus 5.5", hint: "El más capaz" },
-  { value: "claude-sonnet-5-5", label: "Claude Sonnet 5.5", hint: "Equilibrado" },
-  { value: "claude-haiku-5-5", label: "Claude Haiku 5.5", hint: "El más rápido y económico" },
+  // Per reply, from the store's own chats on Claude's list prices.
+  {
+    value: "claude-opus-5-5",
+    label: "Claude Opus 5.5",
+    hint: "El más capaz · unos US$ 0,02 por respuesta",
+  },
+  {
+    value: "claude-sonnet-5-5",
+    label: "Claude Sonnet 5.5",
+    hint: "Equilibrado · unos US$ 0,01 por respuesta",
+  },
+  {
+    value: "claude-haiku-5-5",
+    label: "Claude Haiku 5.5",
+    hint: "El más rápido y económico · menos de US$ 0,001 por respuesta",
+  },
 ];
+
+/** "US$ 1,25"; a spend under a cent reads as such instead of "US$ 0,00". */
+export function formatUsd(amount: number): string {
+  if (amount > 0 && amount < 0.01) return "menos de US$ 0,01";
+  return `US$ ${amount.toLocaleString("es-VE", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+}
 
 export const EFFORT_OPTIONS: { value: ChatEffort; label: string }[] = [
   { value: "low", label: "Rápida" },

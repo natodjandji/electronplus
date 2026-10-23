@@ -12,6 +12,7 @@ import { UsersModule } from '../users/users.module';
 import { AdminAlertsService } from './admin-alerts.service';
 import { ANTHROPIC_CLIENT, SalesAgentService } from './agent/sales-agent.service';
 import { ChatStoreService } from './chat-store.service';
+import { ChatUsageService } from './chat-usage.service';
 import { CustomerUpdatesService } from './customer-updates.service';
 import {
   MessagingAdminController,
@@ -46,6 +47,7 @@ import { ReplyQueueService } from './reply-queue.service';
     },
     SalesAgentService,
     ChatStoreService,
+    ChatUsageService,
     ChatChannelsService,
     MessagingSettingsService,
     MessagingService,

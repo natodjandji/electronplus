@@ -1,9 +1,11 @@
 import { EventEmitter2 } from '@nestjs/event-emitter';
+import { storeDay } from '../../common/utils/store-day';
 import { Collections } from '../../firebase/firestore-collections';
 import { FakeFirestore } from '../../test/fake-firestore';
 import type { SalesTurnInput } from './agent/sales-agent.service';
 import { ChatStoreService } from './chat-store.service';
-import type { ChatMessage } from './entities/chat.entity';
+import { ChatUsageService, hourKey } from './chat-usage.service';
+import type { ChatMessage, DailyChatUsage } from './entities/chat.entity';
 import { CHAT_HANDOFF_EVENT } from './messaging.events';
 import { MessagingSettingsService } from './messaging-settings.service';
 import { MessagingService, splitPending } from './messaging.service';
@@ -35,6 +37,15 @@ const whatsappText = (id: string, body: string, from = '584141234567') => ({
   ],
 });
 
+const whatsappImage = (id: string, mediaId: string) => {
+  const payload = whatsappText(id, '');
+  const message = payload.entry[0].changes[0].value.messages[0] as Record<string, unknown>;
+  delete message.text;
+  message.type = 'image';
+  message.image = { id: mediaId, mime_type: 'image/jpeg' };
+  return payload;
+};
+
 const CONVERSATION = 'whatsapp_584141234567';
 
 function setup(settings: Record<string, unknown> = { botEnabled: true }) {
@@ -63,6 +74,10 @@ function setup(settings: Record<string, unknown> = { botEnabled: true }) {
     isConfigured: () => true,
     reply: jest.fn(async (input: SalesTurnInput) => {
       agentCalls.push(input);
+      if (input.usage) {
+        input.usage.input += 1000;
+        input.usage.output += 100;
+      }
       await input.sendText('¡Hola! ¿En qué le ayudo?');
       return {
         repliedWithText: true,
@@ -93,6 +108,7 @@ function setup(settings: Record<string, unknown> = { botEnabled: true }) {
     { getBcvRate: async () => ({ rate: 200, date: '2026-10-20' }) } as never,
     config as never,
     events,
+    new ChatUsageService(firestore as never),
   );
   const messages = async () =>
     (
@@ -279,6 +295,151 @@ describe('MessagingService', () => {
     expect(handoffs).toEqual([
       expect.objectContaining({ conversationId: CONVERSATION, channel: 'whatsapp' }),
     ]);
+  });
+
+  it('counts each reply and its cost in the chat and in the day', async () => {
+    const { service, firestore } = setup();
+    await service.handleWebhook(whatsappText('wamid.1', 'Hola'));
+    await service.processReply({ conversationId: CONVERSATION, triggerId: 'wamid.1' });
+    await service.handleWebhook(whatsappText('wamid.2', 'Busco bombillos'));
+    await service.processReply({ conversationId: CONVERSATION, triggerId: 'wamid.2' });
+
+    const now = new Date();
+    expect(firestore.read(Collections.CHAT_CONVERSATIONS, CONVERSATION)).toEqual(
+      expect.objectContaining({
+        replyUsage: expect.objectContaining({
+          day: storeDay(now),
+          repliesToday: 2,
+          hour: hourKey(now),
+          repliesThisHour: 2,
+        }),
+      }),
+    );
+    // Haiku: 1000 in at US$0.10/M plus 100 out at US$0.50/M, twice.
+    const day = firestore.read(
+      Collections.MESSAGING_USAGE,
+      storeDay(now),
+    ) as unknown as DailyChatUsage;
+    expect(day).toEqual(
+      expect.objectContaining({ replies: 2, inputTokens: 2000, outputTokens: 200 }),
+    );
+    expect(day.costUsd).toBeCloseTo(0.0003, 8);
+    expect(await service.usageToday()).toEqual(day);
+  });
+
+  it.each([
+    ['replies in the hour', { chatRepliesPerHour: 3 }, { repliesThisHour: 3 }, /en una hora/],
+    ['replies in the day', { chatRepliesPerDay: 10 }, { repliesToday: 10 }, /en el día/],
+  ])(
+    'hands the chat to a person, without calling Claude, once it reaches its %s',
+    async (_limit, limits, counts, reason) => {
+      const { service, firestore, agent, sentTexts, events } = setup({
+        botEnabled: true,
+        ...limits,
+      });
+      const handoffs: { reason: string }[] = [];
+      events.on(CHAT_HANDOFF_EVENT, (e) => handoffs.push(e));
+      await service.handleWebhook(whatsappText('wamid.1', 'Hola'));
+      const now = new Date();
+      await firestore
+        .collection(Collections.CHAT_CONVERSATIONS)
+        .doc(CONVERSATION)
+        .set(
+          {
+            replyUsage: {
+              day: storeDay(now),
+              repliesToday: 0,
+              costTodayUsd: 0,
+              hour: hourKey(now),
+              repliesThisHour: 0,
+              ...counts,
+            },
+          },
+          { merge: true },
+        );
+
+      expect(
+        await service.processReply({ conversationId: CONVERSATION, triggerId: 'wamid.1' }),
+      ).toBe('limited');
+      expect(agent.reply).not.toHaveBeenCalled();
+      expect(sentTexts).toEqual([expect.stringMatching(/Una persona de la tienda le escribirá/)]);
+      expect(firestore.read(Collections.CHAT_CONVERSATIONS, CONVERSATION)).toEqual(
+        expect.objectContaining({ pauseReason: 'handoff', needsAttention: true }),
+      );
+      expect(handoffs[0].reason).toMatch(reason);
+    },
+  );
+
+  it('lets a chat go on when its count is from an earlier hour and day', async () => {
+    const { service, firestore } = setup({ botEnabled: true, chatRepliesPerHour: 3 });
+    await service.handleWebhook(whatsappText('wamid.1', 'Hola'));
+    await firestore
+      .collection(Collections.CHAT_CONVERSATIONS)
+      .doc(CONVERSATION)
+      .set(
+        {
+          replyUsage: {
+            day: '2026-01-01',
+            repliesToday: 500,
+            costTodayUsd: 9,
+            hour: '2026-01-01T10',
+            repliesThisHour: 99,
+          },
+        },
+        { merge: true },
+      );
+    expect(await service.processReply({ conversationId: CONVERSATION, triggerId: 'wamid.1' })).toBe(
+      'replied',
+    );
+  });
+
+  it('hands chats to a person once the day’s budget is spent', async () => {
+    const { service, firestore, agent, events } = setup({ botEnabled: true, dailyBudgetUsd: 2 });
+    const handoffs: { reason: string }[] = [];
+    events.on(CHAT_HANDOFF_EVENT, (e) => handoffs.push(e));
+    firestore.seed(Collections.MESSAGING_USAGE, storeDay(), { replies: 900, costUsd: 2.01 });
+    await service.handleWebhook(whatsappText('wamid.1', 'Hola'));
+
+    expect(await service.processReply({ conversationId: CONVERSATION, triggerId: 'wamid.1' })).toBe(
+      'limited',
+    );
+    expect(agent.reply).not.toHaveBeenCalled();
+    expect(handoffs[0].reason).toBe('El asistente llegó a su gasto máximo del día (US$ 2.00).');
+  });
+
+  it('never leaves the customer without an answer when the reply ends with nothing to say', async () => {
+    const { service, agent, sentTexts, firestore } = setup();
+    agent.reply.mockResolvedValueOnce({
+      repliedWithText: false,
+      handedOver: false,
+      stopReason: 'max_tokens',
+      usage: { input: 1, output: 1, cacheRead: 0, cacheWrite: 0 },
+    });
+    await service.handleWebhook(whatsappText('wamid.1', 'Hola'));
+
+    expect(await service.processReply({ conversationId: CONVERSATION, triggerId: 'wamid.1' })).toBe(
+      'replied',
+    );
+    expect(sentTexts).toEqual([expect.stringMatching(/Una persona de la tienda le escribirá/)]);
+    expect(firestore.read(Collections.CHAT_CONVERSATIONS, CONVERSATION)).toEqual(
+      expect.objectContaining({
+        pauseReason: 'handoff',
+        handoffSummary: expect.stringContaining('quedó incompleta'),
+      }),
+    );
+  });
+
+  it('shows the assistant only the newest three photos of a burst', async () => {
+    const { service, channels } = setup();
+    for (let i = 1; i <= 5; i++) {
+      await service.handleWebhook(whatsappImage(`wamid.${i}`, `media-${i}`));
+    }
+    await service.processReply({ conversationId: CONVERSATION, triggerId: 'wamid.5' });
+    expect(
+      (channels.loadImage.mock.calls as unknown as [{ mediaId: string }][]).map(
+        ([media]) => media.mediaId,
+      ),
+    ).toEqual(['media-3', 'media-4', 'media-5']);
   });
 
   it('answers Meta’s subscription check only with the right token', () => {
