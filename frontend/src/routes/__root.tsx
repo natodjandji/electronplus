@@ -1,6 +1,5 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import {
-  Outlet,
   Link,
   createRootRouteWithContext,
   useRouter,
@@ -17,38 +16,11 @@ import { AuthProvider } from "@/lib/auth-context";
 import { ElectronStoreProvider } from "@/lib/electron-store";
 import { OG_IMAGE, OG_IMAGE_ALT, OG_IMAGE_HEIGHT, OG_IMAGE_WIDTH, SITE_URL } from "@/lib/site-url";
 import { useRealtimeOpsSync } from "@/lib/use-realtime-ops-sync";
+import { NotFoundPage } from "@/components/not-found-page";
+import { ShellOutlet } from "@/components/shell-outlet";
+import { NOT_FOUND_TITLE } from "@/lib/not-found";
 import { Toaster } from "@/components/ui/sonner";
 import { useDropStaleHeadTags } from "@/lib/stale-head-tags";
-
-function NotFoundComponent() {
-  return (
-    <div className="flex min-h-dvh items-center justify-center bg-brand-surface px-4">
-      {/* Hosting answers every unknown URL with 200 (it serves the app
-          shell), so without this a mistyped link would be indexable as a
-          real page. React hoists it into <head>; alongside the root's
-          "index, follow", search engines honour the stricter noindex. */}
-      <meta name="robots" content="noindex" />
-      {/* Hoisted the same way; React puts it ahead of the root's title, so
-          the tab doesn't keep the store's generic one. */}
-      <title>Página no encontrada · Electron Plus</title>
-      <div className="max-w-md text-center">
-        <h1 className="text-7xl font-bold text-brand-navy">404</h1>
-        <h2 className="mt-4 text-xl font-semibold text-brand-navy">Página no encontrada</h2>
-        <p className="mt-2 text-sm text-muted-foreground">
-          La página que buscas no existe o fue movida.
-        </p>
-        <div className="mt-6">
-          <Link
-            to="/"
-            className="inline-flex items-center justify-center rounded-md bg-brand-blue px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-brand-blue/90"
-          >
-            Ir al inicio
-          </Link>
-        </div>
-      </div>
-    </div>
-  );
-}
 
 // A chunk fetch can fail two different ways: (1) genuinely stale — a tab
 // left open across a deploy tries to fetch a route's *old* chunk filename,
@@ -197,9 +169,22 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
   }),
   shellComponent: RootShell,
   component: RootComponent,
-  notFoundComponent: NotFoundComponent,
+  notFoundComponent: RootNotFound,
   errorComponent: ErrorComponent,
 });
+
+/** A notFound() thrown while navigating. Never during hydration (unknown
+ * URLs land on the catch-all route), so its tags can render inline, where
+ * React hoists them into <head>. */
+function RootNotFound() {
+  return (
+    <>
+      <meta name="robots" content="noindex" />
+      <title>{NOT_FOUND_TITLE}</title>
+      <NotFoundPage />
+    </>
+  );
+}
 
 function RootShell({ children }: { children: ReactNode }) {
   return (
@@ -244,7 +229,7 @@ function RootComponent() {
         <AuthProvider>
           <ElectronStoreProvider>
             <RealtimeOpsSync />
-            <Outlet />
+            <ShellOutlet />
             <Toaster richColors position="top-right" offset={{ top: "80px", right: "16px" }} />
           </ElectronStoreProvider>
         </AuthProvider>
