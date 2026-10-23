@@ -24,6 +24,6 @@ export function stockAlertEmail(
 
   return {
     subject: isOut ? `Agotado: ${payload.name}` : `Stock bajo: ${payload.name}`,
-    html: emailLayout(intro, body, siteUrl),
+    html: emailLayout(intro, body, siteUrl, 'staff'),
   };
 }

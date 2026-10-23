@@ -7,6 +7,7 @@ import { PayableDueStatus } from '../finance/entities/supplier-payable.entity';
 import { ExpenseDueStatus } from '../expenses/entities/expense.entity';
 import { EMAIL_COLORS, EMAIL_CONTACT, emailFontUrl } from './brand';
 import { BRAND_ATTACHMENTS } from './brand-assets';
+import { htmlToText } from './html-to-text';
 import { expenseDueEmail } from './templates/expense-due-email';
 import { invoiceDueEmail } from './templates/invoice-due-email';
 import { orderCreatedEmail } from './templates/order-created-email';
@@ -14,6 +15,7 @@ import { orderStatusEmail } from './templates/order-status-email';
 import { quoteStatusEmail } from './templates/quote-status-email';
 import { reviewCreatedEmail } from './templates/review-created-email';
 import { stockAlertEmail } from './templates/stock-alert-email';
+import { verifyEmailEmail } from './templates/verify-email-email';
 import { welcomeEmail } from './templates/welcome-email';
 
 const SITE = 'https://electronplus.com.ve';
@@ -48,9 +50,12 @@ const quote = (status: QuoteStatus, rejectionReason?: string) =>
     ],
   }) as never;
 
-/** Every email the app can send, rendered with representative data. */
-const ALL_EMAILS: Record<string, { subject: string; html: string }> = {
+type Email = { subject: string; html: string };
+
+/** Every email a customer can get, rendered with representative data. */
+const CUSTOMER_EMAILS: Record<string, Email> = {
   welcome: welcomeEmail('María', SITE),
+  verifyEmail: verifyEmailEmail('María', `${SITE}/verify?code=a&b=c`, SITE),
   orderCreated: orderCreatedEmail(order, SITE),
   orderPaid: orderStatusEmail(OrderStatus.PAID, SITE)!,
   orderShipped: orderStatusEmail(OrderStatus.SHIPPED, SITE)!,
@@ -58,6 +63,10 @@ const ALL_EMAILS: Record<string, { subject: string; html: string }> = {
   orderCancelled: orderStatusEmail(OrderStatus.CANCELLED, SITE)!,
   quoteApproved: quoteStatusEmail(quote(QuoteStatus.APPROVED), SITE)!,
   quoteRejected: quoteStatusEmail(quote(QuoteStatus.REJECTED, 'Muy poca cantidad'), SITE)!,
+};
+
+/** The panel's alerts to the admins. */
+const STAFF_EMAILS: Record<string, Email> = {
   stockLow: stockAlertEmail({ sku: 'S', name: 'Foco', level: StockAlertLevel.LOW, stock: 2 }, SITE),
   stockOut: stockAlertEmail({ sku: 'S', name: 'Foco', level: StockAlertLevel.OUT, stock: 0 }, SITE),
   invoiceOverdue: invoiceDueEmail(
@@ -96,6 +105,8 @@ const ALL_EMAILS: Record<string, { subject: string; html: string }> = {
   ),
 };
 
+const ALL_EMAILS = { ...CUSTOMER_EMAILS, ...STAFF_EMAILS };
+
 describe.each(Object.entries(ALL_EMAILS))('email "%s"', (_name, { subject, html }) => {
   it('has a subject and uses the shared brand layout', () => {
     expect(subject.length).toBeGreaterThan(0);
@@ -109,10 +120,13 @@ describe.each(Object.entries(ALL_EMAILS))('email "%s"', (_name, { subject, html 
     expect(html).not.toContain('8am');
   });
 
-  it('shows the current contact details in the footer', () => {
-    expect(html).toContain(EMAIL_CONTACT.hours);
-    expect(html).toContain(EMAIL_CONTACT.whatsappHref);
-    expect(html).toContain(`mailto:${EMAIL_CONTACT.email}`);
+  // What makes Gmail file a notice under Promotions: newsletter chrome.
+  it('reads as a notice, not a newsletter: one image, no tagline or store navigation', () => {
+    expect(html.match(/<img\b/g)).toHaveLength(1);
+    expect(html).not.toContain('Tu proveedor confiable');
+    expect(html).not.toContain('Todos los derechos reservados');
+    expect(html).not.toContain(`${SITE}/collections`);
+    expect(html).not.toContain(`href="${SITE}"`);
   });
 
   it('only references inline images that are actually attached, and attaches only what it uses', () => {
@@ -121,6 +135,40 @@ describe.each(Object.entries(ALL_EMAILS))('email "%s"', (_name, { subject, html 
     expect(referenced.size).toBeGreaterThan(0);
     for (const id of referenced) expect(attached).toContain(id);
     for (const id of attached) expect(referenced).toContain(id);
+  });
+
+  it('has a plain-text version with every link it points to', () => {
+    const text = htmlToText(html);
+    expect(text).toMatch(/^Electron Plus\n/);
+    expect(text).not.toMatch(/<(td|table|div|span|a)\b|style=/);
+    const hrefs = [...html.matchAll(/href="([^"]+)"/g)].map((m) => m[1].replace(/&amp;/g, '&'));
+    for (const href of hrefs) expect(text).toContain(href);
+  });
+});
+
+describe.each(Object.entries(CUSTOMER_EMAILS))('customer email "%s"', (_name, { html }) => {
+  it('closes with how to reach the store', () => {
+    expect(html).toContain(EMAIL_CONTACT.whatsappHref);
+    expect(html).toContain(EMAIL_CONTACT.phone);
+    expect(html).toContain(EMAIL_CONTACT.hours);
+    expect(html).toContain('responde a este correo');
+  });
+});
+
+describe.each(Object.entries(STAFF_EMAILS))('staff email "%s"', (_name, { html }) => {
+  it('closes with a note that the panel sent it, not the customer contact line', () => {
+    expect(html).toContain('Aviso automático del panel de Electron Plus.');
+    expect(html).not.toContain(EMAIL_CONTACT.whatsappHref);
+  });
+});
+
+describe('welcome email', () => {
+  it("is about the new account, not the store's offer", () => {
+    const { subject, html } = welcomeEmail('María', SITE);
+    expect(subject).toBe('Tu cuenta en Electron Plus está lista');
+    expect(html).toContain(`${SITE}/client/profile`);
+    expect(html).not.toContain(`${SITE}/catalog`);
+    expect(html).not.toMatch(/mayorista|despacho/);
   });
 });
 

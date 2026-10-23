@@ -3,6 +3,7 @@ import { ConfigService } from '@nestjs/config';
 import { Resend } from 'resend';
 import { EnvConfig } from '../../config/env.validation';
 import { BRAND_ATTACHMENTS } from './brand-assets';
+import { htmlToText } from './html-to-text';
 
 /** Thin wrapper over Resend — a missing RESEND_API_KEY degrades to logging
  * instead of throwing, same pattern as the other optional integrations
@@ -38,6 +39,7 @@ export class EmailService {
       to,
       subject,
       html,
+      text: htmlToText(html),
       replyTo: this.replyTo,
       attachments: BRAND_ATTACHMENTS,
     });

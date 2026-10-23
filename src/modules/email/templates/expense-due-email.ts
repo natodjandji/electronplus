@@ -26,6 +26,6 @@ export function expenseDueEmail(
 
   return {
     subject: isOverdue ? `Gasto vencido: ${payload.name}` : `Gasto por vencer: ${payload.name}`,
-    html: emailLayout(intro, body, siteUrl),
+    html: emailLayout(intro, body, siteUrl, 'staff'),
   };
 }

@@ -29,6 +29,6 @@ export function invoiceDueEmail(
     subject: isOverdue
       ? `Factura vencida: ${payload.supplierName}`
       : `Factura por vencer: ${payload.supplierName}`,
-    html: emailLayout(intro, body, siteUrl),
+    html: emailLayout(intro, body, siteUrl, 'staff'),
   };
 }

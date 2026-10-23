@@ -6,7 +6,7 @@ import { STORE_TIME_ZONE } from '../../../common/utils/store-day';
 const RATING_LABELS = ['', 'Muy mala', 'Mala', 'Regular', 'Buena', 'Excelente'];
 
 function stars(rating: number): string {
-  return `<span style="color:${C.yellow};letter-spacing:2px;">${'★'.repeat(rating)}</span><span style="color:${C.border};letter-spacing:2px;">${'★'.repeat(5 - rating)}</span>`;
+  return `<span style="color:${C.yellow};letter-spacing:2px;">${'★'.repeat(rating)}</span><span data-skip-text style="color:${C.border};letter-spacing:2px;">${'★'.repeat(5 - rating)}</span>`;
 }
 
 /** wa.me link with a greeting ready (0414-1234567 → 584141234567). */
@@ -88,6 +88,6 @@ export function reviewCreatedEmail(
     subject: needsAttention
       ? `Reseña para atender: ${review.rating} de 5 estrellas`
       : `Nueva reseña: ${review.rating} de 5 estrellas (${label})`,
-    html: emailLayout(intro, body, siteUrl),
+    html: emailLayout(intro, body, siteUrl, 'staff'),
   };
 }

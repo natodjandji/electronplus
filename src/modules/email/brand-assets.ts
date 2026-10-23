@@ -14,13 +14,12 @@ const logger = new Logger('BrandAssets');
  * the recipient's client as a plain (and confusing) file attachment instead
  * of rendering inline.
  *
- * Source PNGs live in ./assets, generated once from the storefront's SVG
- * logo (white + amber lockup) and WhatsApp glyph (white). nest-cli.json's compilerOptions.assets copies that folder
- * into dist/ on build — see Dockerfile, which only ships dist/, not the
- * rest of src/. */
+ * The source PNG lives in ./assets, generated once from the storefront's SVG
+ * logo (white + amber lockup). nest-cli.json's compilerOptions.assets copies
+ * that folder into dist/ on build — see Dockerfile, which only ships dist/,
+ * not the rest of src/. */
 export const BRAND_CID = {
   logoHeader: 'logo-header',
-  whatsappFooter: 'whatsapp-footer',
 } as const;
 
 interface BrandAttachment {
@@ -44,5 +43,4 @@ function loadAttachment(filename: string, contentId: string): BrandAttachment | 
 
 export const BRAND_ATTACHMENTS: BrandAttachment[] = [
   loadAttachment('logo-header.png', BRAND_CID.logoHeader),
-  loadAttachment('whatsapp-footer.png', BRAND_CID.whatsappFooter),
 ].filter((a): a is BrandAttachment => a !== undefined);

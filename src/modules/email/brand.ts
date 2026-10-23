@@ -7,11 +7,11 @@
  * imported; brand.spec.ts fails if the contact details drift apart.
  */
 export const EMAIL_COLORS = {
-  /** --brand-blue: header, footer, primary buttons, eyebrow labels. */
+  /** --brand-blue: header, primary buttons, eyebrow labels. */
   blue: '#003891',
   /** --brand-navy: headings and body text on white. */
   navy: '#091e40',
-  /** --brand-yellow: accent rule, footer column titles, links on blue. */
+  /** --brand-yellow: accent rule under the header, review stars. */
   yellow: '#f7b828',
   /** --background: the page behind the cards. */
   surface: '#f3f5f8',
@@ -20,11 +20,6 @@ export const EMAIL_COLORS = {
   /** --muted-foreground */
   muted: '#596475',
   white: '#ffffff',
-  /** text-white/70, /60 and the white/10 divider, flattened onto brand blue
-   * (email clients don't reliably support rgba). */
-  onBlueSoft: '#b3c3de',
-  onBlueFaint: '#99afd3',
-  onBlueLine: '#1a4c9c',
   /** Status badges — same pairs as order-stepper.tsx's ORDER_STATUS_BADGE. */
   badge: {
     info: { bg: '#e6ebf4', fg: '#003891' }, // bg-brand-blue/10 text-brand-blue

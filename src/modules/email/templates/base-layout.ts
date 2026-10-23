@@ -5,20 +5,36 @@ import { formatMoney } from '../format-money';
 
 type Tone = keyof typeof C.badge;
 
-/** Shared wrapper for every transactional email. Mirrors the storefront
- * (site-footer.tsx and the hero): brand-blue header with the white logo, a
- * yellow accent rule, a white card body, and the same brand-blue footer —
- * logo, tagline, TIENDA / CONTACTO columns with yellow titles, copyright.
+/** Who the email goes to: customers get how to reach the store, staff a
+ * note that the panel sent it. */
+export type EmailAudience = 'customer' | 'staff';
+
+/** Shared wrapper for every transactional email: the storefront hero's
+ * brand-blue header with the white logo, a yellow accent rule, a white card
+ * body, and one short line under the card.
+ *
+ * Kept deliberately plain. Gmail files mail that looks like a newsletter —
+ * a footer with a tagline and store navigation, several images — under
+ * Promotions, where order and account notices get missed. So: one image (the
+ * logo, not a link), and no links besides the ones the email is about and
+ * the store's WhatsApp.
  *
  * Table layout with inline styles, since that's what survives across email
  * clients (Outlook renders with Word's engine). The <style> block only adds
- * progressive enhancement: the Geomini web font and stacking the footer
- * columns on narrow screens — clients that ignore it still get a complete,
- * correct email. */
-export function emailLayout(previewText: string, bodyHtml: string, siteUrl: string): string {
-  const year = new Date().getFullYear();
-  const link = (label: string, path: string) =>
-    `<a href="${siteUrl}${path}" style="color:${C.onBlueSoft};text-decoration:none;">${label}</a>`;
+ * progressive enhancement: the Geomini web font and tighter padding on
+ * narrow screens — clients that ignore it still get a complete, correct
+ * email. Anything marked data-skip-text stays out of the plain-text part
+ * (see htmlToText). */
+export function emailLayout(
+  previewText: string,
+  bodyHtml: string,
+  siteUrl: string,
+  audience: EmailAudience = 'customer',
+): string {
+  const footer =
+    audience === 'customer'
+      ? `¿Dudas? Escríbenos por WhatsApp al <a href="${EMAIL_CONTACT.whatsappHref}" style="color:${C.muted};text-decoration:underline;">${EMAIL_CONTACT.phone}</a> o responde a este correo.<br/>Electron Plus · ${EMAIL_CONTACT.hours}`
+      : 'Aviso automático del panel de Electron Plus.';
 
   return `<!doctype html>
 <html lang="es">
@@ -36,12 +52,11 @@ export function emailLayout(previewText: string, bodyHtml: string, siteUrl: stri
       }
       @media only screen and (max-width: 480px) {
         .px { padding-left: 20px !important; padding-right: 20px !important; }
-        .col { display: block !important; width: 100% !important; padding: 0 0 20px !important; }
       }
     </style>
   </head>
   <body style="margin:0;padding:0;background-color:${C.surface};font-family:${EMAIL_FONT_STACK};color:${C.navy};">
-    <div style="display:none;max-height:0;overflow:hidden;opacity:0;">${escapeHtml(previewText)}</div>
+    <div data-skip-text style="display:none;max-height:0;overflow:hidden;opacity:0;">${escapeHtml(previewText)}</div>
     <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background-color:${C.surface};padding:32px 12px;">
       <tr>
         <td align="center">
@@ -49,10 +64,8 @@ export function emailLayout(previewText: string, bodyHtml: string, siteUrl: stri
 
             <!-- header: the storefront hero's brand blue + white logo -->
             <tr>
-              <td class="px" bgcolor="${C.blue}" style="background-color:${C.blue};padding:28px 36px;">
-                <a href="${siteUrl}" style="text-decoration:none;">
-                  <img src="cid:${BRAND_CID.logoHeader}" alt="Electron Plus" height="30" style="display:block;height:30px;width:auto;border:0;" />
-                </a>
+              <td class="px" bgcolor="${C.blue}" style="background-color:${C.blue};padding:22px 36px;">
+                <img src="cid:${BRAND_CID.logoHeader}" alt="Electron Plus" height="26" style="display:block;height:26px;width:auto;border:0;" />
               </td>
             </tr>
             <tr>
@@ -66,44 +79,13 @@ export function emailLayout(previewText: string, bodyHtml: string, siteUrl: stri
               </td>
             </tr>
 
-            <!-- footer: mirrors site-footer.tsx -->
+          </table>
+          <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="max-width:600px;">
             <tr>
-              <td class="px" bgcolor="${C.blue}" style="background-color:${C.blue};padding:32px 36px 0;">
-                <img src="cid:${BRAND_CID.logoHeader}" alt="Electron Plus" height="30" style="display:block;height:30px;width:auto;border:0;" />
-                <p style="margin:14px 0 24px;max-width:400px;color:${C.onBlueSoft};font-size:13px;line-height:1.6;">
-                  Tu proveedor confiable de iluminación, cables y materiales eléctricos. Atención detal, mayorista y proyectos.
-                </p>
-                <table role="presentation" width="100%" cellpadding="0" cellspacing="0">
-                  <tr>
-                    <td class="col" width="50%" valign="top" style="padding-right:16px;">
-                      <div style="color:${C.yellow};font-size:11px;font-weight:700;letter-spacing:0.14em;text-transform:uppercase;margin:0 0 10px;">Tienda</div>
-                      <div style="font-size:13px;line-height:2;">
-                        ${link('Catálogo', '/catalog')}<br/>
-                        ${link('Colecciones', '/collections')}<br/>
-                        ${link('Cotizaciones', '/quotes')}<br/>
-                        ${link('Pedidos', '/client/orders')}
-                      </div>
-                    </td>
-                    <td class="col" width="50%" valign="top">
-                      <div style="color:${C.yellow};font-size:11px;font-weight:700;letter-spacing:0.14em;text-transform:uppercase;margin:0 0 10px;">Contacto</div>
-                      <div style="font-size:13px;line-height:2;color:${C.onBlueSoft};">
-                        <a href="${EMAIL_CONTACT.whatsappHref}" style="color:${C.onBlueSoft};text-decoration:none;"><img src="cid:${BRAND_CID.whatsappFooter}" alt="" width="14" height="14" style="vertical-align:-2px;border:0;margin-right:6px;" />${EMAIL_CONTACT.phone}</a><br/>
-                        <a href="mailto:${EMAIL_CONTACT.email}" style="color:${C.onBlueSoft};text-decoration:none;">${EMAIL_CONTACT.email}</a><br/>
-                        ${EMAIL_CONTACT.hours}
-                      </div>
-                    </td>
-                  </tr>
-                </table>
-                <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="margin-top:24px;border-top:1px solid ${C.onBlueLine};">
-                  <tr>
-                    <td align="center" style="padding:16px 0 20px;color:${C.onBlueFaint};font-size:11px;">
-                      © ${year} Electron Plus. Todos los derechos reservados.
-                    </td>
-                  </tr>
-                </table>
+              <td class="px" align="center" style="padding:20px 36px 0;color:${C.muted};font-size:12px;line-height:1.7;">
+                ${footer}
               </td>
             </tr>
-
           </table>
         </td>
       </tr>
