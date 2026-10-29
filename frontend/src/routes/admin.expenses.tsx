@@ -28,6 +28,16 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Field } from "@/components/ui/field";
@@ -115,6 +125,7 @@ function sum(arr: Expense[]) {
 function ExpensesPage() {
   const [creating, setCreating] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
+  const [payingId, setPayingId] = useState<string | null>(null);
   const [search, setSearch] = useState("");
   const [categoryFilter, setCategoryFilter] = useState("all");
   const [statusFilter, setStatusFilter] = useState<"all" | ExpenseStatus>("all");
@@ -267,7 +278,7 @@ function ExpensesPage() {
         <Card className="mt-6 overflow-hidden">
           <table className="w-full text-sm">
             <tbody>
-              <TableRowsSkeleton columns={6} rows={4} />
+              <TableRowsSkeleton columns={7} rows={4} />
             </tbody>
           </table>
         </Card>
@@ -290,7 +301,7 @@ function ExpensesPage() {
       {visible.length > 0 && (
         <Card ref={tableTop} className="mt-6 overflow-hidden">
           <div className="overflow-x-auto">
-            <table className="w-full min-w-[680px] text-sm">
+            <table className="w-full min-w-[780px] text-sm">
               <thead className="bg-brand-surface">
                 <tr className="text-left text-xs uppercase tracking-wider text-muted-foreground">
                   <th className="px-4 py-2">Gasto</th>
@@ -299,6 +310,9 @@ function ExpensesPage() {
                   <th className="px-4 py-2">Frecuencia</th>
                   <th className="px-4 py-2">Próximo vencimiento</th>
                   <th className="px-4 py-2">Estado</th>
+                  <th className="px-4 py-2">
+                    <span className="sr-only">Pago</span>
+                  </th>
                 </tr>
               </thead>
               <tbody>
@@ -327,6 +341,22 @@ function ExpensesPage() {
                         <Badge className={DUE_BADGE[e.dueStatus]}>{DUE_LABEL[e.dueStatus]}</Badge>
                       )}
                     </td>
+                    <td className="px-4 py-2 text-right">
+                      {e.status !== "paid" && (
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          className="gap-1.5"
+                          onClick={(event) => {
+                            // The row opens the edit dialog; this pays straight away.
+                            event.stopPropagation();
+                            setPayingId(e.id);
+                          }}
+                        >
+                          <CheckCircle2 className="h-4 w-4" /> Pagar
+                        </Button>
+                      )}
+                    </td>
                   </tr>
                 ))}
               </tbody>
@@ -347,6 +377,12 @@ function ExpensesPage() {
       />
 
       {creating && <CreateExpenseDialog onClose={() => setCreating(false)} />}
+      {payingId && loaded.some((e) => e.id === payingId) && (
+        <PayExpenseDialog
+          expense={loaded.find((e) => e.id === payingId)!}
+          onClose={() => setPayingId(null)}
+        />
+      )}
       {editingId && loaded.some((e) => e.id === editingId) && (
         <EditExpenseDialog
           expense={loaded.find((e) => e.id === editingId)!}
@@ -504,6 +540,60 @@ function CreateExpenseDialog({ onClose }: { onClose: () => void }) {
   );
 }
 
+/** Paying a recurring expense moves it to its next due date, so a stray
+ * click on the row's button asks first. */
+function PayExpenseDialog({ expense, onClose }: { expense: Expense; onClose: () => void }) {
+  const queryClient = useQueryClient();
+  const pay = useMutation({
+    mutationFn: () => apiFetch(`/expenses/${expense.id}/pay`, { method: "POST" }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["admin", "expenses"] });
+      toast.success(
+        expense.frequency === "once"
+          ? "Gasto marcado como pagado"
+          : "Pago registrado — próxima fecha actualizada",
+      );
+      onClose();
+    },
+    onError: reportError,
+  });
+
+  return (
+    <AlertDialog open onOpenChange={(open) => !open && !pay.isPending && onClose()}>
+      <AlertDialogContent>
+        <AlertDialogHeader>
+          <AlertDialogTitle>¿Marcar «{expense.name}» como pagado?</AlertDialogTitle>
+          <AlertDialogDescription>
+            {formatMoneyAdmin(expense.amount)} · vence el {formatCalendarDate(expense.dueDate)}.{" "}
+            {expense.frequency === "once"
+              ? "Queda como pagado."
+              : `Su próximo vencimiento pasa al ${expense.frequency === "monthly" ? "mes" : "año"} siguiente.`}
+          </AlertDialogDescription>
+        </AlertDialogHeader>
+        <AlertDialogFooter>
+          <AlertDialogCancel disabled={pay.isPending}>Cancelar</AlertDialogCancel>
+          <AlertDialogAction
+            // Stays open until the payment is saved, so a failure shows here.
+            onClick={(event) => {
+              event.preventDefault();
+              pay.mutate();
+            }}
+            disabled={pay.isPending}
+            className="gap-2 bg-brand-blue text-white hover:bg-brand-blue/90"
+          >
+            {pay.isPending ? (
+              <Loader2 className="h-4 w-4 animate-spin" />
+            ) : (
+              <CheckCircle2 className="h-4 w-4" />
+            )}
+            Sí, marcar como pagado
+          </AlertDialogAction>
+        </AlertDialogFooter>
+      </AlertDialogContent>
+    </AlertDialog>
+  );
+}
+
 function EditExpenseDialog({ expense, onClose }: { expense: Expense; onClose: () => void }) {
   const queryClient = useQueryClient();
   const [name, setName] = useState(expense.name);
@@ -525,20 +615,6 @@ function EditExpenseDialog({ expense, onClose }: { expense: Expense; onClose: ()
     onSuccess: () => {
       invalidate();
       toast.success("Gasto actualizado");
-      onClose();
-    },
-    onError: reportError,
-  });
-
-  const markPaid = useMutation({
-    mutationFn: () => apiFetch(`/expenses/${expense.id}/pay`, { method: "POST" }),
-    onSuccess: () => {
-      invalidate();
-      toast.success(
-        expense.frequency === "once"
-          ? "Gasto marcado como pagado"
-          : "Pago registrado — próxima fecha actualizada",
-      );
       onClose();
     },
     onError: reportError,
@@ -643,21 +719,6 @@ function EditExpenseDialog({ expense, onClose }: { expense: Expense; onClose: ()
             >
               <Trash2 className="h-4 w-4" /> Eliminar
             </Button>
-            {expense.status !== "paid" && (
-              <Button
-                variant="outline"
-                className="gap-2"
-                onClick={() => markPaid.mutate()}
-                disabled={markPaid.isPending}
-              >
-                {markPaid.isPending ? (
-                  <Loader2 className="h-4 w-4 animate-spin" />
-                ) : (
-                  <CheckCircle2 className="h-4 w-4" />
-                )}
-                Marcar como pagado
-              </Button>
-            )}
           </div>
           <div className="flex gap-2">
             <Button variant="outline" onClick={onClose}>
