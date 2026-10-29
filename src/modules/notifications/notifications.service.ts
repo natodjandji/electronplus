@@ -53,7 +53,8 @@ export function syncErrorMessage(
     return `${sales === 1 ? 'Una venta' : `${sales} ventas`} sin enviar a Profit Plus. Último error: ${error}`;
   }
   if (occurrences <= 1) return error;
-  return `${error} · ${occurrences} veces hoy, la última a las ${syncErrorTime.format(lastAt)}.`;
+  // The time ends in its own period ("3:45 p. m."), so the sentence doesn't add one.
+  return `${error} · ${occurrences} veces hoy, la última a las ${syncErrorTime.format(lastAt)}`;
 }
 
 /** An inventory run's error, grouped or from before grouping. */

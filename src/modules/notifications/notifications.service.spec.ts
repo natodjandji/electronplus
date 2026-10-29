@@ -62,7 +62,7 @@ describe('NotificationsService sync errors', () => {
         type: 'sync_error',
         title: 'Error de sincronización con Profit Plus',
         message: expect.stringMatching(
-          /^El bridge de Profit Plus respondió 530 · 3 veces hoy, la última a las 10:30/,
+          /^El bridge de Profit Plus respondió 530 · 3 veces hoy, la última a las 10:30\s?a\.\s?m\.$/,
         ),
         occurrences: 3,
         read: false,
