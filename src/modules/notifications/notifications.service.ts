@@ -1,11 +1,20 @@
 import { ForbiddenException, Inject, Injectable, Logger } from '@nestjs/common';
 import { OnEvent } from '@nestjs/event-emitter';
-import type { Firestore } from 'firebase-admin/firestore';
+import { Timestamp, type Firestore } from 'firebase-admin/firestore';
+import { STORE_TIME_ZONE, storeDay } from '../../common/utils/store-day';
 import { FIRESTORE } from '../../firebase/firebase.constants';
 import { Collections } from '../../firebase/firestore-collections';
 import { FirestoreRepository } from '../../firebase/firestore.repository';
 import { Role } from '../../common/enums/role.enum';
-import { ERP_SYNC_ERROR_EVENT, ErpSyncErrorEvent } from '../erp-sync/sync.service';
+import {
+  ERP_EXPORT_SUCCEEDED_EVENT,
+  ERP_SYNC_ERROR_EVENT,
+  ERP_SYNC_SUCCEEDED_EVENT,
+  type ErpExportSucceededEvent,
+  type ErpSyncErrorEvent,
+  type ErpSyncErrorKind,
+  type ErpSyncSucceededEvent,
+} from '../erp-sync/sync.service';
 import { INVOICE_DUE_ALERT_EVENT, InvoiceDueAlertEvent } from '../finance/finance.service';
 import { PayableDueStatus } from '../finance/entities/supplier-payable.entity';
 import { EXPENSE_DUE_ALERT_EVENT, ExpenseDueAlertEvent } from '../expenses/expenses.service';
@@ -20,6 +29,43 @@ import { NotificationsGateway } from './notifications.gateway';
 const OPS_ROLES = [Role.ADMIN, Role.WAREHOUSE_OPERATOR];
 
 const NOTIFICATIONS_LIST_LIMIT = 50;
+
+const SYNC_ERROR_TITLE = 'Error de sincronización con Profit Plus';
+/** Under Firestore's 500 writes per batch. */
+const DELETE_BATCH = 400;
+const syncErrorTime = new Intl.DateTimeFormat('es-VE', {
+  timeZone: STORE_TIME_ZONE,
+  hour: 'numeric',
+  minute: '2-digit',
+});
+
+/** A day's sync-error notification: the latest error, and how often it
+ * happened (inventory runs) or which sales are still waiting (exports). */
+export function syncErrorMessage(
+  kind: ErpSyncErrorKind,
+  error: string,
+  occurrences: number,
+  lastAt: Date,
+  orderIds?: string[],
+): string {
+  if (kind === 'export') {
+    const sales = orderIds?.length || 1;
+    return `${sales === 1 ? 'Una venta' : `${sales} ventas`} sin enviar a Profit Plus. Último error: ${error}`;
+  }
+  if (occurrences <= 1) return error;
+  return `${error} · ${occurrences} veces hoy, la última a las ${syncErrorTime.format(lastAt)}.`;
+}
+
+/** An inventory run's error, grouped or from before grouping. */
+function isInventoryError(notification: Notification): boolean {
+  return notification.syncErrorKind
+    ? notification.syncErrorKind !== 'export'
+    : notification.payload?.direction === 'inbound';
+}
+
+function toDate(value: unknown): Date {
+  return value instanceof Timestamp ? value.toDate() : new Date(value as Date);
+}
 
 @Injectable()
 export class NotificationsService {
@@ -153,18 +199,124 @@ export class NotificationsService {
   @OnEvent(ERP_SYNC_ERROR_EVENT)
   async handleErpSyncError(payload: ErpSyncErrorEvent): Promise<void> {
     try {
-      await this.create(
-        NotificationType.SYNC_ERROR,
-        'Error de sincronización con Profit Plus',
-        payload.message,
-        [Role.ADMIN],
-        {
-          ...payload,
-        },
-      );
+      await this.recordSyncError(payload, new Date());
     } catch (error) {
       this.logger.error('Failed to create ERP sync error notification', error as Error);
     }
+  }
+
+  /** Adds the error to the day's notification for its kind, or opens that
+   * notification. Read stays read: the admin already knows, and a bridge
+   * that's down fails every 15 minutes. */
+  private async recordSyncError(event: ErpSyncErrorEvent, now: Date): Promise<void> {
+    const day = storeDay(now);
+    const ref = this.repo.doc(`sync-error-${event.kind}-${day}`);
+    const { notification, isNew } = await this.firestore.runTransaction(async (tx) => {
+      const snap = await tx.get(ref);
+      const current = snap.exists ? (snap.data() as Omit<Notification, 'id'>) : null;
+      const occurrences = (current?.occurrences ?? 0) + 1;
+      const orderIds =
+        event.kind === 'export'
+          ? [
+              ...new Set([
+                ...(current?.orderIds ?? []),
+                ...(event.reference ? [event.reference] : []),
+              ]),
+            ]
+          : undefined;
+      const data: Omit<Notification, 'id'> = {
+        type: NotificationType.SYNC_ERROR,
+        title: SYNC_ERROR_TITLE,
+        message: syncErrorMessage(event.kind, event.message, occurrences, now, orderIds),
+        targetRoles: [Role.ADMIN],
+        payload: { ...event },
+        read: current?.read ?? false,
+        syncErrorKind: event.kind,
+        day,
+        occurrences,
+        lastOccurredAt: now,
+        ...(orderIds ? { orderIds } : {}),
+        createdAt: current ? toDate(current.createdAt) : now,
+        updatedAt: now,
+      };
+      tx.set(ref, data);
+      return { notification: { id: ref.id, ...data }, isNew: !current };
+    });
+    this.gateway.broadcastToRoles(
+      [Role.ADMIN],
+      isNew ? 'notification.created' : 'notification.updated',
+      notification,
+    );
+  }
+
+  /** An inventory run worked: the inventory errors last seen before it
+   * started are over, whatever day they're from. A removal warning this
+   * same run raised stays. */
+  @OnEvent(ERP_SYNC_SUCCEEDED_EVENT)
+  async handleErpSyncSucceeded({ startedAt }: ErpSyncSucceededEvent): Promise<void> {
+    try {
+      const over = (await this.syncErrors()).filter(
+        (n) => isInventoryError(n) && toDate(n.lastOccurredAt ?? n.createdAt) < toDate(startedAt),
+      );
+      await this.removeAll(over.map((n) => n.id));
+    } catch (error) {
+      this.logger.error('Failed to clear resolved ERP sync notifications', error as Error);
+    }
+  }
+
+  /** A sale reached Profit Plus: it leaves the export notifications, and a
+   * notification with no sale left goes away. */
+  @OnEvent(ERP_EXPORT_SUCCEEDED_EVENT)
+  async handleErpExportSucceeded({ orderId }: ErpExportSucceededEvent): Promise<void> {
+    try {
+      const over: string[] = [];
+      for (const notification of await this.syncErrors()) {
+        if (!notification.syncErrorKind) {
+          if (notification.payload?.reference === orderId) over.push(notification.id);
+          continue;
+        }
+        if (notification.syncErrorKind !== 'export' || !notification.orderIds?.includes(orderId)) {
+          continue;
+        }
+        const orderIds = notification.orderIds.filter((id) => id !== orderId);
+        if (orderIds.length === 0) {
+          over.push(notification.id);
+          continue;
+        }
+        const message = syncErrorMessage(
+          'export',
+          String(notification.payload?.message ?? ''),
+          notification.occurrences ?? 1,
+          toDate(notification.lastOccurredAt ?? notification.createdAt),
+          orderIds,
+        );
+        await this.repo.update(notification.id, { orderIds, message });
+        this.gateway.broadcastToRoles([Role.ADMIN], 'notification.updated', {
+          ...notification,
+          orderIds,
+          message,
+        });
+      }
+      await this.removeAll(over);
+    } catch (error) {
+      this.logger.error('Failed to clear resolved ERP export notifications', error as Error);
+    }
+  }
+
+  private syncErrors(): Promise<Notification[]> {
+    return this.repo.findAll({
+      where: [{ field: 'type', op: '==', value: NotificationType.SYNC_ERROR }],
+    });
+  }
+
+  private async removeAll(ids: string[]): Promise<void> {
+    if (ids.length === 0) return;
+    for (let i = 0; i < ids.length; i += DELETE_BATCH) {
+      const batch = this.firestore.batch();
+      for (const id of ids.slice(i, i + DELETE_BATCH)) batch.delete(this.repo.doc(id));
+      await batch.commit();
+    }
+    this.gateway.broadcastToRoles([Role.ADMIN], 'notification.deleted', { ids });
   }
 
   @OnEvent(CHAT_HANDOFF_EVENT)

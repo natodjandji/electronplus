@@ -177,7 +177,11 @@ describe('AdminAlertsService', () => {
 
   it('sends a repeating Profit Plus error once per cooldown, and a different one at once', async () => {
     const { service, sent } = setup();
-    const error = { direction: SyncDirection.INBOUND, message: 'El bridge no respondió' };
+    const error = {
+      direction: SyncDirection.INBOUND,
+      kind: 'inbound' as const,
+      message: 'El bridge no respondió',
+    };
     await service.handleErpSyncError(error);
     await service.handleErpSyncError(error);
     await service.handleErpSyncError({ ...error, message: 'Credenciales inválidas' });

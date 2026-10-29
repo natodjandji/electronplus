@@ -7,7 +7,12 @@ import { FirestoreRepository, snapshotToEntity } from '../../firebase/firestore.
 import { Order } from '../orders/entities/order.entity';
 import { PROFIT_PLUS_ADAPTER, ProfitPlusAdapter } from './adapters/profit-plus-adapter.interface';
 import { SyncDirection, SyncLog, SyncStatus, syncLogExpiresAt } from './entities/sync-log.entity';
-import { ERP_SYNC_ERROR_EVENT, ErpSyncErrorEvent } from './sync.service';
+import {
+  ERP_EXPORT_SUCCEEDED_EVENT,
+  ERP_SYNC_ERROR_EVENT,
+  ErpExportSucceededEvent,
+  ErpSyncErrorEvent,
+} from './sync.service';
 
 /** Attempts per sale before it is left for a person to look at. */
 export const ERP_EXPORT_MAX_ATTEMPTS = 5;
@@ -140,6 +145,7 @@ export class ErpExportService {
         itemsProcessed: order.items.length,
         finishedAt: new Date(),
       });
+      this.events.emit(ERP_EXPORT_SUCCEEDED_EVENT, { orderId } satisfies ErpExportSucceededEvent);
       return 'exported';
     } catch (error) {
       const message = (error as Error).message;
@@ -165,6 +171,7 @@ export class ErpExportService {
       });
       this.events.emit(ERP_SYNC_ERROR_EVENT, {
         direction: SyncDirection.OUTBOUND,
+        kind: 'export',
         message,
         reference: orderId,
       } satisfies ErpSyncErrorEvent);

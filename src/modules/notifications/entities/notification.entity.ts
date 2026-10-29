@@ -1,5 +1,6 @@
 import { FirestoreDoc } from '../../../firebase/firestore.repository';
 import { Role } from '../../../common/enums/role.enum';
+import type { ErpSyncErrorKind } from '../../erp-sync/sync.service';
 
 export enum NotificationType {
   LOW_STOCK = 'low_stock',
@@ -20,4 +21,16 @@ export interface Notification extends FirestoreDoc {
   payload?: Record<string, unknown>;
   targetRoles: Role[];
   read: boolean;
+  // Sync errors come in runs (the bridge down fails every sync until it's
+  // back), so each kind of problem gets one notification per store day,
+  // id `sync-error-<kind>-<day>`, that counts its repeats and goes away
+  // once it's fixed (see NotificationsService). Older ones have none of
+  // these fields.
+  syncErrorKind?: ErpSyncErrorKind;
+  /** The store day, YYYY-MM-DD. */
+  day?: string;
+  occurrences?: number;
+  lastOccurredAt?: Date;
+  /** Exports: the sales still not in Profit Plus. */
+  orderIds?: string[];
 }

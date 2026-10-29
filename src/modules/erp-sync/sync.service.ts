@@ -36,10 +36,31 @@ const INBOUND_CRON_JOB_NAME = 'profit-plus-inbound-sync';
 
 export const ERP_SYNC_ERROR_EVENT = 'erp.sync.error';
 
+/** What went wrong: an inventory run that failed (the bridge down, most
+ * often), a run that couldn't hide products gone from Profit Plus, or a
+ * sale that couldn't be reported. The admin's notifications group by it. */
+export type ErpSyncErrorKind = 'inbound' | 'removal' | 'export';
+
 export interface ErpSyncErrorEvent {
   direction: SyncDirection;
+  kind: ErpSyncErrorKind;
   message: string;
+  /** The order, for an export. */
   reference?: string;
+}
+
+/** An inventory run finished: what failed before it started is over. */
+export const ERP_SYNC_SUCCEEDED_EVENT = 'erp.sync.succeeded';
+
+export interface ErpSyncSucceededEvent {
+  startedAt: Date;
+}
+
+/** A sale reached Profit Plus. */
+export const ERP_EXPORT_SUCCEEDED_EVENT = 'erp.export.succeeded';
+
+export interface ErpExportSucceededEvent {
+  orderId: string;
 }
 
 /** Each value that appears more than once, once. */
@@ -236,6 +257,7 @@ export class SyncService implements OnModuleInit {
         this.logger.warn(`Inbound sync: ${message}`);
         this.events.emit(ERP_SYNC_ERROR_EVENT, {
           direction: SyncDirection.INBOUND,
+          kind: 'removal',
           message,
         } satisfies ErpSyncErrorEvent);
       }
@@ -264,6 +286,9 @@ export class SyncService implements OnModuleInit {
         finishedAt: new Date(),
       };
       await this.repo.patch(log.id, finished);
+      this.events.emit(ERP_SYNC_SUCCEEDED_EVENT, {
+        startedAt: log.startedAt,
+      } satisfies ErpSyncSucceededEvent);
       return { ...log, ...finished };
     } catch (error) {
       const message = (error as Error).message;
@@ -278,6 +303,7 @@ export class SyncService implements OnModuleInit {
       if (!(error instanceof ErpNotConfiguredError)) {
         this.events.emit(ERP_SYNC_ERROR_EVENT, {
           direction: SyncDirection.INBOUND,
+          kind: 'inbound',
           message,
         } satisfies ErpSyncErrorEvent);
       }

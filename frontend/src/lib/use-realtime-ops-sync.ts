@@ -56,6 +56,21 @@ export function useRealtimeOpsSync() {
           : current,
       );
 
+    // A sync error repeating through the day updates its one notification
+    // (a new count, the latest error): it stays where it is in the list.
+    const updateNotification = (notification: { id: string }) =>
+      queryClient.setQueryData<{ id: string }[]>(NOTIFICATIONS_KEY, (current) =>
+        current?.some((n) => n.id === notification.id)
+          ? current.map((n) => (n.id === notification.id ? notification : n))
+          : current && [notification, ...current].slice(0, NOTIFICATIONS_LIST_LIMIT),
+      );
+
+    // Sync errors that got fixed on their own (the bridge is back).
+    const removeNotifications = ({ ids }: { ids: string[] }) =>
+      queryClient.setQueryData<{ id: string }[]>(NOTIFICATIONS_KEY, (current) =>
+        current?.filter((n) => !ids.includes(n.id)),
+      );
+
     const invalidateStock = () => {
       // Prefix match — covers every ["admin","products",search] variant
       // (admin.inventory/.index/.stock/.suppliers/.labels all share it)
@@ -92,6 +107,8 @@ export function useRealtimeOpsSync() {
         transports: ["websocket"],
       });
       socket.on("notification.created", addNotification);
+      socket.on("notification.updated", updateNotification);
+      socket.on("notification.deleted", removeNotifications);
       socket.on("stock.changed", scheduleStockRefresh);
       // Catch-up on reconnect instead of polling on a timer. Socket.IO
       // reconnects on its own, and any stock.changed emitted while the
