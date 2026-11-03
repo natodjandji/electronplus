@@ -214,6 +214,7 @@ export class SyncService implements OnModuleInit {
             {
               externalId: item.externalId,
               sku: item.sku,
+              model: item.model,
               name: item.name,
               categoryId: category.id,
               category: { id: category.id, code: category.code, label: category.label },

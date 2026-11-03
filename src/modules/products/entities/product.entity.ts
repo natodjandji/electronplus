@@ -1,7 +1,13 @@
 import { FirestoreDoc } from '../../../firebase/firestore.repository';
 
 export interface Product extends FirestoreDoc {
+  /** The barcode ("Código de barra" in the panel): for a product from Profit
+   * Plus, its reference, or its internal code when that's empty. What
+   * sales, carts, quotes and the "producto" label go by. */
   sku: string;
+  /** The store's own SKU ("SKU" in the panel): Profit Plus's Modelo field.
+   * Null when Profit has none for it. */
+  model?: string | null;
   name: string;
   specs?: string;
   /** From Profit Plus; null when the item has no brand there. */

@@ -6,7 +6,10 @@ export class ErpNotConfiguredError extends Error {}
 
 export interface ErpInventoryItem {
   externalId: string;
+  /** The barcode: the article's reference, or its internal code. */
   sku: string;
+  /** The store's SKU, from the article's Modelo field, when it has one. */
+  model?: string;
   name: string;
   categoryCode: string;
   categoryLabel: string;

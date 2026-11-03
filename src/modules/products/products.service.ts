@@ -80,7 +80,8 @@ export interface StockUpdateContext {
  * last until the next run (every 15 minutes), so it's refused instead.
  * Stock has its own guard (adjustStock), and so does a brand's supplier. */
 const ERP_OWNED_FIELDS = {
-  sku: 'código',
+  sku: 'código de barra',
+  model: 'SKU',
   name: 'nombre',
   categoryId: 'categoría',
   retailPrice: 'precio detal',
@@ -196,6 +197,7 @@ export class ProductsService {
         (p) =>
           p.name.toLowerCase().includes(needle) ||
           p.sku.toLowerCase().includes(needle) ||
+          Boolean(p.model?.toLowerCase().includes(needle)) ||
           Boolean(p.brand?.toLowerCase().includes(needle)),
       );
     }
@@ -383,7 +385,10 @@ export class ProductsService {
     if (query.search) {
       const needle = query.search.toLowerCase();
       products = products.filter(
-        (p) => p.name.toLowerCase().includes(needle) || p.sku.toLowerCase().includes(needle),
+        (p) =>
+          p.name.toLowerCase().includes(needle) ||
+          p.sku.toLowerCase().includes(needle) ||
+          Boolean(p.model?.toLowerCase().includes(needle)),
       );
     }
     if (query.lowStockOnly === 'true') {
@@ -496,7 +501,9 @@ export class ProductsService {
     const changed: string[] = Object.entries(ERP_OWNED_FIELDS)
       .filter(([field]) => {
         const value = dto[field as keyof typeof ERP_OWNED_FIELDS];
-        return value !== undefined && value !== existing[field as keyof typeof ERP_OWNED_FIELDS];
+        // A SKU Profit never set may be stored as null or missing: the same.
+        const current = existing[field as keyof typeof ERP_OWNED_FIELDS] ?? null;
+        return value !== undefined && (value ?? null) !== current;
       })
       .map(([, label]) => label);
     if (existing.brand && dto.supplierId !== undefined && dto.supplierId !== existing.supplierId) {
@@ -662,6 +669,7 @@ export class ProductsService {
       Boolean(existing.erpRemovedAt) ||
       existing.erpExternalId !== patch.erpExternalId ||
       existing.sku !== patch.sku ||
+      (existing.model ?? null) !== (patch.model ?? null) ||
       existing.name !== patch.name ||
       existing.categoryId !== patch.categoryId ||
       // The product keeps a copy of its category's name: a category renamed
@@ -711,6 +719,7 @@ export class ProductsService {
     item: {
       externalId: string;
       sku: string;
+      model?: string;
       name: string;
       categoryId: string;
       category: { id: string; code: string; label: string };
@@ -728,6 +737,8 @@ export class ProductsService {
     const patch: Partial<Product> = {
       erpExternalId: item.externalId,
       sku: item.sku,
+      // Profit Plus owns it like the name: emptied there, emptied here.
+      model: item.model ?? null,
       name: item.name,
       categoryId: item.categoryId,
       category: item.category,

@@ -10,9 +10,16 @@ import {
 } from 'class-validator';
 
 export class CreateProductDto {
+  /** The barcode. */
   @IsString()
   @MaxLength(100)
   sku: string;
+
+  /** The store's SKU; null clears it. */
+  @IsOptional()
+  @IsString()
+  @MaxLength(100)
+  model?: string | null;
 
   @IsString()
   @MaxLength(200)

@@ -13,8 +13,11 @@ import {
 interface BridgeProduct {
   /** Profit Plus's internal article code: unique, the product's identity. */
   codigo: string;
-  /** The article's reference, the code the store uses: shown as the SKU. */
+  /** The article's reference: the barcode the store labels it with. */
   referencia?: string | null;
+  /** The article's Modelo field, where the store keeps its SKU; null when
+   * empty, absent from bridges that predate it. */
+  modelo?: string | null;
   descripcion: string;
   /** Profit Plus's code for the item's category; null when it has none. */
   categoriaCodigo?: string | null;
@@ -100,13 +103,16 @@ export class ApiProfitPlusAdapter implements ProfitPlusAdapter {
       // sin descripción se muestra con su código.
       const brandExternalId = String(p.marcaCodigo ?? '').trim() || undefined;
       const brand = p.marca?.trim() || (brandExternalId ? `Marca ${brandExternalId}` : undefined);
-      // La referencia es el código que usa la tienda y el que ve la web; el
-      // código interno (co_art) sigue siendo la identidad, porque es único
-      // y nunca está vacío. Sin referencia, la web muestra el interno.
+      // La referencia es el código de barras con que la tienda etiqueta el
+      // artículo; el código interno (co_art) sigue siendo la identidad,
+      // porque es único y nunca está vacío. Sin referencia, se usa el
+      // interno. El SKU de la tienda va en el campo Modelo.
       const reference = String(p.referencia ?? '').trim();
+      const model = String(p.modelo ?? '').trim() || undefined;
       return {
         externalId: code,
         sku: reference || code,
+        model,
         name: String(p.descripcion ?? '').trim(),
         categoryCode: slugify(categoryLabel) || 'sin-categoria',
         categoryLabel,

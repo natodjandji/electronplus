@@ -1,8 +1,9 @@
 /**
  * Puente REST liviano entre Profit Plus (SQL Server, on-premise en la
  * tienda principal) y el backend en la nube. Expone un único endpoint de
- * solo lectura que devuelve el catálogo completo (código, descripción,
- * categoría, marca, stock, precio1, precio2) que la sincronización necesita. Todo
+ * solo lectura que devuelve el catálogo completo (código, referencia,
+ * modelo, descripción, categoría, marca, stock, precio1, precio2) que la
+ * sincronización necesita. Todo
  * el proyecto vive en esta carpeta aparte — no toca ni depende del backend
  * principal (NestJS) — pensado para correr como servicio local en la misma
  * PC (o red) donde está el SQL Server de Profit Plus.
@@ -92,8 +93,9 @@ try {
  *
  *   - art: un artículo por fila. co_art es su código interno, único: con él
  *     la web reconoce el artículo de una sincronización a otra. ref es la
- *     REFERENCIA, el código que la tienda usa y que la web muestra (si está
- *     vacía, muestra co_art). art_des, la descripción; prec_vta1 y
+ *     REFERENCIA, el código de barras con que la tienda etiqueta el
+ *     artículo (si está vacía, la web usa co_art). modelo es el campo
+ *     MODELO, donde la tienda guarda su SKU. art_des, la descripción; prec_vta1 y
  *     prec_vta2, el precio detal y el mayor, en dólares sin IVA. Los
  *     anulados no salen, y la web los oculta.
  *   - lin_art: la LÍNEA del artículo es su categoría en la web; su código
@@ -111,10 +113,11 @@ try {
  * El almacén llega como parámetro (@almacen), nunca pegado al texto de la
  * consulta: así no hay inyección SQL posible desde el .env.
  */
-const PRODUCTOS_QUERY = `
+const productosQuery = (conModelo) => `
   SELECT
     RTRIM(art.co_art)     AS codigo,
     RTRIM(art.ref)        AS referencia,
+    ${conModelo ? 'RTRIM(art.modelo)     AS modelo,' : ''}
     RTRIM(art.art_des)    AS descripcion,
     RTRIM(art.co_lin)     AS categoria_codigo,
     RTRIM(lin.lin_des)    AS categoria,
@@ -174,6 +177,7 @@ function toProducto(row) {
   return {
     codigo: String(row.codigo ?? '').trim(),
     referencia: String(row.referencia ?? '').trim() || null,
+    modelo: String(row.modelo ?? '').trim() || null,
     descripcion: String(row.descripcion ?? '').trim(),
     categoriaCodigo: String(row.categoria_codigo ?? '').trim() || null,
     categoria: String(row.categoria ?? '').trim() || null,
@@ -185,12 +189,28 @@ function toProducto(row) {
   };
 }
 
+/** Si la base no tiene la columna art.modelo (no verificada en el
+ * diagnóstico del 2026-10-15), el catálogo sigue saliendo sin el SKU en vez
+ * de dejar a la web sin sincronizar. Se intenta de nuevo al reiniciar. */
+let conModelo = true;
+
 async function queryCatalog() {
   const pool = await getPool();
-  const result = await pool
-    .request()
-    .input('almacen', sql.VarChar(50), config.warehouseCode)
-    .query(PRODUCTOS_QUERY);
+  const run = () =>
+    pool
+      .request()
+      .input('almacen', sql.VarChar(50), config.warehouseCode)
+      .query(productosQuery(conModelo));
+  let result;
+  try {
+    result = await run();
+  } catch (err) {
+    // SQL Server: 207 = nombre de columna no válido.
+    if (!conModelo || err.number !== 207 || !/modelo/i.test(err.message)) throw err;
+    log('WARN', `La base no tiene art.modelo: el catálogo sale sin SKU (${err.message})`);
+    conModelo = false;
+    result = await run();
+  }
   const productos = result.recordset.map(toProducto);
   return Buffer.from(JSON.stringify({ total: productos.length, productos }));
 }

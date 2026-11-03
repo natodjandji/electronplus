@@ -18,6 +18,7 @@ describe('ApiProfitPlusAdapter', () => {
             {
               codigo: 'LAM001001      ',
               referencia: ' 91248923474 ',
+              modelo: ' LP609   ',
               descripcion: 'Bombillo LED 9W   ',
               categoriaCodigo: '07    ',
               categoria: ' Iluminación ',
@@ -55,10 +56,11 @@ describe('ApiProfitPlusAdapter', () => {
 
     expect(await adapter.fetchInventory()).toEqual([
       {
-        // The reference is what the store calls the code; the internal code
-        // stays the identity.
+        // The reference is the barcode and the Modelo field the store's SKU;
+        // the internal code stays the identity.
         externalId: 'LAM001001',
         sku: '91248923474',
+        model: 'LP609',
         name: 'Bombillo LED 9W',
         categoryCode: 'iluminacion',
         categoryLabel: 'Iluminación',

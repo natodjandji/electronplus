@@ -293,8 +293,9 @@ describe('ProductsService catalog snapshot', () => {
       BadRequestException,
     );
     await expect(service.update('de-profit', { name: 'Otro', sku: 'X' } as never)).rejects.toThrow(
-      /código, nombre/,
+      /código de barra, nombre/,
     );
+    await expect(service.update('de-profit', { model: 'LP-1' } as never)).rejects.toThrow(/SKU/);
     await expect(service.update('de-profit', { supplierId: 'otro' } as never)).rejects.toThrow(
       /proveedor/,
     );
@@ -302,6 +303,8 @@ describe('ProductsService catalog snapshot', () => {
     // form sends every field), still save.
     await service.update('de-profit', {
       sku: 'SKU-de-profit',
+      // No SKU in Profit: stored as nothing, sent as null.
+      model: null,
       name: 'Producto de-profit',
       retailPrice: 5,
       supplierId: 'lucerna',
@@ -418,6 +421,36 @@ describe('ProductsService catalog snapshot', () => {
     const dropped = await service.upsertFromErp(item, branded.product, changes());
     expect(dropped.wrote).toBe(true);
     expect(firestore.read(Collections.PRODUCTS, 'bombillo')).toMatchObject({ brand: null });
+  });
+
+  it('takes the SKU from Profit Plus, and counts it as a change only when it is one', async () => {
+    const firestore = new FakeFirestore();
+    seedProduct(firestore, 'bombillo', { stock: 1 });
+    const service = buildService(firestore);
+    const { byErpExternalId } = await service.findAllForErpMatching();
+    const existing = byErpExternalId.get('ERP-bombillo')!;
+    const item = {
+      externalId: 'ERP-bombillo',
+      sku: existing.sku,
+      name: existing.name,
+      categoryId: CATEGORY.id,
+      category: CATEGORY,
+      retailPrice: 5,
+      wholesalePrice: 4,
+      stock: 1,
+    };
+    const changes = () => ({ put: [], merge: [], remove: [] });
+
+    // Saved before the SKU existed, and no Modelo in Profit: unchanged.
+    expect((await service.upsertFromErp(item, existing, changes())).wrote).toBe(false);
+
+    const withSku = await service.upsertFromErp({ ...item, model: 'LP609' }, existing, changes());
+    expect(withSku.wrote).toBe(true);
+    expect(firestore.read(Collections.PRODUCTS, 'bombillo')).toMatchObject({ model: 'LP609' });
+
+    const emptied = await service.upsertFromErp(item, withSku.product, changes());
+    expect(emptied.wrote).toBe(true);
+    expect(firestore.read(Collections.PRODUCTS, 'bombillo')).toMatchObject({ model: null });
   });
 
   it('ERP upsert of a product deleted since the snapshot recreates it whole', async () => {

@@ -8,7 +8,10 @@ import { ProductsService } from '../products/products.service';
 
 export interface QrLabel {
   productId: string;
+  /** The barcode: what the "producto" label encodes. */
   sku: string;
+  /** The store's SKU, printed on the "precio" label; null when it has none. */
+  model: string | null;
   name: string;
   retailPrice: number;
   wholesalePrice: number;
@@ -16,7 +19,7 @@ export interface QrLabel {
   productUrl: string;
   /** QR pointing at the storefront page — used by both the "precio" and "almacén" label formats. */
   qrImageDataUrl: string;
-  /** Scannable Code128 barcode encoding the SKU — the "producto" label format. */
+  /** Scannable Code128 barcode encoding the barcode number — the "producto" label format. */
   barcodeImageDataUrl: string;
 }
 
@@ -53,6 +56,7 @@ export class QrService {
     return {
       productId: product.id,
       sku: product.sku,
+      model: product.model ?? null,
       name: product.name,
       retailPrice: product.retailPrice,
       wholesalePrice: product.wholesalePrice,
