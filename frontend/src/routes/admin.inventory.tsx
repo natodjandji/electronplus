@@ -13,6 +13,7 @@ import {
 } from "lucide-react";
 import { AdminShell } from "@/components/admin-shell";
 import { PaginationBar, usePagination } from "@/components/pagination";
+import { PendingToggle } from "@/components/pending-toggle";
 import { ProductImage } from "@/components/product-image";
 import { TableRowsSkeleton } from "@/components/table-skeleton";
 import { Card } from "@/components/ui/card";
@@ -114,6 +115,7 @@ const LINK_PICKER_PAGE_SIZE = 20;
 
 function InventoryPage() {
   const [search, setSearch] = useState("");
+  const [onlyUnlinked, setOnlyUnlinked] = useState(false);
   const [creating, setCreating] = useState(false);
   const [editing, setEditing] = useState<AdminProduct | null>(null);
   const [linkingProduct, setLinkingProduct] = useState<AdminProduct | null>(null);
@@ -122,20 +124,6 @@ function InventoryPage() {
   const { data: secondStoreProducts } = useSecondStoreProducts();
   const queryClient = useQueryClient();
 
-  const products = useMemo(() => {
-    const needle = search.trim().toLowerCase();
-    if (!needle) return allProducts ?? [];
-    return (allProducts ?? []).filter(
-      (p) =>
-        p.name.toLowerCase().includes(needle) ||
-        p.sku.toLowerCase().includes(needle) ||
-        Boolean(p.model?.toLowerCase().includes(needle)),
-    );
-  }, [allProducts, search]);
-  const pagination = usePagination(products, PAGE_SIZE, search);
-  const tableTop = useRef<HTMLDivElement>(null);
-
-  const supplierName = (id?: string) => suppliers?.find((s) => s.id === id)?.name;
   // One lookup per row instead of scanning the thousands of second-store
   // rows for each product on every render.
   const linkByProductId = useMemo(
@@ -148,6 +136,27 @@ function InventoryPage() {
     [secondStoreProducts],
   );
   const secondStoreLink = (productId: string) => linkByProductId.get(productId) ?? null;
+  // Unknown until the second store's list arrives: before that every
+  // product would look unlinked.
+  const unlinkedCount = secondStoreProducts
+    ? (allProducts ?? []).filter((p) => !linkByProductId.has(p.id)).length
+    : undefined;
+
+  const products = useMemo(() => {
+    const needle = search.trim().toLowerCase();
+    return (allProducts ?? []).filter(
+      (p) =>
+        (!onlyUnlinked || !linkByProductId.has(p.id)) &&
+        (!needle ||
+          p.name.toLowerCase().includes(needle) ||
+          p.sku.toLowerCase().includes(needle) ||
+          Boolean(p.model?.toLowerCase().includes(needle))),
+    );
+  }, [allProducts, search, onlyUnlinked, linkByProductId]);
+  const pagination = usePagination(products, PAGE_SIZE, `${search}|${onlyUnlinked}`);
+  const tableTop = useRef<HTMLDivElement>(null);
+
+  const supplierName = (id?: string) => suppliers?.find((s) => s.id === id)?.name;
 
   const deleteProduct = useMutation({
     mutationFn: (id: string) => apiFetch(`/products/${id}`, { method: "DELETE" }),
@@ -161,18 +170,27 @@ function InventoryPage() {
   return (
     <AdminShell title="Inventario">
       <div className="flex flex-wrap items-end justify-between gap-3">
-        <Field className="grid gap-1.5">
-          <Label className="text-xs font-medium text-brand-navy">Buscar</Label>
-          <div className="relative">
-            <Search className="pointer-events-none absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
-            <Input
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-              placeholder="Nombre, SKU o código de barra…"
-              className="w-64 pl-8"
-            />
-          </div>
-        </Field>
+        <div className="flex flex-wrap items-end gap-3">
+          <Field className="grid gap-1.5">
+            <Label className="text-xs font-medium text-brand-navy">Buscar</Label>
+            <div className="relative">
+              <Search className="pointer-events-none absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
+              <Input
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                placeholder="Nombre, SKU o código de barra…"
+                className="w-64 pl-8"
+              />
+            </div>
+          </Field>
+          {/* Products whose stock isn't linked to the second store yet. */}
+          <PendingToggle
+            label="Sin vincular"
+            count={unlinkedCount}
+            active={onlyUnlinked}
+            onToggle={() => setOnlyUnlinked((on) => !on)}
+          />
+        </div>
         <Button
           className="gap-2 bg-brand-blue text-white hover:bg-brand-blue/90"
           onClick={() => setCreating(true)}
