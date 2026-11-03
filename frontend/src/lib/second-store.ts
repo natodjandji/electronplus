@@ -16,6 +16,16 @@ export interface SecondStoreProduct {
   source?: "erp" | "manual";
 }
 
+/** The secundaria's Profit Plus owns the description, code, stock and prices
+ * of a record it brought: the sync would undo a change made here, and the
+ * API refuses one. */
+export function isFromSecondStoreErp(product: Pick<SecondStoreProduct, "source">): boolean {
+  return product.source !== "manual";
+}
+
+export const SECOND_STORE_ERP_NOTE =
+  "Viene del Profit Plus de la tienda secundaria: la descripción, el código, el stock y los precios se cambian allá y llegan solos con la sincronización.";
+
 export const SECOND_STORE_PRODUCTS_KEY = ["admin", "second-store-products"] as const;
 
 /**

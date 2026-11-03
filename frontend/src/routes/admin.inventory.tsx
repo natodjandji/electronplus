@@ -51,6 +51,8 @@ import { SupplierPicker, useSuppliers } from "@/components/supplier-picker";
 import { apiFetch, reportError } from "@/lib/api-client";
 import {
   applySecondStoreRow,
+  isFromSecondStoreErp,
+  SECOND_STORE_ERP_NOTE,
   type SecondStoreProduct,
   useSecondStoreProducts,
 } from "@/lib/second-store";
@@ -72,7 +74,10 @@ export const Route = createFileRoute("/admin/inventory")({
 
 interface AdminProduct {
   id: string;
+  /** The barcode ("Código de barra"). */
   sku: string;
+  /** The store's SKU: Profit Plus's Modelo field. */
+  model?: string | null;
   name: string;
   specs?: string;
   /** From Profit Plus; its supplier is assigned by the sync. */
@@ -121,7 +126,10 @@ function InventoryPage() {
     const needle = search.trim().toLowerCase();
     if (!needle) return allProducts ?? [];
     return (allProducts ?? []).filter(
-      (p) => p.name.toLowerCase().includes(needle) || p.sku.toLowerCase().includes(needle),
+      (p) =>
+        p.name.toLowerCase().includes(needle) ||
+        p.sku.toLowerCase().includes(needle) ||
+        Boolean(p.model?.toLowerCase().includes(needle)),
     );
   }, [allProducts, search]);
   const pagination = usePagination(products, PAGE_SIZE, search);
@@ -160,7 +168,7 @@ function InventoryPage() {
             <Input
               value={search}
               onChange={(e) => setSearch(e.target.value)}
-              placeholder="Nombre o SKU…"
+              placeholder="Nombre, SKU o código de barra…"
               className="w-64 pl-8"
             />
           </div>
@@ -218,6 +226,7 @@ function InventoryPage() {
                         <div className="min-w-0">
                           <div className="truncate font-semibold text-brand-navy">{p.name}</div>
                           <div className="text-xs text-muted-foreground">
+                            {p.model && <>SKU {p.model} · </>}
                             {p.sku} · {p.category.label}
                           </div>
                         </div>
@@ -453,6 +462,10 @@ function SecondStoreLinkDialog({
     onError: reportError,
   });
 
+  // Profit's own fields can't be edited on a record it brought (see
+  // isFromSecondStoreErp); a record made by hand still can.
+  const linkFromErp = link ? isFromSecondStoreErp(link) : false;
+
   return (
     <Dialog open onOpenChange={(open) => !open && onClose()}>
       <DialogContent className="max-w-md">
@@ -465,10 +478,19 @@ function SecondStoreLinkDialog({
             <div className="rounded-md border border-border bg-brand-surface p-3 text-sm">
               <div className="font-semibold text-brand-navy">{link.name}</div>
             </div>
+            {linkFromErp && (
+              <p className="rounded-md bg-brand-blue/10 px-3 py-2 text-xs text-brand-navy">
+                {SECOND_STORE_ERP_NOTE}
+              </p>
+            )}
             <div className="grid grid-cols-2 gap-2">
               <Field className="grid gap-1.5">
                 <Label className="text-xs font-medium text-brand-navy">Código</Label>
-                <Input value={codeEdit} onChange={(e) => setCodeEdit(e.target.value)} />
+                <Input
+                  value={codeEdit}
+                  onChange={(e) => setCodeEdit(e.target.value)}
+                  disabled={linkFromErp}
+                />
               </Field>
               <Field className="grid gap-1.5">
                 <Label className="text-xs font-medium text-brand-navy">Stock</Label>
@@ -477,6 +499,7 @@ function SecondStoreLinkDialog({
                   min={0}
                   value={stockEdit}
                   onChange={(e) => setStockEdit(Math.max(0, Number(e.target.value)))}
+                  disabled={linkFromErp}
                 />
               </Field>
               <Field className="grid gap-1.5">
@@ -487,6 +510,7 @@ function SecondStoreLinkDialog({
                   step="0.01"
                   value={retailPriceEdit}
                   onChange={(e) => setRetailPriceEdit(Math.max(0, Number(e.target.value)))}
+                  disabled={linkFromErp}
                 />
               </Field>
               <Field className="grid gap-1.5">
@@ -497,23 +521,26 @@ function SecondStoreLinkDialog({
                   step="0.01"
                   value={wholesalePriceEdit}
                   onChange={(e) => setWholesalePriceEdit(Math.max(0, Number(e.target.value)))}
+                  disabled={linkFromErp}
                 />
               </Field>
             </div>
-            <Button
-              type="button"
-              variant="outline"
-              disabled={
-                (codeEdit === (link.code ?? "") &&
-                  stockEdit === link.stock &&
-                  retailPriceEdit === (link.retailPrice ?? 0) &&
-                  wholesalePriceEdit === (link.wholesalePrice ?? 0)) ||
-                saveLink.isPending
-              }
-              onClick={() => saveLink.mutate()}
-            >
-              Guardar cambios
-            </Button>
+            {!linkFromErp && (
+              <Button
+                type="button"
+                variant="outline"
+                disabled={
+                  (codeEdit === (link.code ?? "") &&
+                    stockEdit === link.stock &&
+                    retailPriceEdit === (link.retailPrice ?? 0) &&
+                    wholesalePriceEdit === (link.wholesalePrice ?? 0)) ||
+                  saveLink.isPending
+                }
+                onClick={() => saveLink.mutate()}
+              >
+                Guardar cambios
+              </Button>
+            )}
             <p className="text-xs text-muted-foreground">
               Stock combinado: {product.stock} (principal) + {link.stock} (secundaria) ={" "}
               <b>{product.stock + link.stock}</b>
@@ -655,6 +682,7 @@ function ProductFormDialog({ product, onClose }: { product?: AdminProduct; onClo
   const isEdit = Boolean(product);
 
   const [sku, setSku] = useState(product?.sku ?? "");
+  const [model, setModel] = useState(product?.model ?? "");
   const [name, setName] = useState(product?.name ?? "");
   const [specs, setSpecs] = useState(product?.specs ?? "");
   const [categoryId, setCategoryId] = useState(product?.categoryId ?? "");
@@ -690,6 +718,8 @@ function ProductFormDialog({ product, onClose }: { product?: AdminProduct; onClo
     mutationFn: () => {
       const body = {
         sku,
+        // Empty sends nothing, unless it clears one the product had.
+        model: model.trim() || (product?.model ? null : undefined),
         name,
         specs: specs || undefined,
         categoryId,
@@ -739,31 +769,35 @@ function ProductFormDialog({ product, onClose }: { product?: AdminProduct; onClo
           <DialogTitle>{isEdit ? "Editar producto" : "Nuevo producto"}</DialogTitle>
         </DialogHeader>
 
+        {/* Content-start on each field: in a two-column row a taller
+            neighbour (one with a hint under it) stretched the other's
+            label and control apart. */}
         <div className="grid gap-4 sm:grid-cols-2">
           {fromErp && (
             <p className="rounded-md bg-brand-blue/10 px-3 py-2 text-xs text-brand-navy sm:col-span-2">
-              Viene de Profit Plus: el código, el nombre, la categoría, los precios y el stock se
-              cambian en Profit. Aquí puedes editar las especificaciones, la imagen, el costo, el
-              stock mínimo y si está activo.
+              Viene de Profit Plus: el código de barra, el SKU, el nombre, la categoría, los precios
+              y el stock se cambian en Profit. Aquí puedes editar las especificaciones, la imagen,
+              el costo, el stock mínimo y si está activo.
             </p>
           )}
-          <Field className="grid gap-1.5">
-            <Label className="text-xs font-medium text-brand-navy">SKU</Label>
-            <Input value={sku} onChange={(e) => setSku(e.target.value)} disabled={fromErp} />
-          </Field>
-          <Field className="grid gap-1.5">
+          <Field className="grid content-start gap-1.5 sm:col-span-2">
             <Label className="text-xs font-medium text-brand-navy">Nombre</Label>
             <Input value={name} onChange={(e) => setName(e.target.value)} disabled={fromErp} />
           </Field>
-          <Field className="grid gap-1.5 sm:col-span-2">
-            <Label className="text-xs font-medium text-brand-navy">Especificaciones</Label>
+          <Field className="grid content-start gap-1.5">
+            <Label className="text-xs font-medium text-brand-navy">Código de barra</Label>
+            <Input value={sku} onChange={(e) => setSku(e.target.value)} disabled={fromErp} />
+          </Field>
+          <Field className="grid content-start gap-1.5">
+            <Label className="text-xs font-medium text-brand-navy">SKU</Label>
             <Input
-              value={specs}
-              onChange={(e) => setSpecs(e.target.value)}
-              placeholder="Opcional"
+              value={model}
+              onChange={(e) => setModel(e.target.value)}
+              disabled={fromErp}
+              placeholder={fromErp ? "Sin modelo en Profit" : "Opcional"}
             />
           </Field>
-          <Field className="grid min-w-0 gap-1.5">
+          <Field className="grid min-w-0 content-start gap-1.5">
             <Label className="text-xs font-medium text-brand-navy">Categoría</Label>
             <div className="flex min-w-0 gap-2">
               <Select value={categoryId} onValueChange={setCategoryId} disabled={fromErp}>
@@ -790,24 +824,20 @@ function ProductFormDialog({ product, onClose }: { product?: AdminProduct; onClo
               </Button>
             </div>
           </Field>
-          <Field className="grid min-w-0 gap-1.5">
+          <Field className="grid min-w-0 content-start gap-1.5">
             <Label className="text-xs font-medium text-brand-navy">Proveedor</Label>
             {product?.brand ? (
-              // The sync assigns it on every run: a change here wouldn't last.
-              <>
-                <Input
-                  value={suppliers?.find((s) => s.id === supplierId)?.name ?? product.brand}
-                  disabled
-                />
-                <p className="text-[11px] text-muted-foreground">
-                  Lo asigna la marca {product.brand} desde Profit Plus.
-                </p>
-              </>
+              // The sync assigns it from the brand on every run: a change
+              // here wouldn't last.
+              <Input
+                value={suppliers?.find((s) => s.id === supplierId)?.name ?? product.brand}
+                disabled
+              />
             ) : (
               <SupplierPicker value={supplierId} onChange={(id) => setSupplierId(id)} />
             )}
           </Field>
-          <Field className="grid gap-1.5">
+          <Field className="grid content-start gap-1.5">
             <Label className="text-xs font-medium text-brand-navy">Precio detal ($)</Label>
             <Input
               type="number"
@@ -818,7 +848,7 @@ function ProductFormDialog({ product, onClose }: { product?: AdminProduct; onClo
               disabled={fromErp}
             />
           </Field>
-          <Field className="grid gap-1.5">
+          <Field className="grid content-start gap-1.5">
             <Label className="text-xs font-medium text-brand-navy">Precio mayor ($)</Label>
             <Input
               type="number"
@@ -829,7 +859,26 @@ function ProductFormDialog({ product, onClose }: { product?: AdminProduct; onClo
               disabled={fromErp}
             />
           </Field>
-          <Field className="grid gap-1.5">
+
+          {fromErp && (
+            // Profit Plus is the only source of this stock: every sale is
+            // invoiced there, and the sync overwrites the web's figure.
+            <Field className="grid content-start gap-1.5 sm:col-span-2">
+              <Label className="text-xs font-medium text-brand-navy">Stock real</Label>
+              <Input value={`${product!.stock} uds`} disabled />
+            </Field>
+          )}
+          {/* What's edited here, after what comes from Profit Plus. */}
+          {fromErp && <div className="border-t border-border sm:col-span-2" />}
+          <Field className="grid content-start gap-1.5 sm:col-span-2">
+            <Label className="text-xs font-medium text-brand-navy">Especificaciones</Label>
+            <Input
+              value={specs}
+              onChange={(e) => setSpecs(e.target.value)}
+              placeholder="Opcional"
+            />
+          </Field>
+          <Field className="grid content-start gap-1.5">
             <Label className="text-xs font-medium text-brand-navy">Costo ($, opcional)</Label>
             <Input
               type="number"
@@ -839,7 +888,7 @@ function ProductFormDialog({ product, onClose }: { product?: AdminProduct; onClo
               onChange={(e) => setCost(Math.max(0, Number(e.target.value)))}
             />
           </Field>
-          <Field className="grid gap-1.5">
+          <Field className="grid content-start gap-1.5">
             <Label className="text-xs font-medium text-brand-navy">Stock seguro (mínimo)</Label>
             <Input
               type="number"
@@ -848,21 +897,8 @@ function ProductFormDialog({ product, onClose }: { product?: AdminProduct; onClo
               onChange={(e) => setMinStockThreshold(Math.max(0, Number(e.target.value)))}
             />
           </Field>
-          {isEdit && product!.erpExternalId && (
-            // Profit Plus is the only source of this stock: every sale is
-            // invoiced there, and the sync overwrites the web's figure.
-            <Field className="grid gap-1.5 sm:col-span-2">
-              <Label className="text-xs font-medium text-brand-navy">
-                Stock real (unidades en existencia)
-              </Label>
-              <Input value={`${product!.stock} uds`} disabled />
-              <p className="text-xs text-muted-foreground">
-                Viene de Profit Plus y se actualiza solo con la sincronización (cada 15 minutos).
-              </p>
-            </Field>
-          )}
           {isEdit && !product!.erpExternalId && (
-            <Field className="grid gap-1.5 sm:col-span-2">
+            <Field className="grid content-start gap-1.5 sm:col-span-2">
               <Label className="text-xs font-medium text-brand-navy">
                 Stock real (unidades en existencia)
               </Label>
@@ -889,7 +925,7 @@ function ProductFormDialog({ product, onClose }: { product?: AdminProduct; onClo
               </p>
             </Field>
           )}
-          <Field className="grid gap-1.5 sm:col-span-2">
+          <Field className="grid content-start gap-1.5 sm:col-span-2">
             <Label className="text-xs font-medium text-brand-navy">Imagen del producto</Label>
             <div className="flex items-center gap-3">
               <div className="grid h-16 w-16 shrink-0 place-items-center overflow-hidden rounded-md border border-border bg-brand-surface">

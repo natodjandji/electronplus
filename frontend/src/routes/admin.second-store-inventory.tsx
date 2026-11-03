@@ -21,6 +21,8 @@ import {
 import { apiFetch, reportError } from "@/lib/api-client";
 import {
   applySecondStoreRow,
+  isFromSecondStoreErp,
+  SECOND_STORE_ERP_NOTE,
   type SecondStoreProduct,
   useSecondStoreProducts,
 } from "@/lib/second-store";
@@ -159,9 +161,7 @@ function EditDialog({ item, onClose }: { item: SecondStoreProduct; onClose: () =
   const [retailPrice, setRetailPrice] = useState(item.retailPrice ?? 0);
   const [wholesalePrice, setWholesalePrice] = useState(item.wholesalePrice ?? 0);
 
-  // The secundaria's Profit Plus owns these on a record it brought: the sync
-  // would undo any change made here, and the API refuses one.
-  const fromErp = item.source !== "manual";
+  const fromErp = isFromSecondStoreErp(item);
   const dirty =
     name !== item.name ||
     code !== (item.code ?? "") ||
@@ -217,8 +217,7 @@ function EditDialog({ item, onClose }: { item: SecondStoreProduct; onClose: () =
         <div className="grid gap-3">
           {fromErp && (
             <p className="rounded-md bg-brand-blue/10 px-3 py-2 text-xs text-brand-navy">
-              Viene del Profit Plus de la tienda secundaria: la descripción, el código, el stock y
-              los precios se cambian allá y llegan solos con la sincronización.
+              {SECOND_STORE_ERP_NOTE}
             </p>
           )}
           <Field className="grid gap-1.5">

@@ -30,19 +30,25 @@ export const Route = createFileRoute("/admin/labels")({
 
 interface AdminProduct {
   id: string;
+  /** The barcode. */
   sku: string;
+  /** The store's SKU (Profit Plus's Modelo field). */
+  model?: string | null;
   name: string;
 }
 
 interface QrLabel {
   productId: string;
+  /** The barcode: what the "producto" format encodes. */
   sku: string;
+  /** The store's SKU, printed on the "precio" format. */
+  model?: string | null;
   name: string;
   retailPrice: number;
   wholesalePrice: number;
   /** QR pointing at the storefront page — used by both the "precio" and "almacén" formats. */
   qrImageDataUrl: string;
-  /** Scannable Code128 barcode (SKU baked in as human-readable text) — the "producto" format. */
+  /** Scannable Code128 barcode (the number baked in as human-readable text) — the "producto" format. */
   barcodeImageDataUrl: string;
 }
 
@@ -57,7 +63,7 @@ const FORMAT_OPTIONS: { value: LabelFormat; label: string; hint: string }[] = [
   {
     value: "producto",
     label: "Producto",
-    hint: "Código de barras escaneable del SKU y descripción — para pegar en el producto.",
+    hint: "Código de barra escaneable y descripción — para pegar en el producto.",
   },
   {
     value: "precio",
@@ -143,7 +149,9 @@ function LabelCard({ label, format }: { label: QrLabel & { key: string }; format
         <div className="line-clamp-1 text-[10px] font-bold leading-tight text-black">
           {label.name}
         </div>
-        <div className="font-mono text-[7.5px] leading-tight text-black">{label.sku}</div>
+        {label.model && (
+          <div className="font-mono text-[7.5px] leading-tight text-black">SKU {label.model}</div>
+        )}
         <div className="mt-[1px] flex items-center justify-between gap-1 rounded-[1px] border border-black px-[3px] py-[1.5px] leading-none">
           <span className="text-[6px] font-semibold uppercase tracking-wide text-black">Detal</span>
           <span className="text-[10.5px] font-bold leading-tight text-black">
@@ -171,7 +179,10 @@ function LabelsPage() {
     const needle = search.trim().toLowerCase();
     if (!needle) return allProducts ?? [];
     return (allProducts ?? []).filter(
-      (p) => p.name.toLowerCase().includes(needle) || p.sku.toLowerCase().includes(needle),
+      (p) =>
+        p.name.toLowerCase().includes(needle) ||
+        p.sku.toLowerCase().includes(needle) ||
+        Boolean(p.model?.toLowerCase().includes(needle)),
     );
   }, [allProducts, search]);
   const pickerPage = usePagination(products, PICKER_PAGE_SIZE, search);
@@ -224,7 +235,7 @@ function LabelsPage() {
             <Input
               value={search}
               onChange={(e) => setSearch(e.target.value)}
-              placeholder="Nombre o SKU…"
+              placeholder="Nombre, SKU o código de barra…"
               className="pl-8"
             />
           </div>
@@ -247,7 +258,10 @@ function LabelsPage() {
               >
                 <div className="min-w-0 flex-1">
                   <div className="truncate text-sm font-semibold text-brand-navy">{p.name}</div>
-                  <div className="text-xs text-muted-foreground">{p.sku}</div>
+                  <div className="text-xs text-muted-foreground">
+                    {p.model && <>SKU {p.model} · </>}
+                    {p.sku}
+                  </div>
                 </div>
                 <QuantityStepper
                   qty={quantities[p.id] ?? 0}
