@@ -110,6 +110,7 @@ Respuesta esperada:
 ```json
 {
   "total": 3,
+  "columnaSku": "modelo",
   "productos": [
     { "codigo": "LAM001001", "referencia": "91248923474", "modelo": "LP609", "descripcion": "Bombillo LED 9W", "categoriaCodigo": "07", "categoria": "Iluminación", "marcaCodigo": "01", "marca": "Lucerna", "stock": 42, "precio1": 4.5, "precio2": 3.2 }
   ]
@@ -146,11 +147,49 @@ sitio no estaba disponible al instalar la tienda secundaria):
 
 ### Actualizar el bridge en la PC
 
-1. Copia a la carpeta del bridge en la PC `server.js`, `columna-sku.js` y
-   `package.json`, sin tocar el `.env` ni `node_modules` (las dependencias
-   no cambiaron en la 1.2.0: no hace falta `npm install`).
-2. Reinicia la tarea como se indica arriba.
-3. Revisa el registro: debe decir `SKU desde art.<columna> (campo Modelo)`.
+1. Copia a la carpeta del bridge en la PC `server.js`, `columna-sku.js`,
+   `db-config.js`, `verificar.js`, `verificacion.js` y `package.json`, sin tocar el `.env`
+   ni `node_modules` (las dependencias no cambiaron en la 1.2.0: no hace
+   falta `npm install`).
+2. Reinicia la tarea, en PowerShell como administrador:
+
+   ```powershell
+   Stop-ScheduledTask -TaskName "ElectronPlus Bridge Principal"
+   Get-NetTCPConnection -LocalPort 4000 -State Listen -ErrorAction SilentlyContinue | ForEach-Object { Stop-Process -Id $_.OwningProcess -Force }
+   Start-ScheduledTask -TaskName "ElectronPlus Bridge Principal"
+   ```
+
+3. En la carpeta del bridge, corre `npm run verificar` (ver abajo).
+4. Revisa el registro: en la primera consulta del catálogo después de
+   reiniciar (la de `npm run verificar` o la próxima sincronización) dice
+   `SKU desde art.<columna> (campo Modelo)`.
+
+### Verificar los datos
+
+```bash
+npm run verificar
+```
+
+Con el bridge corriendo, lee los artículos directo de las tablas de Profit
+(`art`, `lin_art`, `cat_art`, `st_almac`) y los compara, campo por campo
+(código de barra, SKU, nombre, categoría, marca, stock, precio detal y
+mayor), con lo que entrega el bridge y con lo que publica la web. Solo lee:
+no cambia nada en Profit ni en la web. El informe sale en pantalla y queda
+en `verificacion-profit.txt`:
+
+- cuántos artículos tienen el SKU (campo Modelo) lleno, y una muestra;
+- los códigos de barra o SKU repetidos en Profit, que conviene corregir allá;
+- si el bridge que corre es anterior a la 1.2.0 (no manda el SKU);
+- los artículos que faltan en el bridge o que difieren, con el valor de
+  cada lado;
+- los que difieren en la web y los que no están publicados (ocultos en el
+  panel o todavía sin sincronizar). En la web el stock puede ser mayor que
+  el de Profit: suma las unidades de la tienda secundaria enlazadas al
+  producto. Menor es una diferencia.
+
+La web se sincroniza cada 15 minutos: un cambio reciente en Profit aparece
+como diferencia en la web hasta la próxima sincronización. Termina con
+código 1 si encontró diferencias.
 
 ## 5. Exponerla a internet (para que el backend en la nube la alcance)
 
