@@ -18,6 +18,8 @@ export const STOCK_ALERT_RAISED_EVENT = 'stock.alert.raised';
 export interface StockAlertRaisedEvent {
   productId: string;
   sku: string;
+  /** The store's SKU: the code the alert shows (none when it has none). */
+  model?: string | null;
   name: string;
   level: StockAlertLevel;
   stock: number;
@@ -98,6 +100,7 @@ export class InventoryService {
     await this.repo.insert({
       productId: payload.productId,
       sku: payload.sku,
+      model: payload.model ?? null,
       name: payload.name,
       level,
       stockAtTrigger: payload.stock,
@@ -117,6 +120,7 @@ export class InventoryService {
     this.events.emit(STOCK_ALERT_RAISED_EVENT, {
       productId: payload.productId,
       sku: payload.sku,
+      model: payload.model ?? null,
       name: payload.name,
       level,
       stock: payload.stock,

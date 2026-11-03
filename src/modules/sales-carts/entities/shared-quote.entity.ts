@@ -2,7 +2,10 @@ import { FirestoreDoc } from '../../../firebase/firestore.repository';
 import { PriceList, SalesCartCustomer } from './sales-cart.entity';
 
 export interface SharedQuoteLine {
+  /** The barcode. */
   sku: string;
+  /** The store's SKU, the code shown. */
+  model?: string | null;
   name: string;
   qty: number;
   unitPrice: number;

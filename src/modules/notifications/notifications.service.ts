@@ -147,7 +147,7 @@ export class NotificationsService {
       await this.create(
         isOut ? NotificationType.OUT_OF_STOCK : NotificationType.LOW_STOCK,
         isOut ? 'Producto agotado' : 'Stock bajo',
-        `${payload.name} (${payload.sku}): ${payload.stock} unidades disponibles`,
+        `${payload.name}${payload.model ? ` (SKU ${payload.model})` : ''}: ${payload.stock} unidades disponibles`,
         OPS_ROLES,
         { ...payload },
       );

@@ -47,6 +47,8 @@ export const STOCK_CHANGED_EVENT = 'stock.changed';
 export interface StockChangedEvent {
   productId: string;
   sku: string;
+  /** The store's SKU, what the alerts it may raise show. */
+  model?: string | null;
   name: string;
   stock: number;
   minStockThreshold?: number;
@@ -67,6 +69,7 @@ export interface StockUpdateContext {
   productRef: DocumentReference;
   currentStock: number;
   sku: string;
+  model?: string | null;
   name: string;
   minStockThreshold?: number;
   /** Synced from the principal store's Profit Plus, whose stock is the only
@@ -464,6 +467,7 @@ export class ProductsService {
       this.events.emit(STOCK_CHANGED_EVENT, {
         productId: updated.id,
         sku: updated.sku,
+        model: updated.model ?? null,
         name: updated.name,
         stock: updated.stock,
         minStockThreshold: updated.minStockThreshold,
@@ -586,6 +590,7 @@ export class ProductsService {
     return {
       productId: ctx.productId,
       sku: ctx.sku,
+      model: ctx.model ?? null,
       name: ctx.name,
       stock: nextStock,
       minStockThreshold: ctx.minStockThreshold,
@@ -806,6 +811,7 @@ export class ProductsService {
       this.events.emit(STOCK_CHANGED_EVENT, {
         productId: saved.id,
         sku: saved.sku,
+        model: saved.model ?? null,
         name: saved.name,
         stock: saved.stock,
         minStockThreshold: saved.minStockThreshold,
@@ -828,6 +834,7 @@ function stockContext(
     productRef,
     currentStock: data.stock as number,
     sku: data.sku as string,
+    model: (data.model as string | null | undefined) ?? null,
     name: data.name as string,
     minStockThreshold: data.minStockThreshold as number | undefined,
     fromErp: Boolean(data.erpExternalId),

@@ -57,10 +57,12 @@ export class PurchaseOrdersService {
    * of failing the request. */
   private async loadProductsByIds(
     ids: string[],
-  ): Promise<Map<string, { sku: string; name: string }>> {
+  ): Promise<Map<string, { sku: string; model?: string | null; name: string }>> {
     const uniqueIds = [...new Set(ids)];
     const products = await this.productsService.findByIds(uniqueIds);
-    const map = new Map(products.map((p) => [p.id, { sku: p.sku, name: p.name }]));
+    const map = new Map(
+      products.map((p) => [p.id, { sku: p.sku, model: p.model ?? null, name: p.name }]),
+    );
     const missing = uniqueIds.filter((id) => !map.has(id));
     if (missing.length > 0) {
       throw new BadRequestException(`Unknown product id(s): ${missing.join(', ')}`);

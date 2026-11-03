@@ -158,6 +158,7 @@ export class SalesCartsService {
             {
               productId: product.id,
               sku: product.sku,
+              model: product.model ?? null,
               name: product.name,
               qty,
               retailPrice: product.retailPrice,
@@ -262,6 +263,7 @@ export class SalesCartsService {
         priceList: cart.priceList,
         lines: totals.lines.map((line) => ({
           sku: line.sku,
+          model: line.model ?? null,
           name: line.name,
           qty: line.qty,
           unitPrice: line.unitPrice,

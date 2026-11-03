@@ -27,7 +27,11 @@ export function fulfillmentPipeline(method: FulfillmentMethod): OrderStatus[] {
 
 export interface OrderItem {
   productId: string;
+  /** The barcode, which identifies the article in Profit Plus. */
   sku: string;
+  /** The store's SKU at the time: what every screen, email and PDF shows.
+   * Absent on lines from before it existed. */
+  model?: string | null;
   name: string;
   categoryLabel: string;
   qty: number;

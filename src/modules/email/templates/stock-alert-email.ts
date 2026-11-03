@@ -3,14 +3,15 @@ import { escapeHtml } from '../html-escape';
 import { badge, button, emailLayout, eyebrow, heading } from './base-layout';
 
 export function stockAlertEmail(
-  payload: { sku: string; name: string; level: StockAlertLevel; stock: number },
+  payload: { model?: string | null; name: string; level: StockAlertLevel; stock: number },
   siteUrl: string,
 ): { subject: string; html: string } {
   const isOut = payload.level === StockAlertLevel.OUT;
+  const code = payload.model ? ` (SKU ${payload.model})` : '';
   const title = isOut ? 'Producto agotado' : 'Stock bajo';
   const intro = isOut
-    ? `"${payload.name}" (${payload.sku}) se quedó sin unidades disponibles.`
-    : `"${payload.name}" (${payload.sku}) tiene solo ${payload.stock} unidad(es) disponible(s).`;
+    ? `"${payload.name}"${code} se quedó sin unidades disponibles.`
+    : `"${payload.name}"${code} tiene solo ${payload.stock} unidad(es) disponible(s).`;
 
   const body = `
     ${eyebrow('Alerta de inventario')}

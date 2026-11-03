@@ -69,6 +69,8 @@ const SYNC_ERROR_COOLDOWN_MS = 6 * 60 * 60 * 1000;
 
 interface PendingStockAlert extends FirestoreDoc {
   sku: string;
+  /** The store's SKU, the code the alert shows. */
+  model?: string | null;
   name: string;
   level: StockAlertLevel;
   stock: number;
@@ -145,6 +147,7 @@ export class AdminAlertsService implements OnModuleInit {
       // replaces the first.
       await this.pendingStock.patch(payload.productId, {
         sku: payload.sku,
+        model: payload.model ?? null,
         name: payload.name,
         level: payload.level,
         stock: payload.stock,
@@ -269,11 +272,14 @@ export class AdminAlertsService implements OnModuleInit {
 /** The waiting stock alerts as one message: a lone one as itself, several
  * as a list, out of stock first, as many as fit. */
 export function stockSummary(
-  alerts: Pick<PendingStockAlert, 'sku' | 'name' | 'level' | 'stock'>[],
+  alerts: Pick<PendingStockAlert, 'model' | 'name' | 'level' | 'stock'>[],
 ): AdminAlert {
+  // Named with the store's SKU, or alone when it has none.
+  const label = (a: { name: string; model?: string | null }) =>
+    a.model ? `${a.name} (${a.model})` : a.name;
   if (alerts.length === 1) {
     const [only] = alerts;
-    const product = `${only.name} (${only.sku})`;
+    const product = label(only);
     return only.level === StockAlertLevel.OUT
       ? { template: STOCK_OUT, params: [product] }
       : { template: STOCK_LOW, params: [String(only.stock), product] };
@@ -282,8 +288,8 @@ export function stockSummary(
   const out = alerts.filter((a) => a.level === StockAlertLevel.OUT).sort(byName);
   const low = alerts.filter((a) => a.level !== StockAlertLevel.OUT).sort(byName);
   const lines = [
-    ...out.map((a) => `${a.name} (${a.sku}): agotado`),
-    ...low.map((a) => `${a.name} (${a.sku}): quedan ${a.stock}`),
+    ...out.map((a) => `${label(a)}: agotado`),
+    ...low.map((a) => `${label(a)}: quedan ${a.stock}`),
   ];
   return {
     template: STOCK_GROUPED,

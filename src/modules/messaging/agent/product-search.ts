@@ -66,7 +66,8 @@ function tokens(text: string): string[] {
 interface Indexed {
   product: Product;
   words: string[];
-  sku: string;
+  /** Both codes, normalized: a customer may type the SKU or a barcode. */
+  codes: string[];
 }
 
 const indexCache = new WeakMap<Product[], Indexed[]>();
@@ -76,12 +77,13 @@ function indexOf(catalog: Product[]): Indexed[] {
   if (!index) {
     index = catalog.map((product) => ({
       product,
-      sku: normalizeSearch(product.sku),
+      codes: [product.sku, product.model ?? ''].filter(Boolean).map(normalizeSearch),
       words: tokens(
         [
           product.name,
           product.brand ?? '',
           product.sku,
+          product.model ?? '',
           product.category?.label ?? '',
           product.specs ?? '',
         ].join(' '),
@@ -106,7 +108,7 @@ export function searchCatalog(catalog: Product[], query: string, limit: number):
 
   const scored: { product: Product; score: number }[] = [];
   for (const item of indexOf(catalog)) {
-    if (item.sku === exactSku) {
+    if (item.codes.includes(exactSku)) {
       scored.push({ product: item.product, score: 1000 });
       continue;
     }

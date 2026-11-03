@@ -99,7 +99,13 @@ export class SecondStoreService {
         ...item,
         // Linked product may have been deleted after linking — surface as unlinked rather than failing the list.
         linkedProduct: product
-          ? { id: product.id, sku: product.sku, name: product.name, stock: product.stock }
+          ? {
+              id: product.id,
+              sku: product.sku,
+              model: product.model ?? null,
+              name: product.name,
+              stock: product.stock,
+            }
           : null,
       };
     });

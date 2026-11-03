@@ -179,7 +179,8 @@ function summary(p: Product) {
     id: p.id,
     nombre: p.name,
     marca: p.brand ?? null,
-    codigo: p.sku,
+    // The store's SKU, the only code customers see.
+    sku: p.model ?? null,
     categoria: p.category?.label ?? null,
     precio_ref: p.retailPrice,
     precio_mayor_ref: p.wholesalePrice,

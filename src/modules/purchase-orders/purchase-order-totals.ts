@@ -11,7 +11,7 @@ import { round2 } from '../../common/utils/money';
 
 export function buildItems(
   inputs: PurchaseOrderItemInputDto[],
-  products: Map<string, { sku: string; name: string }>,
+  products: Map<string, { sku: string; model?: string | null; name: string }>,
 ): PurchaseOrderItem[] {
   return inputs.map((input) => {
     const product = products.get(input.productId);
@@ -20,6 +20,7 @@ export function buildItems(
     return {
       productId: input.productId,
       sku: product?.sku ?? input.productId,
+      model: product?.model ?? null,
       name: product?.name ?? input.productId,
       quantityOrdered: input.quantityOrdered,
       unitCost: input.unitCost,

@@ -208,6 +208,7 @@ export class ReportsService {
     {
       productId: string;
       sku: string;
+      model: string | null;
       name: string;
       unitsSold: number;
       revenue: number;
@@ -218,12 +219,20 @@ export class ReportsService {
 
     const byProduct = new Map<
       string,
-      { sku: string; name: string; unitsSold: number; revenue: number; margin: number }
+      {
+        sku: string;
+        model: string | null;
+        name: string;
+        unitsSold: number;
+        revenue: number;
+        margin: number;
+      }
     >();
     for (const order of orders) {
       const items = (order.items ?? []) as {
         productId: string;
         sku: string;
+        model?: string | null;
         name: string;
         qty: number;
         unitPrice: number;
@@ -233,6 +242,7 @@ export class ReportsService {
       for (const item of items) {
         const bucket = byProduct.get(item.productId) ?? {
           sku: item.sku,
+          model: item.model ?? null,
           name: item.name,
           unitsSold: 0,
           revenue: 0,

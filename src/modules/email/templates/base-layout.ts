@@ -118,13 +118,18 @@ export function heading(text: string): string {
 }
 
 /** One product line, styled like the cart/checkout cards. */
-export function itemCard(item: { name: string; sku: string; qty: number }, total: number): string {
+export function itemCard(
+  item: { name: string; model?: string | null; qty: number },
+  total: number,
+): string {
+  // The store's SKU is the code shown anywhere; a line without one shows none.
+  const code = item.model ? `SKU ${escapeHtml(item.model)} · ` : '';
   return `
     <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="border:1px solid ${C.border};border-radius:10px;margin-bottom:10px;">
       <tr>
         <td style="padding:12px 14px;">
           <div style="font-weight:700;color:${C.navy};font-size:14px;">${escapeHtml(item.name)}</div>
-          <div style="color:${C.muted};font-size:12px;margin-top:2px;">${escapeHtml(item.sku)} · Cantidad: ${item.qty}</div>
+          <div style="color:${C.muted};font-size:12px;margin-top:2px;">${code}Cantidad: ${item.qty}</div>
         </td>
         <td align="right" style="padding:12px 14px;white-space:nowrap;font-weight:700;color:${C.navy};font-size:14px;">
           ${formatMoney(total)}

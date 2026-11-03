@@ -54,7 +54,8 @@ function setup(settings: Record<string, unknown> = { alertPhones: [ADMIN] }) {
 
 const stockAlert = (productId: string, name: string, level: StockAlertLevel, stock: number) => ({
   productId,
-  sku: productId.toUpperCase(),
+  sku: `779${productId.length}`,
+  model: productId.toUpperCase(),
   name,
   level,
   stock,
@@ -96,8 +97,8 @@ describe('AdminAlertsService', () => {
     expect(sent).toHaveLength(1);
   });
 
-  it('sends a lone stock alert as itself', () => {
-    const product = { sku: 'LED9', name: 'Bombillo LED 9W' };
+  it('sends a lone stock alert as itself, named with its SKU', () => {
+    const product = { model: 'LED9', name: 'Bombillo LED 9W' };
     const out = stockSummary([{ ...product, level: StockAlertLevel.OUT, stock: 0 }]);
     const low = stockSummary([{ ...product, level: StockAlertLevel.LOW, stock: 2 }]);
     expect(renderTemplate(out.template, out.params)).toBe(
@@ -106,11 +107,14 @@ describe('AdminAlertsService', () => {
     expect(renderTemplate(low.template, low.params)).toBe(
       '*Stock bajo*\nEl inventario de tu cuenta registró 2 existencias del artículo Bombillo LED 9W (LED9), por debajo del mínimo configurado.',
     );
+    // Without an SKU, just the name: the barcode never shows.
+    const bare = stockSummary([{ name: 'Foco', level: StockAlertLevel.OUT, stock: 0 }]);
+    expect(bare.params).toEqual(['Foco']);
   });
 
   it('lists as many products as fit and counts the rest', () => {
     const many = Array.from({ length: 60 }, (_, i) => ({
-      sku: `SKU-${i}`,
+      model: `SKU-${i}`,
       name: `Producto con un nombre bastante largo número ${String(i).padStart(2, '0')}`,
       level: StockAlertLevel.LOW,
       stock: 1,

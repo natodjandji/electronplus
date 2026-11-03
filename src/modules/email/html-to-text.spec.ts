@@ -35,7 +35,7 @@ describe('htmlToText', () => {
 
   it('renders a whole order email as readable text', () => {
     const order = {
-      items: [{ name: 'Cable 12', sku: 'CB-12', qty: 2, lineTotal: 90 }],
+      items: [{ name: 'Cable 12', sku: '7591234567890', model: 'CB-12', qty: 2, lineTotal: 90 }],
       subtotal: 90,
       discountAmount: 0,
       taxAmount: 14.4,
@@ -46,7 +46,9 @@ describe('htmlToText', () => {
     expect(text).toMatch(
       /^Electron Plus\n\nPedido recibido\n¡Gracias por tu compra!\n\nProcesando pago\n\nRecibimos tu pedido/,
     );
-    expect(text).toContain('Cable 12\nCB-12 · Cantidad: 2\nREF 90,00');
+    // The store's SKU, never the barcode.
+    expect(text).toContain('Cable 12\nSKU CB-12 · Cantidad: 2\nREF 90,00');
+    expect(text).not.toContain('7591234567890');
     expect(text).toMatch(/Envío: Gratis\nTotal: REF 104,40/);
     expect(text).toContain('Ver mis pedidos (https://electronplus.com.ve/client/orders)');
     expect(text).toMatch(

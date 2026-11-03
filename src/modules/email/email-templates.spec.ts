@@ -67,8 +67,14 @@ const CUSTOMER_EMAILS: Record<string, Email> = {
 
 /** The panel's alerts to the admins. */
 const STAFF_EMAILS: Record<string, Email> = {
-  stockLow: stockAlertEmail({ sku: 'S', name: 'Foco', level: StockAlertLevel.LOW, stock: 2 }, SITE),
-  stockOut: stockAlertEmail({ sku: 'S', name: 'Foco', level: StockAlertLevel.OUT, stock: 0 }, SITE),
+  stockLow: stockAlertEmail(
+    { model: 'S', name: 'Foco', level: StockAlertLevel.LOW, stock: 2 },
+    SITE,
+  ),
+  stockOut: stockAlertEmail(
+    { model: 'S', name: 'Foco', level: StockAlertLevel.OUT, stock: 0 },
+    SITE,
+  ),
   invoiceOverdue: invoiceDueEmail(
     {
       invoiceNumber: 'F-1',
@@ -204,7 +210,7 @@ describe('email content safety', () => {
   it('escapes product names in order lines and alert previews', () => {
     expect(orderCreatedEmail(order, SITE).html).not.toContain('<i>12</i>');
     const { html } = stockAlertEmail(
-      { sku: 'S', name: '<script>x</script>', level: StockAlertLevel.OUT, stock: 0 },
+      { model: 'S', name: '<script>x</script>', level: StockAlertLevel.OUT, stock: 0 },
       SITE,
     );
     expect(html).not.toContain('<script>x</script>');

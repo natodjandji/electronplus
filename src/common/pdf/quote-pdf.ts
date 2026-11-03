@@ -15,6 +15,7 @@ export interface QuotePdfParty {
 }
 
 export interface QuotePdfLine {
+  /** The store's SKU, the code printed; empty when it has none. */
   sku: string;
   name: string;
   /** Small text under the name, e.g. a line discount. */
@@ -66,7 +67,7 @@ const TIME_ZONE = 'America/Caracas';
 /** The table's columns; widths add up to CONTENT_WIDTH. */
 const COLUMNS = [
   { title: '#', width: 26, align: 'center' },
-  { title: 'Código', width: 78, align: 'left' },
+  { title: 'SKU', width: 78, align: 'left' },
   { title: 'Descripción', width: 216, align: 'left' },
   { title: 'Cant.', width: 44, align: 'right' },
   { title: 'Precio unit.', width: 74, align: 'right' },

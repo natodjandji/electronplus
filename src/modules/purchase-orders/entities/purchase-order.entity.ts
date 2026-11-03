@@ -10,7 +10,10 @@ export enum PurchaseOrderStatus {
 
 export interface PurchaseOrderItem {
   productId: string;
+  /** The barcode. */
   sku: string;
+  /** The store's SKU at the time, the code shown. */
+  model?: string | null;
   name: string;
   quantityOrdered: number;
   unitCost: number;

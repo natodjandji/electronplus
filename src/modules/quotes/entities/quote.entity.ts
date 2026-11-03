@@ -11,7 +11,10 @@ export enum QuoteStatus {
 export interface QuoteItem {
   id: string;
   productId: string;
+  /** The barcode. */
   sku: string;
+  /** The store's SKU at the time, the code shown. */
+  model?: string | null;
   name: string;
   qty: number;
   /** Snapshot of the retail unit price at the moment the item was added. */

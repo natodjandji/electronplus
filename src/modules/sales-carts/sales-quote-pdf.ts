@@ -38,7 +38,8 @@ export function salesQuotePdf(quote: Omit<SharedQuote, 'cartId'>): QuotePdf {
         lines: [PRICE_LIST_LABEL[quote.priceList], 'Montos en REF (dólares de referencia)'],
       },
     ],
-    lines: quote.lines,
+    // The store's SKU is the code printed; a line without one prints none.
+    lines: quote.lines.map((line) => ({ ...line, sku: line.model ?? '' })),
     totalRows: [
       { label: 'Subtotal', amount: quote.subtotal },
       ...(quote.discountPct > 0

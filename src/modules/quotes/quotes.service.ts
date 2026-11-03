@@ -141,6 +141,7 @@ export class QuotesService {
       id: randomUUID(),
       productId: product.id,
       sku: product.sku,
+      model: product.model ?? null,
       name: product.name,
       qty: dto.qty,
       unitPrice,

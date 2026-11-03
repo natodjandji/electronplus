@@ -96,7 +96,7 @@ export function customerQuotePdf(
       },
     ],
     lines: quote.items.map((item, i) => ({
-      sku: item.sku,
+      sku: item.model ?? '',
       name: item.name,
       note: item.discountPct > 0 ? `Descuento ${formatPercent(item.discountPct)}` : undefined,
       qty: item.qty,

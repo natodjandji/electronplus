@@ -242,6 +242,7 @@ export class OrdersService {
         items.push({
           productId: product.id,
           sku: product.sku,
+          model: product.model ?? null,
           name: product.name,
           categoryLabel: product.category.label,
           qty: line.qty,
@@ -253,6 +254,7 @@ export class OrdersService {
         stockChanges.push({
           productId: product.id,
           sku: product.sku,
+          model: product.model ?? null,
           name: product.name,
           stock: nextStock,
           minStockThreshold: product.minStockThreshold,
@@ -391,6 +393,7 @@ export class OrdersService {
         stockChanges.push({
           productId: product.id,
           sku: product.sku,
+          model: product.model ?? null,
           name: product.name,
           stock: nextStock,
           minStockThreshold: product.minStockThreshold,
@@ -413,6 +416,7 @@ export class OrdersService {
         items.push({
           productId: product.id,
           sku: product.sku,
+          model: product.model ?? null,
           name: product.name,
           categoryLabel: product.category.label,
           qty: line.qty,

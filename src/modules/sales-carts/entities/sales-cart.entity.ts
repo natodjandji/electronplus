@@ -13,7 +13,10 @@ export enum PriceList {
 
 export interface SalesCartItem {
   productId: string;
+  /** The barcode. */
   sku: string;
+  /** The store's SKU at the time, the code shown. */
+  model?: string | null;
   name: string;
   qty: number;
   /** Prices when the product first went into the cart — a catalog change
