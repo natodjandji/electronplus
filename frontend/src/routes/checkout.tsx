@@ -93,6 +93,8 @@ interface ShippingQuote {
 interface QuoteItemForCheckout {
   id: string;
   sku: string;
+  /** The store's SKU: the only product code shown. */
+  model?: string | null;
   name: string;
   qty: number;
   unitPrice: number;
@@ -886,7 +888,8 @@ function CheckoutPage() {
                                     {item.name}
                                   </div>
                                   <div className="text-xs text-muted-foreground">
-                                    {item.sku} · {formatMoney(item.effectiveUnitPrice)} × {item.qty}
+                                    {item.model && <>{item.model} · </>}
+                                    {formatMoney(item.effectiveUnitPrice)} × {item.qty}
                                   </div>
                                 </div>
                                 <div className="shrink-0 font-semibold text-brand-navy">
@@ -904,7 +907,8 @@ function CheckoutPage() {
                                     {product.name}
                                   </div>
                                   <div className="text-xs text-muted-foreground">
-                                    {product.sku} · {formatMoney(product.retailPrice)} × {qty}
+                                    {product.model && <>{product.model} · </>}
+                                    {formatMoney(product.retailPrice)} × {qty}
                                   </div>
                                 </div>
                                 <div className="shrink-0 font-semibold text-brand-navy">

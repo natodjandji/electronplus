@@ -9,6 +9,8 @@ export type PriceList = "retail" | "wholesale";
 export interface SalesCartItem {
   productId: string;
   sku: string;
+  /** The store's SKU: the only product code shown. */
+  model?: string | null;
   name: string;
   qty: number;
   retailPrice: number;
@@ -51,7 +53,15 @@ export interface SharedQuote {
   sellerName: string;
   customer: SalesCartCustomer;
   priceList: PriceList;
-  lines: { sku: string; name: string; qty: number; unitPrice: number; lineTotal: number }[];
+  lines: {
+    sku: string;
+    /** The store's SKU: the only product code shown. */
+    model?: string | null;
+    name: string;
+    qty: number;
+    unitPrice: number;
+    lineTotal: number;
+  }[];
   subtotal: number;
   discountPct: number;
   discountAmount: number;

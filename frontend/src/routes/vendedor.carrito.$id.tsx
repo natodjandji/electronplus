@@ -102,7 +102,11 @@ function useCatalogIndex() {
       products: list,
       isLoading,
       byId: new Map(list.map((p) => [p.id, p])),
-      bySku: new Map(list.map((p) => [p.sku.toUpperCase(), p])),
+      // A scanned barcode finds its product; so does a typed SKU.
+      bySku: new Map([
+        ...list.filter((p) => p.model).map((p) => [p.model!.toUpperCase(), p] as const),
+        ...list.map((p) => [p.sku.toUpperCase(), p] as const),
+      ]),
     };
   }, [products, isLoading]);
 }
@@ -460,7 +464,9 @@ function ProductSearch({
   const needle = normalize(query.trim());
   const results =
     needle.length >= 2
-      ? catalog.products.filter((p) => normalize(`${p.name} ${p.sku}`).includes(needle)).slice(0, 6)
+      ? catalog.products
+          .filter((p) => normalize(`${p.name} ${p.model ?? ""} ${p.sku}`).includes(needle))
+          .slice(0, 6)
       : [];
 
   const pick = (product: Product) => {
@@ -510,7 +516,7 @@ function ProductSearch({
                       <div className="truncate text-sm font-medium text-brand-navy">
                         {product.name}
                       </div>
-                      <div className="text-xs text-muted-foreground">{product.sku}</div>
+                      <div className="text-xs text-muted-foreground">{product.model}</div>
                       <StockBadges stock={stockOf(product.id)} />
                     </div>
                     <div className="shrink-0 text-sm font-semibold tabular-nums text-brand-navy">
@@ -580,7 +586,8 @@ function CartLine({
         <div className="min-w-0 flex-1">
           <div className="line-clamp-2 text-sm font-medium text-brand-navy">{item.name}</div>
           <div className="mt-0.5 text-xs text-muted-foreground">
-            {item.sku} · {formatMoney(unitPrice)} c/u
+            {item.model && <>{item.model} · </>}
+            {formatMoney(unitPrice)} c/u
           </div>
           {editable && <StockBadges stock={stock} />}
           {editable && short && (

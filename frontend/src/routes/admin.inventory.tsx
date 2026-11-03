@@ -226,8 +226,8 @@ function InventoryPage() {
                         <div className="min-w-0">
                           <div className="truncate font-semibold text-brand-navy">{p.name}</div>
                           <div className="text-xs text-muted-foreground">
-                            {p.model && <>SKU {p.model} · </>}
-                            {p.sku} · {p.category.label}
+                            {p.model && <>{p.model} · </>}
+                            {p.category.label}
                           </div>
                         </div>
                       </div>
@@ -311,7 +311,8 @@ function InventoryPage() {
                             <AlertDialogHeader>
                               <AlertDialogTitle>¿Eliminar este producto?</AlertDialogTitle>
                               <AlertDialogDescription>
-                                Esta acción no se puede deshacer. Se eliminará "{p.name}" ({p.sku})
+                                Esta acción no se puede deshacer. Se eliminará "{p.name}"
+                                {p.model && ` (${p.model})`}
                                 del inventario permanentemente.
                               </AlertDialogDescription>
                             </AlertDialogHeader>

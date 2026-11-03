@@ -64,6 +64,8 @@ export const Route = createFileRoute("/client/orders")({
 interface OrderItem {
   productId: string;
   sku: string;
+  /** The store's SKU: the only product code shown. */
+  model?: string | null;
   name: string;
   categoryLabel: string;
   qty: number;
@@ -298,7 +300,7 @@ function OrderDetailDialog({ order, onClose }: { order: Order; onClose: () => vo
                 <tr key={item.productId} className="border-b border-border last:border-0">
                   <td className="px-3 py-2">
                     <div className="font-medium text-brand-navy">{item.name}</div>
-                    <div className="text-xs text-muted-foreground">{item.sku}</div>
+                    <div className="text-xs text-muted-foreground">{item.model}</div>
                   </td>
                   <td className="px-3 py-2 text-right">{item.qty}</td>
                   <td className="px-3 py-2 text-right">{formatMoney(item.unitPrice)}</td>

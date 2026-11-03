@@ -149,7 +149,7 @@ function CartPage() {
                           />
                           <div className="min-w-0 flex-1">
                             <div className="text-[10px] font-semibold uppercase tracking-widest text-muted-foreground">
-                              {product.sku}
+                              {product.model}
                             </div>
                             <h3 className="truncate text-sm font-semibold text-brand-navy">
                               {product.name}

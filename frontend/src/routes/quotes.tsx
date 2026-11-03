@@ -93,6 +93,8 @@ interface QuoteLine {
   id: string;
   productId: string;
   sku: string;
+  /** The store's SKU: the only product code shown. */
+  model?: string | null;
   name: string;
   qty: number;
   unitPrice: number;
@@ -118,6 +120,8 @@ interface Quote {
 interface CatalogProduct {
   id: string;
   sku: string;
+  /** The store's SKU: the only product code shown. */
+  model?: string | null;
   name: string;
   retailPrice: number;
   /** Never shown while picking a product — only used to warn if the
@@ -795,7 +799,9 @@ function QuoteBuilder({ id, onBack }: { id: string; onBack: () => void }) {
                   products={availableProducts}
                   value={pick}
                   onValueChange={setPick}
-                  renderOption={(p) => `${p.name} — ${p.sku} · ${formatMoney(p.retailPrice)}`}
+                  renderOption={(p) =>
+                    `${p.name}${p.model ? ` — ${p.model}` : ""} · ${formatMoney(p.retailPrice)}`
+                  }
                   emptyHint={products ? "Ya agregaste todos los productos disponibles." : undefined}
                   className="min-w-64 flex-1"
                 />
@@ -855,7 +861,7 @@ function QuoteBuilder({ id, onBack }: { id: string; onBack: () => void }) {
                     <tr key={item.id} className="border-b border-border">
                       <td className="py-3">
                         <div className="font-semibold text-brand-navy">{item.name}</div>
-                        <div className="text-xs text-muted-foreground">{item.sku}</div>
+                        <div className="text-xs text-muted-foreground">{item.model}</div>
                         {short && (
                           <div className="mt-0.5 flex items-center gap-1 text-xs text-brand-navy/70 print:hidden">
                             <AlertCircle className="h-3 w-3 shrink-0 text-brand-yellow" />

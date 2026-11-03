@@ -134,7 +134,10 @@ function CatalogPage() {
     const needle = q.toLowerCase();
     const price = effectivePriceRange(priceRange, priceCeiling);
     const matches = (products ?? []).filter((p) => {
-      if (needle && !`${p.name} ${p.sku} ${p.brand ?? ""}`.toLowerCase().includes(needle)) {
+      if (
+        needle &&
+        !`${p.name} ${p.model ?? ""} ${p.sku} ${p.brand ?? ""}`.toLowerCase().includes(needle)
+      ) {
         return false;
       }
       if (cats.length && !cats.includes(p.category)) return false;
@@ -559,8 +562,13 @@ function ProductCard({
       </div>
       <div className="flex flex-1 flex-col p-3">
         <div className="truncate text-[9px] font-semibold uppercase tracking-widest text-muted-foreground">
-          {product.brand && <span className="text-brand-blue">{product.brand} · </span>}
-          {product.sku}
+          {product.brand && (
+            <span className="text-brand-blue">
+              {product.brand}
+              {product.model ? " · " : ""}
+            </span>
+          )}
+          {product.model}
         </div>
         <h3 className="mt-0.5 line-clamp-2 min-h-9 text-xs font-semibold text-brand-navy">
           <Link to="/product/$id" params={{ id: product.id }} className={STRETCHED_LINK}>
@@ -627,8 +635,13 @@ function ProductListRow({
 
         <div className="min-w-0 flex-1">
           <div className="truncate text-[10px] font-semibold uppercase tracking-widest text-muted-foreground">
-            {product.brand && <span className="text-brand-blue">{product.brand} · </span>}
-            {product.sku}
+            {product.brand && (
+              <span className="text-brand-blue">
+                {product.brand}
+                {product.model ? " · " : ""}
+              </span>
+            )}
+            {product.model}
           </div>
           <h3 className="line-clamp-1 text-sm font-semibold text-brand-navy">
             <Link to="/product/$id" params={{ id: product.id }} className={STRETCHED_LINK}>

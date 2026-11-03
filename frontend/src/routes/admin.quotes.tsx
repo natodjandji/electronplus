@@ -49,6 +49,8 @@ interface QuoteLine {
   id: string;
   productId: string;
   sku: string;
+  /** The store's SKU: the only product code shown. */
+  model?: string | null;
   name: string;
   qty: number;
   unitPrice: number;
@@ -336,7 +338,7 @@ function QuoteDetailDialog({ id, onClose }: { id: string; onClose: () => void })
                   <tr key={item.id} className="border-b border-border last:border-0">
                     <td className="px-3 py-2">
                       <div className="font-medium text-brand-navy">{item.name}</div>
-                      <div className="text-xs text-muted-foreground">{item.sku}</div>
+                      <div className="text-xs text-muted-foreground">{item.model}</div>
                     </td>
                     <td className="px-3 py-2 text-right">{item.qty}</td>
                     <td className="px-3 py-2 text-right">{formatMoneyAdmin(item.unitPrice)}</td>

@@ -79,6 +79,8 @@ type PurchaseOrderStatus = "draft" | "issued" | "partially_paid" | "paid" | "can
 interface PurchaseOrderItem {
   productId: string;
   sku: string;
+  /** The store's SKU: the only product code shown. */
+  model?: string | null;
   name: string;
   quantityOrdered: number;
   unitCost: number;
@@ -112,6 +114,8 @@ interface PurchaseOrderPayment {
 interface ProductOption {
   id: string;
   sku: string;
+  /** The store's SKU: the only product code shown. */
+  model?: string | null;
   name: string;
   cost?: number;
   supplierId?: string;
@@ -148,6 +152,8 @@ const PAGE_SIZE = 25;
 type DraftLine = {
   productId: string;
   sku: string;
+  /** The store's SKU: the only product code shown. */
+  model?: string | null;
   name: string;
   quantityOrdered: number;
   unitCost: number;
@@ -199,7 +205,10 @@ function PurchaseOrdersPage() {
             o.id.toLowerCase().includes(needle) ||
             o.supplierName.toLowerCase().includes(needle) ||
             o.items.some(
-              (i) => i.name.toLowerCase().includes(needle) || i.sku.toLowerCase().includes(needle),
+              (i) =>
+                i.name.toLowerCase().includes(needle) ||
+                i.sku.toLowerCase().includes(needle) ||
+                Boolean(i.model?.toLowerCase().includes(needle)),
             )),
       ),
     [source.data, showPending, statusFilter, supplierFilter, needle],
@@ -392,6 +401,7 @@ function LineItemsEditor({
       {
         productId: product.id,
         sku: product.sku,
+        model: product.model ?? null,
         name: product.name,
         quantityOrdered: 1,
         unitCost: product.cost ?? 0,
@@ -410,7 +420,7 @@ function LineItemsEditor({
           products={products ?? []}
           value={pick}
           onValueChange={setPick}
-          renderOption={(p) => `${p.sku} — ${p.name}`}
+          renderOption={(p) => (p.model ? `${p.model} — ${p.name}` : p.name)}
           emptyHint={products ? "Sin productos para este proveedor" : undefined}
           className="min-w-64 flex-1"
         />
@@ -447,7 +457,7 @@ function LineItemsEditor({
               <tr key={l.productId} className="border-b border-border">
                 <td className="py-2">
                   <div className="font-medium text-brand-navy">{l.name}</div>
-                  <div className="text-xs text-muted-foreground">{l.sku}</div>
+                  <div className="text-xs text-muted-foreground">{l.model}</div>
                 </td>
                 <td className="py-2 text-right">
                   <Input
@@ -803,6 +813,7 @@ function OrderDetailDialog({ orderId, onClose }: { orderId: string; onClose: () 
       order.items.map((i) => ({
         productId: i.productId,
         sku: i.sku,
+        model: i.model ?? null,
         name: i.name,
         quantityOrdered: i.quantityOrdered,
         unitCost: i.unitCost,
@@ -854,7 +865,8 @@ function OrderDetailDialog({ orderId, onClose }: { orderId: string; onClose: () 
                   <div>
                     <div className="font-medium text-brand-navy">{item.name}</div>
                     <div className="text-xs text-muted-foreground">
-                      {item.sku} · {item.quantityOrdered} × {formatMoneyAdmin(item.unitCost)}
+                      {item.model && <>{item.model} · </>}
+                      {item.quantityOrdered} × {formatMoneyAdmin(item.unitCost)}
                       {item.discountPerItem > 0 ? ` · -${item.discountPerItem}%` : ""}
                     </div>
                   </div>
@@ -1182,7 +1194,7 @@ function OrderDetailDialog({ orderId, onClose }: { orderId: string; onClose: () 
                 <tr key={item.productId} className="border-b border-border">
                   <td className="py-3">
                     <div className="font-semibold text-brand-navy">{item.name}</div>
-                    <div className="text-xs text-muted-foreground">{item.sku}</div>
+                    <div className="text-xs text-muted-foreground">{item.model}</div>
                   </td>
                   <td className="py-3 text-right">{item.quantityOrdered}</td>
                   <td className="py-3 text-right">{formatMoneyAdmin(item.unitCost)}</td>

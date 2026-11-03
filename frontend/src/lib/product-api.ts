@@ -4,6 +4,8 @@ import type { Product } from "./product";
 export interface ApiProduct {
   id: string;
   sku: string;
+  /** The store's SKU: the only product code shown. */
+  model?: string | null;
   name: string;
   specs?: string;
   brand?: string | null;
@@ -19,6 +21,7 @@ export function toProduct(p: ApiProduct): Product {
   return {
     id: p.id,
     sku: p.sku,
+    model: p.model ?? null,
     name: p.name,
     category: p.category.code,
     categoryLabel: p.category.label,

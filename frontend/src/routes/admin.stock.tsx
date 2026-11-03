@@ -31,6 +31,8 @@ export const Route = createFileRoute("/admin/stock")({
 interface AdminProduct {
   id: string;
   sku: string;
+  /** The store's SKU: the only product code shown. */
+  model?: string | null;
   name: string;
   supplierId?: string;
   cost?: number;
@@ -236,7 +238,7 @@ function HealthyList({ items }: { items: AdminProduct[] }) {
           >
             <div>
               <div className="font-medium text-brand-navy">{p.name}</div>
-              <div className="text-xs text-muted-foreground">{p.sku}</div>
+              <div className="text-xs text-muted-foreground">{p.model}</div>
             </div>
             <div className="text-sm font-semibold text-brand-blue">{p.stock} uds</div>
           </div>
@@ -267,8 +269,10 @@ function StockRow({ product }: { product: AdminProduct }) {
           <div className="min-w-0">
             <div className="truncate text-sm font-semibold text-brand-navy">{product.name}</div>
             <div className="text-xs text-muted-foreground">
-              {product.sku}
-              {product.minStockThreshold ? ` · Stock seguro: ${product.minStockThreshold}` : ""}
+              {product.model}
+              {product.minStockThreshold
+                ? `${product.model ? " · " : ""}Stock seguro: ${product.minStockThreshold}`
+                : ""}
             </div>
           </div>
           {out ? (

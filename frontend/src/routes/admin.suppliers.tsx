@@ -59,6 +59,8 @@ const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 interface AdminProduct {
   id: string;
   sku: string;
+  /** The store's SKU: the only product code shown. */
+  model?: string | null;
   name: string;
   stock: number;
   supplierId?: string;
@@ -382,7 +384,7 @@ function SupplierDetailDialog({
                 >
                   <div>
                     <div className="font-medium text-brand-navy">{p.name}</div>
-                    <div className="text-xs text-muted-foreground">{p.sku}</div>
+                    <div className="text-xs text-muted-foreground">{p.model}</div>
                   </div>
                   <Badge className="bg-brand-blue/10 text-brand-blue">{p.stock} uds</Badge>
                 </div>

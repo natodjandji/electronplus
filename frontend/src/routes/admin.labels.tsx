@@ -258,10 +258,7 @@ function LabelsPage() {
               >
                 <div className="min-w-0 flex-1">
                   <div className="truncate text-sm font-semibold text-brand-navy">{p.name}</div>
-                  <div className="text-xs text-muted-foreground">
-                    {p.model && <>SKU {p.model} · </>}
-                    {p.sku}
-                  </div>
+                  <div className="text-xs text-muted-foreground">{p.model}</div>
                 </div>
                 <QuantityStepper
                   qty={quantities[p.id] ?? 0}

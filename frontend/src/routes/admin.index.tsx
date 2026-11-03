@@ -52,6 +52,8 @@ interface CategoryShareSlice {
 interface ProfitabilityRow {
   productId: string;
   sku: string;
+  /** The store's SKU: the only product code shown. */
+  model?: string | null;
   name: string;
   unitsSold: number;
   revenue: number;

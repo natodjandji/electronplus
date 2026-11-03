@@ -545,7 +545,7 @@ function searchProducts(
   const scored = products
     .map((p) => {
       const haystack = normalize(
-        `${p.name} ${p.sku} ${p.brand ?? ""} ${p.specs} ${categoryLabel[p.category] ?? ""}`,
+        `${p.name} ${p.model ?? ""} ${p.sku} ${p.brand ?? ""} ${p.specs} ${categoryLabel[p.category] ?? ""}`,
       );
       const hits = searchTokens.filter((tok) => {
         if (haystack.includes(tok)) return true;

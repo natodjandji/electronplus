@@ -20,6 +20,8 @@ interface PickableProduct {
   id: string;
   name: string;
   sku: string;
+  /** The store's SKU: the only product code shown. */
+  model?: string | null;
 }
 
 export function ProductSearchSelect<T extends PickableProduct>({
@@ -48,7 +50,9 @@ export function ProductSearchSelect<T extends PickableProduct>({
   const matches = useMemo(
     () =>
       needle
-        ? products.filter((p) => `${p.name} ${p.sku}`.toLowerCase().includes(needle))
+        ? products.filter((p) =>
+            `${p.name} ${p.model ?? ""} ${p.sku}`.toLowerCase().includes(needle),
+          )
         : products,
     [products, needle],
   );

@@ -1,6 +1,8 @@
 export type Product = {
   id: string;
   sku: string;
+  /** The store's SKU: the only product code shown. */
+  model?: string | null;
   name: string;
   /** Category code, as the API (and Profit Plus) names it. */
   category: string;

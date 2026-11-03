@@ -43,8 +43,8 @@ function buildProductJsonLd(product: Product) {
     "@context": "https://schema.org",
     "@type": "Product",
     name: product.name,
-    sku: product.sku,
-    mpn: product.sku,
+    // The store's SKU; the barcode is only for the product labels.
+    ...(product.model && { sku: product.model, mpn: product.model }),
     description: productDescription(product),
     category: categoryLabel(product),
     // Google's Product rich-result guidance wants a brand: the one Profit Plus
@@ -245,10 +245,10 @@ function ProductPage() {
               {product.brand && (
                 <>
                   Marca <span className="font-semibold text-brand-navy">{product.brand}</span>
-                  {" · "}
+                  {product.model && " · "}
                 </>
               )}
-              SKU {product.sku}
+              {product.model && <>SKU {product.model}</>}
             </div>
 
             <div className="mt-6">

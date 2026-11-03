@@ -85,10 +85,10 @@ export function QuoteDocument({ quote }: { quote: SharedQuote }) {
               <td className="py-2.5 pr-2">
                 <div className="font-medium text-brand-navy">{line.name}</div>
                 <div className="text-xs text-muted-foreground">
-                  {line.sku}
+                  {line.model}
                   <span className="sm:hidden print:hidden">
-                    {" "}
-                    · {formatMoney(line.unitPrice)} c/u
+                    {line.model && " · "}
+                    {formatMoney(line.unitPrice)} c/u
                   </span>
                 </div>
               </td>
