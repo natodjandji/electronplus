@@ -145,13 +145,20 @@ function LabelCard({ label, format }: { label: QrLabel & { key: string }; format
         className="h-[17mm] w-[17mm] shrink-0 object-contain"
       />
       <div className="flex min-w-0 flex-1 flex-col gap-[1.5px]">
-        <ElectronLogo layout="wordmark" tone="black" className="h-[2.8mm] w-auto shrink-0" />
-        <div className="line-clamp-1 text-[10px] font-bold leading-tight text-black">
+        {/* The SKU shares the logo's row, so the name gets a third line. The
+            logo's letters stand on a line 63% down the image (the swoosh
+            hangs below it): aligned to the top, the SKU stands on it too. */}
+        <div className="flex items-start justify-between gap-1">
+          <ElectronLogo layout="wordmark" tone="black" className="h-[2.8mm] w-auto shrink-0" />
+          {label.model && (
+            <span className="truncate text-[7.5px] font-semibold leading-none text-black">
+              {label.model}
+            </span>
+          )}
+        </div>
+        <div className="line-clamp-3 text-[9.5px] font-bold leading-[1.1] text-black">
           {label.name}
         </div>
-        {label.model && (
-          <div className="font-mono text-[7.5px] leading-tight text-black">SKU {label.model}</div>
-        )}
         <div className="mt-[1px] flex items-center justify-between gap-1 rounded-[1px] border border-black px-[3px] py-[1.5px] leading-none">
           <span className="text-[6px] font-semibold uppercase tracking-wide text-black">Detal</span>
           <span className="text-[10.5px] font-bold leading-tight text-black">
@@ -164,7 +171,7 @@ function LabelCard({ label, format }: { label: QrLabel & { key: string }; format
             {formatMoney(label.wholesalePrice)}
           </span>
         </div>
-        <div className="text-[6px] leading-tight text-black/60">IVA no incluido</div>
+        <div className="text-[7px] font-semibold leading-tight text-black">IVA no incluido</div>
       </div>
     </div>
   );
