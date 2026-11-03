@@ -1,6 +1,6 @@
 {
   "name": "profit-plus-bridge-principal",
-  "version": "1.1.0",
+  "version": "1.2.0",
   "private": true,
   "description": "Puente REST liviano entre Profit Plus (SQL Server, tienda principal) y el backend en la nube — expone el catálogo completo para sincronización.",
   "main": "server.js",
@@ -10,7 +10,8 @@
   "scripts": {
     "start": "node server.js",
     "dev": "node --watch server.js",
-    "diagnostico": "node diagnostico.js"
+    "diagnostico": "node diagnostico.js",
+    "test": "node --test"
   },
   "dependencies": {
     "dotenv": "^16.4.5",

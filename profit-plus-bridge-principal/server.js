@@ -34,6 +34,7 @@ const zlib = require('zlib');
 const express = require('express');
 const sql = require('mssql');
 const { ConfigError, parsePort, loadDbConfig, classifyDbError } = require('./db-config');
+const { elegirColumnaSku } = require('./columna-sku');
 
 const gzip = promisify(zlib.gzip);
 
@@ -113,11 +114,11 @@ try {
  * El almacén llega como parámetro (@almacen), nunca pegado al texto de la
  * consulta: así no hay inyección SQL posible desde el .env.
  */
-const productosQuery = (conModelo) => `
+const productosQuery = (columnaSku) => `
   SELECT
     RTRIM(art.co_art)     AS codigo,
     RTRIM(art.ref)        AS referencia,
-    ${conModelo ? 'RTRIM(art.modelo)     AS modelo,' : ''}
+    ${columnaSku ? `RTRIM(art.[${columnaSku}]) AS modelo,` : ''}
     RTRIM(art.art_des)    AS descripcion,
     RTRIM(art.co_lin)     AS categoria_codigo,
     RTRIM(lin.lin_des)    AS categoria,
@@ -189,30 +190,48 @@ function toProducto(row) {
   };
 }
 
-/** Si la base no tiene la columna art.modelo (no verificada en el
- * diagnóstico del 2026-10-15), el catálogo sigue saliendo sin el SKU en vez
- * de dejar a la web sin sincronizar. Se intenta de nuevo al reiniciar. */
-let conModelo = true;
+/** La columna de art con el SKU de la tienda (el campo MODELO), buscada en
+ * la base la primera vez en vez de suponer su nombre: null si no hay
+ * ninguna, y entonces el catálogo sale igual, sin SKU. `columnasArt` queda
+ * con todas las de art para decir cuáles hay. */
+let columnaSku;
+let columnasArt = [];
+
+async function buscarColumnaSku(pool) {
+  if (columnaSku !== undefined) return columnaSku;
+  try {
+    const { recordset } = await pool
+      .request()
+      .query("SELECT COLUMN_NAME AS nombre FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_NAME = 'art'");
+    columnasArt = recordset.map((row) => String(row.nombre));
+  } catch (err) {
+    log('WARN', `No se pudieron leer las columnas de art: ${err.message}`);
+    return null; // se intenta de nuevo en la próxima consulta
+  }
+  columnaSku = elegirColumnaSku(columnasArt);
+  if (columnaSku) log('INFO', `SKU desde art.${columnaSku} (campo Modelo)`);
+  else log('WARN', `No hay campo Modelo en art; columnas: ${columnasArt.join(', ')}`);
+  return columnaSku;
+}
 
 async function queryCatalog() {
   const pool = await getPool();
-  const run = () =>
-    pool
-      .request()
-      .input('almacen', sql.VarChar(50), config.warehouseCode)
-      .query(productosQuery(conModelo));
-  let result;
-  try {
-    result = await run();
-  } catch (err) {
-    // SQL Server: 207 = nombre de columna no válido.
-    if (!conModelo || err.number !== 207 || !/modelo/i.test(err.message)) throw err;
-    log('WARN', `La base no tiene art.modelo: el catálogo sale sin SKU (${err.message})`);
-    conModelo = false;
-    result = await run();
-  }
+  const columna = await buscarColumnaSku(pool);
+  const result = await pool
+    .request()
+    .input('almacen', sql.VarChar(50), config.warehouseCode)
+    .query(productosQuery(columna));
   const productos = result.recordset.map(toProducto);
-  return Buffer.from(JSON.stringify({ total: productos.length, productos }));
+  // Qué columna dio el SKU, para que la web lo diga en su registro; si no
+  // hubo, las columnas de art, para saber cómo se llama.
+  return Buffer.from(
+    JSON.stringify({
+      total: productos.length,
+      columnaSku: columna,
+      ...(columna ? {} : { columnasArt }),
+      productos,
+    }),
+  );
 }
 
 /** Una consulta a la vez: las peticiones que llegan juntas (un reintento,

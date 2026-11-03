@@ -19,9 +19,13 @@ real de la base de la tienda (`ELECT26`, verificado el 2026-10-15): las
 tablas `art` (artículos y precios), `st_almac` (existencia por almacén),
 `lin_art` (líneas) y `cat_art` (marcas). La web usa como **código de barra**
 la **referencia** del artículo (`ref`, o el código interno si está vacía),
-como **SKU** el campo **Modelo** (`modelo`), y lo reconoce por su código
-interno (`co_art`), que es único. Si la base no tuviera la columna `modelo`,
-el catálogo sale igual, sin SKU, y el log lo avisa con un `WARN`. Los nombres cambian entre
+como **SKU** el campo **Modelo**, y lo reconoce por su código interno
+(`co_art`), que es único. La columna del Modelo no se supone: al arrancar,
+el bridge la busca entre las columnas de `art` (`modelo`, o la que contenga
+"model") y el registro dice cuál usó (`INFO SKU desde art.modelo`). Si no
+encuentra ninguna, el catálogo sale igual, sin SKU, y el registro lista las
+columnas de `art` (`WARN No hay campo Modelo en art; columnas: …`). La web
+también lo anota en su registro en cada cambio. Los nombres cambian entre
 versiones de Profit Plus: si algún día se actualiza Profit, o la consulta
 falla con "nombre de columna no válido", vuelve a verificarlos.
 
@@ -139,6 +143,14 @@ sitio no estaba disponible al instalar la tienda secundaria):
   puerto 4000 y `Start-ScheduledTask`. Detener la tarea puede dejar vivo al
   proceso hijo.
 - El registro es UTF-8: léelo con `Get-Content -Encoding UTF8`.
+
+### Actualizar el bridge en la PC
+
+1. Copia a la carpeta del bridge en la PC `server.js`, `columna-sku.js` y
+   `package.json`, sin tocar el `.env` ni `node_modules` (las dependencias
+   no cambiaron en la 1.2.0: no hace falta `npm install`).
+2. Reinicia la tarea como se indica arriba.
+3. Revisa el registro: debe decir `SKU desde art.<columna> (campo Modelo)`.
 
 ## 5. Exponerla a internet (para que el backend en la nube la alcance)
 

@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, Logger } from '@nestjs/common';
 import { fetchBridge } from '../../../common/http/fetch-bridge';
 import { ConfigService } from '@nestjs/config';
 import { EnvConfig } from '../../../config/env.validation';
@@ -34,6 +34,11 @@ interface BridgeProduct {
 interface BridgeResponse {
   total: number;
   productos: BridgeProduct[];
+  /** The art column the bridge found the SKU in (the Modelo field); null
+   * when it found none, absent from bridges before 1.2.0. */
+  columnaSku?: string | null;
+  /** All of art's columns, sent when it found none: to see what it's called. */
+  columnasArt?: string[];
 }
 
 /**
@@ -49,6 +54,11 @@ interface BridgeResponse {
  */
 @Injectable()
 export class ApiProfitPlusAdapter implements ProfitPlusAdapter {
+  private readonly logger = new Logger(ApiProfitPlusAdapter.name);
+  /** Where the SKU came from last time, so the log says it once, and again
+   * only when it changes. */
+  private skuSource: string | undefined;
+
   constructor(private readonly config: ConfigService<EnvConfig, true>) {}
 
   isConfigured(): boolean {
@@ -76,6 +86,26 @@ export class ApiProfitPlusAdapter implements ProfitPlusAdapter {
     return { Authorization: `Bearer ${apiKey}` };
   }
 
+  /** The SKU comes from a column the bridge looks up in Profit Plus: the
+   * log says which, or what columns there were when it found none, or that
+   * the store's bridge is too old to send it. */
+  private reportSkuSource(data: BridgeResponse): void {
+    const source = data.columnaSku === undefined ? 'old-bridge' : (data.columnaSku ?? 'none');
+    if (source === this.skuSource) return;
+    this.skuSource = source;
+    if (source === 'old-bridge') {
+      this.logger.warn(
+        'El bridge de Profit Plus no envía el SKU: instala la versión 1.2.0 en la PC de la tienda.',
+      );
+    } else if (source === 'none') {
+      this.logger.warn(
+        `Profit Plus no tiene el campo Modelo en art: los productos van sin SKU. Columnas: ${(data.columnasArt ?? []).join(', ')}`,
+      );
+    } else {
+      this.logger.log(`Profit Plus: el SKU viene de art.${source} (campo Modelo).`);
+    }
+  }
+
   async fetchInventory(): Promise<ErpInventoryItem[]> {
     const res = await fetchBridge(
       `${this.requireBaseUrl()}/api/productos-sincronizacion`,
@@ -83,6 +113,7 @@ export class ApiProfitPlusAdapter implements ProfitPlusAdapter {
       'El bridge de Profit Plus',
     );
     const data = (await res.json()) as BridgeResponse;
+    this.reportSkuSource(data);
 
     return data.productos.map((p) => {
       // Profit Plus guarda código y descripción en columnas char() de ancho

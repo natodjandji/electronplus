@@ -1,3 +1,4 @@
+import { Logger } from '@nestjs/common';
 import { ApiProfitPlusAdapter } from './api-profit-plus.adapter';
 
 describe('ApiProfitPlusAdapter', () => {
@@ -101,6 +102,36 @@ describe('ApiProfitPlusAdapter', () => {
     expect(spy).toHaveBeenCalledWith(
       'https://bridge.test/api/productos-sincronizacion',
       expect.objectContaining({ headers: { Authorization: 'Bearer key' } }),
+    );
+  });
+
+  it('says where the SKU came from, once, and again when that changes', async () => {
+    const fresh = new ApiProfitPlusAdapter({ get: (key: string) => env[key] } as never);
+    const info = jest.spyOn(Logger.prototype, 'log').mockImplementation(() => undefined);
+    const warn = jest.spyOn(Logger.prototype, 'warn').mockImplementation(() => undefined);
+    const respond = (extra: object) =>
+      jest
+        .spyOn(global, 'fetch')
+        .mockResolvedValueOnce(
+          new Response(JSON.stringify({ total: 0, productos: [], ...extra }), { status: 200 }),
+        );
+
+    // A bridge from before 1.2.0 sends no column at all.
+    respond({});
+    await fresh.fetchInventory();
+    respond({});
+    await fresh.fetchInventory();
+    expect(warn).toHaveBeenCalledTimes(1);
+    expect(warn.mock.calls[0][0]).toMatch(/instala la versión 1\.2\.0/);
+
+    respond({ columnaSku: 'modelo' });
+    await fresh.fetchInventory();
+    expect(info).toHaveBeenCalledWith('Profit Plus: el SKU viene de art.modelo (campo Modelo).');
+
+    respond({ columnaSku: null, columnasArt: ['co_art', 'ref', 'art_des'] });
+    await fresh.fetchInventory();
+    expect(warn).toHaveBeenLastCalledWith(
+      'Profit Plus no tiene el campo Modelo en art: los productos van sin SKU. Columnas: co_art, ref, art_des',
     );
   });
 
