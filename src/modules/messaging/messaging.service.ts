@@ -112,7 +112,8 @@ export class MessagingService implements OnModuleInit {
   }
 
   async handleWebhook(body: unknown): Promise<{ inbound: number; echoes: number }> {
-    const { inbound, echoes } = parseWebhook(body);
+    const { inbound, echoes, skipped } = parseWebhook(body);
+    if (skipped.length > 0) this.logger.warn(`Webhook not stored: ${skipped.join('; ')}`);
     const settings = await this.settings.get();
     const appId = this.config.get('META_APP_ID', { infer: true });
 
@@ -127,6 +128,7 @@ export class MessagingService implements OnModuleInit {
     for (const message of inbound) {
       // The store's own alert numbers aren't customers: no chat, no reply.
       if (message.channel === 'whatsapp' && settings.alertPhones.includes(message.customerId)) {
+        this.logger.log('WhatsApp message from an alert number: no chat');
         continue;
       }
       const { conversationId, isNew } = await this.store.recordInbound(message);

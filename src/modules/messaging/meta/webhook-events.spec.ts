@@ -94,6 +94,45 @@ describe('parseWebhook — WhatsApp', () => {
     expect(inbound).toEqual([]);
   });
 
+  it('says what it dropped, with no number or text from the customer', () => {
+    const { inbound, skipped } = parseWebhook(
+      whatsapp('messages', {
+        contacts: [{ profile: { name: 'Ana' }, wa_id: '584141234567' }],
+        messages: [
+          {
+            from: '584141234567',
+            id: 'w1',
+            timestamp: '1',
+            type: 'unsupported',
+            errors: [{ code: 131060, title: 'Message type unknown', details: 'Hola Ana' }],
+          },
+          { id: 'w2', timestamp: '1', type: 'text', text: { body: 'Hola' } },
+        ],
+        statuses: [
+          { id: 'w3', status: 'delivered', recipient_id: '584141234567' },
+          {
+            id: 'w4',
+            status: 'failed',
+            recipient_id: '584141234567',
+            errors: [{ code: 131026, title: 'Not delivered' }],
+          },
+        ],
+      }),
+    );
+    expect(inbound).toEqual([]);
+    expect(skipped).toEqual([
+      'whatsapp unsupported message (131060 Message type unknown)',
+      'whatsapp message with only id, timestamp, type, text',
+      'whatsapp failed delivery (131026 Not delivered)',
+    ]);
+  });
+
+  it('names a change it has no use for', () => {
+    expect(parseWebhook(whatsapp('history', { history: [] })).skipped).toEqual([
+      'whatsapp history change',
+    ]);
+  });
+
   it('reads a coexistence echo (sent from the WhatsApp Business app) as the business speaking', () => {
     const { inbound, echoes } = parseWebhook(
       whatsapp('smb_message_echoes', {
@@ -195,8 +234,12 @@ describe('parseWebhook — Instagram', () => {
           { sender: { id: 'x' }, recipient: { id: 'ig' }, message: { mid: 'm', is_deleted: true } },
         ]),
       ),
-    ).toEqual({ inbound: [], echoes: [] });
-    expect(parseWebhook({ object: 'page', entry: [] })).toEqual({ inbound: [], echoes: [] });
-    expect(parseWebhook(null)).toEqual({ inbound: [], echoes: [] });
+    ).toEqual({ inbound: [], echoes: [], skipped: [] });
+    expect(parseWebhook({ object: 'page', entry: [] })).toEqual({
+      inbound: [],
+      echoes: [],
+      skipped: [],
+    });
+    expect(parseWebhook(null)).toEqual({ inbound: [], echoes: [], skipped: [] });
   });
 });

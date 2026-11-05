@@ -28,6 +28,10 @@ export interface EchoedChatMessage {
 export interface WebhookEvents {
   inbound: InboundChatMessage[];
   echoes: EchoedChatMessage[];
+  /** What the delivery carried and nothing stores, described without names,
+   * numbers or text: for the log, so a customer's message that didn't get
+   * through leaves a trace. */
+  skipped: string[];
 }
 
 /**
@@ -64,11 +68,11 @@ function fromUnixMillis(v: unknown): Date {
 }
 
 /** Every customer message and business echo in one webhook delivery. Meta
- * batches several entries and changes per POST. Anything else (delivery
- * statuses, reactions, reads, history sync) is dropped. */
+ * batches several entries and changes per POST. Anything else is dropped;
+ * `skipped` says what, except for routine delivery statuses. */
 export function parseWebhook(body: unknown): WebhookEvents {
   const payload = asObject(body);
-  const events: WebhookEvents = { inbound: [], echoes: [] };
+  const events: WebhookEvents = { inbound: [], echoes: [], skipped: [] };
   if (payload.object === 'whatsapp_business_account') {
     for (const entry of asArray(payload.entry)) {
       for (const change of asArray(asObject(entry).changes)) {
@@ -99,9 +103,16 @@ function parseWhatsappChange(change: Json, events: WebhookEvents): void {
       const message = asObject(raw);
       const from = asString(message.from);
       const id = asString(message.id);
-      if (!from || !id) continue;
+      if (!from || !id) {
+        events.skipped.push(`whatsapp message with only ${Object.keys(message).join(', ')}`);
+        continue;
+      }
       const content = whatsappContent(message);
-      if (!content) continue;
+      if (!content) {
+        const type = asString(message.type) ?? 'untyped';
+        events.skipped.push(`whatsapp ${type} message${errorSummary(message.errors)}`);
+        continue;
+      }
       events.inbound.push({
         channel: 'whatsapp',
         customerId: from,
@@ -110,6 +121,12 @@ function parseWhatsappChange(change: Json, events: WebhookEvents): void {
         at: fromUnixSeconds(message.timestamp),
         ...content,
       });
+    }
+    for (const raw of asArray(value.statuses)) {
+      const status = asObject(raw);
+      if (status.status === 'failed') {
+        events.skipped.push(`whatsapp failed delivery${errorSummary(status.errors)}`);
+      }
     }
   } else if (change.field === 'smb_message_echoes') {
     for (const raw of asArray(value.message_echoes)) {
@@ -125,7 +142,19 @@ function parseWhatsappChange(change: Json, events: WebhookEvents): void {
         text: whatsappContent(echo)?.text ?? '',
       });
     }
+  } else {
+    events.skipped.push(`whatsapp ${String(change.field)} change`);
   }
+}
+
+/** The codes and titles of a webhook's errors, never their details: those
+ * can quote the message. */
+function errorSummary(errors: unknown): string {
+  const list = asArray(errors).map((raw) => {
+    const error = asObject(raw);
+    return [error.code, asString(error.title)].filter(Boolean).join(' ');
+  });
+  return list.length > 0 ? ` (${list.join(', ')})` : '';
 }
 
 type Content = Pick<InboundChatMessage, 'kind' | 'text' | 'media'>;
