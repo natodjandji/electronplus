@@ -18,12 +18,13 @@ import {
 } from './agent/sales-tools';
 import { ChatStoreService } from './chat-store.service';
 import { ChatUsageService, type ChatLimit } from './chat-usage.service';
-import type {
-  ChatChannel,
-  ChatConversation,
-  ChatMessage,
-  DailyChatUsage,
-  MessagingSettings,
+import {
+  replyAddress,
+  type ChatChannel,
+  type ChatConversation,
+  type ChatMessage,
+  type DailyChatUsage,
+  type MessagingSettings,
 } from './entities/chat.entity';
 import { ChatChannelsService } from './meta/chat-channels.service';
 import { isValidMetaSignature, parseWebhook } from './meta/webhook-events';
@@ -112,10 +113,12 @@ export class MessagingService implements OnModuleInit {
   }
 
   async handleWebhook(body: unknown): Promise<{ inbound: number; echoes: number }> {
-    const { inbound, echoes, skipped } = parseWebhook(body);
+    const { inbound, echoes, identityChanges, skipped } = parseWebhook(body);
     if (skipped.length > 0) this.logger.warn(`Webhook not stored: ${skipped.join('; ')}`);
     const settings = await this.settings.get();
     const appId = this.config.get('META_APP_ID', { infer: true });
+
+    for (const change of identityChanges) await this.store.recordIdentityChange(change);
 
     let paused = 0;
     for (const echo of echoes) {
@@ -127,7 +130,9 @@ export class MessagingService implements OnModuleInit {
     let stored = 0;
     for (const message of inbound) {
       // The store's own alert numbers aren't customers: no chat, no reply.
-      if (message.channel === 'whatsapp' && settings.alertPhones.includes(message.customerId)) {
+      // One whose number Meta hides (a username, and 30 days without alerts
+      // or messages) can't be told from a customer.
+      if (message.customerPhone && settings.alertPhones.includes(message.customerPhone)) {
         this.logger.log('WhatsApp message from an alert number: no chat');
         continue;
       }
@@ -310,7 +315,11 @@ export class MessagingService implements OnModuleInit {
   }
 
   private async sendText(conversation: ChatConversation, text: string): Promise<void> {
-    const ids = await this.channels.sendText(conversation.channel, conversation.customerId, text);
+    const ids = await this.channels.sendText(
+      conversation.channel,
+      replyAddress(conversation),
+      text,
+    );
     await this.store.recordOutbound(conversation.id, {
       author: 'bot',
       kind: 'text',
@@ -333,7 +342,7 @@ export class MessagingService implements OnModuleInit {
     }));
     const ids = await this.channels.sendProducts(
       conversation.channel,
-      conversation.customerId,
+      replyAddress(conversation),
       cards,
     );
     await this.store.recordOutbound(conversation.id, {

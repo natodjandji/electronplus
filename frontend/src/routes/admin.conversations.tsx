@@ -57,6 +57,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { apiFetch, reportError } from "@/lib/api-client";
 import {
   conversationsKey,
+  customerDetail,
   customerLabel,
   EFFORT_OPTIONS,
   formatAlertPhones,
@@ -66,6 +67,7 @@ import {
   MODEL_OPTIONS,
   parseAlertPhones,
   whatsappChatHref,
+  whatsappPhone,
   type ChatChannel,
   type ChatConversation,
   type ChatMessage,
@@ -346,6 +348,8 @@ function ConversationThread({
     refetchInterval: 10_000,
   });
   const paused = isPaused(c);
+  const phone = whatsappPhone(c);
+  const detail = customerDetail(c);
 
   const setPaused = useMutation({
     mutationFn: (pause: boolean) =>
@@ -411,13 +415,11 @@ function ConversationThread({
         <ChannelIcon channel={c.channel} className="h-5 w-5" />
         <div className="min-w-0 flex-1">
           <p className="truncate font-semibold text-brand-navy">{customerLabel(c)}</p>
-          {c.channel === "whatsapp" && c.customerName && (
-            <p className="text-xs text-muted-foreground">+{c.customerId}</p>
-          )}
+          {detail && <p className="truncate text-xs text-muted-foreground">{detail}</p>}
         </div>
-        {c.channel === "whatsapp" && (
+        {phone && (
           <Button asChild variant="outline" size="sm" className="gap-1.5">
-            <a href={whatsappChatHref(c.customerId)} target="_blank" rel="noreferrer">
+            <a href={whatsappChatHref(phone)} target="_blank" rel="noreferrer">
               <ExternalLink className="h-3.5 w-3.5" />
               WhatsApp
             </a>

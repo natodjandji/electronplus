@@ -1,9 +1,21 @@
 import { createHmac, timingSafeEqual } from 'node:crypto';
 import type { ChatChannel, ChatMedia, ChatMessageKind } from '../entities/chat.entity';
 
+/** Who a WhatsApp customer is, as far as a webhook says. Every webhook has the
+ * BSUID; a customer with a username keeps their number from us, unless they
+ * wrote to us or we wrote to them in the last 30 days, or they're in Meta's
+ * contact book. */
+export interface WhatsappCustomer {
+  customerPhone?: string;
+  /** The BSUID (business-scoped user id), like "VE.13491208655302741918". */
+  customerUserId?: string;
+  customerUsername?: string;
+}
+
 /** A customer's message, the same shape whichever channel it came from. */
-export interface InboundChatMessage {
+export interface InboundChatMessage extends WhatsappCustomer {
   channel: ChatChannel;
+  /** WhatsApp: the number, or the BSUID when the webhook has no number. */
   customerId: string;
   customerName?: string;
   externalId: string;
@@ -16,7 +28,7 @@ export interface InboundChatMessage {
 /** A message the business sent outside this API: from the WhatsApp Business
  * app (coexistence echoes) or from Instagram. Our own sends echo back on
  * Instagram too; `appId` tells them apart. */
-export interface EchoedChatMessage {
+export interface EchoedChatMessage extends WhatsappCustomer {
   channel: ChatChannel;
   customerId: string;
   externalId: string;
@@ -25,9 +37,19 @@ export interface EchoedChatMessage {
   appId?: string;
 }
 
+/** A WhatsApp customer changed number, which also gives them a new BSUID.
+ * Without `phone`, Meta can't share the new number. */
+export interface WhatsappIdentityChange {
+  previousPhone?: string;
+  previousUserId?: string;
+  phone?: string;
+  userId: string;
+}
+
 export interface WebhookEvents {
   inbound: InboundChatMessage[];
   echoes: EchoedChatMessage[];
+  identityChanges: WhatsappIdentityChange[];
   /** What the delivery carried and nothing stores, described without names,
    * numbers or text: for the log, so a customer's message that didn't get
    * through leaves a trace. */
@@ -72,7 +94,7 @@ function fromUnixMillis(v: unknown): Date {
  * `skipped` says what, except for routine delivery statuses. */
 export function parseWebhook(body: unknown): WebhookEvents {
   const payload = asObject(body);
-  const events: WebhookEvents = { inbound: [], echoes: [], skipped: [] };
+  const events: WebhookEvents = { inbound: [], echoes: [], identityChanges: [], skipped: [] };
   if (payload.object === 'whatsapp_business_account') {
     for (const entry of asArray(payload.entry)) {
       for (const change of asArray(asObject(entry).changes)) {
@@ -91,19 +113,22 @@ export function parseWebhook(body: unknown): WebhookEvents {
 
 function parseWhatsappChange(change: Json, events: WebhookEvents): void {
   const value = asObject(change.value);
+  const contacts = whatsappContacts(value);
   if (change.field === 'messages') {
-    const names = new Map<string, string>();
-    for (const contact of asArray(value.contacts)) {
-      const c = asObject(contact);
-      const name = asString(asObject(c.profile).name);
-      const waId = asString(c.wa_id);
-      if (waId && name) names.set(waId, name);
-    }
     for (const raw of asArray(value.messages)) {
       const message = asObject(raw);
-      const from = asString(message.from);
+      const identityChange = whatsappIdentityChange(message);
+      if (identityChange) {
+        events.identityChanges.push(identityChange);
+        continue;
+      }
+      const customer = whatsappCustomer(
+        asString(message.from),
+        asString(message.from_user_id),
+        contacts,
+      );
       const id = asString(message.id);
-      if (!from || !id) {
+      if (!customer || !id) {
         events.skipped.push(`whatsapp message with only ${Object.keys(message).join(', ')}`);
         continue;
       }
@@ -115,8 +140,8 @@ function parseWhatsappChange(change: Json, events: WebhookEvents): void {
       }
       events.inbound.push({
         channel: 'whatsapp',
-        customerId: from,
-        customerName: names.get(from),
+        ...customer,
+        customerName: contacts.get(customer.customerId)?.name,
         externalId: id,
         at: fromUnixSeconds(message.timestamp),
         ...content,
@@ -131,12 +156,12 @@ function parseWhatsappChange(change: Json, events: WebhookEvents): void {
   } else if (change.field === 'smb_message_echoes') {
     for (const raw of asArray(value.message_echoes)) {
       const echo = asObject(raw);
-      const to = asString(echo.to);
+      const customer = whatsappCustomer(asString(echo.to), asString(echo.to_user_id), contacts);
       const id = asString(echo.id);
-      if (!to || !id) continue;
+      if (!customer || !id) continue;
       events.echoes.push({
         channel: 'whatsapp',
-        customerId: to,
+        ...customer,
         externalId: id,
         at: fromUnixSeconds(echo.timestamp),
         text: whatsappContent(echo)?.text ?? '',
@@ -145,6 +170,58 @@ function parseWhatsappChange(change: Json, events: WebhookEvents): void {
   } else {
     events.skipped.push(`whatsapp ${String(change.field)} change`);
   }
+}
+
+interface WhatsappContact {
+  name?: string;
+  username?: string;
+}
+
+/** The delivery's contacts block, by number and by BSUID. */
+function whatsappContacts(value: Json): Map<string, WhatsappContact> {
+  const contacts = new Map<string, WhatsappContact>();
+  for (const raw of asArray(value.contacts)) {
+    const contact = asObject(raw);
+    const profile = asObject(contact.profile);
+    const details = { name: asString(profile.name), username: asString(profile.username) };
+    for (const id of [asString(contact.wa_id), asString(contact.user_id)]) {
+      if (id) contacts.set(id, details);
+    }
+  }
+  return contacts;
+}
+
+/** Everything a webhook says about a customer, or null when it has neither of
+ * their ids. */
+function whatsappCustomer(
+  phone: string | undefined,
+  userId: string | undefined,
+  contacts: Map<string, WhatsappContact>,
+): (WhatsappCustomer & { customerId: string }) | null {
+  const customerId = phone ?? userId;
+  if (!customerId) return null;
+  return {
+    customerId,
+    customerPhone: phone,
+    customerUserId: userId,
+    customerUsername: contacts.get(customerId)?.username,
+  };
+}
+
+/** Meta reports a new BSUID as a system message, which may have no sender:
+ * user_changed_number when it can share the new number, user_changed_user_id
+ * when it can't. */
+function whatsappIdentityChange(message: Json): WhatsappIdentityChange | null {
+  const system = asObject(message.system);
+  const userId = asString(system.user_id);
+  const changed = system.type === 'user_changed_number' || system.type === 'user_changed_user_id';
+  if (message.type !== 'system' || !changed || !userId) return null;
+  return {
+    previousPhone: asString(message.from),
+    previousUserId: asString(system.previous_user_id),
+    phone: asString(system.wa_id),
+    userId,
+  };
 }
 
 /** The codes and titles of a webhook's errors, never their details: those

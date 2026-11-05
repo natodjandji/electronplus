@@ -9,6 +9,7 @@ import type { ChatMessage, DailyChatUsage } from './entities/chat.entity';
 import { CHAT_HANDOFF_EVENT } from './messaging.events';
 import { MessagingSettingsService } from './messaging-settings.service';
 import { MessagingService, splitPending } from './messaging.service';
+import { ChatChannelsService } from './meta/chat-channels.service';
 import { ChatBusyError } from './reply-queue.service';
 
 const whatsappText = (id: string, body: string, from = '584141234567') => ({
@@ -47,8 +48,48 @@ const whatsappImage = (id: string, mediaId: string) => {
 };
 
 const CONVERSATION = 'whatsapp_584141234567';
+const BSUID = 'VE.13491208655302741918';
+const BSUID_CONVERSATION = `whatsapp_${BSUID}`;
 
-function setup(settings: Record<string, unknown> = { botEnabled: true }) {
+const whatsappChange = (field: string, value: Record<string, unknown>) => ({
+  object: 'whatsapp_business_account',
+  entry: [{ id: 'waba', changes: [{ field, value }] }],
+});
+
+/** The ids of a webhook's customer: every webhook has the BSUID, and the number
+ * can be missing. */
+const fromCustomer = (id: string, ids: { phone?: string; userId?: string }) =>
+  whatsappChange('messages', {
+    contacts: [
+      {
+        profile: { name: 'Ana', username: 'ana.ve' },
+        ...(ids.phone ? { wa_id: ids.phone } : {}),
+        user_id: ids.userId,
+      },
+    ],
+    messages: [
+      {
+        ...(ids.phone ? { from: ids.phone } : {}),
+        from_user_id: ids.userId,
+        id,
+        timestamp: '1760000000',
+        type: 'text',
+        text: { body: 'Hola' },
+      },
+    ],
+  });
+
+const hiddenNumberText = (id: string, userId = BSUID) => fromCustomer(id, { userId });
+
+const numberChange = (system: Record<string, unknown>, from?: string) =>
+  whatsappChange('messages', {
+    messages: [{ ...(from ? { from } : {}), id: 'sys.1', timestamp: '1', type: 'system', system }],
+  });
+
+function setup(
+  settings: Record<string, unknown> = { botEnabled: true },
+  realChannels?: ChatChannelsService,
+) {
   const firestore = new FakeFirestore();
   firestore.seed(Collections.SETTINGS, 'messaging', settings);
   const store = new ChatStoreService(firestore as never);
@@ -99,7 +140,7 @@ function setup(settings: Record<string, unknown> = { botEnabled: true }) {
   const service = new MessagingService(
     store,
     new MessagingSettingsService(firestore as never),
-    channels as never,
+    (realChannels ?? channels) as never,
     agent as never,
     queue as never,
     { activeCatalog: async () => [] } as never,
@@ -110,9 +151,9 @@ function setup(settings: Record<string, unknown> = { botEnabled: true }) {
     events,
     new ChatUsageService(firestore as never),
   );
-  const messages = async () =>
+  const messages = async (conversation = CONVERSATION) =>
     (
-      await firestore.collection(`${Collections.CHAT_CONVERSATIONS}/${CONVERSATION}/messages`).get()
+      await firestore.collection(`${Collections.CHAT_CONVERSATIONS}/${conversation}/messages`).get()
     ).docs.map((d) => ({ id: d.id, ...(d.data() as object) }) as ChatMessage);
   return {
     firestore,
@@ -165,6 +206,16 @@ describe('MessagingService', () => {
     expect(await messages()).toEqual([]);
   });
 
+  it('ignores an alert number whose webhook also has its BSUID', async () => {
+    const { service, scheduled, messages } = setup({
+      botEnabled: true,
+      alertPhones: ['584141234567'],
+    });
+    await service.handleWebhook(fromCustomer('wamid.1', { phone: '584141234567', userId: BSUID }));
+    expect(scheduled).toEqual([]);
+    expect(await messages()).toEqual([]);
+  });
+
   it('deletes a chat with its messages', async () => {
     const { service, firestore, messages } = setup();
     await service.handleWebhook(whatsappText('wamid.1', 'Hola'));
@@ -186,6 +237,7 @@ describe('MessagingService', () => {
     expect(firestore.read(Collections.CHAT_CONVERSATIONS, CONVERSATION)).toEqual({
       channel: 'whatsapp',
       customerId: '584141234567',
+      customerPhone: '584141234567',
       noticesOff: true,
     });
   });
@@ -446,6 +498,245 @@ describe('MessagingService', () => {
     const { service } = setup();
     expect(service.verifySubscription('subscribe', 'tok', '123')).toBe('123');
     expect(service.verifySubscription('subscribe', 'otro', '123')).toBeNull();
+  });
+});
+
+describe('MessagingService — WhatsApp customers without a number', () => {
+  const replyTo = async (
+    { service, firestore }: Pick<ReturnType<typeof setup>, 'service' | 'firestore'>,
+    conversationId: string,
+  ) => {
+    const chat = firestore.read(Collections.CHAT_CONVERSATIONS, conversationId) as {
+      lastInboundId: string;
+    };
+    return service.processReply({ conversationId, triggerId: chat.lastInboundId });
+  };
+
+  it('stores the chat of a customer known only by their BSUID and answers them', async () => {
+    const { service, scheduled, firestore, channels, messages, agentCalls } = setup();
+    expect(await service.handleWebhook(hiddenNumberText('wamid.1'))).toEqual({
+      inbound: 1,
+      echoes: 0,
+    });
+
+    expect(scheduled).toEqual([{ conversationId: BSUID_CONVERSATION, triggerId: 'wamid.1' }]);
+    expect(firestore.read(Collections.CHAT_CONVERSATIONS, BSUID_CONVERSATION)).toEqual(
+      expect.objectContaining({
+        channel: 'whatsapp',
+        customerId: BSUID,
+        customerUserId: BSUID,
+        customerUsername: 'ana.ve',
+        customerName: 'Ana',
+      }),
+    );
+
+    expect(await replyTo({ service, firestore }, BSUID_CONVERSATION)).toBe('replied');
+    expect(agentCalls[0].customerName).toBe('Ana');
+    expect(channels.sendText).toHaveBeenCalledWith('whatsapp', BSUID, '¡Hola! ¿En qué le ayudo?');
+    expect((await messages(BSUID_CONVERSATION)).map((m) => m.author).sort()).toEqual([
+      'bot',
+      'customer',
+    ]);
+  });
+
+  it('reaches Meta with the BSUID in `recipient`, from webhook to reply', async () => {
+    const fetchMock = jest
+      .spyOn(global, 'fetch')
+      .mockImplementation(
+        async () => new Response(JSON.stringify({ messages: [{ id: 'wamid.out' }] })),
+      );
+    try {
+      const channels = new ChatChannelsService({
+        get: (key: string) =>
+          ({
+            META_GRAPH_VERSION: 'v25.0',
+            META_ACCESS_TOKEN: 'token',
+            WHATSAPP_PHONE_NUMBER_ID: '123',
+          })[key],
+      } as never);
+      const { service, firestore, messages } = setup({ botEnabled: true }, channels);
+      await service.handleWebhook(hiddenNumberText('wamid.1'));
+      expect(await replyTo({ service, firestore }, BSUID_CONVERSATION)).toBe('replied');
+
+      const bodies = fetchMock.mock.calls.map(
+        (call) => JSON.parse((call[1] as RequestInit).body as string) as Record<string, unknown>,
+      );
+      const reply = bodies.find((body) => body.type === 'text');
+      expect(reply).toEqual(expect.objectContaining({ recipient: BSUID }));
+      expect(reply).not.toHaveProperty('to');
+      expect((await messages(BSUID_CONVERSATION)).find((m) => m.author === 'bot')?.id).toBe(
+        'wamid.out',
+      );
+    } finally {
+      fetchMock.mockRestore();
+    }
+  });
+
+  it('keeps a number chat where it is, and keeps answering the number', async () => {
+    const { service, firestore, channels } = setup();
+    await service.handleWebhook(fromCustomer('wamid.1', { phone: '584141234567', userId: BSUID }));
+
+    expect(firestore.read(Collections.CHAT_CONVERSATIONS, BSUID_CONVERSATION)).toBeUndefined();
+    expect(firestore.read(Collections.CHAT_CONVERSATIONS, CONVERSATION)).toEqual(
+      expect.objectContaining({
+        customerId: '584141234567',
+        customerPhone: '584141234567',
+        customerUserId: BSUID,
+      }),
+    );
+    await replyTo({ service, firestore }, CONVERSATION);
+    expect(channels.sendText).toHaveBeenCalledWith('whatsapp', '584141234567', expect.any(String));
+  });
+
+  it('answers a chat stored before these ids existed, with only the number in it', async () => {
+    const { service, firestore, channels, messages } = setup();
+    firestore.seed(Collections.CHAT_CONVERSATIONS, CONVERSATION, {
+      channel: 'whatsapp',
+      customerId: '584141234567',
+      customerName: 'Ana',
+      noticesOff: true,
+    });
+    await service.handleWebhook(whatsappText('wamid.1', 'Hola'));
+
+    expect(firestore.read(Collections.CHAT_CONVERSATIONS, CONVERSATION)).toEqual(
+      expect.objectContaining({ customerId: '584141234567', noticesOff: true }),
+    );
+    expect(await messages()).toHaveLength(1);
+    await replyTo({ service, firestore }, CONVERSATION);
+    expect(channels.sendText).toHaveBeenCalledWith('whatsapp', '584141234567', expect.any(String));
+  });
+
+  it('keeps the chat when a customer later hides their number', async () => {
+    const { service, firestore, channels, messages } = setup();
+    await service.handleWebhook(fromCustomer('wamid.1', { phone: '584141234567', userId: BSUID }));
+    await service.handleWebhook(hiddenNumberText('wamid.2'));
+
+    expect(firestore.read(Collections.CHAT_CONVERSATIONS, BSUID_CONVERSATION)).toBeUndefined();
+    expect(firestore.read(Collections.CHAT_CONVERSATIONS, CONVERSATION)).toEqual(
+      expect.objectContaining({ customerId: '584141234567', lastInboundId: 'wamid.2' }),
+    );
+    expect(await messages()).toHaveLength(2);
+    await replyTo({ service, firestore }, CONVERSATION);
+    expect(channels.sendText).toHaveBeenCalledWith('whatsapp', '584141234567', expect.any(String));
+  });
+
+  it('keeps the chat when a customer known by their BSUID shares their number', async () => {
+    const { service, firestore, channels, messages } = setup();
+    await service.handleWebhook(hiddenNumberText('wamid.1'));
+    await service.handleWebhook(fromCustomer('wamid.2', { phone: '584141234567', userId: BSUID }));
+
+    expect(firestore.read(Collections.CHAT_CONVERSATIONS, CONVERSATION)).toBeUndefined();
+    expect(firestore.read(Collections.CHAT_CONVERSATIONS, BSUID_CONVERSATION)).toEqual(
+      expect.objectContaining({ customerId: BSUID, customerPhone: '584141234567' }),
+    );
+    expect(await messages(BSUID_CONVERSATION)).toHaveLength(2);
+    await replyTo({ service, firestore }, BSUID_CONVERSATION);
+    expect(channels.sendText).toHaveBeenCalledWith('whatsapp', '584141234567', expect.any(String));
+  });
+
+  it('stores a Meta retry once for a customer known by their BSUID', async () => {
+    const { service, scheduled } = setup();
+    await service.handleWebhook(hiddenNumberText('wamid.1'));
+    await service.handleWebhook(hiddenNumberText('wamid.1'));
+    expect(scheduled).toHaveLength(1);
+  });
+
+  it('steps back when a person answers a customer whose number is hidden', async () => {
+    const { service, firestore, agent } = setup();
+    await service.handleWebhook(hiddenNumberText('wamid.1'));
+    await service.handleWebhook(
+      whatsappChange('smb_message_echoes', {
+        contacts: [{ profile: { username: 'ana.ve' }, user_id: BSUID }],
+        message_echoes: [
+          {
+            to_user_id: BSUID,
+            id: 'wamid.e',
+            timestamp: '1760000005',
+            type: 'text',
+            text: { body: 'Hola Ana, soy María' },
+          },
+        ],
+      }),
+    );
+
+    expect(firestore.read(Collections.CHAT_CONVERSATIONS, BSUID_CONVERSATION)).toEqual(
+      expect.objectContaining({ customerId: BSUID, pauseReason: 'human_reply' }),
+    );
+    expect(await replyTo({ service, firestore }, BSUID_CONVERSATION)).toBe('paused');
+    expect(agent.reply).not.toHaveBeenCalled();
+  });
+
+  it('files an echo in a number chat when it comes with only the BSUID', async () => {
+    const { service, firestore } = setup();
+    await service.handleWebhook(fromCustomer('wamid.1', { phone: '584141234567', userId: BSUID }));
+    await service.handleWebhook(
+      whatsappChange('smb_message_echoes', {
+        message_echoes: [
+          {
+            to_user_id: BSUID,
+            id: 'wamid.e',
+            timestamp: '1',
+            type: 'text',
+            text: { body: 'Hola' },
+          },
+        ],
+      }),
+    );
+    expect(firestore.read(Collections.CHAT_CONVERSATIONS, BSUID_CONVERSATION)).toBeUndefined();
+    expect(firestore.read(Collections.CHAT_CONVERSATIONS, CONVERSATION)).toEqual(
+      expect.objectContaining({ customerId: '584141234567', pauseReason: 'human_reply' }),
+    );
+  });
+
+  it('follows a customer to their new BSUID when Meta can’t share the number', async () => {
+    const { service, firestore, channels, messages } = setup();
+    await service.handleWebhook(fromCustomer('wamid.1', { phone: '584141234567', userId: BSUID }));
+    await service.handleWebhook(
+      numberChange({
+        user_id: 'VE.222',
+        previous_user_id: BSUID,
+        type: 'user_changed_user_id',
+      }),
+    );
+    await service.handleWebhook(hiddenNumberText('wamid.2', 'VE.222'));
+
+    expect(firestore.read(Collections.CHAT_CONVERSATIONS, 'whatsapp_VE.222')).toBeUndefined();
+    expect(await messages()).toHaveLength(2);
+    await replyTo({ service, firestore }, CONVERSATION);
+    // The old number isn't theirs any more.
+    expect(channels.sendText).toHaveBeenCalledWith('whatsapp', 'VE.222', expect.any(String));
+  });
+
+  it('follows a customer to their new number', async () => {
+    const { service, firestore, channels, messages } = setup();
+    await service.handleWebhook(whatsappText('wamid.1', 'Hola'));
+    await service.handleWebhook(
+      numberChange(
+        {
+          wa_id: '584261234567',
+          user_id: 'VE.222',
+          previous_user_id: BSUID,
+          type: 'user_changed_number',
+        },
+        '584141234567',
+      ),
+    );
+    await service.handleWebhook(
+      fromCustomer('wamid.2', { phone: '584261234567', userId: 'VE.222' }),
+    );
+
+    expect(firestore.read(Collections.CHAT_CONVERSATIONS, 'whatsapp_584261234567')).toBeUndefined();
+    expect(await messages()).toHaveLength(2);
+    await replyTo({ service, firestore }, CONVERSATION);
+    expect(channels.sendText).toHaveBeenCalledWith('whatsapp', '584261234567', expect.any(String));
+  });
+
+  it('ignores a change of number from someone who has no chat', async () => {
+    const { service, firestore } = setup();
+    await service.handleWebhook(
+      numberChange({ user_id: 'VE.222', previous_user_id: 'VE.111', type: 'user_changed_user_id' }),
+    );
+    expect(firestore.read(Collections.CHAT_CONVERSATIONS, 'whatsapp_VE.222')).toBeUndefined();
   });
 });
 

@@ -1,5 +1,60 @@
 import { describe, expect, it } from "vitest";
-import { formatAlertPhones, parseAlertPhones } from "./conversations";
+import {
+  customerDetail,
+  customerLabel,
+  formatAlertPhones,
+  parseAlertPhones,
+  whatsappPhone,
+} from "./conversations";
+
+const BSUID = "VE.13491208655302741918";
+const whatsapp = { channel: "whatsapp" as const, customerId: "584141610929" };
+const hidden = { channel: "whatsapp" as const, customerId: BSUID };
+
+describe("whatsappPhone", () => {
+  it("reads the number from the id of a chat older than customerPhone", () => {
+    expect(whatsappPhone(whatsapp)).toBe("584141610929");
+  });
+
+  it("never takes a BSUID for a number", () => {
+    expect(whatsappPhone(hidden)).toBeNull();
+  });
+
+  it("prefers the number the chat learned, and respects a number that's gone", () => {
+    expect(whatsappPhone({ ...hidden, customerPhone: "584141610929" })).toBe("584141610929");
+    expect(whatsappPhone({ ...whatsapp, customerPhone: null })).toBeNull();
+  });
+
+  it("has none for Instagram", () => {
+    expect(whatsappPhone({ channel: "instagram", customerId: "12345" })).toBeNull();
+  });
+});
+
+describe("customerLabel and customerDetail", () => {
+  it("show the name, with the number and username under it", () => {
+    const c = { ...whatsapp, customerName: "Ana", customerUsername: "ana.ve" };
+    expect(customerLabel(c)).toBe("Ana");
+    expect(customerDetail(c)).toBe("+584141610929 · @ana.ve");
+  });
+
+  it("show the number of a chat with no name", () => {
+    expect(customerLabel(whatsapp)).toBe("+584141610929");
+    expect(customerDetail(whatsapp)).toBe("");
+  });
+
+  it("never show a BSUID", () => {
+    expect(customerLabel({ ...hidden, customerUsername: "ana.ve" })).toBe("@ana.ve");
+    expect(customerDetail({ ...hidden, customerUsername: "ana.ve" })).toBe("");
+    expect(customerLabel(hidden)).toBe("Cliente de WhatsApp");
+    expect(customerDetail({ ...hidden, customerName: "Ana" })).toBe("");
+  });
+
+  it("keep Instagram as it was", () => {
+    const c = { channel: "instagram" as const, customerId: "12345" };
+    expect(customerLabel(c)).toBe("Cliente de Instagram");
+    expect(customerDetail(c)).toBe("");
+  });
+});
 
 describe("parseAlertPhones", () => {
   it("reads numbers written with +, spaces and dashes", () => {

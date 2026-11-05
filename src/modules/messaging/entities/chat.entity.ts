@@ -10,9 +10,20 @@ export type ChatPauseReason = 'human_reply' | 'handoff' | 'manual';
 /** One customer on one channel. Doc id: `${channel}_${customerId}`. */
 export interface ChatConversation extends FirestoreDoc {
   channel: ChatChannel;
-  /** WhatsApp: the customer's wa_id (their number). Instagram: the IGSID. */
+  /** WhatsApp: the customer's number, or their BSUID when the message that
+   * opened the chat had no number. Instagram: the IGSID. Part of the doc id,
+   * so it never changes: to write to the customer, use replyAddress(). */
   customerId: string;
   customerName?: string | null;
+  /** WhatsApp: the number, once a webhook gave it (chats older than this field
+   * have it only in customerId). Null when the customer changed number and
+   * Meta can't share the new one. */
+  customerPhone?: string | null;
+  /** WhatsApp: the BSUID, which stays with the customer if they later hide
+   * their number. Set together with customerPhone when a webhook has both. */
+  customerUserId?: string | null;
+  /** WhatsApp: the username, for a customer who has one. */
+  customerUsername?: string | null;
   lastMessageAt: Date;
   lastMessagePreview: string;
   lastInboundAt?: Date;
@@ -166,4 +177,13 @@ export const DEFAULT_MESSAGING_SETTINGS: MessagingSettings = {
 
 export function conversationId(channel: ChatChannel, customerId: string): string {
   return `${channel}_${customerId}`;
+}
+
+/** Where messages to this customer go. The number comes first when there is
+ * one: Meta keeps sharing a number for 30 days after we write to it, and not
+ * after we write to the BSUID. */
+export function replyAddress(
+  conversation: Pick<ChatConversation, 'customerId' | 'customerPhone' | 'customerUserId'>,
+): string {
+  return conversation.customerPhone ?? conversation.customerUserId ?? conversation.customerId;
 }

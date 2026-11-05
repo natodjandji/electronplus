@@ -22,6 +22,8 @@ const INSTAGRAM_CARD_TEXT_LIMIT = 80;
 const INSTAGRAM_CAROUSEL_LIMIT = 10;
 const CARD_BUTTON = 'Ver producto';
 const IMAGE_TYPES = new Set(['image/jpeg', 'image/png', 'image/webp', 'image/gif']);
+/** A BSUID starts with the customer's country ("VE.1349…"); a number is digits. */
+const BSUID = /^[A-Z]{2}\./;
 /** System-user Page tokens don't expire; re-read now and then anyway in case
  * one is revoked and reissued. */
 const PAGE_TOKEN_TTL_MS = 60 * 60 * 1000;
@@ -209,6 +211,7 @@ export class ChatChannelsService {
     return this.config.get('INSTAGRAM_PAGE_ID', { infer: true }) ?? '';
   }
 
+  /** `to` is a number or a BSUID: Meta takes each in its own field. */
   private async whatsappSend(
     to: string,
     message: Record<string, unknown>,
@@ -217,7 +220,14 @@ export class ChatChannelsService {
       this.version,
       `${this.phoneNumberId()}/messages`,
       this.token,
-      { body: { messaging_product: 'whatsapp', recipient_type: 'individual', to, ...message } },
+      {
+        body: {
+          messaging_product: 'whatsapp',
+          recipient_type: 'individual',
+          ...(BSUID.test(to) ? { recipient: to } : { to }),
+          ...message,
+        },
+      },
     );
     return res.messages?.[0]?.id;
   }

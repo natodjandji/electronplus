@@ -6,6 +6,8 @@ const whatsapp = (field: string, value: Record<string, unknown>) => ({
   entry: [{ id: 'waba', changes: [{ field, value: { messaging_product: 'whatsapp', ...value } }] }],
 });
 
+const NOTHING = { inbound: [], echoes: [], identityChanges: [], skipped: [] };
+
 describe('isValidMetaSignature', () => {
   const body = Buffer.from('{"object":"instagram"}');
   const sign = (secret: string) =>
@@ -44,6 +46,7 @@ describe('parseWebhook — WhatsApp', () => {
       {
         channel: 'whatsapp',
         customerId: '584141234567',
+        customerPhone: '584141234567',
         customerName: 'Ana',
         externalId: 'wamid.1',
         at: new Date(1760000000 * 1000),
@@ -153,11 +156,179 @@ describe('parseWebhook — WhatsApp', () => {
       {
         channel: 'whatsapp',
         customerId: '584141234567',
+        customerPhone: '584141234567',
         externalId: 'wamid.e',
         at: new Date(5000),
         text: 'Ya le atiendo',
       },
     ]);
+  });
+});
+
+describe('parseWebhook — WhatsApp usernames', () => {
+  const BSUID = 'US.13491208655302741918';
+
+  it('reads a customer who has a username and no number, as in Meta’s example', () => {
+    const { inbound, skipped } = parseWebhook(
+      whatsapp('messages', {
+        metadata: { display_phone_number: '15550783881', phone_number_id: '106540352242922' },
+        contacts: [
+          {
+            profile: { name: 'Sheena Nelson', username: 'realsheenanelson' },
+            user_id: BSUID,
+            parent_user_id: 'US.ENT.11815799212886844830',
+          },
+        ],
+        messages: [
+          {
+            from_user_id: BSUID,
+            from_parent_user_id: 'US.ENT.11815799212886844830',
+            id: 'wamid.u',
+            timestamp: '1749416383',
+            type: 'text',
+            text: { body: 'Does it come in another color?' },
+          },
+        ],
+      }),
+    );
+    expect(skipped).toEqual([]);
+    expect(inbound).toEqual([
+      {
+        channel: 'whatsapp',
+        customerId: BSUID,
+        customerUserId: BSUID,
+        customerName: 'Sheena Nelson',
+        customerUsername: 'realsheenanelson',
+        externalId: 'wamid.u',
+        at: new Date(1749416383 * 1000),
+        kind: 'text',
+        text: 'Does it come in another color?',
+      },
+    ]);
+  });
+
+  it('files a customer under their number when the webhook has both ids', () => {
+    const { inbound } = parseWebhook(
+      whatsapp('messages', {
+        contacts: [
+          {
+            profile: { name: 'Ana', username: 'ana.ve' },
+            wa_id: '584141234567',
+            user_id: BSUID,
+          },
+        ],
+        messages: [
+          {
+            from: '584141234567',
+            from_user_id: BSUID,
+            id: 'w1',
+            timestamp: '1',
+            type: 'text',
+            text: { body: 'Hola' },
+          },
+        ],
+      }),
+    );
+    expect(inbound[0]).toEqual(
+      expect.objectContaining({
+        customerId: '584141234567',
+        customerPhone: '584141234567',
+        customerUserId: BSUID,
+        customerName: 'Ana',
+        customerUsername: 'ana.ve',
+      }),
+    );
+  });
+
+  it('reads an echo to a customer whose number is hidden', () => {
+    const { echoes } = parseWebhook(
+      whatsapp('smb_message_echoes', {
+        contacts: [{ profile: { username: 'ana.ve' }, user_id: BSUID }],
+        message_echoes: [
+          {
+            from: '584245555990',
+            to_user_id: BSUID,
+            id: 'wamid.e',
+            timestamp: '5',
+            type: 'text',
+            text: { body: 'Ya le atiendo' },
+          },
+        ],
+      }),
+    );
+    expect(echoes).toEqual([
+      {
+        channel: 'whatsapp',
+        customerId: BSUID,
+        customerUserId: BSUID,
+        customerUsername: 'ana.ve',
+        externalId: 'wamid.e',
+        at: new Date(5000),
+        text: 'Ya le atiendo',
+      },
+    ]);
+  });
+
+  it('reads a change of number, with and without the new number', () => {
+    const { identityChanges, inbound, skipped } = parseWebhook(
+      whatsapp('messages', {
+        messages: [
+          {
+            from: '584141234567',
+            id: 's1',
+            timestamp: '1',
+            type: 'system',
+            system: {
+              body: 'User A changed from 584141234567 to 584261234567',
+              wa_id: '584261234567',
+              user_id: 'VE.222',
+              previous_user_id: 'VE.111',
+              type: 'user_changed_number',
+            },
+          },
+          {
+            id: 's2',
+            timestamp: '2',
+            type: 'system',
+            system: {
+              body: 'User changed from VE.333 to VE.444',
+              user_id: 'VE.444',
+              previous_user_id: 'VE.333',
+              type: 'user_changed_user_id',
+            },
+          },
+        ],
+      }),
+    );
+    expect(inbound).toEqual([]);
+    expect(skipped).toEqual([]);
+    expect(identityChanges).toEqual([
+      {
+        previousPhone: '584141234567',
+        previousUserId: 'VE.111',
+        phone: '584261234567',
+        userId: 'VE.222',
+      },
+      { previousUserId: 'VE.333', userId: 'VE.444' },
+    ]);
+  });
+
+  it('still names a system message it has no use for', () => {
+    const { identityChanges, skipped } = parseWebhook(
+      whatsapp('messages', {
+        messages: [
+          {
+            from: '584141234567',
+            id: 's1',
+            timestamp: '1',
+            type: 'system',
+            system: { type: 'customer_identity_changed' },
+          },
+        ],
+      }),
+    );
+    expect(identityChanges).toEqual([]);
+    expect(skipped).toEqual(['whatsapp system message']);
   });
 });
 
@@ -234,12 +405,8 @@ describe('parseWebhook — Instagram', () => {
           { sender: { id: 'x' }, recipient: { id: 'ig' }, message: { mid: 'm', is_deleted: true } },
         ]),
       ),
-    ).toEqual({ inbound: [], echoes: [], skipped: [] });
-    expect(parseWebhook({ object: 'page', entry: [] })).toEqual({
-      inbound: [],
-      echoes: [],
-      skipped: [],
-    });
-    expect(parseWebhook(null)).toEqual({ inbound: [], echoes: [], skipped: [] });
+    ).toEqual(NOTHING);
+    expect(parseWebhook({ object: 'page', entry: [] })).toEqual(NOTHING);
+    expect(parseWebhook(null)).toEqual(NOTHING);
   });
 });

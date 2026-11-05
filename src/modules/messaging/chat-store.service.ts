@@ -13,7 +13,12 @@ import {
   type ChatPauseReason,
   type ChatProductCard,
 } from './entities/chat.entity';
-import type { EchoedChatMessage, InboundChatMessage } from './meta/webhook-events';
+import type {
+  EchoedChatMessage,
+  InboundChatMessage,
+  WhatsappCustomer,
+  WhatsappIdentityChange,
+} from './meta/webhook-events';
 
 /** How much of a chat the assistant reads back each time. */
 const HISTORY_LIMIT = 40;
@@ -35,6 +40,18 @@ export interface OutboundChatMessage {
  * path separator. */
 export function messageDocId(externalId: string): string {
   return externalId.replace(/\//g, '_');
+}
+
+/** The ids a chat keeps for its customer, leaving out what's unknown so a
+ * merge doesn't erase what the chat already has. */
+function customerIds(
+  customer: Pick<ChatConversation, 'customerPhone' | 'customerUserId' | 'customerUsername'>,
+) {
+  return {
+    ...(customer.customerPhone ? { customerPhone: customer.customerPhone } : {}),
+    ...(customer.customerUserId ? { customerUserId: customer.customerUserId } : {}),
+    ...(customer.customerUsername ? { customerUsername: customer.customerUsername } : {}),
+  };
 }
 
 function toDate(value: unknown): Date | null {
@@ -71,12 +88,62 @@ export class ChatStoreService {
     return this.conversations.findById(id);
   }
 
+  /** A WhatsApp customer's chat, under whichever id it was opened. The BSUID
+   * goes first: it's what still finds the chat once they hide their number. */
+  async findWhatsappChat(customer: {
+    phone?: string;
+    userId?: string;
+  }): Promise<ChatConversation | null> {
+    const { phone, userId } = customer;
+    if (userId) {
+      const chat = await this.conversations.findOne([
+        { field: 'customerUserId', op: '==', value: userId },
+      ]);
+      if (chat) return chat;
+    }
+    if (!phone) return null;
+    return (
+      (await this.conversations.findOne([{ field: 'customerPhone', op: '==', value: phone }])) ??
+      // Older chats have the number only in their id.
+      (await this.conversations.findById(conversationId('whatsapp', phone)))
+    );
+  }
+
+  /** The chat a message belongs in: the customer's, or the one it opens. */
+  private async chatFor(
+    message: Pick<InboundChatMessage, 'channel' | 'customerId'> & WhatsappCustomer,
+  ): Promise<{ id: string; customerId: string }> {
+    const chat =
+      message.channel === 'whatsapp'
+        ? await this.findWhatsappChat({
+            phone: message.customerPhone,
+            userId: message.customerUserId,
+          })
+        : null;
+    const customerId = chat?.customerId ?? message.customerId;
+    return { id: conversationId(message.channel, customerId), customerId };
+  }
+
+  /** The customer's new ids, on the chat that has the old ones, so their next
+   * message lands there and replies reach them. */
+  async recordIdentityChange(change: WhatsappIdentityChange): Promise<void> {
+    const chat = await this.findWhatsappChat({
+      phone: change.previousPhone,
+      userId: change.previousUserId,
+    });
+    if (!chat) return;
+    await this.conversations.patch(chat.id, {
+      customerPhone: change.phone ?? null,
+      customerUserId: change.userId,
+    });
+  }
+
   /** Stores a customer message. False when Meta delivered it before (its
    * webhooks retry), so nothing downstream runs twice. */
   async recordInbound(
     message: InboundChatMessage,
   ): Promise<{ conversationId: string; isNew: boolean }> {
-    const id = conversationId(message.channel, message.customerId);
+    const { id, customerId } = await this.chatFor(message);
     const at = this.nextTime();
     try {
       await this.messages(id)
@@ -97,7 +164,8 @@ export class ChatStoreService {
     await this.conversations.doc(id).set(
       {
         channel: message.channel,
-        customerId: message.customerId,
+        customerId,
+        ...customerIds(message),
         ...(message.customerName ? { customerName: message.customerName } : {}),
         lastMessageAt: at,
         lastMessagePreview: preview(message.text, message.kind),
@@ -114,7 +182,7 @@ export class ChatStoreService {
    * person's, and the assistant steps back for `pauseHours`. Our own sends
    * are recognized and skipped. Returns whether it paused the chat. */
   async recordHumanEcho(echo: EchoedChatMessage, pauseHours: number): Promise<boolean> {
-    const id = conversationId(echo.channel, echo.customerId);
+    const { id, customerId } = await this.chatFor(echo);
     const ref = this.messages(id).doc(messageDocId(echo.externalId));
     if ((await ref.get()).exists) return false;
     const at = this.nextTime();
@@ -129,7 +197,8 @@ export class ChatStoreService {
     await this.conversations.doc(id).set(
       {
         channel: echo.channel,
-        customerId: echo.customerId,
+        customerId,
+        ...customerIds(echo),
         lastMessageAt: at,
         lastMessagePreview: preview(echo.text, 'text'),
         botPausedUntil: new Date(Date.now() + pauseHours * 60 * 60 * 1000),
@@ -170,12 +239,12 @@ export class ChatStoreService {
     text: string;
     externalId?: string;
   }): Promise<void> {
-    const id = conversationId(notice.channel, notice.customerId);
+    const { id, customerId } = await this.chatFor({ ...notice, customerPhone: notice.customerId });
     const existing = await this.conversations.findById(id);
     await this.conversations.doc(id).set(
       {
         channel: notice.channel,
-        customerId: notice.customerId,
+        customerId,
         // The name WhatsApp gives once they write wins over the order's.
         ...(!existing?.customerName && notice.customerName
           ? { customerName: notice.customerName }
@@ -237,9 +306,9 @@ export class ChatStoreService {
   }
 
   /** Removes the chat and its messages from the panel. A customer who asked
-   * not to get order updates keeps that: the chat's doc stays with only it,
-   * which leaves it out of the list (ordered by lastMessageAt) until they
-   * write again. */
+   * not to get order updates keeps that: the chat's doc stays with only it
+   * and their ids, which leaves it out of the list (ordered by lastMessageAt)
+   * until they write again. */
   async deleteConversation(id: string): Promise<void> {
     const messages = this.messages(id);
     for (;;) {
@@ -254,6 +323,7 @@ export class ChatStoreService {
       await this.conversations.doc(id).set({
         channel: conversation.channel,
         customerId: conversation.customerId,
+        ...customerIds(conversation),
         noticesOff: true,
       });
     } else {

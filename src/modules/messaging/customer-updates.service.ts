@@ -17,7 +17,6 @@ import {
 } from '../quotes/quotes.service';
 import { UsersService } from '../users/users.service';
 import { ChatStoreService } from './chat-store.service';
-import { conversationId } from './entities/chat.entity';
 import { MessagingSettingsService } from './messaging-settings.service';
 import { ChatChannelsService, templateParam } from './meta/chat-channels.service';
 import {
@@ -115,7 +114,7 @@ export class CustomerUpdatesService {
     message: { body: string[]; button?: string; customerName?: string },
   ): Promise<void> {
     // They asked in the chat to stop getting these.
-    if ((await this.store.findConversation(conversationId('whatsapp', to)))?.noticesOff) return;
+    if ((await this.store.findWhatsappChat({ phone: to }))?.noticesOff) return;
     const body = message.body.map((p) => templateParam(p, PARAM_LIMIT));
     const externalId = await this.channels.sendTemplate(to, template.name, {
       body,

@@ -64,6 +64,42 @@ function setup(
 }
 
 describe('CustomerUpdatesService', () => {
+  describe('a customer whose chat was opened by their BSUID', () => {
+    const BSUID_CHAT = 'whatsapp_VE.13491208655302741918';
+    const seedChat = (firestore: FakeFirestore, chat: Record<string, unknown> = {}) =>
+      firestore.seed(Collections.CHAT_CONVERSATIONS, BSUID_CHAT, {
+        channel: 'whatsapp',
+        customerId: 'VE.13491208655302741918',
+        customerUserId: 'VE.13491208655302741918',
+        customerPhone: CUSTOMER,
+        customerName: 'Ana',
+        ...chat,
+      });
+
+    it('files the update in that chat instead of opening another', async () => {
+      const { service, sent, firestore, chatMessages } = setup();
+      seedChat(firestore);
+      await service.handleOrderCreated({ orderId: 'a1b2c3d4e5f6' });
+
+      expect(sent.map((m) => m.to)).toEqual([CUSTOMER]);
+      expect(firestore.read(Collections.CHAT_CONVERSATIONS, CHAT)).toBeUndefined();
+      expect(await chatMessages()).toEqual([]);
+      expect(firestore.read(Collections.CHAT_CONVERSATIONS, BSUID_CHAT)).toEqual(
+        expect.objectContaining({
+          customerId: 'VE.13491208655302741918',
+          lastMessagePreview: expect.stringContaining('Ana') as string,
+        }),
+      );
+    });
+
+    it('respects a "no updates" set on that chat', async () => {
+      const { service, sent, firestore } = setup();
+      seedChat(firestore, { noticesOff: true });
+      await service.handleOrderCreated({ orderId: 'a1b2c3d4e5f6' });
+      expect(sent).toEqual([]);
+    });
+  });
+
   it('confirms a new order on WhatsApp and keeps it in the customer’s chat', async () => {
     const { service, sent, chatMessages, firestore } = setup();
     await service.handleOrderCreated({ orderId: 'a1b2c3d4e5f6' });

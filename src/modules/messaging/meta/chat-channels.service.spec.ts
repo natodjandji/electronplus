@@ -1,4 +1,66 @@
-import { splitText, stripWhatsappFormatting, templateParam } from './chat-channels.service';
+import {
+  ChatChannelsService,
+  splitText,
+  stripWhatsappFormatting,
+  templateParam,
+} from './chat-channels.service';
+
+describe('ChatChannelsService — WhatsApp recipients', () => {
+  const service = new ChatChannelsService({
+    get: (key: string) =>
+      ({
+        META_GRAPH_VERSION: 'v25.0',
+        META_ACCESS_TOKEN: 'token',
+        WHATSAPP_PHONE_NUMBER_ID: '123',
+      })[key],
+  } as never);
+  let fetchMock: jest.SpyInstance;
+  const sentBody = () => JSON.parse(fetchMock.mock.calls[0][1].body as string) as object;
+
+  beforeEach(() => {
+    fetchMock = jest
+      .spyOn(global, 'fetch')
+      .mockImplementation(
+        async () => new Response(JSON.stringify({ messages: [{ id: 'wamid.out' }] })),
+      );
+  });
+  afterEach(() => fetchMock.mockRestore());
+
+  it('sends to a number in `to`', async () => {
+    expect(await service.sendText('whatsapp', '584141234567', 'Hola')).toEqual(['wamid.out']);
+    expect(fetchMock.mock.calls[0][0]).toBe('https://graph.facebook.com/v25.0/123/messages');
+    expect(sentBody()).toEqual({
+      messaging_product: 'whatsapp',
+      recipient_type: 'individual',
+      to: '584141234567',
+      type: 'text',
+      text: { body: 'Hola', preview_url: true },
+    });
+  });
+
+  it('sends to a BSUID in `recipient`, without `to`', async () => {
+    expect(await service.sendText('whatsapp', 'VE.13491208655302741918', 'Hola')).toEqual([
+      'wamid.out',
+    ]);
+    expect(sentBody()).toEqual({
+      messaging_product: 'whatsapp',
+      recipient_type: 'individual',
+      recipient: 'VE.13491208655302741918',
+      type: 'text',
+      text: { body: 'Hola', preview_url: true },
+    });
+  });
+
+  it('sends product cards to a BSUID too', async () => {
+    await service.sendProducts('whatsapp', 'VE.13491208655302741918', [
+      { title: 'Bombillo', details: 'Ref. 2', url: 'https://x/p' },
+    ]);
+    expect(sentBody()).toEqual(
+      expect.objectContaining({ recipient: 'VE.13491208655302741918', type: 'interactive' }),
+    );
+    expect(sentBody()).not.toHaveProperty('to');
+  });
+});
 
 describe('splitText', () => {
   it('keeps a short text whole', () => {

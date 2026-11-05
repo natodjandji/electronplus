@@ -5,8 +5,12 @@ export type ChatEffort = "low" | "medium" | "high";
 export interface ChatConversation {
   id: string;
   channel: ChatChannel;
+  /** WhatsApp: a number or, for a customer who hides theirs, a BSUID, which
+   * means nothing to a person. Use whatsappPhone() to show or link it. */
   customerId: string;
   customerName?: string | null;
+  customerPhone?: string | null;
+  customerUsername?: string | null;
   lastMessageAt: string;
   lastMessagePreview: string;
   botPausedUntil?: string | null;
@@ -99,16 +103,40 @@ export function isPaused(c: Pick<ChatConversation, "botPausedUntil">, now = Date
   return Boolean(c.botPausedUntil && new Date(c.botPausedUntil).getTime() > now);
 }
 
-export function customerLabel(
-  c: Pick<ChatConversation, "channel" | "customerId" | "customerName">,
-) {
+type CustomerNames = Pick<
+  ChatConversation,
+  "channel" | "customerId" | "customerName" | "customerPhone" | "customerUsername"
+>;
+
+/** The customer's WhatsApp number, if we have it: someone with a username can
+ * write to us without sharing it. Older chats have it only in customerId. */
+export function whatsappPhone(
+  c: Pick<ChatConversation, "channel" | "customerId" | "customerPhone">,
+): string | null {
+  if (c.channel !== "whatsapp") return null;
+  if (c.customerPhone !== undefined) return c.customerPhone;
+  return /^\d+$/.test(c.customerId) ? c.customerId : null;
+}
+
+export function customerLabel(c: CustomerNames) {
   if (c.customerName) return c.customerName;
-  return c.channel === "whatsapp" ? `+${c.customerId}` : "Cliente de Instagram";
+  if (c.channel === "instagram") return "Cliente de Instagram";
+  const phone = whatsappPhone(c);
+  if (phone) return `+${phone}`;
+  return c.customerUsername ? `@${c.customerUsername}` : "Cliente de WhatsApp";
+}
+
+/** What else identifies the customer, beside customerLabel(). */
+export function customerDetail(c: CustomerNames): string {
+  const phone = whatsappPhone(c);
+  return [phone && `+${phone}`, c.customerUsername && `@${c.customerUsername}`]
+    .filter((text) => text && text !== customerLabel(c))
+    .join(" · ");
 }
 
 /** Opens the chat in WhatsApp (the business app on the phone or WhatsApp Web). */
-export function whatsappChatHref(customerId: string): string {
-  return `https://wa.me/${customerId.replace(/\D/g, "")}`;
+export function whatsappChatHref(phone: string): string {
+  return `https://wa.me/${phone.replace(/\D/g, "")}`;
 }
 
 /** The alert numbers as typed: comma or line separated, with or without
