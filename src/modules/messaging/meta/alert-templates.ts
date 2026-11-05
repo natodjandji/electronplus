@@ -66,9 +66,9 @@ export const EXPENSE_OVERDUE: WhatsappTemplate = {
 };
 
 export const REVIEW_NEW: WhatsappTemplate = {
-  name: 'alerta_resena_nueva',
-  body: '*Reseña nueva*\n{{1}}\n{{2}} calificó la atención con {{3}} de 5 estrellas.',
-  example: ['"Muy buena atención" · Atendió Pedro', 'Luis (0412-5550000)', '4'],
+  name: 'alerta_resena_registrada',
+  body: '*Reseña nueva*\n{{1}}\nEl formulario de reseñas de tu tienda registró la calificación de {{2}} con {{3}} de 5 estrellas.',
+  example: ['Sin comentario · Atendió Pedro', 'Luis (0412-5550000)', '4'],
   button: panel('Ver reseñas', 'reviews'),
 };
 
@@ -80,9 +80,9 @@ export const REVIEW_TO_HANDLE: WhatsappTemplate = {
 };
 
 export const CUSTOMER_WAITING: WhatsappTemplate = {
-  name: 'alerta_cliente_esperando',
-  body: '*Cliente esperando*\n{{1}}: {{2}}\nEscribió por {{3}} y espera a un asesor.',
-  example: ['María', 'Quiere pagar en efectivo al retirar', 'WhatsApp'],
+  name: 'alerta_chat_por_atender',
+  body: '*Cliente esperando*\nEl chat de tu tienda registró una solicitud de {{1}}: {{2}}\nLlegó por {{3}} y espera respuesta de un asesor.',
+  example: ['María', 'Pidió hablar con una persona', 'WhatsApp'],
   button: panel('Ver conversaciones', 'conversations'),
 };
 

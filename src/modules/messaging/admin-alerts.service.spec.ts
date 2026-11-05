@@ -173,7 +173,7 @@ describe('AdminAlertsService', () => {
         body: ['"Me atendieron tarde"', 'Luis (0412-5550000)', '1'],
       },
       {
-        name: 'alerta_cliente_esperando',
+        name: 'alerta_chat_por_atender',
         body: ['María', 'Quiere pagar en efectivo al retirar', 'WhatsApp'],
       },
     ]);
