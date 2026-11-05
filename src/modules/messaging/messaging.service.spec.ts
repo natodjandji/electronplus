@@ -330,6 +330,43 @@ describe('MessagingService', () => {
     expect(firestore.read(Collections.CHAT_CONVERSATIONS, 'instagram_igsid')).toBeUndefined();
   });
 
+  it('takes an unsent Instagram message out of the chat, before the assistant reads it', async () => {
+    const { service, firestore, agent } = setup({ botEnabled: true });
+    const instagramEvent = (message: Record<string, unknown>) => ({
+      object: 'instagram',
+      entry: [
+        {
+          messaging: [
+            { sender: { id: 'igsid' }, recipient: { id: 'ig' }, timestamp: 1000, message },
+          ],
+        },
+      ],
+    });
+    const stored = async () =>
+      (
+        await firestore
+          .collection(`${Collections.CHAT_CONVERSATIONS}/instagram_igsid/messages`)
+          .get()
+      ).docs.map((d) => d.id);
+
+    await service.handleWebhook(instagramEvent({ mid: 'm1', text: 'Hola' }));
+    await service.handleWebhook(instagramEvent({ mid: 'm2', text: 'Mi clave es 1234' }));
+    expect(await stored()).toEqual(['m1', 'm2']);
+
+    await service.handleWebhook(instagramEvent({ mid: 'm2', is_deleted: true }));
+    expect(await stored()).toEqual(['m1']);
+    const chat = firestore.read(Collections.CHAT_CONVERSATIONS, 'instagram_igsid') as Record<
+      string,
+      unknown
+    >;
+    expect(chat.lastMessagePreview).toBe('Hola');
+
+    // One Meta never told us about, or that was already gone, changes nothing.
+    await service.handleWebhook(instagramEvent({ mid: 'm2', is_deleted: true }));
+    expect(await stored()).toEqual(['m1']);
+    expect(agent.reply).not.toHaveBeenCalled();
+  });
+
   it('keeps answering when an Instagram echo of its reply arrives before the send returns', async () => {
     const { service, firestore } = setup();
     const echo = (mid: string) => ({

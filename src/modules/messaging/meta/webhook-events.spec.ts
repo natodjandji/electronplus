@@ -6,7 +6,7 @@ const whatsapp = (field: string, value: Record<string, unknown>) => ({
   entry: [{ id: 'waba', changes: [{ field, value: { messaging_product: 'whatsapp', ...value } }] }],
 });
 
-const NOTHING = { inbound: [], echoes: [], identityChanges: [], skipped: [] };
+const NOTHING = { inbound: [], echoes: [], unsent: [], identityChanges: [], skipped: [] };
 
 describe('isValidMetaSignature', () => {
   const body = Buffer.from('{"object":"instagram"}');
@@ -398,14 +398,26 @@ describe('parseWebhook — Instagram', () => {
     ]);
   });
 
-  it('ignores deleted messages and payloads from other products', () => {
-    expect(
-      parseWebhook(
-        instagram([
-          { sender: { id: 'x' }, recipient: { id: 'ig' }, message: { mid: 'm', is_deleted: true } },
-        ]),
-      ),
-    ).toEqual(NOTHING);
+  it('reads an unsent message, from the customer or from the store', () => {
+    const { inbound, echoes, unsent } = parseWebhook(
+      instagram([
+        { sender: { id: 'x' }, recipient: { id: 'ig' }, message: { mid: 'm', is_deleted: true } },
+        {
+          sender: { id: 'ig' },
+          recipient: { id: 'x' },
+          message: { mid: 'e', is_deleted: true, is_echo: true },
+        },
+      ]),
+    );
+    expect(inbound).toEqual([]);
+    expect(echoes).toEqual([]);
+    expect(unsent).toEqual([
+      { channel: 'instagram', customerId: 'x', externalId: 'm' },
+      { channel: 'instagram', customerId: 'x', externalId: 'e' },
+    ]);
+  });
+
+  it('ignores payloads from other products', () => {
     expect(parseWebhook({ object: 'page', entry: [] })).toEqual(NOTHING);
     expect(parseWebhook(null)).toEqual(NOTHING);
   });

@@ -37,6 +37,13 @@ export interface EchoedChatMessage extends WhatsappCustomer {
   appId?: string;
 }
 
+/** A message taken back on Instagram after it was sent. */
+export interface UnsentChatMessage {
+  channel: ChatChannel;
+  customerId: string;
+  externalId: string;
+}
+
 /** A WhatsApp customer changed number, which also gives them a new BSUID.
  * Without `phone`, Meta can't share the new number. */
 export interface WhatsappIdentityChange {
@@ -49,6 +56,7 @@ export interface WhatsappIdentityChange {
 export interface WebhookEvents {
   inbound: InboundChatMessage[];
   echoes: EchoedChatMessage[];
+  unsent: UnsentChatMessage[];
   identityChanges: WhatsappIdentityChange[];
   /** What the delivery carried and nothing stores, described without names,
    * numbers or text: for the log, so a customer's message that didn't get
@@ -94,7 +102,13 @@ function fromUnixMillis(v: unknown): Date {
  * `skipped` says what, except for routine delivery statuses. */
 export function parseWebhook(body: unknown): WebhookEvents {
   const payload = asObject(body);
-  const events: WebhookEvents = { inbound: [], echoes: [], identityChanges: [], skipped: [] };
+  const events: WebhookEvents = {
+    inbound: [],
+    echoes: [],
+    unsent: [],
+    identityChanges: [],
+    skipped: [],
+  };
   if (payload.object === 'whatsapp_business_account') {
     for (const entry of asArray(payload.entry)) {
       for (const change of asArray(asObject(entry).changes)) {
@@ -292,9 +306,14 @@ function joined(label: string, caption: string): string {
 function parseInstagramEvent(event: Json, events: WebhookEvents): void {
   const message = asObject(event.message);
   const mid = asString(message.mid);
-  if (!mid || message.is_deleted || message.is_unsupported) return;
+  if (!mid || message.is_unsupported) return;
   const sender = asString(asObject(event.sender).id);
   const recipient = asString(asObject(event.recipient).id);
+  if (message.is_deleted) {
+    const customerId = message.is_echo ? recipient : sender;
+    if (customerId) events.unsent.push({ channel: 'instagram', customerId, externalId: mid });
+    return;
+  }
   const at = fromUnixMillis(event.timestamp);
   const content = instagramContent(message);
 

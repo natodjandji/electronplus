@@ -113,12 +113,13 @@ export class MessagingService implements OnModuleInit {
   }
 
   async handleWebhook(body: unknown): Promise<{ inbound: number; echoes: number }> {
-    const { inbound, echoes, identityChanges, skipped } = parseWebhook(body);
+    const { inbound, echoes, unsent, identityChanges, skipped } = parseWebhook(body);
     if (skipped.length > 0) this.logger.warn(`Webhook not stored: ${skipped.join('; ')}`);
     const settings = await this.settings.get();
     const appId = this.config.get('META_APP_ID', { infer: true });
 
     for (const change of identityChanges) await this.store.recordIdentityChange(change);
+    for (const message of unsent) await this.store.removeUnsent(message);
 
     let paused = 0;
     for (const echo of echoes) {

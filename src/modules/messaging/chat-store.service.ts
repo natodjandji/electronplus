@@ -16,6 +16,7 @@ import {
 import type {
   EchoedChatMessage,
   InboundChatMessage,
+  UnsentChatMessage,
   WhatsappCustomer,
   WhatsappIdentityChange,
 } from './meta/webhook-events';
@@ -228,6 +229,19 @@ export class ChatStoreService {
       { merge: true },
     );
     return true;
+  }
+
+  /** Whoever unsends a message no longer wants it kept: it leaves the chat,
+   * the panel and what the assistant reads. */
+  async removeUnsent(message: UnsentChatMessage): Promise<void> {
+    const id = conversationId(message.channel, message.customerId);
+    const ref = this.messages(id).doc(messageDocId(message.externalId));
+    if (!(await ref.get()).exists) return;
+    await ref.delete();
+    const [latest] = await this.history(id, 1);
+    await this.conversations.patch(id, {
+      lastMessagePreview: latest ? preview(latest.text, latest.kind) : '',
+    });
   }
 
   async recordOutbound(id: string, message: OutboundChatMessage): Promise<void> {
