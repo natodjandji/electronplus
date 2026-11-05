@@ -330,6 +330,55 @@ describe('MessagingService', () => {
     expect(firestore.read(Collections.CHAT_CONVERSATIONS, 'instagram_igsid')).toBeUndefined();
   });
 
+  it('keeps answering when an Instagram echo of its reply arrives before the send returns', async () => {
+    const { service, firestore } = setup();
+    const echo = (mid: string) => ({
+      object: 'instagram',
+      entry: [
+        {
+          messaging: [
+            {
+              sender: { id: 'ig' },
+              recipient: { id: 'igsid' },
+              timestamp: 1,
+              message: { mid, text: 'Hola', is_echo: true },
+            },
+          ],
+        },
+      ],
+    });
+    const chat = firestore.collection(Collections.CHAT_CONVERSATIONS).doc('instagram_igsid');
+    const paused = () =>
+      (firestore.read(Collections.CHAT_CONVERSATIONS, 'instagram_igsid') as Record<string, unknown>)
+        .pauseReason;
+
+    // During the reply, and just after it.
+    await chat.set({
+      channel: 'instagram',
+      customerId: 'igsid',
+      processingUntil: new Date(Date.now() + 60_000),
+    });
+    expect(await service.handleWebhook(echo('e1'))).toEqual({ inbound: 0, echoes: 0 });
+    await chat.set({
+      channel: 'instagram',
+      customerId: 'igsid',
+      processingUntil: null,
+      lastReplyAt: new Date(),
+    });
+    expect(await service.handleWebhook(echo('e2'))).toEqual({ inbound: 0, echoes: 0 });
+    expect(paused()).toBeUndefined();
+
+    // Later on it's a person, answering from the Instagram app.
+    await chat.set({
+      channel: 'instagram',
+      customerId: 'igsid',
+      processingUntil: null,
+      lastReplyAt: new Date(Date.now() - 60_000),
+    });
+    expect(await service.handleWebhook(echo('e3'))).toEqual({ inbound: 0, echoes: 1 });
+    expect(paused()).toBe('human_reply');
+  });
+
   it('tells the customer someone will follow up, hands over and alerts when the assistant fails', async () => {
     const { service, agent, sentTexts, firestore, events } = setup();
     const handoffs: unknown[] = [];

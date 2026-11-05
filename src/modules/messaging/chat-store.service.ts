@@ -26,6 +26,8 @@ const PREVIEW_LENGTH = 120;
 const ADMIN_LIST_LIMIT = 100;
 /** Under Firestore's 500 writes per batch. */
 const DELETE_BATCH = 400;
+/** How long after a reply an Instagram echo still belongs to that reply. */
+const OWN_ECHO_WINDOW_MS = 15_000;
 
 export interface OutboundChatMessage {
   author: Exclude<ChatAuthor, 'customer'>;
@@ -52,6 +54,21 @@ function customerIds(
     ...(customer.customerUserId ? { customerUserId: customer.customerUserId } : {}),
     ...(customer.customerUsername ? { customerUsername: customer.customerUsername } : {}),
   };
+}
+
+/** Instagram echoes the assistant's sends too, and can deliver one before
+ * the send returns, when its id isn't stored yet and it would pass for a
+ * person. An echo during a reply, or just after it, is the assistant's own. */
+function isOwnEcho(
+  conversation: Pick<ChatConversation, 'processingUntil' | 'lastReplyAt'> | null,
+  now = Date.now(),
+): boolean {
+  const processing = toDate(conversation?.processingUntil);
+  const replied = toDate(conversation?.lastReplyAt);
+  return Boolean(
+    (processing && processing.getTime() > now) ||
+    (replied && now - replied.getTime() < OWN_ECHO_WINDOW_MS),
+  );
 }
 
 function toDate(value: unknown): Date | null {
@@ -185,6 +202,9 @@ export class ChatStoreService {
     const { id, customerId } = await this.chatFor(echo);
     const ref = this.messages(id).doc(messageDocId(echo.externalId));
     if ((await ref.get()).exists) return false;
+    if (echo.channel === 'instagram' && isOwnEcho(await this.conversations.findById(id))) {
+      return false;
+    }
     const at = this.nextTime();
     await ref.set({
       author: 'human',

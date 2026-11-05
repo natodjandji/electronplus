@@ -124,7 +124,10 @@ export class MessagingService implements OnModuleInit {
     for (const echo of echoes) {
       // Instagram echoes our own sends too; they carry our app's id.
       if (echo.channel === 'instagram' && (!appId || echo.appId === appId)) continue;
-      if (await this.store.recordHumanEcho(echo, settings.humanPauseHours)) paused++;
+      if (await this.store.recordHumanEcho(echo, settings.humanPauseHours)) {
+        paused++;
+        this.logger.log(`A person answered on ${echo.channel} (app ${echo.appId ?? 'none'})`);
+      }
     }
 
     let stored = 0;
