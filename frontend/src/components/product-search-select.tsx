@@ -9,6 +9,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { searchProducts } from "@/lib/product-search";
 import { cn } from "@/lib/utils";
 
 /** A Select can't search, and thousands of options (the full Profit Plus
@@ -46,23 +47,15 @@ export function ProductSearchSelect<T extends PickableProduct>({
   className?: string;
 }) {
   const [query, setQuery] = useState("");
-  const needle = query.trim().toLowerCase();
-  const matches = useMemo(
-    () =>
-      needle
-        ? products.filter((p) =>
-            `${p.name} ${p.model ?? ""} ${p.sku}`.toLowerCase().includes(needle),
-          )
-        : products,
-    [products, needle],
-  );
+  const needle = query.trim();
+  const matches = useMemo(() => searchProducts(products, needle), [products, needle]);
   const options = matches.slice(0, MAX_OPTIONS);
   // The chosen product stays selectable after the search changes under it.
   const selected = value ? products.find((p) => p.id === value) : undefined;
   if (selected && !options.includes(selected)) options.unshift(selected);
 
   return (
-    <div className={cn("grid gap-1.5", className)}>
+    <div className={cn("grid min-w-0 gap-1.5", className)}>
       <Label htmlFor={inputId} className="text-xs font-medium text-brand-navy">
         {label}
       </Label>
@@ -79,10 +72,12 @@ export function ProductSearchSelect<T extends PickableProduct>({
         />
       </div>
       <Select value={value} onValueChange={onValueChange} disabled={options.length === 0}>
-        <SelectTrigger aria-label={label}>
+        {/* A long product name is cut with an ellipsis instead of pushing
+            the trigger, and the page, wider. */}
+        <SelectTrigger aria-label={label} className="min-w-0 [&>span]:truncate">
           <SelectValue placeholder="Seleccionar producto…" />
         </SelectTrigger>
-        <SelectContent>
+        <SelectContent className="max-w-[calc(100vw-2rem)]">
           {options.map((p) => (
             <SelectItem key={p.id} value={p.id}>
               {renderOption(p)}

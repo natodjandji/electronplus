@@ -65,7 +65,8 @@ import {
   type TaxIdPrefix,
 } from "@/lib/venezuelan-tax-id";
 import { TaxIdField } from "@/components/tax-id-field";
-import { ProductSearchSelect } from "@/components/product-search-select";
+import { ProductImage } from "@/components/product-image";
+import { ProductPicker } from "@/components/product-picker";
 import { toast } from "sonner";
 
 export const Route = createFileRoute("/quotes")({
@@ -123,7 +124,11 @@ interface CatalogProduct {
   /** The store's SKU: the only product code shown. */
   model?: string | null;
   name: string;
+  brand?: string | null;
   retailPrice: number;
+  wholesalePrice: number;
+  imageUrl?: string;
+  thumbnailUrl?: string;
   /** Never shown while picking a product — only used to warn if the
    * requested qty exceeds what's on hand (see shortItems below). */
   stock: number;
@@ -494,7 +499,6 @@ function QuoteListCard({
 
 function QuoteBuilder({ id, onBack }: { id: string; onBack: () => void }) {
   const queryClient = useQueryClient();
-  const [pick, setPick] = useState("");
   const [busy, setBusy] = useState(false);
   const [openingPdf, setOpeningPdf] = useState(false);
 
@@ -510,6 +514,9 @@ function QuoteBuilder({ id, onBack }: { id: string; onBack: () => void }) {
   const addedProductIds = new Set((quote?.items ?? []).map((i) => i.productId));
   const availableProducts = (products ?? []).filter((p) => !addedProductIds.has(p.id));
   const stockByProductId = new Map((products ?? []).map((p) => [p.id, p.stock]));
+  const imageByProductId = new Map(
+    (products ?? []).map((p) => [p.id, p.thumbnailUrl ?? p.imageUrl]),
+  );
   const shortItems = (quote?.items ?? []).filter((item) => {
     const stock = stockByProductId.get(item.productId);
     return stock !== undefined && item.qty > stock;
@@ -530,15 +537,13 @@ function QuoteBuilder({ id, onBack }: { id: string; onBack: () => void }) {
 
   const isDraft = quote?.status === "draft";
 
-  const addLine = async () => {
-    if (!pick) return;
+  const addLine = async (productId: string) => {
     setBusy(true);
     try {
       const updated = await apiFetch<Quote>(`/quotes/${id}/lines`, {
         method: "POST",
-        body: { productId: pick, qty: 1 },
+        body: { productId, qty: 1 },
       });
-      setPick("");
       applyQuote(updated);
       invalidateMineList();
     } catch (error) {
@@ -611,7 +616,8 @@ function QuoteBuilder({ id, onBack }: { id: string; onBack: () => void }) {
     try {
       await apiFetch(`/quotes/${id}/send`, { method: "POST" });
       toast.success("Solicitud enviada. Te avisamos cuando la revisemos.");
-      queryClient.invalidateQueries({ queryKey: ["quotes", "mine"] });
+      // The list and this quote both: reopened, it must show as sent.
+      queryClient.invalidateQueries({ queryKey: ["quotes"] });
       onBack();
     } catch (error) {
       reportError(error);
@@ -633,6 +639,59 @@ function QuoteBuilder({ id, onBack }: { id: string; onBack: () => void }) {
 
   const total = computeTotal(quote);
   const wholesaleTotal = computeWholesaleTotal(quote);
+  const lines = quote.items.map((item) => {
+    const stock = stockByProductId.get(item.productId);
+    return {
+      item,
+      stock,
+      short: stock !== undefined && item.qty > stock,
+      lineTotal: item.unitPrice * item.qty * (1 - item.discountPct / 100),
+    };
+  });
+  const emptyLinesText = isDraft
+    ? "Agrega productos para armar tu solicitud."
+    : "Esta cotización no tiene productos.";
+
+  // What a line shows in both layouts: the table and the phone's cards.
+  const lineProduct = ({ item, stock, short }: (typeof lines)[number]) => (
+    <div className="flex min-w-0 flex-1 items-center gap-3">
+      <ProductImage
+        src={imageByProductId.get(item.productId)}
+        alt=""
+        className="h-10 w-10 shrink-0 rounded-md border border-border print:hidden"
+        iconClassName="h-4 w-4"
+      />
+      <div className="min-w-0">
+        <div className="break-words font-semibold text-brand-navy">{item.name}</div>
+        {item.model && <div className="text-xs text-muted-foreground">SKU {item.model}</div>}
+        {short && (
+          <div className="mt-0.5 flex items-center gap-1 text-xs text-brand-navy/70 print:hidden">
+            <AlertCircle className="h-3 w-3 shrink-0 text-brand-yellow" />
+            Solo quedan {stock} en stock — verificaremos el resto.
+          </div>
+        )}
+      </div>
+    </div>
+  );
+  const qtyInput = ({ item }: (typeof lines)[number]) => (
+    <Input
+      type="number"
+      min={1}
+      value={item.qty}
+      aria-label={`Cantidad de ${item.name}`}
+      onChange={(e) => updateQty(item.id, Number(e.target.value))}
+      className="h-8 w-20 text-right print:hidden"
+    />
+  );
+  const removeButton = ({ item }: (typeof lines)[number]) => (
+    <button
+      onClick={() => removeLine(item.id)}
+      className="text-muted-foreground hover:text-destructive"
+      aria-label={`Quitar ${item.name}`}
+    >
+      <Trash2 className="h-4 w-4" />
+    </button>
+  );
 
   return (
     <PublicShell>
@@ -792,27 +851,19 @@ function QuoteBuilder({ id, onBack }: { id: string; onBack: () => void }) {
                 </p>
               </Field>
 
-              <div className="mt-4 flex flex-wrap items-end gap-3 print:hidden">
-                <ProductSearchSelect
-                  inputId="quote-product-search"
-                  label="Agregar producto"
-                  products={availableProducts}
-                  value={pick}
-                  onValueChange={setPick}
-                  renderOption={(p) =>
-                    `${p.name}${p.model ? ` — ${p.model}` : ""} · ${formatMoney(p.retailPrice)}`
-                  }
-                  emptyHint={products ? "Ya agregaste todos los productos disponibles." : undefined}
-                  className="min-w-64 flex-1"
-                />
-                <Button
-                  onClick={addLine}
-                  disabled={!pick || busy || availableProducts.length === 0}
-                  className="gap-2 bg-brand-blue text-white hover:bg-brand-blue/90"
-                >
-                  <Plus className="h-4 w-4" /> Agregar
-                </Button>
-              </div>
+              <ProductPicker
+                inputId="quote-product-search"
+                label="Agregar producto"
+                products={availableProducts}
+                onPick={(p) => addLine(p.id)}
+                formatPrice={formatMoney}
+                // The store refuses a product without a retail price; it
+                // stays listed so the customer knows it exists.
+                unavailable={(p) => (p.retailPrice > 0 ? null : "Precio al detal por confirmar")}
+                disabled={busy}
+                emptyHint={products ? "Ya agregaste todos los productos disponibles." : undefined}
+                className="mt-4 print:hidden"
+              />
               {shortItems.length > 0 && (
                 <div className="mt-3 flex items-start gap-2 rounded-md border border-brand-yellow/40 bg-brand-yellow/10 p-3 text-sm text-brand-navy print:hidden">
                   <AlertCircle className="mt-0.5 h-4 w-4 shrink-0 text-brand-yellow" />
@@ -828,84 +879,104 @@ function QuoteBuilder({ id, onBack }: { id: string; onBack: () => void }) {
             </>
           )}
 
-          <div className="mt-6 overflow-x-auto">
-            <table className="w-full min-w-[560px] text-sm">
+          {/* A phone gets one card per product: the table needed sideways
+              scrolling there to reach the quantity and total. Print keeps
+              the table. */}
+          <ul className="mt-6 divide-y divide-border border-y border-border text-sm sm:hidden print:hidden">
+            {lines.length === 0 && (
+              <li className="py-8 text-center text-muted-foreground">{emptyLinesText}</li>
+            )}
+            {lines.map((line) => (
+              <li key={line.item.id} className="py-3">
+                <div className="flex items-start gap-3">
+                  {lineProduct(line)}
+                  {isDraft && <div className="pt-1">{removeButton(line)}</div>}
+                </div>
+                <div className="mt-2 flex flex-wrap items-center justify-between gap-x-4 gap-y-2">
+                  <dl className="flex gap-3 text-xs tabular-nums">
+                    <div className="flex gap-1">
+                      <dt className="text-muted-foreground">Detal</dt>
+                      <dd className="text-brand-navy">{formatMoney(line.item.unitPrice)}</dd>
+                    </div>
+                    <div className="flex gap-1">
+                      <dt className="text-muted-foreground">Mayor</dt>
+                      <dd className="text-muted-foreground">
+                        {formatMoney(line.item.wholesalePrice)}
+                      </dd>
+                    </div>
+                  </dl>
+                  <div className="ml-auto flex items-center gap-3">
+                    {isDraft ? (
+                      <span className="flex items-center gap-2">
+                        <span className="text-xs text-muted-foreground" aria-hidden>
+                          Cant.
+                        </span>
+                        {qtyInput(line)}
+                      </span>
+                    ) : (
+                      <span className="text-xs text-muted-foreground">Cant. {line.item.qty}</span>
+                    )}
+                    <span className="whitespace-nowrap font-semibold tabular-nums text-brand-navy">
+                      {formatMoney(line.lineTotal)}
+                    </span>
+                  </div>
+                </div>
+              </li>
+            ))}
+          </ul>
+
+          <div className="mt-6 hidden overflow-x-auto sm:block print:block">
+            <table className="w-full min-w-[640px] text-sm">
               <thead>
                 <tr className="border-b border-border text-left text-xs uppercase tracking-wider text-muted-foreground">
                   <th className="py-2">Producto</th>
-                  <th className="py-2 text-right">Detal</th>
-                  <th className="py-2 text-right">Mayor</th>
-                  <th className="py-2 text-right">Cant.</th>
-                  <th className="py-2 text-right">Total</th>
+                  <th className="py-2 pl-4 text-right">Detal</th>
+                  <th className="py-2 pl-4 text-right">Mayor</th>
+                  <th className="py-2 pl-4 text-right">Cant.</th>
+                  <th className="py-2 pl-4 text-right">Total</th>
                   {isDraft && <th className="print:hidden" />}
                 </tr>
               </thead>
               <tbody>
-                {quote.items.length === 0 && (
+                {lines.length === 0 && (
                   <tr>
                     <td
                       colSpan={isDraft ? 6 : 5}
                       className="py-8 text-center text-muted-foreground"
                     >
-                      {isDraft
-                        ? "Agrega productos para armar tu solicitud."
-                        : "Esta cotización no tiene productos."}
+                      {emptyLinesText}
                     </td>
                   </tr>
                 )}
-                {quote.items.map((item) => {
-                  const lineTotal = item.unitPrice * item.qty * (1 - item.discountPct / 100);
-                  const stock = stockByProductId.get(item.productId);
-                  const short = stock !== undefined && item.qty > stock;
-                  return (
-                    <tr key={item.id} className="border-b border-border">
-                      <td className="py-3">
-                        <div className="font-semibold text-brand-navy">{item.name}</div>
-                        <div className="text-xs text-muted-foreground">{item.model}</div>
-                        {short && (
-                          <div className="mt-0.5 flex items-center gap-1 text-xs text-brand-navy/70 print:hidden">
-                            <AlertCircle className="h-3 w-3 shrink-0 text-brand-yellow" />
-                            Solo quedan {stock} en stock — verificaremos el resto.
-                          </div>
-                        )}
-                      </td>
-                      <td className="py-3 text-right">{formatMoney(item.unitPrice)}</td>
-                      <td className="py-3 text-right text-muted-foreground">
-                        {formatMoney(item.wholesalePrice)}
-                      </td>
-                      <td className="py-3 text-right">
-                        {isDraft ? (
-                          <>
-                            <Input
-                              type="number"
-                              min={1}
-                              value={item.qty}
-                              onChange={(e) => updateQty(item.id, Number(e.target.value))}
-                              className="ml-auto h-8 w-20 text-right print:hidden"
-                            />
-                            <span className="hidden print:inline">{item.qty}</span>
-                          </>
-                        ) : (
-                          item.qty
-                        )}
-                      </td>
-                      <td className="py-3 text-right font-semibold text-brand-navy">
-                        {formatMoney(lineTotal)}
-                      </td>
-                      {isDraft && (
-                        <td className="py-3 pl-2 text-right print:hidden">
-                          <button
-                            onClick={() => removeLine(item.id)}
-                            className="text-muted-foreground hover:text-destructive"
-                            aria-label="Quitar"
-                          >
-                            <Trash2 className="h-4 w-4" />
-                          </button>
-                        </td>
+                {lines.map((line) => (
+                  <tr key={line.item.id} className="border-b border-border">
+                    <td className="py-3">
+                      <div className="flex min-w-[12rem]">{lineProduct(line)}</div>
+                    </td>
+                    <td className="whitespace-nowrap py-3 pl-4 text-right">
+                      {formatMoney(line.item.unitPrice)}
+                    </td>
+                    <td className="whitespace-nowrap py-3 pl-4 text-right text-muted-foreground">
+                      {formatMoney(line.item.wholesalePrice)}
+                    </td>
+                    <td className="py-3 pl-4 text-right">
+                      {isDraft ? (
+                        <>
+                          <div className="flex justify-end">{qtyInput(line)}</div>
+                          <span className="hidden print:inline">{line.item.qty}</span>
+                        </>
+                      ) : (
+                        line.item.qty
                       )}
-                    </tr>
-                  );
-                })}
+                    </td>
+                    <td className="whitespace-nowrap py-3 pl-4 text-right font-semibold text-brand-navy">
+                      {formatMoney(line.lineTotal)}
+                    </td>
+                    {isDraft && (
+                      <td className="py-3 pl-2 text-right print:hidden">{removeButton(line)}</td>
+                    )}
+                  </tr>
+                ))}
               </tbody>
             </table>
           </div>
@@ -917,9 +988,11 @@ function QuoteBuilder({ id, onBack }: { id: string; onBack: () => void }) {
                 <span className="font-semibold text-brand-navy">{quote.globalDiscountPct}%</span>
               </div>
             )}
-            <div className="flex items-baseline gap-8">
+            {/* Wraps on a phone: the total in REF and Bs. didn't fit beside
+                its label and pushed it off the left edge. */}
+            <div className="flex max-w-full flex-wrap items-baseline justify-end gap-x-8 gap-y-1">
               <span className="text-lg font-bold text-brand-navy">Total detal</span>
-              <span className="flex items-baseline gap-2">
+              <span className="flex flex-wrap items-baseline justify-end gap-2">
                 <span className="text-lg font-bold tabular-nums text-brand-navy">
                   {formatMoney(total)}
                 </span>
