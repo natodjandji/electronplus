@@ -12,6 +12,8 @@ export enum NotificationType {
   SYNC_ERROR = 'sync_error',
   /** The WhatsApp/Instagram assistant handed a chat to the staff. */
   CHAT_HANDOFF = 'chat_handoff',
+  /** A customer sent a quote request. */
+  QUOTE_REQUEST = 'quote_request',
 }
 
 export interface Notification extends FirestoreDoc {

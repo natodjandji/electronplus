@@ -23,6 +23,7 @@ import { STOCK_ALERT_RAISED_EVENT, StockAlertRaisedEvent } from '../inventory/in
 import { StockAlertLevel } from '../inventory/entities/stock-alert.entity';
 import { STOCK_CHANGED_EVENT, StockChangedEvent } from '../products/products.service';
 import { CHAT_HANDOFF_EVENT, ChatHandoffEvent } from '../messaging/messaging.events';
+import { QUOTE_SENT_EVENT, QuoteSentEvent } from '../quotes/quotes.service';
 import { Notification, NotificationType } from './entities/notification.entity';
 import { NotificationsGateway } from './notifications.gateway';
 
@@ -333,6 +334,23 @@ export class NotificationsService {
       );
     } catch (error) {
       this.logger.error('Failed to create chat handoff notification', error as Error);
+    }
+  }
+
+  @OnEvent(QUOTE_SENT_EVENT)
+  async handleQuoteSent(payload: QuoteSentEvent): Promise<void> {
+    try {
+      await this.create(
+        NotificationType.QUOTE_REQUEST,
+        'Nueva solicitud de cotización',
+        `${payload.customerName || 'Un cliente'} pide cotizar ${payload.units} ${
+          payload.units === 1 ? 'producto' : 'productos'
+        }.`,
+        [Role.ADMIN],
+        { ...payload },
+      );
+    } catch (error) {
+      this.logger.error('Failed to create quote request notification', error as Error);
     }
   }
 

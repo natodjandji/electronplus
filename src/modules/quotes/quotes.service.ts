@@ -34,6 +34,17 @@ export interface QuoteStatusChangedEvent {
   status: QuoteStatus.APPROVED | QuoteStatus.REJECTED;
 }
 
+/** Fires when a customer sends a quote request, so the admins hear of it
+ * without having to keep the quotes page open. */
+export const QUOTE_SENT_EVENT = 'quote.sent';
+
+export interface QuoteSentEvent {
+  quoteId: string;
+  customerName: string;
+  /** Units across every line. */
+  units: number;
+}
+
 @Injectable()
 export class QuotesService {
   private readonly repo: FirestoreRepository<Quote>;
@@ -242,10 +253,31 @@ export class QuotesService {
     }));
   }
 
-  /** draft -> sent: the customer submits their quote request for admin review. */
+  /** draft -> sent: the customer submits their quote request for admin
+   * review. An empty one has nothing to review. Checked and written in one
+   * transaction, so a double click sends it, and tells the admins, once. */
   async send(id: string, user: AuthenticatedUser): Promise<Quote> {
-    await this.assertEditable(id, user);
-    return this.repo.update(id, { status: QuoteStatus.SENT });
+    const sent = await this.withQuoteTransaction(
+      id,
+      user,
+      (quote) => {
+        if (quote.status !== QuoteStatus.DRAFT) {
+          throw new ForbiddenException('Only draft quotes can be sent');
+        }
+        if ((quote.items ?? []).length === 0) {
+          throw new BadRequestException(
+            'Agrega al menos un producto antes de enviar la solicitud.',
+          );
+        }
+      },
+      () => ({ status: QuoteStatus.SENT }),
+    );
+    this.events.emit(QUOTE_SENT_EVENT, {
+      quoteId: id,
+      customerName: sent.customerName,
+      units: sent.items.reduce((sum, item) => sum + item.qty, 0),
+    } satisfies QuoteSentEvent);
+    return this.repo.getOrThrow(id, 'Quote not found');
   }
 
   /** sent -> approved: admin-only, records that the request was accepted. */

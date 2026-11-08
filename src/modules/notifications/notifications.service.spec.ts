@@ -169,3 +169,27 @@ describe('NotificationsService sync errors', () => {
     expect(all[id]).toBeUndefined();
   });
 });
+
+describe('NotificationsService quote requests', () => {
+  it('tells the admins who asked for a quote and for how many products', async () => {
+    const { service, broadcasts, byId } = setup();
+
+    await service.handleQuoteSent({ quoteId: 'q1', customerName: 'Ferretería Andrés', units: 5 });
+    await service.handleQuoteSent({ quoteId: 'q2', customerName: '', units: 1 });
+
+    expect(Object.values(await byId())).toEqual([
+      expect.objectContaining({
+        type: 'quote_request',
+        title: 'Nueva solicitud de cotización',
+        message: 'Ferretería Andrés pide cotizar 5 productos.',
+        targetRoles: ['admin'],
+        read: false,
+      }),
+      expect.objectContaining({ message: 'Un cliente pide cotizar 1 producto.' }),
+    ]);
+    expect(broadcasts.map((b) => b.event)).toEqual([
+      'notification.created',
+      'notification.created',
+    ]);
+  });
+});
