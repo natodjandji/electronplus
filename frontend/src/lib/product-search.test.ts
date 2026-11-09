@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { searchProducts } from "./product-search";
+import { matchesWords, searchProducts } from "./product-search";
 
 const products = [
   {
@@ -35,5 +35,29 @@ describe("searchProducts", () => {
       "01-01-1097",
       "1518",
     ]);
+  });
+});
+
+describe("matchesWords", () => {
+  it("finds the words in any order, ignoring case and accents", () => {
+    expect(matchesWords("18w panel", "Panel LED 18W 3000K")).toBe(true);
+    expect(matchesWords("3000k PANEL led", "Panel LED 18W 3000K")).toBe(true);
+    expect(matchesWords("lampara lineal", "Lámpara Lineal LED")).toBe(true);
+    expect(matchesWords("panel 24w", "Panel LED 18W 3000K")).toBe(false);
+  });
+
+  it("looks across every field together", () => {
+    // A supplier in one field, a product in another: an order's search.
+    expect(matchesWords("lucerna panel", "OC-12", "Lucerna", "Panel LED 18W")).toBe(true);
+    expect(matchesWords("t5/9w tubo", "Tubo LED T5", null, "T5/9W", undefined)).toBe(true);
+  });
+
+  it("matches anything with an empty query", () => {
+    expect(matchesWords("", "Panel")).toBe(true);
+    expect(matchesWords("   ")).toBe(true);
+  });
+
+  it("doesn't glue two fields into a word neither has", () => {
+    expect(matchesWords("ledpanel", "LED", "Panel")).toBe(false);
   });
 });

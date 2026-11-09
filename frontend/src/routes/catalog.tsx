@@ -34,6 +34,7 @@ import { PaginationBar, usePagination } from "@/components/pagination";
 import { PriceTag } from "@/components/price-tag";
 import { ProductImage } from "@/components/product-image";
 import { QuantityStepper } from "@/components/quantity-stepper";
+import { matchesWords } from "@/lib/product-search";
 import type { Product } from "@/lib/product";
 import {
   CATALOG_SORTS,
@@ -131,15 +132,10 @@ function CatalogPage() {
   const { range, active: priceFiltered } = effectivePriceRange(priceRange, priceCeiling);
 
   const filtered = useMemo(() => {
-    const needle = q.toLowerCase();
     const price = effectivePriceRange(priceRange, priceCeiling);
     const matches = (products ?? []).filter((p) => {
-      if (
-        needle &&
-        !`${p.name} ${p.model ?? ""} ${p.sku} ${p.brand ?? ""}`.toLowerCase().includes(needle)
-      ) {
-        return false;
-      }
+      // Every word, in any order: "18w panel" finds "Panel LED 18W".
+      if (!matchesWords(q, p.name, p.model, p.sku, p.brand)) return false;
       if (cats.length && !cats.includes(p.category)) return false;
       if (brands.length && !(p.brand && brands.includes(p.brand))) return false;
       if (onlyAvailable && p.stock <= 0) return false;

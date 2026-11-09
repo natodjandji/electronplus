@@ -55,6 +55,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Skeleton } from "@/components/ui/skeleton";
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
+import { matchesWords } from "@/lib/product-search";
 import { formatMoney } from "@/lib/electron-store";
 import type { Product } from "@/lib/product";
 import { catalogQuery, toProduct, type ApiProduct } from "@/lib/product-api";
@@ -114,10 +115,6 @@ function useCatalogIndex() {
 }
 
 type CatalogIndex = ReturnType<typeof useCatalogIndex>;
-
-function normalize(text: string) {
-  return text.normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase();
-}
 
 function formatDate(iso: string) {
   return new Date(iso).toLocaleDateString("es-VE", { day: "numeric", month: "long" });
@@ -480,13 +477,11 @@ function ProductSearch({
   onPick: (product: Product) => void;
 }) {
   const [query, setQuery] = useState("");
-  const needle = normalize(query.trim());
-  const results =
-    needle.length >= 2
-      ? catalog.products
-          .filter((p) => normalize(`${p.name} ${p.model ?? ""} ${p.sku}`).includes(needle))
-          .slice(0, 6)
-      : [];
+  const searching = query.trim().length >= 2;
+  // Every word, in any order: "18w panel" finds "Panel LED 18W".
+  const results = searching
+    ? catalog.products.filter((p) => matchesWords(query, p.name, p.model, p.sku)).slice(0, 6)
+    : [];
 
   const pick = (product: Product) => {
     onPick(product);
@@ -514,7 +509,7 @@ function ProductSearch({
         enterKeyHint="search"
         autoComplete="off"
       />
-      {needle.length >= 2 && (
+      {searching && (
         <Card className="absolute inset-x-0 top-full z-20 mt-1 overflow-hidden p-0 shadow-lg">
           {results.length === 0 ? (
             <div className="p-4 text-center text-sm text-muted-foreground">

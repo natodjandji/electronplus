@@ -18,6 +18,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import { matchesWords } from "@/lib/product-search";
 import { apiFetch, reportError } from "@/lib/api-client";
 import {
   applySecondStoreRow,
@@ -52,14 +53,11 @@ function SecondStoreInventoryPage() {
   const [editing, setEditing] = useState<SecondStoreProduct | null>(null);
   const { data: items, isLoading } = useSecondStoreProducts();
 
-  const filtered = useMemo(() => {
-    const all = items ?? [];
-    const q = search.trim().toLowerCase();
-    if (!q) return all;
-    return all.filter(
-      (p) => p.name.toLowerCase().includes(q) || (p.code ?? "").toLowerCase().includes(q),
-    );
-  }, [items, search]);
+  // Every word, in any order: "18w panel" finds "PANEL LED 18W".
+  const filtered = useMemo(
+    () => (items ?? []).filter((p) => matchesWords(search, p.name, p.code)),
+    [items, search],
+  );
 
   const pagination = usePagination(filtered, PAGE_SIZE, search);
   const tableTop = useRef<HTMLDivElement>(null);

@@ -20,6 +20,7 @@ import { TableRowsSkeleton } from "@/components/table-skeleton";
 import { MonthYearPicker, useMonthPeriod } from "@/components/month-pager";
 import { PaginationBar, usePagination } from "@/components/pagination";
 import { PendingToggle } from "@/components/pending-toggle";
+import { matchesWords } from "@/lib/product-search";
 import { periodQuery } from "@/lib/admin-period";
 import {
   AlertDialog,
@@ -194,29 +195,27 @@ function PurchaseOrdersPage() {
 
   // Status, supplier and search narrow what's already loaded — changing them
   // costs no request (they used to refetch the whole history each time).
-  const needle = search.trim().toLowerCase();
+  // Every word, in any order, anywhere in the order: "lucerna panel" finds
+  // an order from Lucerna with a panel in it.
   const visibleOrders = useMemo(
     () =>
       (source.data ?? []).filter(
         (o) =>
           (showPending || statusFilter === "all" || o.status === statusFilter) &&
           (!supplierFilter || o.supplierId === supplierFilter) &&
-          (!needle ||
-            o.id.toLowerCase().includes(needle) ||
-            o.supplierName.toLowerCase().includes(needle) ||
-            o.items.some(
-              (i) =>
-                i.name.toLowerCase().includes(needle) ||
-                i.sku.toLowerCase().includes(needle) ||
-                Boolean(i.model?.toLowerCase().includes(needle)),
-            )),
+          matchesWords(
+            search,
+            o.id,
+            o.supplierName,
+            ...o.items.flatMap((i) => [i.name, i.sku, i.model]),
+          ),
       ),
-    [source.data, showPending, statusFilter, supplierFilter, needle],
+    [source.data, showPending, statusFilter, supplierFilter, search],
   );
   const pagination = usePagination(
     visibleOrders,
     PAGE_SIZE,
-    `${showPending}|${period.key}|${statusFilter}|${supplierFilter}|${needle}`,
+    `${showPending}|${period.key}|${statusFilter}|${supplierFilter}|${search.trim()}`,
   );
   const tableTop = useRef<HTMLDivElement>(null);
 

@@ -9,6 +9,7 @@ import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { QuantityStepper } from "@/components/quantity-stepper";
+import { matchesWords } from "@/lib/product-search";
 import { apiFetch } from "@/lib/api-client";
 import { formatMoney } from "@/lib/electron-store";
 import { cn } from "@/lib/utils";
@@ -182,16 +183,11 @@ function LabelsPage() {
   const [quantities, setQuantities] = useState<Record<string, number>>({});
   const [format, setFormat] = useState<LabelFormat>("precio");
   const { data: allProducts, isLoading } = useAdminProducts();
-  const products = useMemo(() => {
-    const needle = search.trim().toLowerCase();
-    if (!needle) return allProducts ?? [];
-    return (allProducts ?? []).filter(
-      (p) =>
-        p.name.toLowerCase().includes(needle) ||
-        p.sku.toLowerCase().includes(needle) ||
-        Boolean(p.model?.toLowerCase().includes(needle)),
-    );
-  }, [allProducts, search]);
+  // Every word, in any order: "18w panel" finds "Panel LED 18W".
+  const products = useMemo(
+    () => (allProducts ?? []).filter((p) => matchesWords(search, p.name, p.sku, p.model)),
+    [allProducts, search],
+  );
   const pickerPage = usePagination(products, PICKER_PAGE_SIZE, search);
 
   const selectedIds = Object.entries(quantities)
