@@ -3,8 +3,6 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useMemo, useRef, useState, type ChangeEvent } from "react";
 import {
   AlertTriangle,
-  ChevronDown,
-  CircleDollarSign,
   ImageIcon,
   Link2,
   ListFilter,
@@ -18,15 +16,6 @@ import {
 import { AdminShell } from "@/components/admin-shell";
 import { PaginationBar, usePagination } from "@/components/pagination";
 import { PendingToggle } from "@/components/pending-toggle";
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuLabel,
-  DropdownMenuRadioGroup,
-  DropdownMenuRadioItem,
-  DropdownMenuSeparator,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
 import { ProductImage } from "@/components/product-image";
 import { TableRowsSkeleton } from "@/components/table-skeleton";
 import { Card } from "@/components/ui/card";
@@ -82,7 +71,6 @@ import {
   NO_SUPPLIER,
   type InventoryFilters,
   type InventoryRow,
-  type PriceFilter,
 } from "@/lib/inventory-filters";
 import { fold } from "@/lib/product-search";
 import { uploadProductImage } from "@/lib/image-compress";
@@ -153,17 +141,7 @@ function InventoryPage() {
   const queryClient = useQueryClient();
 
   const setFilter = <K extends keyof InventoryFilters>(key: K, value: InventoryFilters[K]) =>
-    setFilters((current) => {
-      const next = { ...current, [key]: value };
-      // Only linked products have prices to compare, so a price filter and
-      // "Sin vincular" together would always come up empty: the newer wins.
-      if ((key === "wholesale" || key === "retail") && value !== ANY) next.onlyUnlinked = false;
-      if (key === "onlyUnlinked" && value) {
-        next.wholesale = ANY;
-        next.retail = ANY;
-      }
-      return next;
-    });
+    setFilters((current) => ({ ...current, [key]: value }));
 
   // One lookup per row instead of scanning the thousands of second-store
   // rows for each product on every render.
@@ -226,9 +204,6 @@ function InventoryPage() {
         : { value: NO_SUPPLIER, label: "Sin proveedor" },
     ),
   ).map((o) => ({ ...o, count: supplierCounts.get(o.value) ?? 0 }));
-  // Unknown until the second store's list arrives.
-  const priceCounts = (facet: "wholesale" | "retail") =>
-    secondStoreProducts ? facetCounts(rows, filters, facet) : undefined;
 
   const deleteProduct = useMutation({
     mutationFn: (id: string) => apiFetch(`/products/${id}`, { method: "DELETE" }),
@@ -280,13 +255,6 @@ function InventoryPage() {
           value={filters.supplier}
           onChange={(value) => setFilter("supplier", value)}
           options={supplierOptions}
-        />
-        <PriceCheckMenu
-          retail={filters.retail}
-          wholesale={filters.wholesale}
-          onChange={setFilter}
-          retailCounts={priceCounts("retail")}
-          wholesaleCounts={priceCounts("wholesale")}
         />
         {/* Products whose stock isn't linked to the second store yet. */}
         <PendingToggle
@@ -549,97 +517,6 @@ function FilterSelect({
         </SelectContent>
       </Select>
     </Field>
-  );
-}
-
-/**
- * The retail and wholesale price checks against the secundaria, in one
- * small button: each lists every linked product, only those whose price
- * agrees, or only those whose price doesn't. The menu stays open after a
- * pick, so both can be set in one go.
- */
-function PriceCheckMenu({
-  retail,
-  wholesale,
-  onChange,
-  retailCounts,
-  wholesaleCounts,
-}: {
-  retail: PriceFilter;
-  wholesale: PriceFilter;
-  onChange: (key: "retail" | "wholesale", value: PriceFilter) => void;
-  /** Left out while the secundaria's list is loading. */
-  retailCounts?: Map<string, number>;
-  wholesaleCounts?: Map<string, number>;
-}) {
-  const active = [retail, wholesale].filter((v) => v !== ANY).length;
-  const group = (
-    key: "retail" | "wholesale",
-    label: string,
-    value: PriceFilter,
-    counts?: Map<string, number>,
-  ) => (
-    <>
-      <DropdownMenuLabel className="text-xs text-muted-foreground">{label}</DropdownMenuLabel>
-      <DropdownMenuRadioGroup
-        value={value}
-        onValueChange={(next) => onChange(key, next as PriceFilter)}
-      >
-        {(
-          [
-            [ANY, "Todos"],
-            ["same", "Mismo precio"],
-            ["different", "Precio distinto"],
-          ] as const
-        ).map(([option, text]) => (
-          <DropdownMenuRadioItem
-            key={option}
-            value={option}
-            onSelect={(e) => e.preventDefault()}
-            className="gap-3"
-          >
-            <span className="flex-1">{text}</span>
-            {option !== ANY && counts && (
-              <span className="text-xs tabular-nums text-muted-foreground">
-                {counts.get(option) ?? 0}
-              </span>
-            )}
-          </DropdownMenuRadioItem>
-        ))}
-      </DropdownMenuRadioGroup>
-    </>
-  );
-
-  return (
-    <DropdownMenu>
-      <DropdownMenuTrigger asChild>
-        <Button
-          type="button"
-          variant="outline"
-          size="sm"
-          aria-label="Verificar precios entre tiendas"
-          title="Verificar precios entre tiendas"
-          className={cn(
-            "h-9 gap-1.5",
-            active > 0 && "border-brand-blue bg-brand-blue/5 text-brand-navy",
-          )}
-        >
-          <CircleDollarSign className="h-4 w-4" />
-          Precios
-          {active > 0 && (
-            <span className="rounded-full bg-brand-blue px-1.5 text-xs font-semibold tabular-nums text-white">
-              {active}
-            </span>
-          )}
-          <ChevronDown className="h-3.5 w-3.5 text-muted-foreground" />
-        </Button>
-      </DropdownMenuTrigger>
-      <DropdownMenuContent align="start" className="w-60">
-        {group("retail", "Precio al detal entre tiendas", retail, retailCounts)}
-        <DropdownMenuSeparator />
-        {group("wholesale", "Precio al mayor entre tiendas", wholesale, wholesaleCounts)}
-      </DropdownMenuContent>
-    </DropdownMenu>
   );
 }
 
