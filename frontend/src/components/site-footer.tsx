@@ -19,7 +19,7 @@ export function SiteFooter() {
     <footer className="mt-16 border-t border-border bg-brand-blue text-white">
       {/* Brand on its own row until lg: at tablet width, four columns left
           the contact column narrower than the email address in it. */}
-      <div className="mx-auto grid max-w-7xl gap-8 px-4 py-10 sm:grid-cols-2 sm:px-6 lg:grid-cols-4">
+      <div className="mx-auto grid grid-cols-1 max-w-7xl gap-8 px-4 py-10 sm:grid-cols-2 sm:px-6 lg:grid-cols-4">
         <div className="sm:col-span-2">
           <ElectronLogo layout="full" tone="white" className="h-9" />
           <p className="mt-4 max-w-sm text-sm text-white/70">

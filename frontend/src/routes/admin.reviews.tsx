@@ -43,6 +43,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
+import { escapeHtml } from "@/lib/text";
 import { periodQuery } from "@/lib/admin-period";
 import { apiFetch, reportError } from "@/lib/api-client";
 import { RATING_LABELS, reviewsKey, type Review, type ReviewSource } from "@/lib/reviews";
@@ -184,7 +185,7 @@ function ReviewsPage() {
       </div>
 
       {reviews.length > 0 && (
-        <div className="mt-6 grid gap-4 lg:grid-cols-2">
+        <div className="mt-6 grid grid-cols-1 gap-4 lg:grid-cols-2">
           <Card className="p-5">
             <h2 className="text-sm font-semibold text-brand-navy">Puntuación de la atención</h2>
             <div className="mt-4 space-y-2">
@@ -482,11 +483,11 @@ function printSign(qrImageDataUrl: string, url: string) {
   img.qr{width:320px;height:320px}
   small{display:block;margin-top:16px;font-size:14px;color:#556}
 </style></head><body>
-  <img class="logo" src="${logo}" alt="Electron Plus">
+  <img class="logo" src="${escapeHtml(logo)}" alt="Electron Plus">
   <h1>¿Cómo te atendimos?</h1>
   <p>Escanea el código y cuéntanos tu experiencia</p>
-  <img class="qr" src="${qrImageDataUrl}" alt="Código QR">
-  <small>${url}</small>
+  <img class="qr" src="${escapeHtml(qrImageDataUrl)}" alt="Código QR">
+  <small>${escapeHtml(url)}</small>
 </body></html>`);
   win.document.close();
   win.addEventListener("load", () => win.print());

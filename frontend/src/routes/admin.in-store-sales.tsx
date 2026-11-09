@@ -461,7 +461,7 @@ function CartDialog({
           </dd>
         </dl>
 
-        <div className="mt-2 grid gap-2 sm:grid-cols-2">
+        <div className="mt-2 grid grid-cols-1 gap-2 sm:grid-cols-2">
           <Button
             type="button"
             className="gap-2 bg-brand-blue text-white hover:bg-brand-blue/90"

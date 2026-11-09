@@ -110,7 +110,7 @@ export function CasheaDownPaymentForm({
         <RadioGroup
           value={where}
           onValueChange={(v) => setWhere(v as "online" | "store")}
-          className="grid gap-2 sm:grid-cols-2"
+          className="grid grid-cols-1 gap-2 sm:grid-cols-2"
         >
           <Choice value="online" current={where} icon={Wallet} title="Pagar ahora en línea">
             Pago móvil, transferencia u otro método de la tienda.
@@ -135,7 +135,7 @@ export function CasheaDownPaymentForm({
           <RadioGroup
             value={method?.id}
             onValueChange={setMethodId}
-            className="grid gap-2 sm:grid-cols-2"
+            className="grid grid-cols-1 gap-2 sm:grid-cols-2"
             aria-label="Método con el que pagaste la inicial"
           >
             {onlineMethods.map((m) => (
@@ -163,7 +163,7 @@ export function CasheaDownPaymentForm({
             </div>
           )}
 
-          <div className="grid gap-3 sm:grid-cols-2">
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
             <Field className="grid gap-1.5">
               <Label htmlFor="cashea-down-amount" className="text-xs font-medium text-brand-navy">
                 Monto de la inicial (REF)

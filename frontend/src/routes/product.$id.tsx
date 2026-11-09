@@ -214,7 +214,7 @@ function ProductPage() {
           <ArrowLeft className="h-4 w-4" /> Volver al catálogo
         </Link>
 
-        <div className="mt-4 grid gap-8 md:grid-cols-2">
+        <div className="mt-4 grid grid-cols-1 gap-8 md:grid-cols-2">
           <Card className="self-start overflow-hidden p-0">
             <div className="aspect-square bg-brand-surface">
               <ProductImage
@@ -303,7 +303,7 @@ function ProductPage() {
                 <div className="text-[10px] font-semibold uppercase tracking-widest text-brand-yellow">
                   Información interna
                 </div>
-                <div className="mt-3 grid gap-3 sm:grid-cols-2">
+                <div className="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-2">
                   <InfoRow
                     icon={Package}
                     label="Stock tienda principal"

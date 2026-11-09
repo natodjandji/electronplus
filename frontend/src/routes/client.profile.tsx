@@ -77,7 +77,7 @@ function ProfilePage() {
           {[0, 1].map((i) => (
             <Card key={i} className="space-y-4 p-6">
               <Skeleton className="h-5 w-40" />
-              <div className="grid gap-4 sm:grid-cols-2">
+              <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
                 {[0, 1, 2, 3].map((j) => (
                   <Skeleton key={j} className="h-10" />
                 ))}
@@ -110,7 +110,7 @@ function ProfilePage() {
           <h2 className="flex items-center gap-2 font-semibold text-brand-navy">
             <UserRound className="h-4 w-4 text-brand-blue" /> Datos personales
           </h2>
-          <div className="mt-4 grid gap-4 sm:grid-cols-2">
+          <div className="mt-4 grid grid-cols-1 gap-4 sm:grid-cols-2">
             <Field className="grid gap-1.5">
               <Label className="text-xs font-medium text-brand-navy">Nombre completo</Label>
               <Input
@@ -176,7 +176,7 @@ function ProfilePage() {
           </div>
 
           {showAddress ? (
-            <div className="mt-4 grid gap-4 sm:grid-cols-2">
+            <div className="mt-4 grid grid-cols-1 gap-4 sm:grid-cols-2">
               <Field className="grid gap-1.5">
                 <Label className="text-xs font-medium text-brand-navy">Estado</Label>
                 <Select

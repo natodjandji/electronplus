@@ -680,7 +680,7 @@ function CustomerCard({
       <h2 className="mb-3 text-xs font-semibold uppercase tracking-widest text-muted-foreground">
         Cliente <span className="font-normal normal-case tracking-normal">(opcional)</span>
       </h2>
-      <div className="grid gap-3 sm:grid-cols-3">
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
         {field("name", "Nombre", { autoComplete: "off", maxLength: 120 })}
         {field("taxId", "RIF o cédula", { autoComplete: "off", maxLength: 30 })}
         {field("phone", "Teléfono", {
@@ -713,7 +713,7 @@ function PricingCard({
   };
 
   return (
-    <Card className="mt-3 grid gap-4 p-4 sm:grid-cols-2">
+    <Card className="mt-3 grid grid-cols-1 gap-4 p-4 sm:grid-cols-2">
       <div className="grid gap-1.5">
         <span className="text-xs font-medium text-brand-navy">Lista de precios</span>
         <ToggleGroup

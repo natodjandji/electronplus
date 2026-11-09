@@ -548,7 +548,7 @@ function CheckoutPage() {
           })}
         </div>
 
-        <div className="mt-8 grid gap-6 lg:grid-cols-[minmax(0,1fr)_320px]">
+        <div className="mt-8 grid grid-cols-1 gap-6 lg:grid-cols-[minmax(0,1fr)_320px]">
           <Card className="overflow-hidden p-6">
             <AnimatePresence mode="wait" initial={false} custom={direction}>
               <motion.div
@@ -566,7 +566,7 @@ function CheckoutPage() {
                     <RadioGroup
                       value={fulfillmentMethod}
                       onValueChange={(v) => setFulfillmentMethod(v as "delivery" | "pickup")}
-                      className="grid gap-3 sm:grid-cols-2"
+                      className="grid grid-cols-1 gap-3 sm:grid-cols-2"
                     >
                       <label
                         className={`flex cursor-pointer items-center gap-3 rounded-md border p-3 transition ${
@@ -592,7 +592,7 @@ function CheckoutPage() {
                       </label>
                     </RadioGroup>
 
-                    <div className="grid gap-4 sm:grid-cols-2">
+                    <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
                       <Field className="grid gap-1.5">
                         <Label className="text-xs font-medium text-brand-navy">
                           Nombre completo
@@ -841,7 +841,7 @@ function CheckoutPage() {
                       <div className="text-xs font-semibold uppercase tracking-widest text-muted-foreground">
                         {isPickup ? "Retiro en tienda" : "Envío"}
                       </div>
-                      <div className="mt-1.5 grid gap-1 text-brand-navy sm:grid-cols-2">
+                      <div className="mt-1.5 grid grid-cols-1 gap-1 text-brand-navy sm:grid-cols-2">
                         <div>{fullName}</div>
                         <div>{formatTaxId(taxIdPrefix, taxIdNumber) ?? "—"}</div>
                         <div>{formatPhone(phonePrefix, phoneNumber)}</div>

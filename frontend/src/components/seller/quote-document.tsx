@@ -43,7 +43,7 @@ export function QuoteDocument({ quote }: { quote: SharedQuote }) {
         </div>
       </header>
 
-      <section className="grid gap-4 border-b border-border py-5 text-sm sm:grid-cols-2">
+      <section className="grid grid-cols-1 gap-4 border-b border-border py-5 text-sm sm:grid-cols-2">
         <div>
           <div className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
             Cliente

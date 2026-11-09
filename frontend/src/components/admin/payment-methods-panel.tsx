@@ -67,7 +67,7 @@ export function PaymentMethodsPanel() {
       )}
 
       {methods && (
-        <div className="mt-6 grid gap-4 sm:grid-cols-2">
+        <div className="mt-6 grid grid-cols-1 gap-4 sm:grid-cols-2">
           {methods.map((m) => (
             <Card key={m.id} className={`p-5 ${!m.enabled ? "opacity-60" : ""}`}>
               <div className="flex items-start justify-between gap-3">

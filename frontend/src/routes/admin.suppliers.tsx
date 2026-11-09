@@ -106,7 +106,7 @@ function SuppliersPage() {
       </div>
 
       {isLoading && (
-        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
           {[0, 1, 2, 3, 4, 5].map((i) => (
             <Card key={i} className="flex items-start gap-3 p-4">
               <Skeleton className="h-10 w-10 shrink-0 rounded-md" />
@@ -126,7 +126,7 @@ function SuppliersPage() {
       )}
 
       {suppliers && suppliers.length > 0 && (
-        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
           {suppliers.map((s) => (
             <Card
               key={s.id}

@@ -114,7 +114,7 @@ function CartPage() {
             </Button>
           </Card>
         ) : (
-          <div className="mt-8 grid gap-6 lg:grid-cols-[minmax(0,1fr)_360px]">
+          <div className="mt-8 grid grid-cols-1 gap-6 lg:grid-cols-[minmax(0,1fr)_360px]">
             <motion.div
               className="space-y-3"
               variants={staggerContainer}
@@ -151,7 +151,7 @@ function CartPage() {
                             <div className="text-[10px] font-semibold uppercase tracking-widest text-muted-foreground">
                               {product.model}
                             </div>
-                            <h3 className="truncate text-sm font-semibold text-brand-navy">
+                            <h3 className="line-clamp-2 break-words text-sm font-semibold leading-snug text-brand-navy">
                               {product.name}
                             </h3>
                             <div className="mt-1.5">

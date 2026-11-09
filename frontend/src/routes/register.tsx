@@ -150,7 +150,7 @@ function RegisterPage() {
           </div>
         </Field>
 
-        <div className="grid gap-3 sm:grid-cols-2">
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
           <Field className="grid gap-1.5">
             <Label htmlFor="password" className="text-xs font-medium text-brand-navy">
               Contraseña

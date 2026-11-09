@@ -988,7 +988,7 @@ function ProductFormDialog({ product, onClose }: { product?: AdminProduct; onClo
         {/* Content-start on each field: in a two-column row a taller
             neighbour (one with a hint under it) stretched the other's
             label and control apart. */}
-        <div className="grid gap-4 sm:grid-cols-2">
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
           {fromErp && (
             <p className="rounded-md bg-brand-blue/10 px-3 py-2 text-xs text-brand-navy sm:col-span-2">
               Viene de Profit Plus: el código de barra, el SKU, el nombre, la categoría, los precios

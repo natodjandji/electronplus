@@ -173,7 +173,7 @@ function Home() {
           }}
         />
         <CircuitBackground className="opacity-40" tone="white" />
-        <div className="relative mx-auto grid max-w-7xl items-center gap-10 px-4 py-16 sm:px-6 md:grid-cols-2 md:py-24">
+        <div className="relative mx-auto grid grid-cols-1 max-w-7xl items-center gap-10 px-4 py-16 sm:px-6 md:grid-cols-2 md:py-24">
           <div>
             <div className="inline-flex items-center gap-2 rounded-full border border-brand-yellow/40 bg-brand-yellow/10 px-3 py-1 text-xs font-semibold text-brand-yellow">
               <Zap className="h-3.5 w-3.5" />
@@ -295,7 +295,7 @@ function Home() {
 
       {/* Value props */}
       <section className="mx-auto max-w-7xl px-4 py-14 sm:px-6">
-        <div className="grid gap-4 md:grid-cols-3">
+        <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
           {[
             {
               icon: Search,
@@ -342,7 +342,7 @@ function Home() {
               Ver todo →
             </Link>
           </div>
-          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
             {bestSellersLoading
               ? [0, 1, 2, 3].map((i) => <FeaturedProductSkeleton key={i} />)
               : bestSellers.slice(0, 4).map((p) => <FeaturedProductCard key={p.id} product={p} />)}

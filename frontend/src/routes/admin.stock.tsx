@@ -107,7 +107,7 @@ function StockPage() {
 
   return (
     <AdminShell title="Alertas de stock en tiempo real">
-      <div className="grid gap-4 md:grid-cols-2">
+      <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
         <Card className="border-destructive/40 bg-destructive/5 p-5">
           <div className="flex items-center gap-3">
             <div className="grid h-10 w-10 place-items-center rounded-md bg-destructive/15 text-destructive">

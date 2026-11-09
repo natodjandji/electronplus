@@ -123,7 +123,7 @@ function AdminDashboard() {
 
   return (
     <AdminShell title="Dashboard">
-      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
+      <div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-4">
         <Kpi
           icon={DollarSign}
           label="Ventas del mes"
@@ -164,7 +164,7 @@ function AdminDashboard() {
         />
       </div>
 
-      <div className="mt-6 grid gap-4 lg:grid-cols-3">
+      <div className="mt-6 grid grid-cols-1 gap-4 lg:grid-cols-3">
         <Card className="p-6 lg:col-span-2">
           <div className="text-xs font-semibold uppercase tracking-widest text-muted-foreground">
             Rendimiento

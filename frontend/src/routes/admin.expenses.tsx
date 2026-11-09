@@ -250,7 +250,7 @@ function ExpensesPage() {
         de pago, sin importar el mes de vencimiento que estés viendo abajo.
       </p>
 
-      <div className="mt-4 grid gap-4 md:grid-cols-3">
+      <div className="mt-4 grid grid-cols-1 gap-4 md:grid-cols-3">
         <SummaryCard
           tone="destructive"
           icon={AlertCircle}
@@ -459,7 +459,7 @@ function CreateExpenseDialog({ onClose }: { onClose: () => void }) {
           <DialogTitle>Nuevo gasto</DialogTitle>
         </DialogHeader>
 
-        <div className="grid gap-4 sm:grid-cols-2">
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
           <Field className="grid gap-1.5 sm:col-span-2">
             <Label className="text-xs font-medium text-brand-navy">Nombre del gasto</Label>
             <Input
@@ -639,7 +639,7 @@ function EditExpenseDialog({ expense, onClose }: { expense: Expense; onClose: ()
           <DialogTitle>Editar gasto</DialogTitle>
         </DialogHeader>
 
-        <div className="grid gap-4 sm:grid-cols-2">
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
           <Field className="grid gap-1.5 sm:col-span-2">
             <Label className="text-xs font-medium text-brand-navy">Nombre del gasto</Label>
             <Input value={name} onChange={(e) => setName(e.target.value)} />

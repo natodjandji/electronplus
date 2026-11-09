@@ -144,7 +144,7 @@ function ConversationsPage() {
         onOpenSettings={() => setSettingsOpen(true)}
       />
 
-      <div className="mt-4 grid gap-4 lg:grid-cols-[minmax(0,22rem)_minmax(0,1fr)]">
+      <div className="mt-4 grid grid-cols-1 gap-4 lg:grid-cols-[minmax(0,22rem)_minmax(0,1fr)]">
         <Card className={cn("overflow-hidden", selected && "hidden lg:block")}>
           {isLoading ? (
             <div className="p-3">
@@ -646,7 +646,7 @@ function SettingsDialog({
             </Field>
           </div>
 
-          <div className="grid gap-4 sm:grid-cols-[minmax(0,1fr)_9rem]">
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-[minmax(0,1fr)_9rem]">
             {/* min-w-0: a grid item won't shrink below its content otherwise,
                 and the trigger ran over the next column. */}
             <Field className="grid min-w-0 gap-1.5">
@@ -703,7 +703,7 @@ function SettingsDialog({
                 </p>
               )}
             </div>
-            <div className="grid gap-3 sm:grid-cols-3">
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
               <LimitField
                 label="Gasto máximo al día (US$)"
                 value={draft.dailyBudgetUsd}

@@ -26,3 +26,14 @@ export function slugify(label: string): string {
 export function safeJsonLd(value: unknown): string {
   return JSON.stringify(value).replace(/</g, "\\u003c");
 }
+
+/** For text written into raw HTML (a print window's document.write): a
+ * value carrying `<` or a quote can't open a tag or leave an attribute. */
+export function escapeHtml(value: string): string {
+  return value
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#39;");
+}
