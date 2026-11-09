@@ -1,6 +1,6 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
-import { useMemo, useState } from "react";
+import { useMemo, useRef, useState } from "react";
 import { Loader2, Printer, QrCode, Search } from "lucide-react";
 import { AdminShell } from "@/components/admin-shell";
 import { PaginationBar, usePagination } from "@/components/pagination";
@@ -218,13 +218,23 @@ function LabelsPage() {
     setQuantities((prev) => ({ ...prev, [id]: Math.max(0, qty) }));
 
   const activeFormat = FORMAT_OPTIONS.find((f) => f.value === format)!;
+  const previewTop = useRef<HTMLDivElement>(null);
+  const canPrint = totalLabels > 0 && !labelsLoading;
 
   return (
     <AdminShell title="Generador e impresor de etiquetas">
       <style>{LABEL_PRINT_STYLE}</style>
 
-      <div className="grid gap-6 lg:grid-cols-[380px_minmax(0,1fr)] print:contents">
-        <Card className="p-6 print:hidden">
+      {/* grid-cols-1: one shrinkable column, or a long product name widens
+          the page past a phone's screen. The bottom padding leaves room for
+          the phone's print bar. */}
+      <div
+        className={cn(
+          "grid grid-cols-1 gap-6 lg:grid-cols-[380px_minmax(0,1fr)] print:contents",
+          totalLabels > 0 && "pb-20 lg:pb-0 print:pb-0",
+        )}
+      >
+        <Card className="p-4 sm:p-6 print:hidden">
           <div className="flex items-center justify-between">
             <h3 className="text-base font-semibold text-brand-navy">Seleccionar productos</h3>
             <Button
@@ -247,7 +257,9 @@ function LabelsPage() {
             />
           </div>
 
-          <div className="mt-3 max-h-[520px] space-y-2 overflow-y-auto pr-1">
+          {/* Its own scroll only beside the preview: on a phone it flows
+              with the page instead of trapping the finger. */}
+          <div className="mt-3 space-y-2 lg:max-h-[520px] lg:overflow-y-auto lg:pr-1">
             {isLoading && (
               <div className="flex items-center justify-center gap-2 py-8 text-sm text-muted-foreground">
                 <Loader2 className="h-4 w-4 animate-spin" /> Cargando…
@@ -264,8 +276,11 @@ function LabelsPage() {
                 className="flex items-center gap-3 rounded-md border border-border p-2 hover:bg-brand-surface"
               >
                 <div className="min-w-0 flex-1">
-                  <div className="truncate text-sm font-semibold text-brand-navy">{p.name}</div>
-                  <div className="text-xs text-muted-foreground">{p.model}</div>
+                  {/* Two lines: names often differ only at the end (5W, 6W…). */}
+                  <div className="line-clamp-2 break-words text-sm font-semibold leading-snug text-brand-navy">
+                    {p.name}
+                  </div>
+                  <div className="truncate text-xs text-muted-foreground">{p.model}</div>
                 </div>
                 <QuantityStepper
                   qty={quantities[p.id] ?? 0}
@@ -287,24 +302,22 @@ function LabelsPage() {
           />
         </Card>
 
-        <div className="print:contents">
-          <div className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-3 print:hidden">
-            <div>
-              <h3 className="text-base font-semibold text-brand-navy">
-                Vista previa · {totalLabels} etiqueta{totalLabels === 1 ? "" : "s"}
-              </h3>
-              <p className="text-xs text-muted-foreground">
-                Etiquetas de 5×3cm para impresora Xprinter XP-D4601B. {activeFormat.hint}
-              </p>
-            </div>
+        <div ref={previewTop} className="scroll-mt-20 print:contents">
+          <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-1 print:hidden">
+            <h3 className="text-base font-semibold text-brand-navy">
+              Vista previa · {totalLabels} etiqueta{totalLabels === 1 ? "" : "s"}
+            </h3>
             <Button
               className="gap-2 bg-brand-blue text-white hover:bg-brand-blue/90"
               onClick={() => window.print()}
-              disabled={totalLabels === 0 || labelsLoading}
+              disabled={!canPrint}
             >
               <Printer className="h-4 w-4" />
               Imprimir
             </Button>
+            <p className="basis-full text-xs text-muted-foreground">
+              Etiquetas de 5×3cm para impresora Xprinter XP-D4601B. {activeFormat.hint}
+            </p>
           </div>
 
           <div className="mt-4 flex gap-1 rounded-md border border-border p-1 print:hidden">
@@ -343,6 +356,37 @@ function LabelsPage() {
           </div>
         </div>
       </div>
+
+      {/* On a phone the preview and its button sit below the whole product
+          list: this keeps both a tap away while picking. */}
+      {totalLabels > 0 && (
+        <div className="fixed inset-x-0 bottom-0 z-30 border-t border-border bg-white/95 backdrop-blur lg:hidden print:hidden">
+          <div className="flex items-center gap-2 px-4 pb-[calc(0.75rem+env(safe-area-inset-bottom))] pt-3">
+            <div className="min-w-0 flex-1 text-sm font-semibold tabular-nums text-brand-navy">
+              {totalLabels} etiqueta{totalLabels === 1 ? "" : "s"}
+            </div>
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => previewTop.current?.scrollIntoView({ behavior: "smooth" })}
+            >
+              Ver
+            </Button>
+            <Button
+              className="gap-2 bg-brand-blue text-white hover:bg-brand-blue/90"
+              onClick={() => window.print()}
+              disabled={!canPrint}
+            >
+              {labelsLoading ? (
+                <Loader2 className="h-4 w-4 animate-spin" />
+              ) : (
+                <Printer className="h-4 w-4" />
+              )}
+              Imprimir
+            </Button>
+          </div>
+        </div>
+      )}
     </AdminShell>
   );
 }
