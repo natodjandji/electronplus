@@ -27,20 +27,20 @@ export function isFromSecondStoreErp(product: Pick<SecondStoreProduct, "source">
 export const SECOND_STORE_ERP_NOTE =
   "Viene del Profit Plus de la tienda secundaria: la descripción, el código, el stock y los precios se cambian allá y llegan solos con la sincronización.";
 
-/** Whether a linked pair's wholesale prices agree. */
-export type WholesaleMatch = "same" | "different";
+/** Whether a linked pair's prices (retail or wholesale) agree. */
+export type PriceMatch = "same" | "different";
 
 /**
- * How a product's wholesale price compares with its linked secundaria
- * record's, to the cent. A price of 0 means there is none, so two missing
- * prices don't count as agreeing.
+ * How a price at the principal compares with the same price at its linked
+ * secundaria record, to the cent. A price of 0 means there is none, so two
+ * missing prices don't count as agreeing.
  */
-export function compareWholesale(
+export function comparePrices(
   mainPrice: number | undefined,
-  link: Pick<SecondStoreProduct, "wholesalePrice">,
-): WholesaleMatch {
+  secondPrice: number | undefined,
+): PriceMatch {
   const main = Math.round((mainPrice ?? 0) * 100);
-  const second = Math.round((link.wholesalePrice ?? 0) * 100);
+  const second = Math.round((secondPrice ?? 0) * 100);
   return main > 0 && main === second ? "same" : "different";
 }
 

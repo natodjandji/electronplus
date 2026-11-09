@@ -3,6 +3,8 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useMemo, useRef, useState, type ChangeEvent } from "react";
 import {
   AlertTriangle,
+  ChevronDown,
+  CircleDollarSign,
   ImageIcon,
   Link2,
   ListFilter,
@@ -11,10 +13,20 @@ import {
   Search,
   Trash2,
   Unlink,
+  X,
 } from "lucide-react";
 import { AdminShell } from "@/components/admin-shell";
 import { PaginationBar, usePagination } from "@/components/pagination";
 import { PendingToggle } from "@/components/pending-toggle";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuLabel,
+  DropdownMenuRadioGroup,
+  DropdownMenuRadioItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import { ProductImage } from "@/components/product-image";
 import { TableRowsSkeleton } from "@/components/table-skeleton";
 import { Card } from "@/components/ui/card";
@@ -54,14 +66,25 @@ import { SupplierPicker, useSuppliers } from "@/components/supplier-picker";
 import { apiFetch, reportError } from "@/lib/api-client";
 import {
   applySecondStoreRow,
-  compareWholesale,
+  comparePrices,
   isFromSecondStoreErp,
   rankLinkCandidates,
   SECOND_STORE_ERP_NOTE,
   type SecondStoreProduct,
   useSecondStoreProducts,
-  type WholesaleMatch,
 } from "@/lib/second-store";
+import {
+  ANY,
+  facetCounts,
+  hasFilters,
+  matchesFilters,
+  NO_FILTERS,
+  NO_SUPPLIER,
+  type InventoryFilters,
+  type InventoryRow,
+  type PriceFilter,
+} from "@/lib/inventory-filters";
+import { fold } from "@/lib/product-search";
 import { uploadProductImage } from "@/lib/image-compress";
 import { formatMoneyAdmin } from "@/lib/electron-store";
 import { toast } from "sonner";
@@ -119,14 +142,8 @@ function useAdminProducts() {
 const PAGE_SIZE = 25;
 const LINK_PICKER_PAGE_SIZE = 20;
 
-/** The wholesale-price filter: every product, or only the linked ones whose
- * price agrees (or not) with the secundaria's. */
-type WholesaleFilter = "all" | WholesaleMatch;
-
 function InventoryPage() {
-  const [search, setSearch] = useState("");
-  const [onlyUnlinked, setOnlyUnlinked] = useState(false);
-  const [wholesaleFilter, setWholesaleFilter] = useState<WholesaleFilter>("all");
+  const [filters, setFilters] = useState<InventoryFilters>(NO_FILTERS);
   const [creating, setCreating] = useState(false);
   const [editing, setEditing] = useState<AdminProduct | null>(null);
   const [linkingProduct, setLinkingProduct] = useState<AdminProduct | null>(null);
@@ -134,6 +151,19 @@ function InventoryPage() {
   const { data: suppliers } = useSuppliers();
   const { data: secondStoreProducts } = useSecondStoreProducts();
   const queryClient = useQueryClient();
+
+  const setFilter = <K extends keyof InventoryFilters>(key: K, value: InventoryFilters[K]) =>
+    setFilters((current) => {
+      const next = { ...current, [key]: value };
+      // Only linked products have prices to compare, so a price filter and
+      // "Sin vincular" together would always come up empty: the newer wins.
+      if ((key === "wholesale" || key === "retail") && value !== ANY) next.onlyUnlinked = false;
+      if (key === "onlyUnlinked" && value) {
+        next.wholesale = ANY;
+        next.retail = ANY;
+      }
+      return next;
+    });
 
   // One lookup per row instead of scanning the thousands of second-store
   // rows for each product on every render.
@@ -152,42 +182,53 @@ function InventoryPage() {
   const unlinkedCount = secondStoreProducts
     ? (allProducts ?? []).filter((p) => !linkByProductId.has(p.id)).length
     : undefined;
-  // Only a linked product has a second wholesale price to compare with.
-  const wholesaleMatchById = useMemo(
+
+  const rows = useMemo(
     () =>
-      new Map(
-        (allProducts ?? []).flatMap((p) => {
-          const link = linkByProductId.get(p.id);
-          return link ? [[p.id, compareWholesale(p.wholesalePrice, link)] as const] : [];
-        }),
-      ),
+      (allProducts ?? []).map((p): InventoryRow<AdminProduct> => {
+        const link = linkByProductId.get(p.id);
+        return {
+          product: p,
+          text: fold(`${p.name} ${p.model ?? ""} ${p.sku}`),
+          categoryId: p.categoryId,
+          supplierId: p.supplierId,
+          linked: Boolean(link),
+          wholesale: link ? comparePrices(p.wholesalePrice, link.wholesalePrice) : null,
+          retail: link ? comparePrices(p.retailPrice, link.retailPrice) : null,
+        };
+      }),
     [allProducts, linkByProductId],
   );
-  const wholesaleCount = (match: WholesaleMatch) =>
-    secondStoreProducts
-      ? [...wholesaleMatchById.values()].filter((m) => m === match).length
-      : undefined;
-
-  const products = useMemo(() => {
-    const needle = search.trim().toLowerCase();
-    return (allProducts ?? []).filter(
-      (p) =>
-        (!onlyUnlinked || !linkByProductId.has(p.id)) &&
-        (wholesaleFilter === "all" || wholesaleMatchById.get(p.id) === wholesaleFilter) &&
-        (!needle ||
-          p.name.toLowerCase().includes(needle) ||
-          p.sku.toLowerCase().includes(needle) ||
-          Boolean(p.model?.toLowerCase().includes(needle))),
-    );
-  }, [allProducts, search, onlyUnlinked, wholesaleFilter, linkByProductId, wholesaleMatchById]);
-  const pagination = usePagination(
-    products,
-    PAGE_SIZE,
-    `${search}|${onlyUnlinked}|${wholesaleFilter}`,
+  const rowById = useMemo(() => new Map(rows.map((r) => [r.product.id, r])), [rows]);
+  const products = useMemo(
+    () => rows.filter((r) => matchesFilters(r, filters)).map((r) => r.product),
+    [rows, filters],
   );
+  const pagination = usePagination(products, PAGE_SIZE, JSON.stringify(filters));
   const tableTop = useRef<HTMLDivElement>(null);
 
   const supplierName = (id?: string) => suppliers?.find((s) => s.id === id)?.name;
+
+  // Each filter lists the values the catalog has, with what picking one
+  // would leave given the other filters.
+  const categoryCounts = facetCounts(rows, filters, "category");
+  const categoryOptions = uniqueBy(
+    rows.map((r) => ({ value: r.categoryId, label: r.product.category.label })),
+  ).map((o) => ({ ...o, count: categoryCounts.get(o.value) ?? 0 }));
+  const supplierCounts = facetCounts(rows, filters, "supplier");
+  const supplierOptions = uniqueBy(
+    rows.map((r) =>
+      r.supplierId
+        ? {
+            value: r.supplierId,
+            label: supplierName(r.supplierId) ?? "Proveedor desconocido",
+          }
+        : { value: NO_SUPPLIER, label: "Sin proveedor" },
+    ),
+  ).map((o) => ({ ...o, count: supplierCounts.get(o.value) ?? 0 }));
+  // Unknown until the second store's list arrives.
+  const priceCounts = (facet: "wholesale" | "retail") =>
+    secondStoreProducts ? facetCounts(rows, filters, facet) : undefined;
 
   const deleteProduct = useMutation({
     mutationFn: (id: string) => apiFetch(`/products/${id}`, { method: "DELETE" }),
@@ -201,69 +242,70 @@ function InventoryPage() {
   return (
     <AdminShell title="Inventario">
       <div className="flex flex-wrap items-end justify-between gap-3">
-        <div className="flex flex-wrap items-end gap-3">
-          <Field className="grid gap-1.5">
-            <Label className="text-xs font-medium text-brand-navy">Buscar</Label>
-            <div className="relative">
-              <Search className="pointer-events-none absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
-              <Input
-                value={search}
-                onChange={(e) => setSearch(e.target.value)}
-                placeholder="Nombre, SKU o código de barra…"
-                className="w-64 pl-8"
-              />
-            </div>
-          </Field>
-          {/* Products whose stock isn't linked to the second store yet. */}
-          <Field className="grid gap-1.5">
-            <Label htmlFor="wholesale-filter" className="text-xs font-medium text-brand-navy">
-              Precio al mayor entre tiendas
-            </Label>
-            <Select
-              value={wholesaleFilter}
-              onValueChange={(value) => {
-                setWholesaleFilter(value as WholesaleFilter);
-                // Only linked products are compared: none is also unlinked.
-                if (value !== "all") setOnlyUnlinked(false);
-              }}
-            >
-              <SelectTrigger
-                id="wholesale-filter"
-                className={cn(
-                  "w-72 gap-2 [&>span]:flex-1 [&>span]:truncate [&>span]:text-left",
-                  wholesaleFilter !== "all" && "border-brand-blue bg-brand-blue/5",
-                )}
-              >
-                <ListFilter className="h-4 w-4 shrink-0 text-muted-foreground" />
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">Todos los productos</SelectItem>
-                <SelectItem value="same">
-                  Mismo precio al mayor{countSuffix(wholesaleCount("same"))}
-                </SelectItem>
-                <SelectItem value="different">
-                  Precio al mayor distinto{countSuffix(wholesaleCount("different"))}
-                </SelectItem>
-              </SelectContent>
-            </Select>
-          </Field>
-          <PendingToggle
-            label="Sin vincular"
-            count={unlinkedCount}
-            active={onlyUnlinked}
-            onToggle={() => {
-              if (!onlyUnlinked) setWholesaleFilter("all");
-              setOnlyUnlinked((on) => !on);
-            }}
-          />
-        </div>
+        <Field className="grid gap-1.5">
+          <Label htmlFor="inventory-search" className="text-xs font-medium text-brand-navy">
+            Buscar
+          </Label>
+          <div className="relative">
+            <Search className="pointer-events-none absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
+            <Input
+              id="inventory-search"
+              value={filters.search}
+              onChange={(e) => setFilter("search", e.target.value)}
+              placeholder="Nombre, SKU o código de barra…"
+              className="w-72 max-w-full pl-8"
+            />
+          </div>
+        </Field>
         <Button
           className="gap-2 bg-brand-blue text-white hover:bg-brand-blue/90"
           onClick={() => setCreating(true)}
         >
           <Plus className="h-4 w-4" /> Nuevo producto
         </Button>
+      </div>
+      <div className="mt-3 flex flex-wrap items-end gap-3">
+        <FilterSelect
+          id="category-filter"
+          label="Categoría"
+          allLabel="Todas"
+          value={filters.category}
+          onChange={(value) => setFilter("category", value)}
+          options={categoryOptions}
+        />
+        <FilterSelect
+          id="supplier-filter"
+          label="Proveedor"
+          allLabel="Todos"
+          value={filters.supplier}
+          onChange={(value) => setFilter("supplier", value)}
+          options={supplierOptions}
+        />
+        <PriceCheckMenu
+          retail={filters.retail}
+          wholesale={filters.wholesale}
+          onChange={setFilter}
+          retailCounts={priceCounts("retail")}
+          wholesaleCounts={priceCounts("wholesale")}
+        />
+        {/* Products whose stock isn't linked to the second store yet. */}
+        <PendingToggle
+          label="Sin vincular"
+          count={unlinkedCount}
+          active={filters.onlyUnlinked}
+          onToggle={() => setFilter("onlyUnlinked", !filters.onlyUnlinked)}
+        />
+        {hasFilters(filters) && (
+          <Button
+            type="button"
+            variant="ghost"
+            size="sm"
+            className="h-9 gap-1.5 text-muted-foreground"
+            onClick={() => setFilters(NO_FILTERS)}
+          >
+            <X className="h-4 w-4" /> Limpiar filtros
+          </Button>
+        )}
       </div>
 
       <Card ref={tableTop} className="mt-6 overflow-hidden">
@@ -353,21 +395,18 @@ function InventoryPage() {
                         </Button>
                       </div>
                     </td>
-                    <td className="px-4 py-3 text-right">{formatMoneyAdmin(p.retailPrice)}</td>
-                    <td className="px-4 py-3 text-right">
-                      <div>{formatMoneyAdmin(p.wholesalePrice)}</div>
-                      {link && wholesaleMatchById.get(p.id) === "different" && (
-                        <div
-                          className="whitespace-nowrap text-[10px] font-medium text-amber-700"
-                          title="Precio al mayor en la tienda secundaria"
-                        >
-                          secundaria{" "}
-                          {link.wholesalePrice
-                            ? formatMoneyAdmin(link.wholesalePrice)
-                            : "sin precio"}
-                        </div>
-                      )}
-                    </td>
+                    <PriceCell
+                      price={p.retailPrice}
+                      secondPrice={link?.retailPrice}
+                      mismatch={rowById.get(p.id)?.retail === "different"}
+                      title="Precio al detal en la tienda secundaria"
+                    />
+                    <PriceCell
+                      price={p.wholesalePrice}
+                      secondPrice={link?.wholesalePrice}
+                      mismatch={rowById.get(p.id)?.wholesale === "different"}
+                      title="Precio al mayor en la tienda secundaria"
+                    />
                     <td className="px-4 py-3">
                       <div className="flex flex-wrap gap-1.5">
                         {p.stock === 0 && (
@@ -458,9 +497,174 @@ function InventoryPage() {
   );
 }
 
-/** " · 163", or nothing while the count isn't known yet. */
-function countSuffix(count: number | undefined): string {
-  return count === undefined ? "" : ` · ${count}`;
+/** The first of each value, sorted by label. */
+function uniqueBy(options: { value: string; label: string }[]) {
+  const byValue = new Map(options.map((o) => [o.value, o] as const));
+  return [...byValue.values()].sort((a, b) => a.label.localeCompare(b.label, "es"));
+}
+
+/**
+ * One of the inventory's filters: a list of values, each with how many
+ * products picking it would leave (left out while unknown), plus "all".
+ */
+function FilterSelect({
+  id,
+  label,
+  allLabel,
+  value,
+  onChange,
+  options,
+}: {
+  id: string;
+  label: string;
+  allLabel: string;
+  value: string;
+  onChange: (value: string) => void;
+  options: { value: string; label: string; count?: number }[];
+}) {
+  return (
+    <Field className="grid w-full gap-1.5 sm:w-auto">
+      <Label htmlFor={id} className="text-xs font-medium text-brand-navy">
+        {label}
+      </Label>
+      <Select value={value} onValueChange={onChange}>
+        <SelectTrigger
+          id={id}
+          className={cn(
+            "w-full gap-2 sm:w-56 [&>span]:flex-1 [&>span]:truncate [&>span]:text-left",
+            value !== ANY && "border-brand-blue bg-brand-blue/5",
+          )}
+        >
+          <ListFilter className="h-4 w-4 shrink-0 text-muted-foreground" />
+          <SelectValue />
+        </SelectTrigger>
+        <SelectContent className="max-h-80">
+          <SelectItem value={ANY}>{allLabel}</SelectItem>
+          {options.map((o) => (
+            <SelectItem key={o.value} value={o.value}>
+              {o.label}
+              {o.count !== undefined && ` · ${o.count}`}
+            </SelectItem>
+          ))}
+        </SelectContent>
+      </Select>
+    </Field>
+  );
+}
+
+/**
+ * The retail and wholesale price checks against the secundaria, in one
+ * small button: each lists every linked product, only those whose price
+ * agrees, or only those whose price doesn't. The menu stays open after a
+ * pick, so both can be set in one go.
+ */
+function PriceCheckMenu({
+  retail,
+  wholesale,
+  onChange,
+  retailCounts,
+  wholesaleCounts,
+}: {
+  retail: PriceFilter;
+  wholesale: PriceFilter;
+  onChange: (key: "retail" | "wholesale", value: PriceFilter) => void;
+  /** Left out while the secundaria's list is loading. */
+  retailCounts?: Map<string, number>;
+  wholesaleCounts?: Map<string, number>;
+}) {
+  const active = [retail, wholesale].filter((v) => v !== ANY).length;
+  const group = (
+    key: "retail" | "wholesale",
+    label: string,
+    value: PriceFilter,
+    counts?: Map<string, number>,
+  ) => (
+    <>
+      <DropdownMenuLabel className="text-xs text-muted-foreground">{label}</DropdownMenuLabel>
+      <DropdownMenuRadioGroup
+        value={value}
+        onValueChange={(next) => onChange(key, next as PriceFilter)}
+      >
+        {(
+          [
+            [ANY, "Todos"],
+            ["same", "Mismo precio"],
+            ["different", "Precio distinto"],
+          ] as const
+        ).map(([option, text]) => (
+          <DropdownMenuRadioItem
+            key={option}
+            value={option}
+            onSelect={(e) => e.preventDefault()}
+            className="gap-3"
+          >
+            <span className="flex-1">{text}</span>
+            {option !== ANY && counts && (
+              <span className="text-xs tabular-nums text-muted-foreground">
+                {counts.get(option) ?? 0}
+              </span>
+            )}
+          </DropdownMenuRadioItem>
+        ))}
+      </DropdownMenuRadioGroup>
+    </>
+  );
+
+  return (
+    <DropdownMenu>
+      <DropdownMenuTrigger asChild>
+        <Button
+          type="button"
+          variant="outline"
+          size="sm"
+          aria-label="Verificar precios entre tiendas"
+          title="Verificar precios entre tiendas"
+          className={cn(
+            "h-9 gap-1.5",
+            active > 0 && "border-brand-blue bg-brand-blue/5 text-brand-navy",
+          )}
+        >
+          <CircleDollarSign className="h-4 w-4" />
+          Precios
+          {active > 0 && (
+            <span className="rounded-full bg-brand-blue px-1.5 text-xs font-semibold tabular-nums text-white">
+              {active}
+            </span>
+          )}
+          <ChevronDown className="h-3.5 w-3.5 text-muted-foreground" />
+        </Button>
+      </DropdownMenuTrigger>
+      <DropdownMenuContent align="start" className="w-60">
+        {group("retail", "Precio al detal entre tiendas", retail, retailCounts)}
+        <DropdownMenuSeparator />
+        {group("wholesale", "Precio al mayor entre tiendas", wholesale, wholesaleCounts)}
+      </DropdownMenuContent>
+    </DropdownMenu>
+  );
+}
+
+/** A price, with the secundaria's under it when the two disagree. */
+function PriceCell({
+  price,
+  secondPrice,
+  mismatch,
+  title,
+}: {
+  price: number;
+  secondPrice: number | undefined;
+  mismatch: boolean;
+  title: string;
+}) {
+  return (
+    <td className="px-4 py-3 text-right">
+      <div>{formatMoneyAdmin(price)}</div>
+      {mismatch && (
+        <div className="whitespace-nowrap text-[10px] font-medium text-amber-700" title={title}>
+          secundaria {secondPrice ? formatMoneyAdmin(secondPrice) : "sin precio"}
+        </div>
+      )}
+    </td>
+  );
 }
 
 function SecondStoreLinkDialog({

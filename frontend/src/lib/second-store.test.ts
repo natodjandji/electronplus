@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { compareWholesale, isFromSecondStoreErp, rankLinkCandidates } from "./second-store";
+import { comparePrices, isFromSecondStoreErp, rankLinkCandidates } from "./second-store";
 
 describe("isFromSecondStoreErp", () => {
   it("treats a record as Profit Plus's unless an admin made it by hand", () => {
@@ -10,19 +10,19 @@ describe("isFromSecondStoreErp", () => {
   });
 });
 
-describe("compareWholesale", () => {
+describe("comparePrices", () => {
   it("agrees to the cent", () => {
-    expect(compareWholesale(7.4, { wholesalePrice: 7.4 })).toBe("same");
-    expect(compareWholesale(0.1 + 0.2, { wholesalePrice: 0.3 })).toBe("same");
-    expect(compareWholesale(7.4, { wholesalePrice: 6.8 })).toBe("different");
-    expect(compareWholesale(3.3, { wholesalePrice: 3.31 })).toBe("different");
+    expect(comparePrices(7.4, 7.4)).toBe("same");
+    expect(comparePrices(0.1 + 0.2, 0.3)).toBe("same");
+    expect(comparePrices(7.4, 6.8)).toBe("different");
+    expect(comparePrices(3.3, 3.31)).toBe("different");
   });
 
   it("doesn't count a missing price as agreeing", () => {
-    expect(compareWholesale(7.4, {})).toBe("different");
-    expect(compareWholesale(0, { wholesalePrice: 7.4 })).toBe("different");
-    expect(compareWholesale(0, { wholesalePrice: 0 })).toBe("different");
-    expect(compareWholesale(undefined, {})).toBe("different");
+    expect(comparePrices(7.4, undefined)).toBe("different");
+    expect(comparePrices(0, 7.4)).toBe("different");
+    expect(comparePrices(0, 0)).toBe("different");
+    expect(comparePrices(undefined, undefined)).toBe("different");
   });
 });
 
