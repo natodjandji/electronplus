@@ -8,7 +8,7 @@ export interface SearchableProduct {
 }
 
 /** Lowercase and without accents, so "lampara" finds "Lámpara". */
-function fold(text: string): string {
+export function fold(text: string): string {
   return text.normalize("NFD").replace(/\p{M}/gu, "").toLowerCase();
 }
 

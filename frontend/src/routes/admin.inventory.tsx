@@ -5,6 +5,7 @@ import {
   AlertTriangle,
   ImageIcon,
   Link2,
+  ListFilter,
   PackageX,
   Plus,
   Search,
@@ -33,6 +34,7 @@ import {
 import {
   Dialog,
   DialogContent,
+  DialogDescription,
   DialogFooter,
   DialogHeader,
   DialogTitle,
@@ -52,15 +54,19 @@ import { SupplierPicker, useSuppliers } from "@/components/supplier-picker";
 import { apiFetch, reportError } from "@/lib/api-client";
 import {
   applySecondStoreRow,
+  compareWholesale,
   isFromSecondStoreErp,
+  rankLinkCandidates,
   SECOND_STORE_ERP_NOTE,
   type SecondStoreProduct,
   useSecondStoreProducts,
+  type WholesaleMatch,
 } from "@/lib/second-store";
 import { uploadProductImage } from "@/lib/image-compress";
 import { formatMoneyAdmin } from "@/lib/electron-store";
 import { toast } from "sonner";
 import { slugify } from "@/lib/text";
+import { cn } from "@/lib/utils";
 import { useCategories, type Category } from "@/lib/categories";
 
 export const Route = createFileRoute("/admin/inventory")({
@@ -113,9 +119,14 @@ function useAdminProducts() {
 const PAGE_SIZE = 25;
 const LINK_PICKER_PAGE_SIZE = 20;
 
+/** The wholesale-price filter: every product, or only the linked ones whose
+ * price agrees (or not) with the secundaria's. */
+type WholesaleFilter = "all" | WholesaleMatch;
+
 function InventoryPage() {
   const [search, setSearch] = useState("");
   const [onlyUnlinked, setOnlyUnlinked] = useState(false);
+  const [wholesaleFilter, setWholesaleFilter] = useState<WholesaleFilter>("all");
   const [creating, setCreating] = useState(false);
   const [editing, setEditing] = useState<AdminProduct | null>(null);
   const [linkingProduct, setLinkingProduct] = useState<AdminProduct | null>(null);
@@ -141,19 +152,39 @@ function InventoryPage() {
   const unlinkedCount = secondStoreProducts
     ? (allProducts ?? []).filter((p) => !linkByProductId.has(p.id)).length
     : undefined;
+  // Only a linked product has a second wholesale price to compare with.
+  const wholesaleMatchById = useMemo(
+    () =>
+      new Map(
+        (allProducts ?? []).flatMap((p) => {
+          const link = linkByProductId.get(p.id);
+          return link ? [[p.id, compareWholesale(p.wholesalePrice, link)] as const] : [];
+        }),
+      ),
+    [allProducts, linkByProductId],
+  );
+  const wholesaleCount = (match: WholesaleMatch) =>
+    secondStoreProducts
+      ? [...wholesaleMatchById.values()].filter((m) => m === match).length
+      : undefined;
 
   const products = useMemo(() => {
     const needle = search.trim().toLowerCase();
     return (allProducts ?? []).filter(
       (p) =>
         (!onlyUnlinked || !linkByProductId.has(p.id)) &&
+        (wholesaleFilter === "all" || wholesaleMatchById.get(p.id) === wholesaleFilter) &&
         (!needle ||
           p.name.toLowerCase().includes(needle) ||
           p.sku.toLowerCase().includes(needle) ||
           Boolean(p.model?.toLowerCase().includes(needle))),
     );
-  }, [allProducts, search, onlyUnlinked, linkByProductId]);
-  const pagination = usePagination(products, PAGE_SIZE, `${search}|${onlyUnlinked}`);
+  }, [allProducts, search, onlyUnlinked, wholesaleFilter, linkByProductId, wholesaleMatchById]);
+  const pagination = usePagination(
+    products,
+    PAGE_SIZE,
+    `${search}|${onlyUnlinked}|${wholesaleFilter}`,
+  );
   const tableTop = useRef<HTMLDivElement>(null);
 
   const supplierName = (id?: string) => suppliers?.find((s) => s.id === id)?.name;
@@ -184,11 +215,47 @@ function InventoryPage() {
             </div>
           </Field>
           {/* Products whose stock isn't linked to the second store yet. */}
+          <Field className="grid gap-1.5">
+            <Label htmlFor="wholesale-filter" className="text-xs font-medium text-brand-navy">
+              Precio al mayor entre tiendas
+            </Label>
+            <Select
+              value={wholesaleFilter}
+              onValueChange={(value) => {
+                setWholesaleFilter(value as WholesaleFilter);
+                // Only linked products are compared: none is also unlinked.
+                if (value !== "all") setOnlyUnlinked(false);
+              }}
+            >
+              <SelectTrigger
+                id="wholesale-filter"
+                className={cn(
+                  "w-72 gap-2 [&>span]:flex-1 [&>span]:truncate [&>span]:text-left",
+                  wholesaleFilter !== "all" && "border-brand-blue bg-brand-blue/5",
+                )}
+              >
+                <ListFilter className="h-4 w-4 shrink-0 text-muted-foreground" />
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">Todos los productos</SelectItem>
+                <SelectItem value="same">
+                  Mismo precio al mayor{countSuffix(wholesaleCount("same"))}
+                </SelectItem>
+                <SelectItem value="different">
+                  Precio al mayor distinto{countSuffix(wholesaleCount("different"))}
+                </SelectItem>
+              </SelectContent>
+            </Select>
+          </Field>
           <PendingToggle
             label="Sin vincular"
             count={unlinkedCount}
             active={onlyUnlinked}
-            onToggle={() => setOnlyUnlinked((on) => !on)}
+            onToggle={() => {
+              if (!onlyUnlinked) setWholesaleFilter("all");
+              setOnlyUnlinked((on) => !on);
+            }}
           />
         </div>
         <Button
@@ -287,7 +354,20 @@ function InventoryPage() {
                       </div>
                     </td>
                     <td className="px-4 py-3 text-right">{formatMoneyAdmin(p.retailPrice)}</td>
-                    <td className="px-4 py-3 text-right">{formatMoneyAdmin(p.wholesalePrice)}</td>
+                    <td className="px-4 py-3 text-right">
+                      <div>{formatMoneyAdmin(p.wholesalePrice)}</div>
+                      {link && wholesaleMatchById.get(p.id) === "different" && (
+                        <div
+                          className="whitespace-nowrap text-[10px] font-medium text-amber-700"
+                          title="Precio al mayor en la tienda secundaria"
+                        >
+                          secundaria{" "}
+                          {link.wholesalePrice
+                            ? formatMoneyAdmin(link.wholesalePrice)
+                            : "sin precio"}
+                        </div>
+                      )}
+                    </td>
                     <td className="px-4 py-3">
                       <div className="flex flex-wrap gap-1.5">
                         {p.stock === 0 && (
@@ -378,6 +458,11 @@ function InventoryPage() {
   );
 }
 
+/** " · 163", or nothing while the count isn't known yet. */
+function countSuffix(count: number | undefined): string {
+  return count === undefined ? "" : ` · ${count}`;
+}
+
 function SecondStoreLinkDialog({
   product,
   link,
@@ -388,7 +473,10 @@ function SecondStoreLinkDialog({
   onClose: () => void;
 }) {
   const queryClient = useQueryClient();
-  const [search, setSearch] = useState("");
+  // Opens on the product's own SKU: the secundaria usually has it under the
+  // same code, which then comes first.
+  const initialSearch = product.model?.trim() || product.sku;
+  const [search, setSearch] = useState(initialSearch);
   const [creatingNew, setCreatingNew] = useState(false);
   const [newName, setNewName] = useState("");
   const [newCode, setNewCode] = useState("");
@@ -403,16 +491,17 @@ function SecondStoreLinkDialog({
 
   const asLink = { id: product.id, sku: product.sku, name: product.name, stock: product.stock };
 
-  const unlinked = useMemo(() => {
-    const needle = search.trim().toLowerCase();
-    return (allSecondStore ?? []).filter(
-      (s) =>
-        !s.linkedProduct &&
-        (!needle ||
-          s.name.toLowerCase().includes(needle) ||
-          (s.code ?? "").toLowerCase().includes(needle)),
-    );
-  }, [allSecondStore, search]);
+  const unlinked = useMemo(
+    () =>
+      rankLinkCandidates(
+        (allSecondStore ?? []).filter((s) => !s.linkedProduct),
+        search,
+        // Some are filed under the barcode instead: looked for too, until
+        // the admin types a search of their own.
+        search === initialSearch && product.sku !== initialSearch ? [product.sku] : [],
+      ),
+    [allSecondStore, search, initialSearch, product.sku],
+  );
   const unlinkedPage = usePagination(unlinked, LINK_PICKER_PAGE_SIZE, search);
 
   const linkExisting = useMutation({
@@ -490,6 +579,10 @@ function SecondStoreLinkDialog({
       <DialogContent className="max-w-md">
         <DialogHeader>
           <DialogTitle>Tienda secundaria · {product.name}</DialogTitle>
+          <DialogDescription>
+            {product.model && <>SKU {product.model} · </>}
+            Mayor {formatMoneyAdmin(product.wholesalePrice)}
+          </DialogDescription>
         </DialogHeader>
 
         {link ? (
@@ -579,8 +672,12 @@ function SecondStoreLinkDialog({
             <div className="relative">
               <Search className="pointer-events-none absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
               <Input
+                type="search"
+                aria-label="Buscar en la tienda secundaria"
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
+                // Typing replaces the SKU it opened with.
+                onFocus={(e) => e.currentTarget.select()}
                 placeholder="Buscar por nombre o código…"
                 className="pl-8"
               />
@@ -588,22 +685,41 @@ function SecondStoreLinkDialog({
             <div className="max-h-56 space-y-1 overflow-y-auto">
               {unlinked.length === 0 && !creatingNew && (
                 <div className="py-4 text-center text-sm text-muted-foreground">
-                  No hay productos sin vincular con ese nombre.
+                  {search.trim()
+                    ? `Ningún producto sin vincular coincide con “${search.trim()}”. Borra la búsqueda para verlos todos.`
+                    : "No quedan productos sin vincular en la tienda secundaria."}
                 </div>
               )}
-              {unlinkedPage.pageItems.map((s) => (
+              {unlinkedPage.pageItems.map(({ record: s, codeMatch }) => (
                 <button
                   key={s.id}
                   type="button"
                   onClick={() => linkExisting.mutate(s.id)}
                   disabled={linkExisting.isPending}
-                  className="flex w-full items-center justify-between rounded-md border border-border p-2 text-left text-sm hover:bg-brand-surface disabled:opacity-50"
+                  className="flex w-full items-center justify-between gap-3 rounded-md border border-border p-2 text-left text-sm hover:bg-brand-surface disabled:opacity-50"
                 >
-                  <div>
-                    <div className="font-medium text-brand-navy">{s.name}</div>
-                    {s.code && <div className="text-xs text-muted-foreground">{s.code}</div>}
+                  <div className="min-w-0">
+                    <div className="break-words font-medium text-brand-navy">{s.name}</div>
+                    <div className="flex flex-wrap items-center gap-1.5 text-xs text-muted-foreground">
+                      {s.code}
+                      {codeMatch && (
+                        <Badge
+                          className={cn(
+                            "px-1.5 py-0 text-[10px]",
+                            codeMatch === "exact"
+                              ? "bg-brand-blue text-white"
+                              : "bg-brand-blue/10 text-brand-navy",
+                          )}
+                        >
+                          {codeMatch === "exact" ? "Mismo código" : "Código parecido"}
+                        </Badge>
+                      )}
+                    </div>
                   </div>
-                  <div className="text-xs text-muted-foreground">Stock: {s.stock}</div>
+                  <div className="shrink-0 text-right text-xs text-muted-foreground">
+                    <div>Stock: {s.stock}</div>
+                    <div>Mayor: {s.wholesalePrice ? formatMoneyAdmin(s.wholesalePrice) : "—"}</div>
+                  </div>
                 </button>
               ))}
             </div>
