@@ -1,8 +1,9 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
 import { useMemo, useState } from "react";
-import { ExternalLink, Receipt, ScanLine, ShoppingBasket, Users } from "lucide-react";
+import { ExternalLink, Receipt, ScanBarcode, ScanLine, ShoppingBasket, Users } from "lucide-react";
 import { AdminShell } from "@/components/admin-shell";
+import { CartBarcodesDialog } from "@/components/cart-barcodes-dialog";
 import { TableRowsSkeleton } from "@/components/table-skeleton";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -102,6 +103,7 @@ function InStoreSalesPage() {
   const open = useCarts("open");
   const sold = useCarts("completed");
   const [selected, setSelected] = useState<SalesCart | null>(null);
+  const [barcodesFor, setBarcodesFor] = useState<SalesCart | null>(null);
 
   const openCarts = useMemo(() => open.data ?? [], [open.data]);
   const soldCarts = useMemo(() => sold.data ?? [], [sold.data]);
@@ -192,6 +194,7 @@ function InStoreSalesPage() {
           loading={open.isLoading}
           empty="No hay carritos abiertos en este momento."
           onSelect={setSelected}
+          onBarcodes={setBarcodesFor}
         />
       </Section>
 
@@ -201,11 +204,24 @@ function InStoreSalesPage() {
           loading={sold.isLoading}
           empty="Todavía no se ha cerrado ninguna venta hoy."
           onSelect={setSelected}
+          onBarcodes={setBarcodesFor}
           sold
         />
       </Section>
 
-      {selected && <CartDialog cart={selected} onClose={() => setSelected(null)} />}
+      {selected && (
+        <CartDialog
+          cart={selected}
+          onClose={() => setSelected(null)}
+          onBarcodes={() => {
+            setSelected(null);
+            setBarcodesFor(selected);
+          }}
+        />
+      )}
+      {barcodesFor && (
+        <CartBarcodesDialog cart={barcodesFor} onClose={() => setBarcodesFor(null)} />
+      )}
     </AdminShell>
   );
 }
@@ -270,12 +286,15 @@ function CartsTable({
   loading,
   empty,
   onSelect,
+  onBarcodes,
   sold = false,
 }: {
   carts: SalesCart[];
   loading: boolean;
   empty: string;
   onSelect: (cart: SalesCart) => void;
+  /** Shows the cart's products as barcodes, to scan into Profit. */
+  onBarcodes: (cart: SalesCart) => void;
   sold?: boolean;
 }) {
   return (
@@ -288,11 +307,14 @@ function CartsTable({
           <th className="px-4 py-2">{sold ? "Factura" : "Lista de precios"}</th>
           <th className="px-4 py-2 text-right">Total</th>
           <th className="px-4 py-2 text-right">{sold ? "Hora" : "Última actividad"}</th>
+          <th className="w-12 px-2 py-2">
+            <span className="sr-only">Códigos de barra</span>
+          </th>
         </tr>
       </thead>
       <tbody>
-        {loading && <TableRowsSkeleton rows={2} columns={6} />}
-        {!loading && carts.length === 0 && <EmptyRow columns={6}>{empty}</EmptyRow>}
+        {loading && <TableRowsSkeleton rows={2} columns={7} />}
+        {!loading && carts.length === 0 && <EmptyRow columns={7}>{empty}</EmptyRow>}
         {carts.map((cart) => (
           <tr
             key={cart.id}
@@ -320,6 +342,23 @@ function CartsTable({
             <td className="px-4 py-3 text-right text-muted-foreground">
               {formatWhen(sold ? (cart.closedAt ?? cart.updatedAt) : cart.updatedAt)}
             </td>
+            <td className="px-2 py-3 text-right">
+              <Button
+                type="button"
+                variant="ghost"
+                size="icon"
+                className="h-8 w-8"
+                title="Ver códigos de barra"
+                aria-label={`Ver códigos de barra de ${cart.customer.name || "cliente sin nombre"}`}
+                disabled={cart.items.length === 0}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onBarcodes(cart);
+                }}
+              >
+                <ScanBarcode className="h-4 w-4" />
+              </Button>
+            </td>
           </tr>
         ))}
       </tbody>
@@ -327,7 +366,15 @@ function CartsTable({
   );
 }
 
-function CartDialog({ cart, onClose }: { cart: SalesCart; onClose: () => void }) {
+function CartDialog({
+  cart,
+  onClose,
+  onBarcodes,
+}: {
+  cart: SalesCart;
+  onClose: () => void;
+  onBarcodes: () => void;
+}) {
   const totals = computeCartTotals(cart);
   const { customer } = cart;
   return (
@@ -414,11 +461,21 @@ function CartDialog({ cart, onClose }: { cart: SalesCart; onClose: () => void })
           </dd>
         </dl>
 
-        <Button asChild variant="outline" className="mt-2 gap-2">
-          <Link to="/vendedor/carrito/$id" params={{ id: cart.id }}>
-            <ExternalLink className="h-4 w-4" /> Abrir en ventas en tienda
-          </Link>
-        </Button>
+        <div className="mt-2 grid gap-2 sm:grid-cols-2">
+          <Button
+            type="button"
+            className="gap-2 bg-brand-blue text-white hover:bg-brand-blue/90"
+            disabled={cart.items.length === 0}
+            onClick={onBarcodes}
+          >
+            <ScanBarcode className="h-4 w-4" /> Ver códigos de barra
+          </Button>
+          <Button asChild variant="outline" className="gap-2">
+            <Link to="/vendedor/carrito/$id" params={{ id: cart.id }}>
+              <ExternalLink className="h-4 w-4" /> Abrir en ventas en tienda
+            </Link>
+          </Button>
+        </div>
       </DialogContent>
     </Dialog>
   );

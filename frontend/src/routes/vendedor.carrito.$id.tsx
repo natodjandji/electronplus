@@ -12,6 +12,7 @@ import {
   MoreVertical,
   Plus,
   Printer,
+  ScanBarcode,
   ScanLine,
   Search,
   Share2,
@@ -19,6 +20,7 @@ import {
   XCircle,
 } from "lucide-react";
 import { toast } from "sonner";
+import { CartBarcodesDialog } from "@/components/cart-barcodes-dialog";
 import { CodeScanner } from "@/components/seller/code-scanner";
 import { SellerShell } from "@/components/seller/seller-shell";
 import { QuantityStepper } from "@/components/quantity-stepper";
@@ -171,6 +173,7 @@ function CartScreen({ cart }: { cart: SalesCart }) {
   const [shareLink, setShareLink] = useState<SharedQuoteLink | null>(null);
   const [finishing, setFinishing] = useState(false);
   const [cancelling, setCancelling] = useState(false);
+  const [showingBarcodes, setShowingBarcodes] = useState(false);
 
   const editable = cart.status === "open";
   const units = cart.items.reduce((sum, i) => sum + i.qty, 0);
@@ -272,14 +275,26 @@ function CartScreen({ cart }: { cart: SalesCart }) {
       )}
 
       <section className="mt-5">
-        <div className="mb-2 flex items-baseline justify-between">
+        <div className="mb-2 flex items-center justify-between gap-2">
           <h2 className="text-xs font-semibold uppercase tracking-widest text-muted-foreground">
             Productos
           </h2>
           {!empty && (
-            <span className="text-xs text-muted-foreground">
-              {units} {units === 1 ? "unidad" : "unidades"}
-            </span>
+            <div className="flex items-center gap-2">
+              <span className="text-xs text-muted-foreground">
+                {units} {units === 1 ? "unidad" : "unidades"}
+              </span>
+              {/* For whoever invoices it in Profit: scanned off this screen. */}
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                className="h-8 gap-1.5"
+                onClick={() => setShowingBarcodes(true)}
+              >
+                <ScanBarcode className="h-4 w-4" /> Códigos de barra
+              </Button>
+            </div>
           )}
         </div>
         {empty ? (
@@ -385,6 +400,10 @@ function CartScreen({ cart }: { cart: SalesCart }) {
       </div>
 
       <ShareDialog cart={cart} link={shareLink} onClose={() => setShareLink(null)} />
+
+      {showingBarcodes && (
+        <CartBarcodesDialog cart={cart} onClose={() => setShowingBarcodes(false)} />
+      )}
 
       <FinishDialog
         open={finishing}
