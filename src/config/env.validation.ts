@@ -5,7 +5,9 @@ export const envSchema = z.object({
   PORT: z.coerce.number().default(3000),
   API_PREFIX: z.string().default('api'),
 
-  FIREBASE_PROJECT_ID: z.string().min(1, 'FIREBASE_PROJECT_ID is required'),
+  FIREBASE_PROJECT_ID: z
+    .string('FIREBASE_PROJECT_ID is required')
+    .min(1, 'FIREBASE_PROJECT_ID is required'),
   // Base64-encoded service-account JSON. If omitted, falls back to
   // GOOGLE_APPLICATION_CREDENTIALS (a key file path) or the ambient
   // metadata server when running on GCP.
@@ -50,8 +52,8 @@ export const envSchema = z.object({
   // OIDC token for this service account, issued for this audience) and
   // stops the in-process timers so nothing runs twice. Unset (local dev):
   // the in-process timers run as before.
-  SCHEDULER_INVOKER_EMAIL: z.string().email().optional(),
-  SCHEDULER_AUDIENCE: z.string().url().optional(),
+  SCHEDULER_INVOKER_EMAIL: z.email().optional(),
+  SCHEDULER_AUDIENCE: z.url().optional(),
 
   LOW_STOCK_DEFAULT_THRESHOLD: z.coerce.number().default(10),
 
@@ -70,8 +72,8 @@ export const envSchema = z.object({
   CASHEA_STORE_NAME: z.string().default('Electron Plus'),
   CASHEA_MERCHANT_NAME: z.string().default('Electron Plus'),
   // Overridable only to point local tests at a stand-in server.
-  CASHEA_API_URL: z.string().url().default('https://external.cashea.app'),
-  CASHEA_CHECKOUT_URL: z.string().url().default('https://web.cashea.app'),
+  CASHEA_API_URL: z.url().default('https://external.cashea.app'),
+  CASHEA_CHECKOUT_URL: z.url().default('https://web.cashea.app'),
 
   // WhatsApp and Instagram sales assistant (see MessagingService). Meta signs
   // every webhook with the app secret and checks the subscription with the
