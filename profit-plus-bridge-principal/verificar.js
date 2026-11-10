@@ -1,7 +1,8 @@
 /**
  * Verificación de solo lectura: lee los artículos directo de las tablas de
  * Profit Plus y los compara con lo que entrega el bridge y con lo que publica
- * la web (código de barra, SKU, nombre, categoría, marca, stock y precios).
+ * la web (código de barra, SKU, nombre, categoría, marca, stock y precios; los
+ * costos, solo con el bridge: el catálogo público no los muestra).
  * No escribe nada en Profit ni en la web.
  *
  * Uso (en la PC del bridge, en esta carpeta, con el bridge corriendo):
@@ -20,6 +21,7 @@ const path = require('path');
 const sql = require('mssql');
 const { ConfigError, parsePort, loadDbConfig, classifyDbError } = require('./db-config');
 const { elegirColumnaSku } = require('./columna-sku');
+const { elegirColumnasCosto } = require('./columnas-costo');
 const { deProfit, existencias, verificar, informe } = require('./verificacion');
 
 const OUTPUT = path.join(__dirname, 'verificacion-profit.txt');
@@ -34,10 +36,15 @@ const WEB_API = (process.env.WEB_API_URL || 'https://electronplus-api-7710169359
 async function leerProfit(pool) {
   const { recordset: columnas } = await pool
     .request()
-    .query("SELECT COLUMN_NAME AS nombre FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_NAME = 'art'");
-  const columnaSku = elegirColumnaSku(columnas.map((fila) => String(fila.nombre)));
+    .query(
+      "SELECT COLUMN_NAME AS nombre, DATA_TYPE AS tipo FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_NAME = 'art' ORDER BY ORDINAL_POSITION",
+    );
+  const art = columnas.map((fila) => ({ nombre: String(fila.nombre), tipo: String(fila.tipo) }));
+  const columnaSku = elegirColumnaSku(art.map((columna) => columna.nombre));
+  const columnasCosto = elegirColumnasCosto(art);
   const { recordset: filas } = await pool.request().query(`
     SELECT art.co_art, art.ref, ${columnaSku ? `art.[${columnaSku}] AS modelo,` : ''}
+           ${columnasCosto.map((columna) => `art.[${columna}],`).join(' ')}
            art.art_des, art.co_lin, lin.lin_des, art.co_cat, cat.cat_des,
            art.prec_vta1, art.prec_vta2
     FROM art
@@ -48,7 +55,11 @@ async function leerProfit(pool) {
   // La existencia se suma aquí, no en SQL como hace el bridge.
   const { recordset: almacen } = await pool.request().query('SELECT co_art, co_alma, stock_act FROM st_almac');
   const stockDe = existencias(almacen, process.env.WAREHOUSE_CODE);
-  return { columnaSku, articulos: filas.map((fila) => deProfit(fila, stockDe(fila.co_art))) };
+  return {
+    columnaSku,
+    columnasCosto,
+    articulos: filas.map((fila) => deProfit(fila, stockDe(fila.co_art), columnasCosto)),
+  };
 }
 
 /** La respuesta del bridge que corre en esta PC, con la clave del .env. */
@@ -130,7 +141,11 @@ async function main() {
   ]);
 
   const resultado = verificar({ profit: profit.articulos, bridge, web });
-  const { lineas, problemas } = informe(resultado, { columnaSku: profit.columnaSku, errores });
+  const { lineas, problemas } = informe(resultado, {
+    columnaSku: profit.columnaSku,
+    columnasCosto: profit.columnasCosto,
+    errores,
+  });
   const encabezado = `Verificación de Profit Plus — ${new Date().toLocaleString('es-VE')}`;
   const texto = [encabezado, '', ...lineas].join('\n');
   console.log(`\n${texto}`);

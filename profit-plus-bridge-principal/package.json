@@ -1,8 +1,8 @@
 {
   "name": "profit-plus-bridge-principal",
-  "version": "1.2.0",
+  "version": "1.3.0",
   "private": true,
-  "description": "Puente REST liviano entre Profit Plus (SQL Server, tienda principal) y el backend en la nube — expone el catálogo completo para sincronización.",
+  "description": "Puente REST liviano entre Profit Plus (SQL Server, tienda principal) y el backend en la nube — expone el catálogo completo, con costos, para sincronización.",
   "main": "server.js",
   "engines": {
     "node": ">=18.19.0"

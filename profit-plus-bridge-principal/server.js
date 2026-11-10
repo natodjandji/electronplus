@@ -2,8 +2,8 @@
  * Puente REST liviano entre Profit Plus (SQL Server, on-premise en la
  * tienda principal) y el backend en la nube. Expone un único endpoint de
  * solo lectura que devuelve el catálogo completo (código, referencia,
- * modelo, descripción, categoría, marca, stock, precio1, precio2) que la
- * sincronización necesita. Todo
+ * modelo, descripción, categoría, marca, stock, precio1, precio2 y los
+ * costos) que la sincronización necesita. Todo
  * el proyecto vive en esta carpeta aparte — no toca ni depende del backend
  * principal (NestJS) — pensado para correr como servicio local en la misma
  * PC (o red) donde está el SQL Server de Profit Plus.
@@ -35,6 +35,7 @@ const express = require('express');
 const sql = require('mssql');
 const { ConfigError, parsePort, loadDbConfig, classifyDbError } = require('./db-config');
 const { elegirColumnaSku } = require('./columna-sku');
+const { elegirColumnasCosto } = require('./columnas-costo');
 
 const gzip = promisify(zlib.gzip);
 
@@ -107,6 +108,9 @@ try {
  *   - st_almac: existencia actual (stock_act) por almacén. Con
  *     WAREHOUSE_CODE vacío se suman todos; la tienda tiene uno solo (CCS).
  *     El comprometido y el por llegar no se cuentan.
+ *   - Los costos (último, promedio, en cada moneda) son columnas de art que
+ *     se buscan al arrancar (columnas-costo.js) y salen con un alias por
+ *     posición: costo_0, costo_1… toProducto() les devuelve su nombre.
  *
  * Profit guarda códigos y descripciones en columnas char() rellenas de
  * espacios: se recortan aquí y otra vez en toProducto().
@@ -114,11 +118,12 @@ try {
  * El almacén llega como parámetro (@almacen), nunca pegado al texto de la
  * consulta: así no hay inyección SQL posible desde el .env.
  */
-const productosQuery = (columnaSku) => `
+const productosQuery = (columnaSku, columnasCosto) => `
   SELECT
     RTRIM(art.co_art)     AS codigo,
     RTRIM(art.ref)        AS referencia,
     ${columnaSku ? `RTRIM(art.[${columnaSku}]) AS modelo,` : ''}
+    ${columnasCosto.map((columna, n) => `art.[${columna}] AS costo_${n},`).join('\n    ')}
     RTRIM(art.art_des)    AS descripcion,
     RTRIM(art.co_lin)     AS categoria_codigo,
     RTRIM(lin.lin_des)    AS categoria,
@@ -174,7 +179,7 @@ function dropPool(pool) {
  * ancho fijo: vienen rellenas con espacios a la derecha (igual que en la
  * tienda secundaria). Sin recortarlas, el código no coincide con el código
  * de barras escaneado ni con la búsqueda en la web. */
-function toProducto(row) {
+function toProducto(row, columnasCosto) {
   return {
     codigo: String(row.codigo ?? '').trim(),
     referencia: String(row.referencia ?? '').trim() || null,
@@ -187,48 +192,58 @@ function toProducto(row) {
     stock: Number(row.stock) || 0,
     precio1: Number(row.precio1) || 0,
     precio2: Number(row.precio2) || 0,
+    // Cada costo con el nombre de su columna en art; 0 cuando está vacío.
+    costos: Object.fromEntries(columnasCosto.map((columna, n) => [columna, Number(row[`costo_${n}`]) || 0])),
   };
 }
 
-/** La columna de art con el SKU de la tienda (el campo MODELO), buscada en
- * la base la primera vez en vez de suponer su nombre: null si no hay
- * ninguna, y entonces el catálogo sale igual, sin SKU. `columnasArt` queda
- * con todas las de art para decir cuáles hay. */
-let columnaSku;
-let columnasArt = [];
+/** Las columnas de art que la consulta necesita y que se buscan en la base
+ * la primera vez en vez de suponer su nombre: la del SKU de la tienda (el
+ * campo MODELO, null si no hay) y las de costo ([] si no hay). Sin alguna,
+ * el catálogo sale igual, sin ese dato, y `art` queda con todas las
+ * columnas de la tabla para decir cuáles hay. */
+let columnas;
 
-async function buscarColumnaSku(pool) {
-  if (columnaSku !== undefined) return columnaSku;
+async function buscarColumnas(pool) {
+  if (columnas) return columnas;
+  let art;
   try {
     const { recordset } = await pool
       .request()
-      .query("SELECT COLUMN_NAME AS nombre FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_NAME = 'art'");
-    columnasArt = recordset.map((row) => String(row.nombre));
+      .query(
+        "SELECT COLUMN_NAME AS nombre, DATA_TYPE AS tipo FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_NAME = 'art' ORDER BY ORDINAL_POSITION",
+      );
+    art = recordset.map((row) => ({ nombre: String(row.nombre), tipo: String(row.tipo) }));
   } catch (err) {
     log('WARN', `No se pudieron leer las columnas de art: ${err.message}`);
-    return null; // se intenta de nuevo en la próxima consulta
+    return { sku: null, costo: [], art: [] }; // se intenta de nuevo en la próxima consulta
   }
-  columnaSku = elegirColumnaSku(columnasArt);
-  if (columnaSku) log('INFO', `SKU desde art.${columnaSku} (campo Modelo)`);
-  else log('WARN', `No hay campo Modelo en art; columnas: ${columnasArt.join(', ')}`);
-  return columnaSku;
+  const nombres = art.map((columna) => columna.nombre);
+  columnas = { sku: elegirColumnaSku(nombres), costo: elegirColumnasCosto(art), art: nombres };
+  if (columnas.sku) log('INFO', `SKU desde art.${columnas.sku} (campo Modelo)`);
+  else log('WARN', `No hay campo Modelo en art; columnas: ${nombres.join(', ')}`);
+  if (columnas.costo.length) log('INFO', `Costos desde art.${columnas.costo.join(', art.')}`);
+  else log('WARN', `No hay columnas de costo en art; columnas: ${nombres.join(', ')}`);
+  return columnas;
 }
 
 async function queryCatalog() {
   const pool = await getPool();
-  const columna = await buscarColumnaSku(pool);
+  const { sku, costo, art } = await buscarColumnas(pool);
   const result = await pool
     .request()
     .input('almacen', sql.VarChar(50), config.warehouseCode)
-    .query(productosQuery(columna));
-  const productos = result.recordset.map(toProducto);
-  // Qué columna dio el SKU, para que la web lo diga en su registro; si no
-  // hubo, las columnas de art, para saber cómo se llama.
+    .query(productosQuery(sku, costo));
+  const productos = result.recordset.map((row) => toProducto(row, costo));
+  // De qué columnas salieron el SKU y los costos, para que la web lo diga
+  // en su registro; si falta alguna, las columnas de art, para saber cómo
+  // se llaman.
   return Buffer.from(
     JSON.stringify({
       total: productos.length,
-      columnaSku: columna,
-      ...(columna ? {} : { columnasArt }),
+      columnaSku: sku,
+      columnasCosto: costo,
+      ...(sku && costo.length ? {} : { columnasArt: art }),
       productos,
     }),
   );

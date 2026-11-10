@@ -2,8 +2,8 @@
 
 API REST liviana (Node.js + Express) que consulta la base SQL Server de Profit
 Plus en la tienda **principal** y devuelve el catálogo completo (código,
-descripción, categoría, marca, stock, precio1, precio2) en JSON, listo para que el
-backend en la nube lo sincronice. Proyecto standalone — no depende del backend
+descripción, categoría, marca, stock, precio1, precio2 y costos) en JSON, listo
+para que el backend en la nube lo sincronice. Proyecto standalone — no depende del backend
 principal ni se despliega junto con él; corre localmente donde esté Profit
 Plus (o en la misma red).
 
@@ -69,6 +69,27 @@ producto. La consulta devuelve su código (`marcaCodigo`) y su descripción
   así que al proveedor se le puede cambiar el nombre en la web sin perder el
   enlace.
 
+### El costo de cada producto
+
+Profit Plus guarda el costo de un artículo en varias columnas de `art`: el
+**último costo** (el de la última compra o entrada) y el **costo promedio**,
+cada uno en la moneda de la empresa y en la "otra moneda". Cómo se llaman
+cambia entre versiones, así que el bridge (desde la 1.3.0) no elige una: al
+arrancar busca en `art` las columnas numéricas con "cos" en el nombre
+(`ult_cos_un`, `cos_pro_un`, `ult_cos_om`…) y manda todas, con su nombre, en
+`costos`. El registro dice cuáles encontró (`INFO Costos desde
+art.ult_cos_un, art.cos_pro_un, …`) o, si no hay ninguna, lista las columnas
+de `art`.
+
+La web decide cuál usa: el **último costo** (`ult_cos_un`) y, si está en 0,
+el **promedio** (`cos_pro_un`). Un artículo sin costo en Profit queda sin
+costo en la web. Como el bridge manda todas, si algún día hay que usar otra
+columna (por ejemplo, porque la elegida está en bolívares), se cambia en la
+web sin volver a actualizar el bridge en esta PC.
+
+El costo nunca sale en la tienda: solo lo ve el administrador, y sirve para el
+margen de cada venta, el valor del inventario y las órdenes de compra.
+
 ## 2. Instalar y configurar
 
 Requiere [Node.js](https://nodejs.org) 18.19 o superior (la versión LTS
@@ -111,8 +132,9 @@ Respuesta esperada:
 {
   "total": 3,
   "columnaSku": "modelo",
+  "columnasCosto": ["ult_cos_un", "cos_pro_un", "ult_cos_om", "cos_pro_om"],
   "productos": [
-    { "codigo": "LAM001001", "referencia": "91248923474", "modelo": "LP609", "descripcion": "Bombillo LED 9W", "categoriaCodigo": "07", "categoria": "Iluminación", "marcaCodigo": "01", "marca": "Lucerna", "stock": 42, "precio1": 4.5, "precio2": 3.2 }
+    { "codigo": "LAM001001", "referencia": "91248923474", "modelo": "LP609", "descripcion": "Bombillo LED 9W", "categoriaCodigo": "07", "categoria": "Iluminación", "marcaCodigo": "01", "marca": "Lucerna", "stock": 42, "precio1": 4.5, "precio2": 3.2, "costos": { "ult_cos_un": 2.1, "cos_pro_un": 2.05, "ult_cos_om": 0, "cos_pro_om": 0 } }
   ]
 }
 ```
@@ -148,9 +170,9 @@ sitio no estaba disponible al instalar la tienda secundaria):
 ### Actualizar el bridge en la PC
 
 1. Copia a la carpeta del bridge en la PC `server.js`, `columna-sku.js`,
-   `db-config.js`, `verificar.js`, `verificacion.js` y `package.json`, sin tocar el `.env`
-   ni `node_modules` (las dependencias no cambiaron en la 1.2.0: no hace
-   falta `npm install`).
+   `columnas-costo.js`, `db-config.js`, `verificar.js`, `verificacion.js` y
+   `package.json`, sin tocar el `.env` ni `node_modules` (las dependencias no
+   cambiaron en la 1.3.0: no hace falta `npm install`).
 2. Reinicia la tarea, en PowerShell como administrador:
 
    ```powershell
@@ -162,7 +184,7 @@ sitio no estaba disponible al instalar la tienda secundaria):
 3. En la carpeta del bridge, corre `npm run verificar` (ver abajo).
 4. Revisa el registro: en la primera consulta del catálogo después de
    reiniciar (la de `npm run verificar` o la próxima sincronización) dice
-   `SKU desde art.<columna> (campo Modelo)`.
+   `SKU desde art.<columna> (campo Modelo)` y `Costos desde art.<columnas>`.
 
 ### Verificar los datos
 
@@ -173,13 +195,18 @@ npm run verificar
 Con el bridge corriendo, lee los artículos directo de las tablas de Profit
 (`art`, `lin_art`, `cat_art`, `st_almac`) y los compara, campo por campo
 (código de barra, SKU, nombre, categoría, marca, stock, precio detal y
-mayor), con lo que entrega el bridge y con lo que publica la web. Solo lee:
+mayor), con lo que entrega el bridge y con lo que publica la web. Los costos
+se comparan solo con el bridge: la tienda en línea no los publica. Solo lee:
 no cambia nada en Profit ni en la web. El informe sale en pantalla y queda
 en `verificacion-profit.txt`:
 
 - cuántos artículos tienen el SKU (campo Modelo) lleno, y una muestra;
+- qué columnas de costo hay, cuántos artículos tienen cada una llena, una
+  muestra de los que tienen costo y los artículos cuyo costo es mayor que su
+  precio detal (casi siempre, un costo en otra moneda);
 - los códigos de barra o SKU repetidos en Profit, que conviene corregir allá;
-- si el bridge que corre es anterior a la 1.2.0 (no manda el SKU);
+- si el bridge que corre es anterior a la 1.2.0 (no manda el SKU) o a la
+  1.3.0 (no manda los costos);
 - los artículos que faltan en el bridge o que difieren, con el valor de
   cada lado;
 - los que difieren en la web y los que no están publicados (ocultos en el
@@ -221,7 +248,7 @@ No uses port forwarding: expondría el bridge sin HTTPS.
 
 | Método | Ruta | Auth | Descripción |
 |---|---|---|---|
-| `GET` | `/api/productos-sincronizacion` | `Authorization: Bearer <API_KEY>` | Catálogo completo: código, referencia, modelo (SKU), descripción, código y nombre de la categoría, marca, stock, precio1, precio2 |
+| `GET` | `/api/productos-sincronizacion` | `Authorization: Bearer <API_KEY>` | Catálogo completo: código, referencia, modelo (SKU), descripción, código y nombre de la categoría, marca, stock, precio1, precio2 y costos |
 | `GET` | `/health` | ninguna | Confirma que el proceso está vivo (no expone datos ni toca SQL Server) |
 
 Las respuestas llevan `Cache-Control: no-store` y el catálogo va comprimido
