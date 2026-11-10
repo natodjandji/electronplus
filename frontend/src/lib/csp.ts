@@ -13,6 +13,11 @@
 const API = "electronplus-api-771016935976.us-central1.run.app";
 /** PayPal's checkout SDK, its buttons' frames and their images. */
 const PAYPAL = ["https://*.paypal.com", "https://*.paypalobjects.com"];
+/** Cloudflare sits in front of electronplus.com.ve and adds its Web
+ * Analytics beacon to every page it serves: a script, and where it sends
+ * the page's load times. */
+const CLOUDFLARE_BEACON = "https://static.cloudflareinsights.com";
+const CLOUDFLARE_BEACON_REPORTS = "https://cloudflareinsights.com";
 
 export const CSP_DIRECTIVES: Record<string, string[]> = {
   "default-src": ["'self'"],
@@ -29,6 +34,7 @@ export const CSP_DIRECTIVES: Record<string, string[]> = {
     // Firebase Auth's Google sign-in.
     "https://apis.google.com",
     ...PAYPAL,
+    CLOUDFLARE_BEACON,
   ],
   // React style props, motion and sonner all write inline styles.
   "style-src": ["'self'", "'unsafe-inline'"],
@@ -54,6 +60,7 @@ export const CSP_DIRECTIVES: Record<string, string[]> = {
     "https://identitytoolkit.googleapis.com",
     "https://securetoken.googleapis.com",
     ...PAYPAL,
+    CLOUDFLARE_BEACON_REPORTS,
   ],
   "frame-src": [
     // Firebase Auth's helper frame, on the project's auth domain.
