@@ -1,5 +1,5 @@
-import { describe, expect, it } from "vitest";
-import { describeCspViolation } from "./csp-reports";
+import { afterEach, describe, expect, it, vi } from "vitest";
+import { describeCspViolation, watchCspViolations, type CspViolation } from "./csp-reports";
 
 describe("describeCspViolation", () => {
   it("says what would be blocked while the policy is report-only", () => {
@@ -66,5 +66,92 @@ describe("describeCspViolation", () => {
         sourceFile: "moz-extension://abcdef/content.js",
       }),
     ).toBeNull();
+  });
+});
+
+describe("watchCspViolations", () => {
+  afterEach(() => vi.unstubAllGlobals());
+
+  /** A page with one violation from before the app started (the Reporting
+   * API's buffer) and a way to raise more afterwards. */
+  function page(buffered: object[] = []) {
+    const sent: { message: string; route: string; mechanism: string; stack?: string }[] = [];
+    let onEvent: (violation: CspViolation) => void = () => {};
+    let observerOptions: unknown;
+    vi.stubGlobal("window", { location: { pathname: "/catalog" } });
+    vi.stubGlobal("document", {
+      addEventListener: (type: string, listener: (violation: CspViolation) => void) => {
+        if (type === "securitypolicyviolation") onEvent = listener;
+      },
+    });
+    vi.stubGlobal(
+      "fetch",
+      vi.fn((_url: string, init: { body: string }) => {
+        sent.push(JSON.parse(init.body));
+        return Promise.resolve();
+      }),
+    );
+    vi.stubGlobal(
+      "ReportingObserver",
+      class {
+        constructor(
+          private callback: (reports: { body: object }[]) => void,
+          options: unknown,
+        ) {
+          observerOptions = options;
+        }
+        observe() {
+          this.callback(buffered.map((body) => ({ body })));
+        }
+      },
+    );
+    watchCspViolations();
+    return { sent, raise: (violation: CspViolation) => onEvent(violation), observerOptions };
+  }
+
+  const beacon = {
+    effectiveDirective: "script-src-elem",
+    blockedURL: "https://cdn.example.com/beacon.js?v=1",
+    sourceFile: null,
+    lineNumber: null,
+    disposition: "report",
+  };
+
+  it("reports what the page loaded before the app started", () => {
+    const { sent, observerOptions } = page([beacon]);
+    expect(observerOptions).toEqual({ types: ["csp-violation"], buffered: true });
+    expect(sent).toEqual([
+      {
+        message: "CSP would block script-src-elem: https://cdn.example.com/beacon.js",
+        route: "/catalog",
+        mechanism: "csp",
+      },
+    ]);
+  });
+
+  it("sends a violation once, whichever way it arrives", () => {
+    const { sent, raise } = page([beacon]);
+    raise({ effectiveDirective: "script-src-elem", blockedURI: "https://cdn.example.com/b.js" });
+    raise({ effectiveDirective: "img-src", blockedURI: "https://cdn.example.com/a.png" });
+    expect(sent.map((report) => report.message)).toEqual([
+      "CSP would block script-src-elem: https://cdn.example.com/beacon.js",
+      "CSP would block img-src: https://cdn.example.com/a.png",
+    ]);
+  });
+
+  it("stops at ten reports a page", () => {
+    const { sent, raise } = page();
+    for (let n = 0; n < 25; n++) {
+      raise({ effectiveDirective: "img-src", blockedURI: `https://site-${n}.example/a.png` });
+    }
+    expect(sent).toHaveLength(10);
+  });
+
+  it("still works in a browser without the Reporting API", () => {
+    const { sent, raise } = page();
+    vi.stubGlobal("ReportingObserver", undefined);
+    watchCspViolations();
+    raise({ effectiveDirective: "img-src", blockedURI: "https://cdn.example.com/a.png" });
+    expect(sent).toHaveLength(1);
   });
 });

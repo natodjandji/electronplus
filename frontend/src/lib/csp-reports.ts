@@ -54,8 +54,8 @@ export function watchCspViolations(): void {
   // along: this has to work while the rest of the app is still loading.
   const apiBaseUrl = import.meta.env.VITE_API_BASE_URL ?? "http://localhost:3000/api";
   const reported = new Set<string>();
-  document.addEventListener("securitypolicyviolation", (event) => {
-    const report = describeCspViolation(event);
+  const send = (violation: CspViolation) => {
+    const report = describeCspViolation(violation);
     if (!report || reported.has(report.key) || reported.size >= MAX_REPORTS_PER_PAGE) return;
     reported.add(report.key);
     // Fire-and-forget: a reporter must never break the page it reports on.
@@ -70,5 +70,31 @@ export function watchCspViolations(): void {
       }),
       keepalive: true,
     }).catch(() => {});
-  });
+  };
+
+  document.addEventListener("securitypolicyviolation", send);
+
+  // That event only reaches a listener already in place, and the browser
+  // checks what the page's own HTML loads before any of this runs: the
+  // script a CDN or an in-app browser adds to the page, for one. The
+  // Reporting API keeps those and hands them over on request. Both report
+  // what happens from here on; `reported` sends each once.
+  if (typeof ReportingObserver === "function") {
+    new ReportingObserver(
+      (reports) => {
+        for (const { body } of reports) {
+          const violation = body as CSPViolationReportBody | null;
+          if (!violation) continue;
+          send({
+            effectiveDirective: violation.effectiveDirective,
+            blockedURI: violation.blockedURL ?? "",
+            sourceFile: violation.sourceFile,
+            lineNumber: violation.lineNumber ?? undefined,
+            disposition: violation.disposition,
+          });
+        }
+      },
+      { types: ["csp-violation"], buffered: true },
+    ).observe();
+  }
 }
