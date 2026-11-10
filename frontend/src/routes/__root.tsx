@@ -12,6 +12,7 @@ import { MotionConfig } from "motion/react";
 
 import appCss from "../styles.css?url";
 import { reportLovableError } from "../lib/lovable-error-reporting";
+import { watchCspViolations } from "@/lib/csp-reports";
 import { AuthProvider } from "@/lib/auth-context";
 import { ElectronStoreProvider } from "@/lib/electron-store";
 import { OG_IMAGE, OG_IMAGE_ALT, OG_IMAGE_HEIGHT, OG_IMAGE_WIDTH, SITE_URL } from "@/lib/site-url";
@@ -48,6 +49,8 @@ const STALE_CHUNK_RELOAD_KEY = "ep-stale-chunk-reload-count";
 const MAX_RELOAD_ATTEMPTS = 3;
 
 if (typeof window !== "undefined") {
+  // Module scope too: what a page loads first is what a policy blocks first.
+  watchCspViolations();
   window.addEventListener("vite:preloadError", () => {
     // Deliberately NOT calling event.preventDefault(): doing so stops Vite
     // from rethrowing the original rejection, which leaves the caller

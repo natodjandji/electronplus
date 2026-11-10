@@ -12,6 +12,21 @@
       "runtimeExecutable": "npm",
       "runtimeArgs": ["--prefix", "frontend", "run", "dev"],
       "port": 8080
+    },
+    {
+      "name": "hosting",
+      "runtimeExecutable": "npx",
+      "runtimeArgs": [
+        "firebase",
+        "serve",
+        "--only",
+        "hosting",
+        "--port",
+        "5055",
+        "--project",
+        "electronplus-ve"
+      ],
+      "port": 5055
     }
   ]
 }
