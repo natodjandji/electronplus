@@ -14,8 +14,16 @@ Plus (o en la misma red).
 
 ## 1. El esquema de Profit Plus
 
+> **La base de la tienda es `PRUEB26`**, aunque el nombre diga "prueba": ahí
+> trabaja la tienda y de ahí lee el bridge (`DB_DATABASE=PRUEB26` en el
+> `.env`). `ELECT26` tiene los mismos artículos, pero incompletos: al
+> compararlas el 2026-11-10, 37 no tenían precio detal ni costo y 8 no tenían
+> SKU. Si el bridge leyera `ELECT26`, esos productos saldrían en la web a $0.
+> No cambies `DB_DATABASE` sin comparar antes las dos bases.
+
 La consulta en `server.js` (`PRODUCTOS_QUERY`) está escrita con el esquema
-real de la base de la tienda (`ELECT26`, verificado el 2026-10-15): las
+real de Profit Plus (verificado en la base `ELECT26` el 2026-10-15; `PRUEB26`
+tiene las mismas tablas y columnas): las
 tablas `art` (artículos y precios), `st_almac` (existencia por almacén),
 `lin_art` (líneas) y `cat_art` (marcas). La web usa como **código de barra**
 la **referencia** del artículo (`ref`, o el código interno si está vacía),
