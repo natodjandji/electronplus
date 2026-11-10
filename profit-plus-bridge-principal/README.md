@@ -76,16 +76,16 @@ Profit Plus guarda el costo de un artículo en varias columnas de `art`: el
 cada uno en la moneda de la empresa y en la "otra moneda". Cómo se llaman
 cambia entre versiones, así que el bridge (desde la 1.3.0) no elige una: al
 arrancar busca en `art` las columnas numéricas con "cos" en el nombre
-(`ult_cos_un`, `cos_pro_un`, `ult_cos_om`…) y manda todas, con su nombre, en
-`costos`. El registro dice cuáles encontró (`INFO Costos desde
-art.ult_cos_un, art.cos_pro_un, …`) o, si no hay ninguna, lista las columnas
-de `art`.
+(`ult_cos_un`, `cos_pro_un`, `ult_cos_om`…) o llamadas `ULOM`, y manda todas,
+con su nombre, en `costos`. El registro dice cuáles encontró (`INFO Costos
+desde art.ult_cos_un, art.cos_pro_un, …`) o, si no hay ninguna, lista las
+columnas de `art`.
 
-La web decide cuál usa: el **último costo** (`ult_cos_un`) y, si está en 0,
-el **promedio** (`cos_pro_un`). Un artículo sin costo en Profit queda sin
-costo en la web. Como el bridge manda todas, si algún día hay que usar otra
-columna (por ejemplo, porque la elegida está en bolívares), se cambia en la
-web sin volver a actualizar el bridge en esta PC.
+La web usa el **último costo en otra moneda** (`ult_cos_om`, el "ULOM" de
+Profit): en esa moneda, dólares, carga la tienda sus costos. Las demás
+columnas no se usan. Un artículo con ese costo en 0 queda sin costo en la
+web. Como el bridge manda todas, si algún día hay que usar otra columna, se
+cambia en la web sin volver a actualizar el bridge en esta PC.
 
 El costo nunca sale en la tienda: solo lo ve el administrador, y sirve para el
 margen de cada venta, el valor del inventario y las órdenes de compra.

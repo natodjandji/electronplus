@@ -49,14 +49,14 @@ interface BridgeResponse {
 }
 
 /**
- * Profit Plus's cost columns, in the order the web takes them: the last cost
- * (of the last purchase or stock entry), then the average one when the last
- * is empty. Both are in the company's own currency, the one its prices are
- * in. The bridge sends every cost column it finds, so a different one (the
- * other-currency ult_cos_om, say) is picked here, without touching the
- * store's PC.
+ * The cost the store goes by: Profit Plus's last cost in the other currency
+ * ("último costo OM", ULOM), the dollars it loads its costs in. ult_cos_om is
+ * its column in art; "ulom" in case a Profit version names it by its code.
+ * Only these: the average cost and the ones in the company's own currency
+ * are never taken. The bridge sends every cost column it finds, so another
+ * one is picked here, without touching the store's PC.
  */
-const COST_COLUMNS = ['ult_cos_un', 'cos_pro_un'];
+const COST_COLUMNS = ['ult_cos_om', 'ulom'];
 /** Cost lists in a log line, at most. */
 const LOGGED_EXAMPLES = 10;
 

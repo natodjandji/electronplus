@@ -1078,8 +1078,8 @@ function ProductFormDialog({ product, onClose }: { product?: AdminProduct; onClo
           </Field>
 
           {fromErp && (
-            // Profit's last cost, or its average when that's empty (the sync
-            // picks it), so the one place to change it is Profit too.
+            // Profit's last cost in the other currency (ULOM), which the sync
+            // takes, so the one place to change it is Profit too.
             <Field className="grid content-start gap-1.5">
               <Label className="text-xs font-medium text-brand-navy">Costo ($)</Label>
               <Input

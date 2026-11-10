@@ -38,6 +38,10 @@ test('deja fuera las fechas y los textos aunque se llamen parecido', () => {
   );
 });
 
+test('también la que se llama como el código del costo (ULOM)', () => {
+  assert.deepStrictEqual(elegirColumnasCosto([...ART, col('ULOM'), col('ulom_fecha', 'datetime')]), ['ULOM']);
+});
+
 test('sin columnas de costo, ninguna', () => {
   assert.deepStrictEqual(elegirColumnasCosto(ART), []);
   assert.deepStrictEqual(elegirColumnasCosto([]), []);

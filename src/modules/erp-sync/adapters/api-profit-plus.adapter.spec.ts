@@ -160,21 +160,37 @@ describe('ApiProfitPlusAdapter', () => {
       jest.spyOn(Logger.prototype, 'warn').mockImplementation(() => undefined);
     });
 
-    it('takes the last cost, the average one when that is 0, and none when both are', async () => {
+    it('takes the last cost in the other currency (ULOM), and none when it is 0', async () => {
       respondWith({
         total: 4,
         columnaSku: 'modelo',
         // The bridge sends every cost column, in the table's order.
-        columnasCosto: ['ult_cos_om', 'COS_PRO_UN', 'ULT_COS_UN'],
+        columnasCosto: ['ult_cos_un', 'cos_pro_un', 'ULT_COS_OM', 'cos_pro_om'],
         productos: [
-          product('A', { costos: { ULT_COS_UN: 4.25, COS_PRO_UN: 4, ult_cos_om: 1500 } }),
-          product('B', { costos: { ULT_COS_UN: 0, COS_PRO_UN: '3.10', ult_cos_om: 0 } }),
-          product('C', { costos: { ULT_COS_UN: 0, COS_PRO_UN: 0, ult_cos_om: 900 } }),
+          product('A', {
+            costos: { ult_cos_un: 152, cos_pro_un: 150, ULT_COS_OM: 4.25, cos_pro_om: 4 },
+          }),
+          product('B', {
+            costos: { ult_cos_un: 0, cos_pro_un: 0, ULT_COS_OM: '3.10', cos_pro_om: 0 },
+          }),
+          // The other columns are never taken, even with a value.
+          product('C', {
+            costos: { ult_cos_un: 90, cos_pro_un: 88, ULT_COS_OM: 0, cos_pro_om: 2.4 },
+          }),
           product('D', {}),
         ],
       });
-      // The other currency's column is never taken, even with a value.
       expect(await costs(fresh())).toEqual({ A: 4.25, B: 3.1, C: null, D: null });
+    });
+
+    it('also finds it in a column named by its code', async () => {
+      respondWith({
+        total: 1,
+        columnaSku: 'modelo',
+        columnasCosto: ['ULOM'],
+        productos: [product('A', { costos: { ULOM: 2.2 } })],
+      });
+      expect(await costs(fresh())).toEqual({ A: 2.2 });
     });
 
     it('leaves the cost alone when the bridge sends none, or not the columns it uses', async () => {
@@ -184,9 +200,8 @@ describe('ApiProfitPlusAdapter', () => {
       respondWith({
         total: 1,
         columnaSku: 'modelo',
-        columnasCosto: ['ult_cos_om'],
-        columnasArt: ['co_art', 'ult_cos_om'],
-        productos: [product('A', { costos: { ult_cos_om: 900 } })],
+        columnasCosto: ['ult_cos_un', 'cos_pro_un'],
+        productos: [product('A', { costos: { ult_cos_un: 900, cos_pro_un: 880 } })],
       });
       expect(await costs(fresh())).toEqual({ A: undefined });
     });
@@ -198,7 +213,7 @@ describe('ApiProfitPlusAdapter', () => {
       const feed = (productos: object[]) => ({
         total: productos.length,
         columnaSku: 'modelo',
-        columnasCosto: ['ult_cos_un', 'cos_pro_un'],
+        columnasCosto: ['ult_cos_un', 'ult_cos_om'],
         productos,
       });
 
@@ -209,9 +224,9 @@ describe('ApiProfitPlusAdapter', () => {
       );
 
       const twoOfThree = [
-        product('A', { costos: { ult_cos_un: 4, cos_pro_un: 0 } }),
-        product('B', { costos: { ult_cos_un: 0, cos_pro_un: 2 } }),
-        product('C', { costos: { ult_cos_un: 0, cos_pro_un: 0 } }),
+        product('A', { costos: { ult_cos_un: 150, ult_cos_om: 4 } }),
+        product('B', { costos: { ult_cos_un: 0, ult_cos_om: 2 } }),
+        product('C', { costos: { ult_cos_un: 90, ult_cos_om: 0 } }),
       ];
       respondWith(feed(twoOfThree));
       await adapter.fetchInventory();
@@ -219,14 +234,14 @@ describe('ApiProfitPlusAdapter', () => {
       await adapter.fetchInventory();
       const lines = info.mock.calls.map(([line]) => line);
       expect(lines.filter((l) => /el costo viene de/.test(l))).toEqual([
-        'Profit Plus: el costo viene de art.ult_cos_un, o de art.cos_pro_un si está en 0.',
+        'Profit Plus: el costo viene de art.ult_cos_om.',
       ]);
       expect(lines.filter((l) => /tienen costo/.test(l))).toEqual([
         'Profit Plus: 2 de 3 artículos tienen costo.',
       ]);
 
       // A cost in bolívares costs more than the article sells for.
-      respondWith(feed([...twoOfThree, product('D', { costos: { ult_cos_un: 3650 } })]));
+      respondWith(feed([...twoOfThree, product('D', { costos: { ult_cos_om: 3650 } })]));
       await adapter.fetchInventory();
       expect(info).toHaveBeenLastCalledWith('Profit Plus: 3 de 4 artículos tienen costo.');
       expect(warn).toHaveBeenLastCalledWith(

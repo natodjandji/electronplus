@@ -28,13 +28,15 @@ const TIPOS_NUMERICOS = new Set([
 const MAX_COLUMNAS = 12;
 
 /** Las columnas de art que guardan un costo: numéricas y con "cos" en el
- * nombre (ult_cos_un, cos_pro_un, ult_cos_om…), en el orden de la tabla.
- * Solo nombres de columna normales: van entre corchetes en la consulta. */
+ * nombre (ult_cos_un, cos_pro_un, ult_cos_om…), o que se llaman como el
+ * código de un costo en Profit (ULOM, el último costo en otra moneda), en
+ * el orden de la tabla. Solo nombres de columna normales: van entre
+ * corchetes en la consulta. */
 function elegirColumnasCosto(columnas) {
   return columnas
     .filter(
       ({ nombre, tipo }) =>
-        /cos/i.test(nombre) &&
+        (/cos/i.test(nombre) || /^ulom$/i.test(nombre)) &&
         /^[A-Za-z0-9_]+$/.test(nombre) &&
         TIPOS_NUMERICOS.has(String(tipo ?? '').toLowerCase()),
     )
