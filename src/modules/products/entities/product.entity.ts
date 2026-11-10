@@ -22,7 +22,9 @@ export interface Product extends FirestoreDoc {
 
   retailPrice: number;
   wholesalePrice: number;
-  cost?: number;
+  /** What it cost, in dollars: only admins see it. Profit Plus owns it on a
+   * product it brought (null when Profit has none). */
+  cost?: number | null;
 
   /** Aggregate stock across all warehouses — the number orders reserve against. */
   stock: number;

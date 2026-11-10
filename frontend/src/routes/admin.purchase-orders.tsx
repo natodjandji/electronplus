@@ -118,7 +118,7 @@ interface ProductOption {
   /** The store's SKU: the only product code shown. */
   model?: string | null;
   name: string;
-  cost?: number;
+  cost?: number | null;
   supplierId?: string;
 }
 

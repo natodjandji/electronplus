@@ -23,7 +23,10 @@ export interface ErpInventoryItem {
   brandExternalId?: string;
   retailPrice: number;
   wholesalePrice: number;
-  cost?: number;
+  /** What the article cost, from Profit Plus. Null when Profit has none for
+   * it; undefined when the bridge doesn't send costs, and then the product
+   * keeps the one it has. */
+  cost?: number | null;
   stock: number;
   specs?: string;
 }

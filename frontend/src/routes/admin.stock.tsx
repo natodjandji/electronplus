@@ -35,7 +35,7 @@ interface AdminProduct {
   model?: string | null;
   name: string;
   supplierId?: string;
-  cost?: number;
+  cost?: number | null;
   stock: number;
   minStockThreshold?: number;
   imageUrl?: string;

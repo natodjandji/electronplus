@@ -89,6 +89,7 @@ const ERP_OWNED_FIELDS = {
   categoryId: 'categoría',
   retailPrice: 'precio detal',
   wholesalePrice: 'precio mayor',
+  cost: 'costo',
 } as const satisfies Partial<Record<keyof UpdateProductDto, string>>;
 
 /** gRPC status code Firestore returns when update() targets a missing doc. */
@@ -682,7 +683,8 @@ export class ProductsService {
       existing.category?.label !== patch.category?.label ||
       existing.retailPrice !== patch.retailPrice ||
       existing.wholesalePrice !== patch.wholesalePrice ||
-      existing.cost !== patch.cost ||
+      // A product that never had a cost has none, missing or null alike.
+      (existing.cost ?? null) !== (patch.cost ?? null) ||
       existing.stock !== patch.stock ||
       existing.specs !== patch.specs ||
       (existing.brand ?? null) !== (patch.brand ?? null) ||
@@ -730,7 +732,7 @@ export class ProductsService {
       category: { id: string; code: string; label: string };
       retailPrice: number;
       wholesalePrice: number;
-      cost?: number;
+      cost?: number | null;
       stock: number;
       specs?: string;
       brand?: string;
@@ -750,11 +752,12 @@ export class ProductsService {
       retailPrice: item.retailPrice,
       wholesalePrice: item.wholesalePrice,
       stock: item.stock,
+      // Profit Plus owns the cost like the prices: one emptied there
+      // (null) is emptied here. A bridge that doesn't send costs (undefined)
+      // leaves whatever the product has.
+      cost: item.cost === undefined ? existing?.cost : item.cost,
       // Optional on the ERP side: a field the bridge doesn't send keeps
-      // whatever the product already has. Comparing against a bare
-      // `undefined` here made every product with a manually entered cost
-      // count as changed — and get rewritten — on every single run.
-      cost: item.cost ?? existing?.cost,
+      // whatever the product already has.
       specs: item.specs ?? existing?.specs,
       // Profit Plus is the only source of a brand: one removed there goes
       // away here too.

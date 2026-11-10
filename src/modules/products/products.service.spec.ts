@@ -296,6 +296,7 @@ describe('ProductsService catalog snapshot', () => {
       /código de barra, nombre/,
     );
     await expect(service.update('de-profit', { model: 'LP-1' } as never)).rejects.toThrow(/SKU/);
+    await expect(service.update('de-profit', { cost: 2.5 } as never)).rejects.toThrow(/costo/);
     await expect(service.update('de-profit', { supplierId: 'otro' } as never)).rejects.toThrow(
       /proveedor/,
     );
@@ -383,6 +384,45 @@ describe('ProductsService catalog snapshot', () => {
     expect(firestore.read(Collections.PRODUCTS, 'cable')).toMatchObject({ stock: 7, cost: 3 });
     const fromSnapshot = (await buildService(firestore).adminFindAll({} as never))[0];
     expect(fromSnapshot).toMatchObject({ stock: 7, cost: 3 });
+  });
+
+  it('takes the cost from Profit Plus, clears it when Profit has none, keeps it when not sent', async () => {
+    const firestore = new FakeFirestore();
+    seedProduct(firestore, 'regleta', { stock: 1 });
+    const service = buildService(firestore);
+    const { byErpExternalId } = await service.findAllForErpMatching();
+    const existing = byErpExternalId.get('ERP-regleta')!;
+    const item = {
+      externalId: 'ERP-regleta',
+      sku: existing.sku,
+      name: existing.name,
+      categoryId: CATEGORY.id,
+      category: CATEGORY,
+      retailPrice: 5,
+      wholesalePrice: 4,
+      stock: 1,
+    };
+    const changes = () => ({ put: [], merge: [], remove: [] });
+
+    // No cost on either side, missing here and null from Profit: unchanged.
+    expect((await service.upsertFromErp({ ...item, cost: null }, existing, changes())).wrote).toBe(
+      false,
+    );
+
+    const costed = await service.upsertFromErp({ ...item, cost: 2.35 }, existing, changes());
+    expect(costed.wrote).toBe(true);
+    expect(firestore.read(Collections.PRODUCTS, 'regleta')).toMatchObject({ cost: 2.35 });
+    expect(
+      (await service.upsertFromErp({ ...item, cost: 2.35 }, costed.product, changes())).wrote,
+    ).toBe(false);
+
+    // An old bridge sends no cost: the product keeps the one it has.
+    const notSent = await service.upsertFromErp(item, costed.product, changes());
+    expect(notSent.wrote).toBe(false);
+
+    const cleared = await service.upsertFromErp({ ...item, cost: null }, costed.product, changes());
+    expect(cleared.wrote).toBe(true);
+    expect(firestore.read(Collections.PRODUCTS, 'regleta')).toMatchObject({ cost: null });
   });
 
   it('ERP upserts carry the brand from Profit Plus, and clear it when Profit drops it', async () => {

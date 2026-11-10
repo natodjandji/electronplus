@@ -247,7 +247,7 @@ export class OrdersService {
           categoryLabel: product.category.label,
           qty: line.qty,
           unitPrice,
-          unitCost: product.cost,
+          unitCost: product.cost ?? undefined,
           lineTotal,
           ...(secondStoreQty > 0 && { secondStoreQty }),
         });
@@ -421,7 +421,7 @@ export class OrdersService {
           categoryLabel: product.category.label,
           qty: line.qty,
           unitPrice,
-          unitCost: product.cost,
+          unitCost: product.cost ?? undefined,
           lineTotal,
           ...(secondStoreQty > 0 && { secondStoreQty }),
         });

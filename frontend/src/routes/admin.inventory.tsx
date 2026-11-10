@@ -105,7 +105,8 @@ interface AdminProduct {
   supplierId?: string;
   retailPrice: number;
   wholesalePrice: number;
-  cost?: number;
+  /** From Profit Plus on a product it brought; null when Profit has none. */
+  cost?: number | null;
   stock: number;
   minStockThreshold?: number;
   imageUrl?: string;
@@ -991,9 +992,9 @@ function ProductFormDialog({ product, onClose }: { product?: AdminProduct; onClo
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
           {fromErp && (
             <p className="rounded-md bg-brand-blue/10 px-3 py-2 text-xs text-brand-navy sm:col-span-2">
-              Viene de Profit Plus: el código de barra, el SKU, el nombre, la categoría, los precios
-              y el stock se cambian en Profit. Aquí puedes editar las especificaciones, la imagen,
-              el costo, el stock mínimo y si está activo.
+              Viene de Profit Plus: el código de barra, el SKU, el nombre, la categoría, los
+              precios, el costo y el stock se cambian en Profit. Aquí puedes editar las
+              especificaciones, la imagen, el stock mínimo y si está activo.
             </p>
           )}
           <Field className="grid content-start gap-1.5 sm:col-span-2">
@@ -1077,9 +1078,21 @@ function ProductFormDialog({ product, onClose }: { product?: AdminProduct; onClo
           </Field>
 
           {fromErp && (
+            // Profit's last cost, or its average when that's empty (the sync
+            // picks it), so the one place to change it is Profit too.
+            <Field className="grid content-start gap-1.5">
+              <Label className="text-xs font-medium text-brand-navy">Costo ($)</Label>
+              <Input
+                value={product!.cost ? formatMoneyAdmin(product!.cost) : ""}
+                placeholder="Sin costo en Profit"
+                disabled
+              />
+            </Field>
+          )}
+          {fromErp && (
             // Profit Plus is the only source of this stock: every sale is
             // invoiced there, and the sync overwrites the web's figure.
-            <Field className="grid content-start gap-1.5 sm:col-span-2">
+            <Field className="grid content-start gap-1.5">
               <Label className="text-xs font-medium text-brand-navy">Stock real</Label>
               <Input value={`${product!.stock} uds`} disabled />
             </Field>
@@ -1094,16 +1107,18 @@ function ProductFormDialog({ product, onClose }: { product?: AdminProduct; onClo
               placeholder="Opcional"
             />
           </Field>
-          <Field className="grid content-start gap-1.5">
-            <Label className="text-xs font-medium text-brand-navy">Costo ($, opcional)</Label>
-            <Input
-              type="number"
-              min={0}
-              step="0.01"
-              value={cost}
-              onChange={(e) => setCost(Math.max(0, Number(e.target.value)))}
-            />
-          </Field>
+          {!fromErp && (
+            <Field className="grid content-start gap-1.5">
+              <Label className="text-xs font-medium text-brand-navy">Costo ($, opcional)</Label>
+              <Input
+                type="number"
+                min={0}
+                step="0.01"
+                value={cost}
+                onChange={(e) => setCost(Math.max(0, Number(e.target.value)))}
+              />
+            </Field>
+          )}
           <Field className="grid content-start gap-1.5">
             <Label className="text-xs font-medium text-brand-navy">Stock seguro (mínimo)</Label>
             <Input
