@@ -101,9 +101,9 @@ export class UsersService {
     }
     if (dto.role || dto.active === false) {
       // Ends every session now, so the user signs in again under the new
-      // role (or can't). Until then their current ID token still carries
-      // the old claim — FirebaseAuthGuard rejects it for staff tokens,
-      // the ones that could do harm with it.
+      // role (or can't). Their current ID token still carries the old
+      // claim until it expires — FirebaseAuthGuard asks Firebase Auth
+      // whether a token was revoked, and turns it away within a minute.
       await this.auth.revokeRefreshTokens(uid);
     }
     return updated;

@@ -13,7 +13,7 @@ function contextFor(token: string) {
   return { context, request };
 }
 
-/** A staff token keeps its role claim until it expires; the guard has to ask
+/** A token keeps its role claim until it expires; the guard has to ask
  * Firebase Auth whether it was revoked (demotion, deactivation). */
 describe('FirebaseAuthGuard revocation checks', () => {
   function build(role: Role, revoked: boolean) {
@@ -28,30 +28,72 @@ describe('FirebaseAuthGuard revocation checks', () => {
     );
     return { guard, verifyIdToken };
   }
+  const revocationChecks = (verifyIdToken: jest.Mock) =>
+    verifyIdToken.mock.calls.filter(([, check]) => check === true);
 
-  it('rejects a revoked staff token', async () => {
-    const { guard } = build(Role.WAREHOUSE_OPERATOR, true);
-    await expect(guard.canActivate(contextFor('staff-revoked').context)).rejects.toThrow(
-      UnauthorizedException,
+  it.each([Role.WAREHOUSE_OPERATOR, Role.SELLER, Role.CLIENT])(
+    'rejects a revoked %s token',
+    async (role) => {
+      const { guard } = build(role, true);
+      await expect(guard.canActivate(contextFor(`${role}-revoked`).context)).rejects.toThrow(
+        UnauthorizedException,
+      );
+    },
+  );
+
+  it.each([Role.ADMIN, Role.CLIENT])(
+    'checks a %s token once, then trusts it briefly',
+    async (role) => {
+      const { guard, verifyIdToken } = build(role, false);
+      const { context, request } = contextFor(`${role}-ok`);
+      await guard.canActivate(context);
+      await guard.canActivate(contextFor(`${role}-ok`).context);
+
+      expect(request.user).toEqual({ id: 'u1', email: 'u@example.com', role });
+      expect(verifyIdToken).toHaveBeenCalledTimes(2);
+      expect(revocationChecks(verifyIdToken)).toHaveLength(1);
+    },
+  );
+
+  it('shares one check between the requests a page fires at once', async () => {
+    const { guard, verifyIdToken } = build(Role.CLIENT, false);
+    const results = await Promise.all(
+      [1, 2, 3].map(() => guard.canActivate(contextFor('client-burst').context)),
     );
+    expect(results).toEqual([true, true, true]);
+    expect(revocationChecks(verifyIdToken)).toHaveLength(1);
   });
 
-  it('checks a staff token once, then trusts it briefly', async () => {
-    const { guard, verifyIdToken } = build(Role.ADMIN, false);
-    await guard.canActivate(contextFor('staff-ok').context);
-    await guard.canActivate(contextFor('staff-ok').context);
-
-    const revocationChecks = verifyIdToken.mock.calls.filter(([, check]) => check === true);
-    expect(revocationChecks).toHaveLength(1);
+  it('turns away every request waiting on a check that fails', async () => {
+    const { guard, verifyIdToken } = build(Role.SELLER, true);
+    const results = await Promise.allSettled(
+      [1, 2, 3].map(() => guard.canActivate(contextFor('seller-burst-off').context)),
+    );
+    expect(results.map((r) => r.status)).toEqual(['rejected', 'rejected', 'rejected']);
+    expect(revocationChecks(verifyIdToken)).toHaveLength(1);
   });
 
-  it('skips the revocation lookup for client tokens', async () => {
+  it('asks again once the check is a minute old', async () => {
+    jest.useFakeTimers();
+    try {
+      const { guard, verifyIdToken } = build(Role.CLIENT, false);
+      await guard.canActivate(contextFor('client-aging').context);
+      jest.advanceTimersByTime(61_000);
+      await guard.canActivate(contextFor('client-aging').context);
+      expect(revocationChecks(verifyIdToken)).toHaveLength(2);
+    } finally {
+      jest.useRealTimers();
+    }
+  });
+
+  it('does not remember a token that failed its check', async () => {
     const { guard, verifyIdToken } = build(Role.CLIENT, true);
-    const { context, request } = contextFor('client-token');
-
-    await expect(guard.canActivate(context)).resolves.toBe(true);
-    expect(request.user).toEqual({ id: 'u1', email: 'u@example.com', role: Role.CLIENT });
-    expect(verifyIdToken.mock.calls.some(([, check]) => check === true)).toBe(false);
+    for (let attempt = 0; attempt < 2; attempt++) {
+      await expect(guard.canActivate(contextFor('client-off').context)).rejects.toThrow(
+        UnauthorizedException,
+      );
+    }
+    expect(revocationChecks(verifyIdToken)).toHaveLength(2);
   });
 });
 
