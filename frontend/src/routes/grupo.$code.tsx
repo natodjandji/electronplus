@@ -2,7 +2,7 @@ import { createFileRoute, Link, notFound, useRouter } from "@tanstack/react-rout
 import { ArrowLeft, ArrowRight, Layers, RefreshCw } from "lucide-react";
 import { PublicShell } from "@/components/public-shell";
 import { ProductImage } from "@/components/product-image";
-import { PriceTag } from "@/components/price-tag";
+import { ProductPriceBreakdown } from "@/components/product-price-breakdown";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
@@ -30,7 +30,7 @@ export const Route = createFileRoute("/grupo/$code")({
       };
     }
     const title = `${loaderData.name} · Electron Plus`;
-    const description = `Consulta los productos de ${loaderData.name}, con precios al detal y al mayor.`;
+    const description = `Consulta los productos de ${loaderData.name}, con precios al detal y al mayor y desglose de IVA.`;
     return {
       meta: [
         { title },
@@ -119,13 +119,7 @@ function ProductGroupPage() {
                     {product.model && <span>SKU {product.model}</span>}
                   </div>
                   <div className="mt-6">
-                    <span className="mb-2 block text-xs text-muted-foreground">
-                      Precio al detal
-                    </span>
-                    <PriceTag product={product} size="lg" />
-                    <p className="mt-1.5 text-xs text-muted-foreground">
-                      Precios no incluyen IVA (16%).
-                    </p>
+                    <ProductPriceBreakdown product={product} />
                   </div>
                   <Card className="mt-6 p-5">
                     <div className="text-xs font-semibold uppercase tracking-widest text-muted-foreground">

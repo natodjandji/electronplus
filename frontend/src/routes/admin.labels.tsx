@@ -15,7 +15,7 @@ import { QuantityStepper } from "@/components/quantity-stepper";
 import { matchesWords } from "@/lib/product-search";
 import { apiFetch } from "@/lib/api-client";
 import { TAX_RATE } from "@/lib/electron-store";
-import { round2 } from "@/lib/money";
+import { priceWithTax } from "@/lib/money";
 import { cn } from "@/lib/utils";
 
 export const Route = createFileRoute("/admin/labels")({
@@ -155,11 +155,9 @@ function LabelCard({
   }
 
   // A one-unit price uses the same base, IVA and cent rounding as a sale.
-  const prices = [label.retailPrice, label.wholesalePrice].map((price) => {
-    const base = round2(price);
-    const tax = round2(base * TAX_RATE);
-    return { base, tax, total: round2(base + tax) };
-  });
+  const prices = [label.retailPrice, label.wholesalePrice].map((price) =>
+    priceWithTax(price, TAX_RATE),
+  );
   // Keep long amounts inside their fixed-width columns without cutting off digits.
   const longestPrice = Math.max(
     ...prices.flatMap((price) =>

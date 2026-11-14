@@ -7,3 +7,11 @@
 export function round2(n: number): number {
   return Math.round(n * 100 * (1 + Number.EPSILON)) / 100;
 }
+
+/** Unit-price display: the same rounded base and tax as a one-unit sale.
+ * Returns separate values so the catalog's pre-tax price is never mutated. */
+export function priceWithTax(price: number, taxRate: number) {
+  const base = round2(price);
+  const tax = round2(base * taxRate);
+  return { base, tax, total: round2(base + tax) };
+}

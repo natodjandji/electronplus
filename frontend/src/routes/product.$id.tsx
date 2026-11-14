@@ -7,13 +7,14 @@ import { PublicShell } from "@/components/public-shell";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { PriceTag } from "@/components/price-tag";
+import { ProductPriceBreakdown } from "@/components/product-price-breakdown";
 import { ProductImage } from "@/components/product-image";
 import { apiFetch } from "@/lib/api-client";
 import { useSecondStoreStock } from "@/lib/use-sales-carts";
 import { type ApiProduct, toProduct } from "@/lib/product-api";
 import type { Product } from "@/lib/product";
-import { useElectronStore } from "@/lib/electron-store";
+import { TAX_RATE, useElectronStore } from "@/lib/electron-store";
+import { priceWithTax } from "@/lib/money";
 import { formatBs, useBcvRate } from "@/lib/use-bcv-rate";
 import { absoluteUrl, OG_IMAGE, SITE_URL } from "@/lib/site-url";
 import { safeJsonLd } from "@/lib/text";
@@ -58,7 +59,7 @@ function buildProductJsonLd(product: Product) {
       // Must stay a real ISO 4217 code — schema.org/Google reject "REF", the
       // label the UI shows (see formatMoney in electron-store.tsx).
       priceCurrency: "USD",
-      price: product.retailPrice,
+      price: priceWithTax(product.retailPrice, TAX_RATE).total,
       itemCondition: "https://schema.org/NewCondition",
       availability:
         product.stock === 0 ? "https://schema.org/OutOfStock" : "https://schema.org/InStock",
@@ -227,7 +228,7 @@ function ProductPage() {
             </div>
           </Card>
 
-          <div>
+          <div className="min-w-0">
             {seesStock && (
               <div className="flex items-center gap-2">
                 <Badge className="bg-brand-blue text-white">
@@ -252,8 +253,7 @@ function ProductPage() {
             </div>
 
             <div className="mt-6">
-              <PriceTag product={product} size="lg" />
-              <p className="mt-1.5 text-xs text-muted-foreground">Precios no incluyen IVA (16%).</p>
+              <ProductPriceBreakdown product={product} />
               {bcv && (
                 <p className="mt-1 text-xs font-medium text-brand-blue">
                   Tasa BCV del día: {formatBs(1, bcv.rate)} por USD
