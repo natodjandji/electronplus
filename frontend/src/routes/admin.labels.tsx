@@ -6,6 +6,7 @@ import { AdminShell } from "@/components/admin-shell";
 import { ProductGroupsPanel } from "@/components/admin/product-groups-panel";
 import { PaginationBar, usePagination } from "@/components/pagination";
 import { ElectronLogo } from "@/components/electron-logo";
+import { useSuppliers } from "@/components/supplier-picker";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -13,7 +14,8 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { QuantityStepper } from "@/components/quantity-stepper";
 import { matchesWords } from "@/lib/product-search";
 import { apiFetch } from "@/lib/api-client";
-import { formatMoney } from "@/lib/electron-store";
+import { TAX_RATE } from "@/lib/electron-store";
+import { round2 } from "@/lib/money";
 import { cn } from "@/lib/utils";
 
 export const Route = createFileRoute("/admin/labels")({
@@ -38,6 +40,7 @@ interface AdminProduct {
   /** The store's SKU (Profit Plus's Modelo field). */
   model?: string | null;
   name: string;
+  supplierId?: string;
 }
 
 interface QrLabel {
@@ -71,7 +74,7 @@ const FORMAT_OPTIONS: { value: LabelFormat; label: string; hint: string }[] = [
   {
     value: "precio",
     label: "Precio",
-    hint: "QR a la ficha del producto, nombre, SKU y precios detal/mayor.",
+    hint: "QR, proveedor, nombre, SKU y precios detal/mayor con desglose de IVA y total.",
   },
 ];
 
@@ -85,6 +88,10 @@ function useAdminProducts() {
 }
 
 const PICKER_PAGE_SIZE = 15;
+const LABEL_PRICE_FORMAT = new Intl.NumberFormat("es-VE", {
+  minimumFractionDigits: 2,
+  maximumFractionDigits: 2,
+});
 
 function useQrLabels(productIds: string[]) {
   const key = [...productIds].sort().join(",");
@@ -110,7 +117,13 @@ const LABEL_PRINT_STYLE = `
   }
 `;
 
-function LabelCard({ label, format }: { label: QrLabel & { key: string }; format: LabelFormat }) {
+function LabelCard({
+  label,
+  format,
+}: {
+  label: QrLabel & { key: string; supplierName?: string };
+  format: LabelFormat;
+}) {
   if (format === "almacen") {
     return (
       <div className="qr-label flex items-center gap-2 overflow-hidden border border-dashed border-brand-blue/30 bg-white p-2 print:border-none">
@@ -141,41 +154,89 @@ function LabelCard({ label, format }: { label: QrLabel & { key: string }; format
     );
   }
 
+  // A one-unit price uses the same base, IVA and cent rounding as a sale.
+  const prices = [label.retailPrice, label.wholesalePrice].map((price) => {
+    const base = round2(price);
+    const tax = round2(base * TAX_RATE);
+    return { base, tax, total: round2(base + tax) };
+  });
+  // Keep long amounts inside their fixed-width columns without cutting off digits.
+  const longestPrice = Math.max(
+    ...prices.flatMap((price) =>
+      Object.values(price).map((value) => LABEL_PRICE_FORMAT.format(value).length),
+    ),
+  );
+  const amountFontSize = Math.min(7.5, 52 / longestPrice);
+  const totalFontSize = Math.min(9.5, (longestPrice <= 6 ? 48 : 52) / longestPrice);
+
   return (
     <div className="qr-label flex items-center gap-1.5 overflow-hidden border border-dashed border-brand-blue/30 bg-white p-1.5 print:border-none">
-      <img
-        src={label.qrImageDataUrl}
-        alt=""
-        className="h-[17mm] w-[17mm] shrink-0 object-contain"
-      />
+      <div className="flex w-[17mm] shrink-0 flex-col items-center gap-[1mm]">
+        <ElectronLogo layout="wordmark" tone="black" className="h-[2.8mm] w-auto shrink-0" />
+        <img
+          src={label.qrImageDataUrl}
+          alt=""
+          className="h-[17mm] w-[17mm] shrink-0 object-contain"
+        />
+        {label.supplierName && (
+          <div className="line-clamp-2 w-full text-center text-[7px] font-semibold leading-[1.1] text-black [overflow-wrap:anywhere]">
+            {label.supplierName}
+          </div>
+        )}
+      </div>
       <div className="flex min-w-0 flex-1 flex-col gap-[1.5px]">
-        {/* The SKU shares the logo's row, so the name gets a third line. The
-            logo's letters stand on a line 63% down the image (the swoosh
-            hangs below it): aligned to the top, the SKU stands on it too. */}
-        <div className="flex items-start justify-between gap-1">
-          <ElectronLogo layout="wordmark" tone="black" className="h-[2.8mm] w-auto shrink-0" />
-          {label.model && (
-            <span className="truncate text-[7.5px] font-semibold leading-none text-black">
-              {label.model}
-            </span>
-          )}
-        </div>
-        <div className="line-clamp-3 text-[9.5px] font-bold leading-[1.1] text-black">
+        {label.model && (
+          <span className="w-full text-[7.5px] font-semibold leading-[1.1] text-black [overflow-wrap:anywhere]">
+            {label.model}
+          </span>
+        )}
+        <div className="line-clamp-2 text-[9.5px] font-bold leading-[1.1] text-black">
           {label.name}
         </div>
-        <div className="mt-[1px] flex items-center justify-between gap-1 rounded-[1px] border border-black px-[3px] py-[1.5px] leading-none">
-          <span className="text-[6px] font-semibold uppercase tracking-wide text-black">Detal</span>
-          <span className="text-[10.5px] font-bold leading-tight text-black">
-            {formatMoney(label.retailPrice)}
-          </span>
-        </div>
-        <div className="flex items-center justify-between gap-1 rounded-[1px] border border-black px-[3px] py-[1.5px] leading-none">
-          <span className="text-[6px] font-semibold uppercase tracking-wide text-black">Mayor</span>
-          <span className="text-[10.5px] font-bold leading-tight text-black">
-            {formatMoney(label.wholesalePrice)}
-          </span>
-        </div>
-        <div className="text-[7px] font-semibold leading-tight text-black">IVA no incluido</div>
+        <table
+          aria-label="Precios referenciales de detal y mayor con desglose de IVA"
+          className="mt-[2px] w-full table-fixed border-collapse text-right text-[7.5px] leading-[1.15] text-black tabular-nums [&_td]:whitespace-nowrap [&_td]:py-[2px] [&_th]:whitespace-nowrap [&_th]:py-[2px] [&_th]:font-semibold"
+        >
+          <thead className="border-b-[0.6px] border-black text-[6.5px]">
+            <tr>
+              <th className="w-[41%] text-left">REF</th>
+              <th scope="col">DETAL</th>
+              <th scope="col">MAYOR</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <th scope="row" className="text-left">
+                Sin IVA
+              </th>
+              {prices.map((price, i) => (
+                <td key={i} style={{ fontSize: amountFontSize }}>
+                  {LABEL_PRICE_FORMAT.format(price.base)}
+                </td>
+              ))}
+            </tr>
+            <tr>
+              <th scope="row" className="text-left">
+                + IVA {TAX_RATE * 100} %
+              </th>
+              {prices.map((price, i) => (
+                <td key={i} style={{ fontSize: amountFontSize }}>
+                  {LABEL_PRICE_FORMAT.format(price.tax)}
+                </td>
+              ))}
+            </tr>
+            <tr className="border-t border-black text-[9.5px] font-extrabold">
+              <th scope="row" className="text-left text-[6.8px]">
+                TOTAL
+              </th>
+              {prices.map((price, i) => (
+                <td key={i} style={{ fontSize: totalFontSize }}>
+                  {LABEL_PRICE_FORMAT.format(price.total)}
+                </td>
+              ))}
+            </tr>
+          </tbody>
+        </table>
       </div>
     </div>
   );
@@ -206,6 +267,11 @@ function ProductLabelsPanel() {
   const [quantities, setQuantities] = useState<Record<string, number>>({});
   const [format, setFormat] = useState<LabelFormat>("precio");
   const { data: allProducts, isLoading } = useAdminProducts();
+  const { data: suppliers, isError: suppliersError, refetch: refetchSuppliers } = useSuppliers();
+  const supplierNames = useMemo(
+    () => new Map(suppliers?.map((supplier) => [supplier.id, supplier.name])),
+    [suppliers],
+  );
   // Every word, in any order: "18w panel" finds "Panel LED 18W".
   const products = useMemo(
     () => (allProducts ?? []).filter((p) => matchesWords(search, p.name, p.sku, p.model)),
@@ -218,7 +284,12 @@ function ProductLabelsPanel() {
     .map(([id]) => id);
   const totalLabels = selectedIds.reduce((s, id) => s + (quantities[id] ?? 0), 0);
 
-  const { data: labels, isFetching: labelsLoading } = useQrLabels(selectedIds);
+  const { data: labels, isFetching: qrLabelsLoading } = useQrLabels(selectedIds);
+  const suppliersRequired =
+    format === "precio" &&
+    allProducts?.some((product) => (quantities[product.id] ?? 0) > 0 && product.supplierId);
+  const supplierDataPending = suppliersRequired && !suppliers;
+  const labelsLoading = qrLabelsLoading || (supplierDataPending && !suppliersError);
 
   // Every selected product, not only those matching the current search —
   // searching for the next product mustn't drop earlier picks from the print.
@@ -226,9 +297,10 @@ function ProductLabelsPanel() {
     .filter((p) => (quantities[p.id] ?? 0) > 0)
     .flatMap((p) => {
       const label = labels?.find((l) => l.productId === p.id);
-      if (!label) return [];
+      if (!label || supplierDataPending) return [];
       return Array.from({ length: quantities[p.id] }, (_, i) => ({
         ...label,
+        supplierName: p.supplierId ? supplierNames.get(p.supplierId) : undefined,
         key: `${p.id}-${i}`,
       }));
     });
@@ -238,7 +310,7 @@ function ProductLabelsPanel() {
 
   const activeFormat = FORMAT_OPTIONS.find((f) => f.value === format)!;
   const previewTop = useRef<HTMLDivElement>(null);
-  const canPrint = totalLabels > 0 && !labelsLoading;
+  const canPrint = totalLabels > 0 && !labelsLoading && printItems.length === totalLabels;
 
   return (
     <>
@@ -365,6 +437,17 @@ function ProductLabelsPanel() {
             {totalLabels > 0 && labelsLoading && (
               <div className="flex w-full items-center justify-center gap-2 py-16 text-sm text-muted-foreground print:hidden">
                 <Loader2 className="h-4 w-4 animate-spin" /> Generando etiquetas…
+              </div>
+            )}
+            {supplierDataPending && suppliersError && (
+              <div
+                role="alert"
+                className="flex w-full flex-col items-center gap-3 py-8 text-center text-sm print:hidden"
+              >
+                <p>No se pudieron cargar los proveedores para las etiquetas de precio.</p>
+                <Button variant="outline" onClick={() => void refetchSuppliers()}>
+                  Reintentar
+                </Button>
               </div>
             )}
             {printItems.map((label) => (
