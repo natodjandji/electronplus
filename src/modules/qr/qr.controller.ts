@@ -4,7 +4,7 @@ import { Roles } from '../../common/decorators/roles.decorator';
 import { Role } from '../../common/enums/role.enum';
 import { FirebaseAuthGuard } from '../../common/guards/firebase-auth.guard';
 import { RolesGuard } from '../../common/guards/roles.guard';
-import { BulkLabelsDto } from './dto/bulk-labels.dto';
+import { BulkGroupLabelsDto, BulkLabelsDto } from './dto/bulk-labels.dto';
 import { QrService } from './qr.service';
 
 @ApiTags('qr')
@@ -18,5 +18,13 @@ export class QrController {
   @ApiBearerAuth()
   bulkLabels(@Body() dto: BulkLabelsDto) {
     return this.qrService.issueLabels(dto.productIds);
+  }
+
+  @Post('group-labels')
+  @UseGuards(FirebaseAuthGuard, RolesGuard)
+  @Roles(Role.ADMIN)
+  @ApiBearerAuth()
+  groupLabels(@Body() dto: BulkGroupLabelsDto) {
+    return this.qrService.issueGroupLabels(dto.groupIds);
   }
 }

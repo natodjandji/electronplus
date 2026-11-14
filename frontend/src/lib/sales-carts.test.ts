@@ -24,6 +24,24 @@ function product(id: string, sku: string): Product {
 }
 
 describe("parseScannedCode", () => {
+  it.each([
+    "https://electronplus.com.ve/grupo/ab34cd56",
+    "https://electronplus-ve.web.app/grupo/ab34cd56/?source=label#products",
+    " /grupo/ab34cd56 \n",
+  ])("recognizes a group label without treating it as a product: %s", (raw) => {
+    expect(parseScannedCode(raw)).toEqual({ groupId: "ab34cd56" });
+  });
+
+  it.each([
+    "https://electronplus.com.ve/grupo/",
+    "https://electronplus.com.ve/grupo/abc/product/def",
+    "/grupo/a%2Fb",
+    "/grupo/%20",
+    "/grupo/%E0%A4%A",
+  ])("ignores incomplete or malformed group links: %s", (raw) => {
+    expect(parseScannedCode(raw)).toBeNull();
+  });
+
   it("reads the product id from a label's QR link", () => {
     expect(parseScannedCode("https://electronplus.com.ve/product/qr/breaker-20a")).toEqual({
       productId: "breaker-20a",
@@ -43,6 +61,12 @@ describe("parseScannedCode", () => {
 describe("findScannedProduct", () => {
   const a = product("breaker-20a", "BRK-20");
   const catalog = { byId: new Map([[a.id, a]]), bySku: new Map([[a.sku, a]]) };
+
+  it("never automatically adds a product when a group happens to share its id", () => {
+    expect(
+      findScannedProduct(`https://electronplus.com.ve/grupo/${a.id}`, catalog),
+    ).toBeUndefined();
+  });
 
   it("finds a product by QR link or by SKU in any case", () => {
     expect(findScannedProduct("https://electronplus.com.ve/product/qr/breaker-20a", catalog)).toBe(

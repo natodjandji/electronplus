@@ -22,6 +22,7 @@ import {
 import { toast } from "sonner";
 import { CartBarcodesDialog } from "@/components/cart-barcodes-dialog";
 import { CodeScanner } from "@/components/seller/code-scanner";
+import { ProductGroupDialog } from "@/components/seller/product-group-dialog";
 import { SellerShell } from "@/components/seller/seller-shell";
 import { QuantityStepper } from "@/components/quantity-stepper";
 import {
@@ -62,6 +63,7 @@ import { catalogQuery, toProduct, type ApiProduct } from "@/lib/product-api";
 import {
   computeCartTotals,
   findScannedProduct,
+  parseScannedCode,
   formatQuoteNumber,
   unitPriceFor,
   whatsappShareHref,
@@ -167,6 +169,7 @@ function CartScreen({ cart }: { cart: SalesCart }) {
     };
   };
   const [scanning, setScanning] = useState(false);
+  const [groupId, setGroupId] = useState<string | null>(null);
   const [shareLink, setShareLink] = useState<SharedQuoteLink | null>(null);
   const [finishing, setFinishing] = useState(false);
   const [cancelling, setCancelling] = useState(false);
@@ -185,7 +188,18 @@ function CartScreen({ cart }: { cart: SalesCart }) {
     });
   };
 
+  const openGroup = (id: string) => {
+    setScanning(false);
+    setGroupId(id);
+  };
+
   const handleCode = (raw: string) => {
+    const code = parseScannedCode(raw);
+    if (code && "groupId" in code) {
+      scanFeedback(true);
+      openGroup(code.groupId);
+      return;
+    }
     const product = findScannedProduct(raw, catalog);
     if (!product) {
       scanFeedback(false);
@@ -267,7 +281,12 @@ function CartScreen({ cart }: { cart: SalesCart }) {
               <ScanLine className="h-5 w-5" /> Escanear etiqueta
             </Button>
           )}
-          <ProductSearch catalog={catalog} stockOf={stockOf} onPick={addProduct} />
+          <ProductSearch
+            catalog={catalog}
+            stockOf={stockOf}
+            onPick={addProduct}
+            onGroup={openGroup}
+          />
         </div>
       )}
 
@@ -417,6 +436,16 @@ function CartScreen({ cart }: { cart: SalesCart }) {
         }
       />
 
+      {editable && groupId && (
+        <ProductGroupDialog
+          key={groupId}
+          groupId={groupId}
+          items={cart.items}
+          onAdd={addProduct}
+          onClose={() => setGroupId(null)}
+        />
+      )}
+
       <AlertDialog open={cancelling} onOpenChange={setCancelling}>
         <AlertDialogContent>
           <AlertDialogHeader>
@@ -471,10 +500,12 @@ function ProductSearch({
   catalog,
   stockOf,
   onPick,
+  onGroup,
 }: {
   catalog: CatalogIndex;
   stockOf: (productId: string) => StoreStock;
   onPick: (product: Product) => void;
+  onGroup: (id: string) => void;
 }) {
   const [query, setQuery] = useState("");
   const searching = query.trim().length >= 2;
@@ -491,6 +522,12 @@ function ProductSearch({
   const onKeyDown = (e: KeyboardEvent<HTMLInputElement>) => {
     if (e.key !== "Enter") return;
     e.preventDefault();
+    const code = parseScannedCode(query);
+    if (code && "groupId" in code) {
+      onGroup(code.groupId);
+      setQuery("");
+      return;
+    }
     const exact = findScannedProduct(query, catalog);
     if (exact) pick(exact);
     else if (results.length === 1) pick(results[0]);

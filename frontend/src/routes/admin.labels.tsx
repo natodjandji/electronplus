@@ -3,11 +3,13 @@ import { useQuery } from "@tanstack/react-query";
 import { useMemo, useRef, useState } from "react";
 import { Loader2, Printer, QrCode, Search } from "lucide-react";
 import { AdminShell } from "@/components/admin-shell";
+import { ProductGroupsPanel } from "@/components/admin/product-groups-panel";
 import { PaginationBar, usePagination } from "@/components/pagination";
 import { ElectronLogo } from "@/components/electron-logo";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { QuantityStepper } from "@/components/quantity-stepper";
 import { matchesWords } from "@/lib/product-search";
 import { apiFetch } from "@/lib/api-client";
@@ -96,8 +98,9 @@ function useQrLabels(productIds: string[]) {
 /** 50x30mm landscape — the physical label size the Xprinter XP-D4601B is loaded with. */
 const LABEL_PRINT_STYLE = `
   @media print {
-    @page { size: 50mm 30mm landscape; margin: 0; }
+    @page { size: 50mm 30mm; margin: 0; }
     html, body { margin: 0; padding: 0; }
+    .toaster { display: none !important; }
     * { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
   }
   .qr-label { width: 50mm; height: 30mm; page-break-inside: avoid; }
@@ -179,6 +182,26 @@ function LabelCard({ label, format }: { label: QrLabel & { key: string }; format
 }
 
 function LabelsPage() {
+  return (
+    <AdminShell title="Generador e impresor de etiquetas">
+      <style>{LABEL_PRINT_STYLE}</style>
+      <Tabs defaultValue="products" className="print:contents">
+        <TabsList className="print:hidden">
+          <TabsTrigger value="products">Productos</TabsTrigger>
+          <TabsTrigger value="groups">Grupos</TabsTrigger>
+        </TabsList>
+        <TabsContent value="products" className="mt-4 print:contents">
+          <ProductLabelsPanel />
+        </TabsContent>
+        <TabsContent value="groups" className="mt-4 print:contents">
+          <ProductGroupsPanel />
+        </TabsContent>
+      </Tabs>
+    </AdminShell>
+  );
+}
+
+function ProductLabelsPanel() {
   const [search, setSearch] = useState("");
   const [quantities, setQuantities] = useState<Record<string, number>>({});
   const [format, setFormat] = useState<LabelFormat>("precio");
@@ -218,9 +241,7 @@ function LabelsPage() {
   const canPrint = totalLabels > 0 && !labelsLoading;
 
   return (
-    <AdminShell title="Generador e impresor de etiquetas">
-      <style>{LABEL_PRINT_STYLE}</style>
-
+    <>
       {/* grid-cols-1: one shrinkable column, or a long product name widens
           the page past a phone's screen. The bottom padding leaves room for
           the phone's print bar. */}
@@ -383,6 +404,6 @@ function LabelsPage() {
           </div>
         </div>
       )}
-    </AdminShell>
+    </>
   );
 }

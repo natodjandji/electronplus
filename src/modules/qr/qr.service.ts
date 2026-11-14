@@ -5,6 +5,8 @@ import bwipjs from 'bwip-js';
 import { EnvConfig } from '../../config/env.validation';
 import { Product } from '../products/entities/product.entity';
 import { ProductsService } from '../products/products.service';
+import { ProductGroup } from '../product-groups/entities/product-group.entity';
+import { ProductGroupsService } from '../product-groups/product-groups.service';
 
 export interface QrLabel {
   productId: string;
@@ -23,10 +25,22 @@ export interface QrLabel {
   barcodeImageDataUrl: string;
 }
 
+/** One shelf label for a group of look-alike products: its QR opens the
+ * page that lists them all. No prices on it: they're on the page. */
+export interface GroupQrLabel {
+  groupId: string;
+  name: string;
+  /** How many products the group holds. */
+  count: number;
+  groupUrl: string;
+  qrImageDataUrl: string;
+}
+
 @Injectable()
 export class QrService {
   constructor(
     private readonly productsService: ProductsService,
+    private readonly productGroups: ProductGroupsService,
     private readonly config: ConfigService<EnvConfig, true>,
   ) {}
 
@@ -64,6 +78,27 @@ export class QrService {
       productUrl,
       qrImageDataUrl,
     };
+  }
+
+  private async buildGroupLabel(group: ProductGroup): Promise<GroupQrLabel> {
+    const groupUrl = `${this.config.get('PUBLIC_SITE_URL', { infer: true })}/grupo/${group.id}`;
+    return {
+      groupId: group.id,
+      name: group.name,
+      count: group.productIds.length,
+      groupUrl,
+      qrImageDataUrl: await QRCode.toDataURL(groupUrl, { margin: 1, width: 256 }),
+    };
+  }
+
+  async issueGroupLabels(groupIds: string[]): Promise<GroupQrLabel[]> {
+    const groups = await this.productGroups.findByIds(groupIds);
+    const byId = new Map(groups.map((g) => [g.id, g]));
+    const missing = groupIds.filter((id) => !byId.has(id));
+    if (missing.length > 0) {
+      throw new NotFoundException(`Grupo(s) no encontrados: ${missing.join(', ')}`);
+    }
+    return Promise.all(groupIds.map((id) => this.buildGroupLabel(byId.get(id)!)));
   }
 
   /** Bulk label printing can cover an arbitrary admin-selected slice of the

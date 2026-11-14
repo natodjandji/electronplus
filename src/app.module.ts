@@ -20,6 +20,7 @@ import { FinanceModule } from './modules/finance/finance.module';
 import { ExpensesModule } from './modules/expenses/expenses.module';
 import { PurchaseOrdersModule } from './modules/purchase-orders/purchase-orders.module';
 import { ReportsModule } from './modules/reports/reports.module';
+import { ProductGroupsModule } from './modules/product-groups/product-groups.module';
 import { QrModule } from './modules/qr/qr.module';
 import { NotificationsModule } from './modules/notifications/notifications.module';
 import { ExchangeRateModule } from './modules/exchange-rate/exchange-rate.module';
@@ -58,6 +59,7 @@ import { MessagingModule } from './modules/messaging/messaging.module';
     ExpensesModule,
     PurchaseOrdersModule,
     ReportsModule,
+    ProductGroupsModule,
     QrModule,
     NotificationsModule,
     ExchangeRateModule,

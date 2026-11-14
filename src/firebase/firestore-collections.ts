@@ -26,6 +26,9 @@ export const Collections = {
   SHARED_QUOTES: 'sharedQuotes',
   /** Sequential numbers (e.g. quote numbers), one doc per sequence. */
   COUNTERS: 'counters',
+  /** Products that look alike on the shelf, under one printed QR label
+   * (see ProductGroupsService). */
+  PRODUCT_GROUPS: 'productGroups',
   /** Customer reviews left through the store's QR (see ReviewsService). */
   REVIEWS: 'reviews',
   /** WhatsApp and Instagram chats the sales assistant answers, one doc per

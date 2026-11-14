@@ -110,15 +110,24 @@ export function computeCartTotals(cart: Pick<SalesCart, "items" | "priceList" | 
 
 /**
  * What a label carries: the QR holds the product's page
- * (…/product/qr/{id}, or …/product/{id}), the barcode its SKU. Anything
+ * (…/product/qr/{id}, …/product/{id}, or …/grupo/{id}), the barcode its SKU. Anything
  * that isn't a link is taken as a SKU, which also covers typing one.
  */
-export function parseScannedCode(raw: string): { productId: string } | { sku: string } | null {
+export function parseScannedCode(
+  raw: string,
+): { productId: string } | { groupId: string } | { sku: string } | null {
   const value = raw.trim();
   if (!value) return null;
-  if (/^https?:\/\//i.test(value)) {
+  if (/^https?:\/\//i.test(value) || value.startsWith("/grupo/")) {
     try {
-      const match = new URL(value).pathname.match(/\/product\/(?:qr\/)?([^/]+)\/?$/);
+      const path = new URL(value, "https://label.invalid").pathname;
+      const group = path.match(/^\/grupo\/([^/]+)\/?$/);
+      if (group) {
+        const groupId = decodeURIComponent(group[1]);
+        return groupId.trim() && !groupId.includes("/") ? { groupId } : null;
+      }
+      if (path.startsWith("/grupo/")) return null;
+      const match = path.match(/\/product\/(?:qr\/)?([^/]+)\/?$/);
       return match ? { productId: decodeURIComponent(match[1]) } : null;
     } catch {
       return null;
@@ -132,7 +141,7 @@ export function findScannedProduct(
   catalog: { byId: Map<string, Product>; bySku: Map<string, Product> },
 ): Product | undefined {
   const code = parseScannedCode(raw);
-  if (!code) return undefined;
+  if (!code || "groupId" in code) return undefined;
   return "productId" in code
     ? catalog.byId.get(code.productId)
     : catalog.bySku.get(code.sku.toUpperCase());

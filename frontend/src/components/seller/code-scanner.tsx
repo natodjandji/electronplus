@@ -161,7 +161,7 @@ export function CodeScanner({
       </div>
       {state.kind === "scanning" && (
         <p className="px-3 py-2 text-center text-xs text-white/80">
-          Apunta al código QR o de barras de la etiqueta. Cada lectura suma una unidad.
+          Apunta al QR o código de barras. Un producto suma una unidad; un grupo abre su lista.
         </p>
       )}
     </div>

@@ -42,6 +42,7 @@ import { Route as AdminUsersRouteImport } from './routes/admin.users'
 import { Route as ClientOrdersRouteImport } from './routes/client.orders'
 import { Route as ClientProfileRouteImport } from './routes/client.profile'
 import { Route as CotizacionTokenRouteImport } from './routes/cotizacion.$token'
+import { Route as GrupoCodeRouteImport } from './routes/grupo.$code'
 import { Route as ProductIdRouteImport } from './routes/product.$id'
 import { Route as VendedorIndexRouteImport } from './routes/vendedor.index'
 import { Route as CasheaRetornoOrderIdRouteImport } from './routes/cashea.retorno.$orderId'
@@ -214,6 +215,11 @@ const CotizacionTokenRoute = CotizacionTokenRouteImport.update({
   path: '/cotizacion/$token',
   getParentRoute: () => rootRouteImport,
 } as any)
+const GrupoCodeRoute = GrupoCodeRouteImport.update({
+  id: '/grupo/$code',
+  path: '/grupo/$code',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ProductIdRoute = ProductIdRouteImport.update({
   id: '/product/$id',
   path: '/product/$id',
@@ -273,6 +279,7 @@ export interface FileRoutesByFullPath {
   '/client/orders': typeof ClientOrdersRoute
   '/client/profile': typeof ClientProfileRoute
   '/cotizacion/$token': typeof CotizacionTokenRoute
+  '/grupo/$code': typeof GrupoCodeRoute
   '/product/$id': typeof ProductIdRoute
   '/admin/': typeof AdminIndexRoute
   '/vendedor/': typeof VendedorIndexRoute
@@ -311,6 +318,7 @@ export interface FileRoutesByTo {
   '/client/orders': typeof ClientOrdersRoute
   '/client/profile': typeof ClientProfileRoute
   '/cotizacion/$token': typeof CotizacionTokenRoute
+  '/grupo/$code': typeof GrupoCodeRoute
   '/product/$id': typeof ProductIdRoute
   '/admin': typeof AdminIndexRoute
   '/vendedor': typeof VendedorIndexRoute
@@ -352,6 +360,7 @@ export interface FileRoutesById {
   '/client/orders': typeof ClientOrdersRoute
   '/client/profile': typeof ClientProfileRoute
   '/cotizacion/$token': typeof CotizacionTokenRoute
+  '/grupo/$code': typeof GrupoCodeRoute
   '/product/$id': typeof ProductIdRoute
   '/admin/': typeof AdminIndexRoute
   '/vendedor/': typeof VendedorIndexRoute
@@ -394,6 +403,7 @@ export interface FileRouteTypes {
     | '/client/orders'
     | '/client/profile'
     | '/cotizacion/$token'
+    | '/grupo/$code'
     | '/product/$id'
     | '/admin/'
     | '/vendedor/'
@@ -432,6 +442,7 @@ export interface FileRouteTypes {
     | '/client/orders'
     | '/client/profile'
     | '/cotizacion/$token'
+    | '/grupo/$code'
     | '/product/$id'
     | '/admin'
     | '/vendedor'
@@ -472,6 +483,7 @@ export interface FileRouteTypes {
     | '/client/orders'
     | '/client/profile'
     | '/cotizacion/$token'
+    | '/grupo/$code'
     | '/product/$id'
     | '/admin/'
     | '/vendedor/'
@@ -496,6 +508,7 @@ export interface RootRouteChildren {
   ResenaRoute: typeof ResenaRoute
   VendedorRoute: typeof VendedorRouteWithChildren
   CotizacionTokenRoute: typeof CotizacionTokenRoute
+  GrupoCodeRoute: typeof GrupoCodeRoute
   ProductIdRoute: typeof ProductIdRoute
   CasheaRetornoOrderIdRoute: typeof CasheaRetornoOrderIdRoute
   ProductQrIdRoute: typeof ProductQrIdRoute
@@ -734,6 +747,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof CotizacionTokenRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/grupo/$code': {
+      id: '/grupo/$code'
+      path: '/grupo/$code'
+      fullPath: '/grupo/$code'
+      preLoaderRoute: typeof GrupoCodeRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/product/$id': {
       id: '/product/$id'
       path: '/product/$id'
@@ -855,6 +875,7 @@ const rootRouteChildren: RootRouteChildren = {
   ResenaRoute: ResenaRoute,
   VendedorRoute: VendedorRouteWithChildren,
   CotizacionTokenRoute: CotizacionTokenRoute,
+  GrupoCodeRoute: GrupoCodeRoute,
   ProductIdRoute: ProductIdRoute,
   CasheaRetornoOrderIdRoute: CasheaRetornoOrderIdRoute,
   ProductQrIdRoute: ProductQrIdRoute,
