@@ -67,6 +67,8 @@ import {
 import { TaxIdField } from "@/components/tax-id-field";
 import { ProductImage } from "@/components/product-image";
 import { ProductPicker } from "@/components/product-picker";
+import { ProductPriceBreakdown } from "@/components/product-price-breakdown";
+import { cn } from "@/lib/utils";
 import { toast } from "sonner";
 
 export const Route = createFileRoute("/quotes")({
@@ -809,7 +811,7 @@ function QuoteBuilder({ id, onBack }: { id: string; onBack: () => void }) {
           </Card>
         )}
 
-        <Card className="mt-6 p-6">
+        <Card className="mt-6 p-3 sm:p-6">
           <div className="flex items-center justify-between gap-4 border-b border-border pb-4">
             <ElectronLogo layout="full" tone="color" className="h-8" />
             <div className="text-right text-xs text-muted-foreground">
@@ -856,7 +858,6 @@ function QuoteBuilder({ id, onBack }: { id: string; onBack: () => void }) {
                 label="Agregar producto"
                 products={availableProducts}
                 onPick={(p) => addLine(p.id)}
-                formatPrice={formatMoney}
                 // The store refuses a product without a retail price; it
                 // stays listed so the customer knows it exists.
                 unavailable={(p) => (p.retailPrice > 0 ? null : "Precio al detal por confirmar")}
@@ -879,71 +880,97 @@ function QuoteBuilder({ id, onBack }: { id: string; onBack: () => void }) {
             </>
           )}
 
-          {/* A phone gets one card per product: the table needed sideways
-              scrolling there to reach the quantity and total. Print keeps
-              the table. */}
-          <ul className="mt-6 divide-y divide-border border-y border-border text-sm sm:hidden print:hidden">
-            {lines.length === 0 && (
-              <li className="py-8 text-center text-muted-foreground">{emptyLinesText}</li>
-            )}
-            {lines.map((line) => (
-              <li key={line.item.id} className="py-3">
-                <div className="flex items-start gap-3">
-                  {lineProduct(line)}
-                  {isDraft && <div className="pt-1">{removeButton(line)}</div>}
-                </div>
-                <div className="mt-2 flex flex-wrap items-center justify-between gap-x-4 gap-y-2">
-                  <dl className="flex gap-3 text-xs tabular-nums">
-                    <div className="flex gap-1">
-                      <dt className="text-muted-foreground">Detal</dt>
-                      <dd className="text-brand-navy">{formatMoney(line.item.unitPrice)}</dd>
-                    </div>
-                    <div className="flex gap-1">
-                      <dt className="text-muted-foreground">Mayor</dt>
-                      <dd className="text-muted-foreground">
-                        {formatMoney(line.item.wholesalePrice)}
-                      </dd>
-                    </div>
-                  </dl>
-                  <div className="ml-auto flex items-center gap-3">
-                    {isDraft ? (
+          {isDraft && (
+            <ul className="mt-6 divide-y divide-border border-y border-border text-sm print:hidden">
+              {lines.length === 0 && (
+                <li className="py-8 text-center text-muted-foreground">{emptyLinesText}</li>
+              )}
+              {lines.map((line) => (
+                <li key={line.item.id} className="py-4">
+                  <div className="flex items-start gap-3">
+                    {lineProduct(line)}
+                    <div className="pt-1">{removeButton(line)}</div>
+                  </div>
+                  <div className="mt-3 grid gap-4 lg:grid-cols-[minmax(0,36rem)_1fr] lg:items-end">
+                    <ProductPriceBreakdown
+                      variant="quote"
+                      product={{
+                        name: line.item.name,
+                        retailPrice: line.item.unitPrice,
+                        wholesalePrice: line.item.wholesalePrice,
+                      }}
+                    />
+                    <div className="flex flex-wrap items-center justify-end gap-3">
                       <span className="flex items-center gap-2">
                         <span className="text-xs text-muted-foreground" aria-hidden>
-                          Cant.
+                          Cantidad
                         </span>
                         {qtyInput(line)}
                       </span>
-                    ) : (
-                      <span className="text-xs text-muted-foreground">Cant. {line.item.qty}</span>
-                    )}
-                    <span className="whitespace-nowrap font-semibold tabular-nums text-brand-navy">
-                      {formatMoney(line.lineTotal)}
-                    </span>
+                      <div className="text-right">
+                        <div className="text-xs text-muted-foreground">Subtotal sin IVA</div>
+                        <div className="font-semibold tabular-nums text-brand-navy">
+                          {formatMoney(line.lineTotal)}
+                        </div>
+                      </div>
+                    </div>
                   </div>
-                </div>
-              </li>
-            ))}
-          </ul>
+                </li>
+              ))}
+            </ul>
+          )}
 
-          <div className="mt-6 hidden overflow-x-auto sm:block print:block">
+          {/* A phone gets one card per product: the table needed sideways
+              scrolling there to reach the quantity and total. Print keeps
+              the table. */}
+          {!isDraft && (
+            <ul className="mt-6 divide-y divide-border border-y border-border text-sm sm:hidden print:hidden">
+              {lines.length === 0 && (
+                <li className="py-8 text-center text-muted-foreground">{emptyLinesText}</li>
+              )}
+              {lines.map((line) => (
+                <li key={line.item.id} className="py-3">
+                  <div className="flex items-start gap-3">{lineProduct(line)}</div>
+                  <div className="mt-2 flex flex-wrap items-center justify-between gap-x-4 gap-y-2">
+                    <dl className="flex gap-3 text-xs tabular-nums">
+                      <div className="flex gap-1">
+                        <dt className="text-muted-foreground">Detal</dt>
+                        <dd className="text-brand-navy">{formatMoney(line.item.unitPrice)}</dd>
+                      </div>
+                      <div className="flex gap-1">
+                        <dt className="text-muted-foreground">Mayor</dt>
+                        <dd className="text-muted-foreground">
+                          {formatMoney(line.item.wholesalePrice)}
+                        </dd>
+                      </div>
+                    </dl>
+                    <div className="ml-auto flex items-center gap-3">
+                      <span className="text-xs text-muted-foreground">Cant. {line.item.qty}</span>
+                      <span className="whitespace-nowrap font-semibold tabular-nums text-brand-navy">
+                        {formatMoney(line.lineTotal)}
+                      </span>
+                    </div>
+                  </div>
+                </li>
+              ))}
+            </ul>
+          )}
+
+          <div className={cn("mt-6 hidden overflow-x-auto print:block", !isDraft && "sm:block")}>
             <table className="w-full min-w-[640px] text-sm">
               <thead>
                 <tr className="border-b border-border text-left text-xs uppercase tracking-wider text-muted-foreground">
                   <th className="py-2">Producto</th>
-                  <th className="py-2 pl-4 text-right">Detal</th>
-                  <th className="py-2 pl-4 text-right">Mayor</th>
+                  <th className="py-2 pl-4 text-right">{isDraft ? "Detal sin IVA" : "Detal"}</th>
+                  <th className="py-2 pl-4 text-right">{isDraft ? "Mayor sin IVA" : "Mayor"}</th>
                   <th className="py-2 pl-4 text-right">Cant.</th>
-                  <th className="py-2 pl-4 text-right">Total</th>
-                  {isDraft && <th className="print:hidden" />}
+                  <th className="py-2 pl-4 text-right">{isDraft ? "Subtotal sin IVA" : "Total"}</th>
                 </tr>
               </thead>
               <tbody>
                 {lines.length === 0 && (
                   <tr>
-                    <td
-                      colSpan={isDraft ? 6 : 5}
-                      className="py-8 text-center text-muted-foreground"
-                    >
+                    <td colSpan={5} className="py-8 text-center text-muted-foreground">
                       {emptyLinesText}
                     </td>
                   </tr>
@@ -959,58 +986,63 @@ function QuoteBuilder({ id, onBack }: { id: string; onBack: () => void }) {
                     <td className="whitespace-nowrap py-3 pl-4 text-right text-muted-foreground">
                       {formatMoney(line.item.wholesalePrice)}
                     </td>
-                    <td className="py-3 pl-4 text-right">
-                      {isDraft ? (
-                        <>
-                          <div className="flex justify-end">{qtyInput(line)}</div>
-                          <span className="hidden print:inline">{line.item.qty}</span>
-                        </>
-                      ) : (
-                        line.item.qty
-                      )}
-                    </td>
+                    <td className="py-3 pl-4 text-right">{line.item.qty}</td>
                     <td className="whitespace-nowrap py-3 pl-4 text-right font-semibold text-brand-navy">
                       {formatMoney(line.lineTotal)}
                     </td>
-                    {isDraft && (
-                      <td className="py-3 pl-2 text-right print:hidden">{removeButton(line)}</td>
-                    )}
                   </tr>
                 ))}
               </tbody>
             </table>
           </div>
 
-          <div className="mt-6 flex flex-col items-end gap-2">
-            {quote.globalDiscountPct > 0 && (
-              <div className="text-sm text-muted-foreground">
-                Descuento especial:{" "}
-                <span className="font-semibold text-brand-navy">{quote.globalDiscountPct}%</span>
-              </div>
-            )}
-            {/* Wraps on a phone: the total in REF and Bs. didn't fit beside
+          {isDraft ? (
+            <div className="mt-6 ml-auto max-w-xl">
+              <ProductPriceBreakdown
+                variant="quote-total"
+                product={{
+                  name: "la cotización",
+                  retailPrice: total,
+                  wholesalePrice: wholesaleTotal,
+                }}
+              />
+              <p className="mt-3 text-xs text-muted-foreground">
+                Importes estimados según las cantidades solicitadas. El precio final se confirma al
+                aprobar la cotización. El IVA se calcula sobre el subtotal de la solicitud.
+              </p>
+            </div>
+          ) : (
+            <div className="mt-6 flex flex-col items-end gap-2">
+              {quote.globalDiscountPct > 0 && (
+                <div className="text-sm text-muted-foreground">
+                  Descuento especial:{" "}
+                  <span className="font-semibold text-brand-navy">{quote.globalDiscountPct}%</span>
+                </div>
+              )}
+              {/* Wraps on a phone: the total in REF and Bs. didn't fit beside
                 its label and pushed it off the left edge. */}
-            <div className="flex max-w-full flex-wrap items-baseline justify-end gap-x-8 gap-y-1">
-              <span className="text-lg font-bold text-brand-navy">Total detal</span>
-              <span className="flex flex-wrap items-baseline justify-end gap-2">
-                <span className="text-lg font-bold tabular-nums text-brand-navy">
-                  {formatMoney(total)}
-                </span>
-                {bcv && (
-                  <span className="inline-flex items-center rounded-full bg-brand-blue/10 px-2 py-0.5 text-xs font-semibold tabular-nums text-brand-blue">
-                    ≈ {formatBs(total, bcv.rate)}
+              <div className="flex max-w-full flex-wrap items-baseline justify-end gap-x-8 gap-y-1">
+                <span className="text-lg font-bold text-brand-navy">Total detal</span>
+                <span className="flex flex-wrap items-baseline justify-end gap-2">
+                  <span className="text-lg font-bold tabular-nums text-brand-navy">
+                    {formatMoney(total)}
                   </span>
-                )}
-              </span>
+                  {bcv && (
+                    <span className="inline-flex items-center rounded-full bg-brand-blue/10 px-2 py-0.5 text-xs font-semibold tabular-nums text-brand-blue">
+                      ≈ {formatBs(total, bcv.rate)}
+                    </span>
+                  )}
+                </span>
+              </div>
+              <div className="flex items-center gap-1.5 rounded-md bg-brand-yellow/10 px-2.5 py-1.5 text-sm text-brand-navy/70">
+                <Tag className="h-3.5 w-3.5 shrink-0 text-brand-yellow" />
+                <span className="font-bold tabular-nums text-brand-navy">
+                  {formatMoney(wholesaleTotal)}
+                </span>
+                <span>Total al mayor</span>
+              </div>
             </div>
-            <div className="flex items-center gap-1.5 rounded-md bg-brand-yellow/10 px-2.5 py-1.5 text-sm text-brand-navy/70">
-              <Tag className="h-3.5 w-3.5 shrink-0 text-brand-yellow" />
-              <span className="font-bold tabular-nums text-brand-navy">
-                {formatMoney(wholesaleTotal)}
-              </span>
-              <span>Total al mayor</span>
-            </div>
-          </div>
+          )}
         </Card>
       </section>
     </PublicShell>

@@ -22,22 +22,29 @@ function PriceAmount({ formatted }: { formatted: string }) {
   );
 }
 
-/** Public detail views share the label's base / IVA / total breakdown.
- * Prices here are per unit; the cart continues to receive the original product. */
-export function ProductPriceBreakdown({ product }: { product: Product }) {
+/** Display-only base / IVA / total breakdown, shared by product details and
+ * quote estimates. Inputs stay pre-tax; quote-total receives the full subtotals. */
+export function ProductPriceBreakdown({
+  product,
+  variant = "product",
+}: {
+  product: Pick<Product, "name" | "retailPrice" | "wholesalePrice">;
+  variant?: "product" | "quote" | "quote-total";
+}) {
   const { data: bcv } = useBcvRate();
+  const isTotal = variant === "quote-total";
   const prices = [
     {
       id: "retail",
-      label: "Precio al detal",
-      note: "Este es el precio del carrito",
+      label: isTotal ? "Total al detal" : "Precio al detal",
+      note: variant === "product" ? "Este es el precio del carrito" : "Precio de referencia",
       icon: ShoppingCart,
       ...priceWithTax(product.retailPrice, TAX_RATE),
     },
     {
       id: "wholesale",
-      label: "Precio al mayor",
-      note: "Solo con cotización aprobada",
+      label: isTotal ? "Total al mayor" : "Precio al mayor",
+      note: variant === "product" ? "Solo con cotización aprobada" : "Sujeto a aprobación",
       icon: Tag,
       ...priceWithTax(product.wholesalePrice, TAX_RATE),
     },
@@ -45,7 +52,9 @@ export function ProductPriceBreakdown({ product }: { product: Product }) {
 
   return (
     <div role="group" aria-label={`Desglose de precios de ${product.name}`}>
-      <p className="mb-2 text-xs text-muted-foreground">Precios por unidad</p>
+      <p className="mb-2 text-xs text-muted-foreground">
+        {isTotal ? "Resumen de la cotización" : "Precios por unidad"}
+      </p>
       <div className="grid grid-cols-2 gap-2 sm:gap-3">
         {prices.map((price) => {
           const wholesale = price.id === "wholesale";

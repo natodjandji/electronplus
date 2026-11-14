@@ -3,6 +3,7 @@ import { Search } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { ProductImage } from "@/components/product-image";
+import { ProductPriceBreakdown } from "@/components/product-price-breakdown";
 import { searchProducts, type SearchableProduct } from "@/lib/product-search";
 import { cn } from "@/lib/utils";
 
@@ -29,7 +30,6 @@ export function ProductPicker<T extends PickerProduct>({
   label,
   products,
   onPick,
-  formatPrice,
   unavailable,
   disabled,
   emptyHint,
@@ -39,7 +39,6 @@ export function ProductPicker<T extends PickerProduct>({
   label: string;
   products: T[];
   onPick: (product: T) => void;
-  formatPrice: (amount: number) => string;
   unavailable?: (product: T) => string | null;
   disabled?: boolean;
   /** Shown when there's nothing to pick from at all (pass it only once the
@@ -150,20 +149,18 @@ export function ProductPicker<T extends PickerProduct>({
                 onMouseEnter={() => setActive(index)}
                 onClick={() => pick(product)}
                 className={cn(
-                  "flex items-center gap-3 rounded-md px-2 py-2",
+                  "rounded-md px-2 py-3",
                   reason ? "cursor-not-allowed opacity-60" : "cursor-pointer",
                   index === active && "bg-brand-surface",
                 )}
               >
-                <ProductImage
-                  src={product.thumbnailUrl ?? product.imageUrl}
-                  alt=""
-                  className="h-12 w-12 shrink-0 rounded-md border border-border"
-                  iconClassName="h-4 w-4"
-                />
-                {/* On a phone the prices go under the name, which otherwise
-                    gets squeezed to a word per line; from sm up, beside it. */}
-                <div className="min-w-0 flex-1 sm:flex sm:items-center sm:gap-3">
+                <div className="flex items-center gap-3">
+                  <ProductImage
+                    src={product.thumbnailUrl ?? product.imageUrl}
+                    alt=""
+                    className="h-12 w-12 shrink-0 rounded-md border border-border"
+                    iconClassName="h-4 w-4"
+                  />
                   <div className="min-w-0 flex-1">
                     <div className="line-clamp-2 break-words text-sm font-medium leading-snug text-brand-navy">
                       {product.name}
@@ -175,21 +172,12 @@ export function ProductPicker<T extends PickerProduct>({
                     )}
                     {reason && <div className="text-xs text-brand-navy/70">{reason}</div>}
                   </div>
-                  <dl className="mt-0.5 flex flex-wrap gap-x-3 text-xs tabular-nums sm:mt-0 sm:grid sm:shrink-0 sm:grid-cols-[auto_auto] sm:items-baseline sm:gap-x-2 sm:text-right">
-                    <div className="flex gap-1 sm:contents">
-                      <dt className="text-muted-foreground">Detal</dt>
-                      <dd className="font-semibold text-brand-navy">
-                        {product.retailPrice > 0 ? formatPrice(product.retailPrice) : "—"}
-                      </dd>
-                    </div>
-                    <div className="flex gap-1 sm:contents">
-                      <dt className="text-muted-foreground">Mayor</dt>
-                      <dd className="text-brand-navy">
-                        {product.wholesalePrice > 0 ? formatPrice(product.wholesalePrice) : "—"}
-                      </dd>
-                    </div>
-                  </dl>
                 </div>
+                {!reason && (
+                  <div className="mt-3 max-w-xl">
+                    <ProductPriceBreakdown product={product} variant="quote" />
+                  </div>
+                )}
               </div>
             );
           })}
